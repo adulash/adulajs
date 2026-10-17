@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased
+
+* UI: `@adula/ui` now stores each component exactly as `adula:ui add` installs it, so a
+  reinstall reproduces the registry byte for byte. `node ace adula:ui add --preview`
+  offers these changes; nothing changes visually in RTL pages:
+  * `dialog`: `translate-x-[-50%]` becomes `ltr:translate-x-[-50%]` (next to the existing
+    `rtl:-translate-x-[-50%]`).
+  * `radio-group`: the indicator's `-translate-x-1/2` becomes `ltr:-translate-x-1/2`.
+  * `select`: `data-[side=left]:-translate-x-1` and `data-[side=right]:translate-x-1`
+    become `ltr:data-[side=left]:-translate-x-1` and `ltr:data-[side=right]:translate-x-1`.
+  * `switch`: the duplicated `rtl:data-[state=checked]:-translate-x-[calc(100%-2px)]` is
+    removed; `data-[state=checked]:translate-x-[calc(100%-2px)]` and
+    `data-[state=unchecked]:translate-x-0` gain the `ltr:` prefix.
+  * The `"use client"` directive is removed from `checkbox`, `command`, `dialog`,
+    `dropdown-menu`, `form`, `radio-group`, `tabs` and `tooltip`; Inertia ignores it, and
+    shadcn 4.21.0 had stripped it from only some files.
+  * In left-to-right pages, a `className="translate-x-…"` passed to `DialogContent` or
+    `SelectContent` (popper position) no longer replaces the default offset,
+    because the `ltr:` class takes precedence. Pass the matching `ltr:` class instead.
+    RTL pages were already unaffected by such overrides.
+* Source repository: `scripts/ui-registry.mjs` (`sync`, `prepare`, `register`, `build`,
+  `reference`) replaces `sync-ui-registry.mjs`, `prepare-ui-registry.mjs`,
+  `register-resource-ui.mjs` and `build-ui-registry.mjs`; `prepare` is idempotent. The
+  reference application's `inertia/components/ui` and `ui.lock.json` are no longer tracked;
+  the root `build`, `dev`, `typecheck` and `test` scripts generate them from the registry,
+  and `pnpm --filter @adula/ui test` fails when a registry file would change on install or
+  on another `prepare` run.
+
 ## 2.1.0 — authorized 2026-10-17
 
 Minor release: new defaults for the copied interface and a refreshed README. No API or
