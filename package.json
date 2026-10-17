@@ -9,9 +9,9 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "build": "pnpm --filter adula build && pnpm --filter @adula/ui build && pnpm --filter create-adula-app build && pnpm --filter @adula/reference build",
+    "build": "pnpm --filter adula build && pnpm --filter @adula/ui build && pnpm --filter create-adulajs build && pnpm --filter @adula/reference build",
     "typecheck": "pnpm --filter adula build && pnpm -r typecheck",
-    "test": "pnpm --filter adula test && pnpm --filter @adula/ui test && pnpm --filter @adula/reference test && pnpm --filter create-adula-app test",
+    "test": "pnpm --filter adula test && pnpm --filter @adula/ui test && pnpm --filter @adula/reference test && pnpm --filter create-adulajs test",
     "test:core": "pnpm --filter adula test",
     "test:consumer": "node scripts/test-consumer.mjs",
     "test:medical": "node scripts/test-medical-consumer.mjs",
@@ -23,10 +23,8 @@
     "doctor": "pnpm --filter @adula/reference exec node ace adula:doctor",
     "lint": "pnpm -r lint",
     "check:boundaries": "node scripts/check-boundaries.mjs",
-    "check:naming": "node scripts/check-naming.mjs",
     "test:release": "node --test tests/release/*.test.mjs",
     "check:release": "node scripts/check-release.mjs",
-    "release:status": "node scripts/release-status.mjs",
     "check:api": "node scripts/check-api.mjs"
   }
 }

@@ -148,9 +148,9 @@ try {
       npm,
       'exec',
       '--yes',
-      `--package=${join(work, tarballName('create-adula-app', version))}`,
+      `--package=${join(work, tarballName('create-adulajs', version))}`,
       '--',
-      'create-adula-app',
+      'create-adulajs',
       target,
       '--company',
       'شركة الاختبار',
@@ -170,7 +170,7 @@ try {
   )
   await writeFile(join(work, 'create-latest.json'), JSON.stringify({ root: target }, null, 2))
   const installationOutput = await readFile(join(work, 'create-from-zero.log'), 'utf8')
-  assert.match(installationOutput, /OK \[6\/6\] Typecheck and build the application/)
+  assert.match(installationOutput, /OK \[6\/6\] Typecheck and build the system/)
   assert.match(installationOutput, /Administrator credentials: tmp\/dev-admin.txt/)
   assert(
     !installationOutput.includes('\u001b'),

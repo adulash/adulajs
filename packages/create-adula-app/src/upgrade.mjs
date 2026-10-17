@@ -5,10 +5,10 @@ import { LOCAL_PACKAGES, packageArchive } from './project.mjs'
 
 /**
  * First step of the 2.0 upgrade. Moves a 1.x application from the packages it used
- * before the AdulaJS rename to `adula` and `create-adula-app` without booting
+ * before the AdulaJS rename to `adula` and `create-adulajs` without booting
  * AdonisJS: once the old package is gone, `node ace` cannot start until imports
  * name the new one. This file is the single allow-listed place for the retired
- * name in the creator (`pnpm check:naming`).
+ * name in the creator.
  */
 const RETIRED = 'kit'
 const LEGACY_CORE = `@adula/${RETIRED}`
@@ -44,7 +44,7 @@ const escape = (text) => text.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')
 export function rewriteSource(text) {
   let next = text
     .replace(new RegExp(`(['"\`])${escape(LEGACY_CORE)}(?=['"\`/])`, 'g'), '$1adula')
-    .replace(new RegExp(`(['"\`])${escape(LEGACY_CREATOR)}(?=['"\`])`, 'g'), '$1create-adula-app')
+    .replace(new RegExp(`(['"\`])${escape(LEGACY_CREATOR)}(?=['"\`])`, 'g'), '$1create-adulajs')
     .replace(new RegExp(`#start/${RETIRED}_routes\\b`, 'g'), '#start/adula_routes')
     .replaceAll(LEGACY_LINT_RULE, 'adula/no-core-patching')
   for (const [from, to] of RENAMED_IDENTIFIERS)
@@ -52,7 +52,7 @@ export function rewriteSource(text) {
   return next
 }
 
-/** Moves the 1.x dependencies to `adula`, `@adula/ui` and `create-adula-app` at `version`. */
+/** Moves the 1.x dependencies to `adula`, `@adula/ui` and `create-adulajs` at `version`. */
 export function rewriteManifest(pkg, version, local = {}) {
   const next = structuredClone(pkg)
   for (const kind of ['dependencies', 'devDependencies']) {
@@ -65,7 +65,7 @@ export function rewriteManifest(pkg, version, local = {}) {
     if (deps['@adula/ui']) deps['@adula/ui'] = local['@adula/ui'] ?? `^${version}`
     if (deps[LEGACY_CREATOR]) {
       delete deps[LEGACY_CREATOR]
-      deps['create-adula-app'] = `^${version}`
+      deps['create-adulajs'] = `^${version}`
     }
     next[kind] = Object.fromEntries(Object.entries(deps).sort(([a], [b]) => a.localeCompare(b)))
   }

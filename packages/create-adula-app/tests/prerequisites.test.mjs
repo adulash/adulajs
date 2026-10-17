@@ -74,7 +74,7 @@ test('explicit consent installs the exact Docker package then verifies the engin
   assert.equal(checks, 2)
 })
 
-test('restart, installer failure and unready engine stop before creating the application', async () => {
+test('restart, installer failure and unready engine stop before creating the system', async () => {
   for (const scenario of ['restart', 'failure', 'unready']) {
     const answers = ['y', scenario === 'restart' ? 'restart' : '']
     await assert.rejects(
@@ -86,7 +86,7 @@ test('restart, installer failure and unready engine stop before creating the app
           if (scenario === 'failure') throw new Error('failed')
         },
       }),
-      /[Nn]o application files or databases have been created/
+      /[Nn]o system files or databases have been created/
     )
   }
 })

@@ -1,14 +1,14 @@
 {
-  "name": "create-adula-app",
+  "name": "create-adulajs",
   "version": "2.1.0",
-  "description": "Create a complete AdonisJS business application with adula",
+  "description": "Create a complete AdonisJS business system with AdulaJS: npm create adulajs my-system",
   "type": "module",
   "license": "MIT",
   "engines": {
     "node": ">=24.0.0"
   },
   "bin": {
-    "create-adula-app": "build/cli.mjs"
+    "create-adulajs": "build/cli.mjs"
   },
   "files": [
     "build"

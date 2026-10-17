@@ -4,7 +4,7 @@ import { syncAgentAssets } from '../src/commands/agent_assets.js'
 import { renameLegacyFiles, renameRecordedMigrations } from '../src/upgrade/rename.js'
 
 /**
- * Second step of the 2.0 upgrade, after `npx create-adula-app@latest upgrade` has
+ * Second step of the 2.0 upgrade, after `npx create-adulajs@latest upgrade` has
  * moved the application to the `adula` package. Renames the migration history,
  * the gap log and the managed AGENTS.md block that 1.x wrote, then runs the
  * pending migrations. Safe to repeat.

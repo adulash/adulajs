@@ -4,7 +4,7 @@ Resource framework for AdonisJS 7 and PostgreSQL 17, version 2.1.0 (AdulaJS sinc
 
 ## Install into a consumer
 
-Follow the canonical [installation guide](https://github.com/adulash/adulajs/blob/main/docs/installation.md). For a new application, the separate `create-adula-app` initializer installs the AdonisJS host and application screens from an empty directory. For an existing official AdonisJS 7 React/PostgreSQL application, install the core/UI archives and documented UI prerequisites, configure AdulaJS, migrate and create the intended administrator before `node ace adula:install`. The Ace command completes initialization inside that host. No educational customers/orders/tasks modules are installed by either path.
+Follow the canonical [installation guide](https://github.com/adulash/adulajs/blob/main/docs/installation.md). For a new system, the separate `create-adulajs` initializer (`npm create adulajs my-system`) installs the AdonisJS host and system screens from an empty directory. For an existing official AdonisJS 7 React/PostgreSQL application, install the core/UI archives and documented UI prerequisites, configure AdulaJS, migrate and create the intended administrator before `node ace adula:install`. The Ace command completes initialization inside that host. No educational customers/orders/tasks modules are installed by either path.
 
 The managed rules require the bundled `.agents/skills/adula-frontend-design/SKILL.md` for UI work. It is tailored to business workflows, asks for missing company identity at project kickoff, and uses project-owned shadcn components with modal forms and record details by default. User-requested presentation exceptions remain supported. Company identity belongs in `docs/design-identity.md`, which installation never overwrites. Doctor verifies the design skill along with the idea-review skill.
 
@@ -38,4 +38,4 @@ XState workflows) are implemented with PostgreSQL tests; see the
   human security review is deferred to 2.0 (ADR 027).
 - XLSX import is not available (GAP-006); CSV is.
 
-See [implementation status](https://github.com/adulash/adulajs/blob/main/docs/implementation-status.md), [gaps](https://github.com/adulash/adulajs/blob/main/GAPS.md) and [1.0 acceptance](https://github.com/adulash/adulajs/blob/main/docs/acceptance-1.0.md).
+See [implementation status](https://github.com/adulash/adulajs/blob/main/docs/implementation-status.md) and [gaps](https://github.com/adulash/adulajs/blob/main/GAPS.md).

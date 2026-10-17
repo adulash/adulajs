@@ -174,4 +174,4 @@ files['.gitignore'] =
 files['.prettierignore'] = '.adonisjs\nnode_modules\nbuild\n.adula-packages\n'
 await writeFile(join(output, 'template.json'), JSON.stringify({ version: own.version, files }))
 await cp(join(root, 'packages/adula/LICENSE.md'), join(here, 'LICENSE'))
-console.log(`Built create-app ${own.version} with ${Object.keys(files).length} application files`)
+console.log(`Built create-adulajs ${own.version} with ${Object.keys(files).length} application files`)

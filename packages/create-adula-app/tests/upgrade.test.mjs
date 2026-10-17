@@ -51,7 +51,7 @@ test('manifest moves the core and creator to their 2.0 names', () => {
     '2.0.0'
   )
   assert.deepEqual(pkg.dependencies, { '@adula/ui': '^2.0.0', 'adula': '^2.0.0' })
-  assert.deepEqual(pkg.devDependencies, { 'create-adula-app': '^2.0.0' })
+  assert.deepEqual(pkg.devDependencies, { 'create-adulajs': '^2.0.0' })
 })
 
 test('upgrade rewrites a 1.x application and renames its routes preload', async () => {

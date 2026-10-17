@@ -1,10 +1,10 @@
 <div align="center">
 
-<img src="docs/assets/adulajs-hero.svg" alt="AdulaJS: the TypeScript framework for business applications. One resource declaration becomes a database table, permissions, screens, a REST API and tests." width="100%">
+<img src="docs/assets/adulajs-hero.svg" alt="AdulaJS: the TypeScript framework for business systems. One resource declaration becomes a database table, permissions, screens, a REST API and tests." width="100%">
 
 # AdulaJS
 
-**The TypeScript framework for business applications, from one command to production.**
+**The TypeScript framework for business systems, from one command to production.**
 
 Declare a resource once and get its table, permissions, screens, API and tests.
 Arabic-first, permission-safe and built to be extended by AI coding agents.
@@ -17,7 +17,7 @@ Arabic-first, permission-safe and built to be extended by AI coding agents.
 ![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-336791?logo=postgresql&logoColor=white)
 
 ```sh
-npx create-adula-app@latest my-app
+npm create adulajs my-system
 ```
 
 [Quick start](#quick-start) · [Features](#whats-in-the-box) · [AI agents](#built-for-ai-coding-agents) · [Built with](#built-with) · [Docs](docs/README.md)
@@ -25,8 +25,8 @@ npx create-adula-app@latest my-app
 </div>
 
 > [!NOTE]
-> **AdulaJS 2.0** is the 1.x framework under its new name ([ADR 039](docs/decisions/039-rename-to-adulajs.md)).
-> Applications on 1.x upgrade with `npx create-adula-app@latest upgrade`; see the [2.0 upgrade guide](docs/upgrade-2.0.md).
+> AdulaJS continues the framework previously published under its 1.x name ([ADR 039](docs/decisions/039-rename-to-adulajs.md)).
+> Systems on 1.x upgrade with `npx create-adulajs@latest upgrade`; see the [upgrade guide](docs/upgrade-2.0.md).
 
 ---
 
@@ -34,7 +34,7 @@ npx create-adula-app@latest my-app
 
 Most business systems repeat the same work: tables, lists, forms, roles, approvals,
 notifications, imports, printing, audit history and backups. AdulaJS is a TypeScript
-framework built for business applications: it turns that work into declarations and
+framework built for business systems: it turns that work into declarations and
 services, so your team (or your agent) writes only what is specific to the business.
 
 - **One declaration, a whole module.** `defineResource` describes fields, forms, lists,
@@ -47,7 +47,7 @@ services, so your team (or your agent) writes only what is specific to the busin
 - **An Arabic-first interface you own.** RTL shadcn/ui components are copied into your
   project, not hidden inside a package. Upgrades never overwrite a component you changed,
   and `adula:doctor` tells you what to review.
-- **Ready for AI agents.** Every application ships managed agent rules, a capability
+- **Ready for AI agents.** Every system ships managed agent rules, a capability
   catalog, design and review skills and MCP tools, so coding agents extend it inside its
   boundaries instead of around them.
 - **Operations included.** Offsite backups with restore verification, attachments on disk
@@ -56,21 +56,24 @@ services, so your team (or your agent) writes only what is specific to the busin
 ## Quick start
 
 ```sh
-npx create-adula-app@latest my-app
+npm create adulajs my-system
 ```
+
+The same creator runs with `npx create-adulajs@latest my-system`.
 
 The creator starts from an empty folder and does the rest. It installs AdulaJS and
 its stack, starts PostgreSQL 17 and Redis 7 in Docker (or uses your existing services),
 creates the development and test databases, runs migrations, creates the administrator,
-asks for your company identity and builds the application.
+asks for your company identity and builds the system. Each business area you add
+inside the system, such as sales or HR, is an application.
 
 ```sh
-cd my-app
+cd my-system
 npm run dev
 ```
 
 Requirements: Node.js 24+, npm, and Docker with Compose for the default mode. The
-terminal speaks English; the application speaks Arabic. The
+terminal speaks English; the system speaks Arabic. The
 [installation guide](docs/installation.md) covers existing services and offline archives.
 
 ## Define a resource, get a working module
@@ -141,7 +144,7 @@ AdulaJS assumes part of your code will be written by agents, and gives them rail
   registry already provide, so an agent reuses a service instead of re-implementing it.
 - **Skills.** Idea review turns a request into existing resources and extension points
   before any code is written. A business frontend-design skill and five on-demand
-  reviewers (module, security, schema, UI and performance) ship with every application.
+  reviewers (module, security, schema, UI and performance) ship with every system.
 - **Gaps, not workarounds.** When something is missing, the agent records it in `GAPS.md`,
   and `node ace adula:gaps report` prepares a prefilled issue. Patching installed packages
   is blocked by lint and reported by doctor.
@@ -165,15 +168,15 @@ AdulaJS composes proven open-source tools instead of reinventing them:
 |---|---|
 | [`adula`](packages/adula) | The core: resource engine, CASL/SQL authorization, organizational scope, services, additive migrations and Ace commands |
 | [`@adula/ui`](packages/ui) | Arabic RTL shadcn/ui registry: 25 primitives and nine resource components copied into your project |
-| [`create-adula-app`](packages/create-adula-app) | Creates a complete application in one command, and upgrades 1.x applications |
+| [`create-adulajs`](packages/create-adula-app) | Creates a complete system in one command (`npm create adulajs`), and upgrades 1.x systems |
 
 The backend updates as a package. Copied UI, pages, domain modules and branding belong to
-your application.
+your system.
 
 ## Status
 
-The 1.0 scope was accepted by the owner after staged acceptance with dated evidence
-([release readiness](docs/release-readiness.json)). Every change runs, in CI, a genuine
+The 1.0 scope was accepted by the owner after staged acceptance; published versions are
+recorded in [releases](docs/releases.md). Every change runs, in CI, a genuine
 upgrade from the previously published version, an independent consumer built from the
 official AdonisJS starter, and the creator from an empty directory through a real
 administrator login in a browser.
@@ -187,14 +190,14 @@ only for now.
 - [Documentation map](docs/README.md)
 - [Installation](docs/installation.md) and [development](docs/development.md)
 - [Business features](docs/business-features.md)
-- [Upgrading a 1.x application to 2.0](docs/upgrade-2.0.md)
+- [Upgrading a 1.x system](docs/upgrade-2.0.md)
 - [Architecture decisions](docs/decisions/)
 - [Changelog](CHANGELOG.md)
 
 ## Contributing
 
 Issues use two forms: a **gap** (a capability AdulaJS lacks) or a **bug**. Reproduce the
-problem on a new application from `npx create-adula-app`, not on your own project, and
+problem on a new system from `npm create adulajs`, not on your own project, and
 describe the framework rather than your business. Development setup, tests and the
 release process are in [docs/development.md](docs/development.md) and
 [docs/releasing.md](docs/releasing.md).

@@ -37,7 +37,7 @@ export async function prepareDocker({
           ])
         } catch {
           throw new Error(
-            'Docker Desktop installation did not complete. Review the installer output. If Windows requests a restart, restart and rerun the same npx create-adula-app command. If winget is unavailable, install Docker Desktop from https://docs.docker.com/desktop/setup/install/windows-install/ . No application files or databases have been created.'
+            'Docker Desktop installation did not complete. Review the installer output. If Windows requests a restart, restart and rerun the same npx create-adulajs command. If winget is unavailable, install Docker Desktop from https://docs.docker.com/desktop/setup/install/windows-install/ . No system files or databases have been created.'
           )
         }
         const answer = await question(
@@ -45,13 +45,13 @@ export async function prepareDocker({
         )
         if (answer.trim().toLowerCase() === 'restart')
           throw new Error(
-            'Restart Windows, start Docker Desktop, then rerun the same npx create-adula-app command. No application files or databases have been created.'
+            'Restart Windows, start Docker Desktop, then rerun the same npx create-adulajs command. No system files or databases have been created.'
           )
         try {
           return { docker: await detect() }
         } catch {
           throw new Error(
-            'Docker is not ready yet. Complete Docker Desktop setup, restart Windows if requested, then rerun the same npx create-adula-app command. No application files or databases have been created.'
+            'Docker is not ready yet. Complete Docker Desktop setup, restart Windows if requested, then rerun the same npx create-adulajs command. No system files or databases have been created.'
           )
         }
       }

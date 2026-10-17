@@ -1,12 +1,17 @@
-# create-adula-app
+# create-adulajs
 
-Creates a complete, project-owned AdonisJS 7 application with adula, React/Inertia,
+Creates a complete, project-owned AdonisJS 7 business system with AdulaJS, React/Inertia,
 shadcn/ui, authentication, administration and the managed business-design skill.
-Version 2.0.0. To move a 1.x application to AdulaJS 2, run `npx create-adula-app@latest upgrade` in it; see the [upgrade guide](https://github.com/adulash/adulajs/blob/main/docs/upgrade-2.0.md).
+The business areas you then add inside the system (sales, HR and so on) are its applications.
+The creator always installs the matching `adula` and `@adula/ui` version. To move a 1.x
+system to the current AdulaJS, run `npx create-adulajs@latest upgrade` in it; see the
+[upgrade guide](https://github.com/adulash/adulajs/blob/main/docs/upgrade-2.0.md).
 
 ```sh
-npx create-adula-app@latest my-app
+npm create adulajs my-system
 ```
+
+The same creator also runs as `npx create-adulajs@latest my-system`.
 
 Requires Node.js 24+ and npm. The default provisions PostgreSQL 17 and Redis 7
 through an existing Docker installation with Compose. pnpm is bootstrapped through
@@ -20,7 +25,7 @@ for company details or creating project files.
 Setup first checks `docker version` and `docker compose version` directly.
 Only when either fails on Windows does it try Docker in the default WSL
 distribution. When WSL Docker is selected, Node.js
-and application files remain on Windows; Compose runs through `wsl.exe --exec`.
+and system files remain on Windows; Compose runs through `wsl.exe --exec`.
 The generated README records the matching service start/stop command.
 
 The selected backend is saved in `scripts/docker-backend.json`. Installation,
@@ -36,7 +41,7 @@ If Docker is absent, the interactive wizard asks for explicit permission before
 installing Docker Desktop using `winget`. Pressing Enter or answering no never
 installs software: you can supply an existing-services profile or cancel. Windows
 may request administrator approval or a restart; complete Docker Desktop setup
-and rerun the same command if needed. No application files/databases are created
+and rerun the same command if needed. No system files/databases are created
 before the service preflight succeeds. `--yes` never authorizes host installation.
 On other operating systems, setup provides installation guidance and the existing
 services alternative. Failed engine or Compose probes allow the Windows fallback.
@@ -58,13 +63,13 @@ AdulaJS theme. It can override these `:root` tokens: `--background`, `--foregrou
 (a font list placed before `sans-serif`; the project loads the font itself).
 
 Terminal prompts and errors use English so they remain readable in terminals
-without Arabic shaping. The application stays Arabic. Installation shows six real
+without Arabic shaping. The system stays Arabic. Installation shows six real
 stages, with color and a spinner in interactive terminals. `NO_COLOR=1`, redirected
 output and dumb terminals use plain progress lines. Detailed child-command output
 is retained privately in ignored `tmp/install.log`; failures identify that log.
 
 ```sh
-npx create-adula-app@latest my-app --company "My company" --admin-email admin@example.com --identity ./brand.json --yes
+npx create-adulajs@latest my-system --company "My company" --admin-email admin@example.com --identity ./brand.json --yes
 ```
 
 For existing services, add `--services existing --connection ./local.json`:
@@ -91,10 +96,10 @@ digits and underscores, at most 50 characters); an existing name is still refuse
 Values containing dotenv interpolation or quote characters are stored in private
 `tmp/env` files and loaded through AdonisJS's `file:` identifier without alteration.
 
-After creation: `cd my-app` and `npm run dev`. In development this starts the HTTP
+After creation: `cd my-system` and `npm run dev`. In development this starts the HTTP
 server and the event worker (`node ace adula:worker`, restarted when application code
 changes), so listeners, workflows and notification e-mail run. In production the worker
-and the scheduler are separate runtime processes documented in the application README. SMTP, OAuth, S3, production
+and the scheduler are separate runtime processes documented in the system README. SMTP, OAuth, S3, production
 hosting and off-site backups need real configuration; no external accounts are
 created. Node.js and Docker themselves are host prerequisites.
 

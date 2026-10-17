@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Report only defects in AdulaJS's packages. Reproduce them on a new application
-        from `npx create-adula-app` or on `apps/reference`, and leave out project names,
+        from `npx create-adulajs` or on `apps/reference`, and leave out project names,
         records and credentials. A report outside AdulaJS's scope is closed as not planned.
   - type: input
     id: package

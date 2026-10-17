@@ -68,7 +68,7 @@ export async function packageManagerBin() {
       directory = parent
     }
   }
-  throw new Error('Cannot find the bundled pnpm. Run npx create-adula-app again.')
+  throw new Error('Cannot find the bundled pnpm. Run npx create-adulajs again.')
 }
 
 export async function npmEntry() {
@@ -86,7 +86,7 @@ export async function npmEntry() {
     }
     return candidate
   }
-  throw new Error('Cannot find npm. Run npx create-adula-app with Node.js 24 or later.')
+  throw new Error('Cannot find npm. Run npx create-adulajs with Node.js 24 or later.')
 }
 
 export async function freePort() {

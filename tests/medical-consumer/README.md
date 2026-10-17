@@ -7,7 +7,7 @@ navigation item is added to the reference application's normal operation.
 After the full build and release/consumer checks, build/pack the creator and run:
 
 ```sh
-pnpm --filter create-adula-app pack --pack-destination ../../.work
+pnpm --filter create-adulajs pack --pack-destination ../../.work
 pnpm check:release --artifacts=.work
 pnpm test:medical
 ```

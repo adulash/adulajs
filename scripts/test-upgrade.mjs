@@ -240,7 +240,7 @@ try {
   if (renamed) {
     // Step 1 of the documented 2.0 upgrade: the creator rewrites the application
     // without booting AdonisJS, here from the local archives instead of the registry.
-    await runPnpm('creator-build', ['--filter', 'create-adula-app', 'build'])
+    await runPnpm('creator-build', ['--filter', 'create-adulajs', 'build'])
     const rewrite = await step(
       'creator-upgrade',
       process.execPath,

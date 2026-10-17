@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Report only what AdulaJS itself should offer. Reproduce it on a new application
-        from `npx create-adula-app`, not on your project, and leave out project names,
+        from `npx create-adulajs`, not on your project, and leave out project names,
         records and credentials. `node ace adula:gaps report` opens this form prefilled
         from your GAPS.md. A gap outside AdulaJS's scope is closed as not planned.
   - type: input

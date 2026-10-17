@@ -34,9 +34,10 @@ import {
   childEnvironment,
 } from './system.mjs'
 
-export const help = `Create a new business application with AdonisJS and AdulaJS
+export const help = `Create a new business system with AdonisJS and AdulaJS
 
-  npx create-adula-app@latest my-app
+  npm create adulajs my-system
+  npx create-adulajs@latest my-system
 
   --company "Company name"     Company display name (Arabic supported)
   --admin-email email          Administrator email
@@ -53,9 +54,9 @@ databases, administrator and agent skills. External SMTP, OAuth and S3 require
 your configuration. Credentials are saved privately in tmp/dev-admin.txt.
 Set NO_COLOR=1 for plain progress output.
 
-Upgrade a 1.x application in place to AdulaJS 2:
+Upgrade a 1.x system in place to AdulaJS 2:
 
-  npx create-adula-app@latest upgrade [directory]
+  npx create-adulajs@latest upgrade [directory]
 
   --force                     Rewrite even when git reports uncommitted changes
   --no-install                Rewrite files only; install dependencies yourself
@@ -94,7 +95,7 @@ function validateConnection(profile) {
 }
 
 async function upgrade(positionals, values) {
-  if (positionals.length > 1) throw new Error('Specify one application directory.')
+  if (positionals.length > 1) throw new Error('Specify one system directory.')
   const root = resolve(positionals[0] ?? '.')
   const template = JSON.parse(await readFile(new URL('./template.json', import.meta.url), 'utf8'))
   const changed = await upgradeApplication(root, {
@@ -147,7 +148,7 @@ export async function main(argv = process.argv.slice(2)) {
     return
   }
   if (Number(process.versions.node.split('.')[0]) < 24)
-    throw new Error('Creating an application requires Node.js 24 or later.')
+    throw new Error('Creating a system requires Node.js 24 or later.')
   if (positionals[0] === 'upgrade') return upgrade(positionals.slice(1), values)
   if (values.force || values['no-install'])
     throw new Error('--force and --no-install apply to upgrade only.')
@@ -205,7 +206,7 @@ export async function main(argv = process.argv.slice(2)) {
           console.log(`Docker is ready (${docker.display}). Continuing setup.`)
         }
       }
-      company ||= await prompt.question('Company name as it should appear in the application: ')
+      company ||= await prompt.question('Company name as it should appear in the system: ')
       email ||= await prompt.question('Administrator email: ')
       identityFile ||= await prompt.question(
         'Company identity JSON (logo, colors, fonts, guidelines; Enter to record as pending): '
@@ -299,7 +300,7 @@ export async function main(argv = process.argv.slice(2)) {
     if (values.packages)
       for (const name of LOCAL_PACKAGES)
         await readFile(resolve(values.packages, packageArchive(name, template.version)))
-    progress.start('Create AdonisJS application and company identity')
+    progress.start('Create AdonisJS system and company identity')
     await renderProject(target, template, {
       name,
       identity,
@@ -362,7 +363,7 @@ export async function main(argv = process.argv.slice(2)) {
     await writeNew(
       target,
       'README.md',
-      `# ${name}\n\nCreated with create-adula-app ${template.version}. Node.js 24+ is required.\n\n## Local development\n\n\`\`\`sh\nnpm run dev\n\`\`\`\n\nOpen ${appEnv.APP_URL}. Administrator credentials are in ignored tmp/dev-admin.txt. After signing in, open /admin/setup and follow docs/initial-setup.md to review identity and verify service readiness.\nnpm run dev also runs the event worker (node ace adula:worker), which publishes the outbox to listeners and restarts when application code changes. In production run the worker and exactly one scheduler (node ace scheduler:run) as separate processes; node ace adula:outbox publishes one batch by hand. adula:doctor warns when outbox events wait longer than a minute.\n\n${values.services === 'docker' ? `PostgreSQL 17 and Redis 7 run in Docker. Start them with ${docker.display} compose up -d --wait; stop with ${docker.display} compose stop. The selected backend is saved in scripts/docker-backend.json. npm run dev, npm test and npm run ace -- migration:run start services through that same backend. npm run services attaches to services; npm run services:stop stops them. Only the WSL fallback keeps a WSL session open. Named volumes retain data; never use down -v unless deliberately deleting the local databases.` : 'PostgreSQL 17 and Redis use your existing services. Installation created fresh databases; keep .env and .env.test private.'}\n\n## Verification\n\nRun npm run typecheck, npm test, npm run lint and npm run build. Tests use the separate *_test database and a distinct Redis namespace.\n\n## Company identity\n\nRead docs/design-identity.md and the managed design skill before changing UI. Source files and shadcn components belong to this application.\n\n## External services and production\n\nLocal file storage is enabled. SMTP (including a local relay), OAuth provider credentials, S3, off-site backups, and production deployment need actual destination configuration. The creator does not enable unconfigured external services. Production requires backup variables validated in start/env.ts.\n\n## Incomplete installation\n\nReview the reported failing step; files and databases are retained. After resolving it, use npm exec --yes --package=pnpm@11.19.0 -- pnpm install, node ace migration:run, and node ace adula:setup. Setup reads tmp/dev-admin.txt; it refuses to promote an existing account with a different password. Then run node ace adula:doctor and npm run build. Never recreate over a nonempty directory.\n`
+      `# ${name}\n\nCreated with create-adulajs ${template.version}. Node.js 24+ is required.\n\n## Local development\n\n\`\`\`sh\nnpm run dev\n\`\`\`\n\nOpen ${appEnv.APP_URL}. Administrator credentials are in ignored tmp/dev-admin.txt. After signing in, open /admin/setup and follow docs/initial-setup.md to review identity and verify service readiness.\nnpm run dev also runs the event worker (node ace adula:worker), which publishes the outbox to listeners and restarts when application code changes. In production run the worker and exactly one scheduler (node ace scheduler:run) as separate processes; node ace adula:outbox publishes one batch by hand. adula:doctor warns when outbox events wait longer than a minute.\n\n${values.services === 'docker' ? `PostgreSQL 17 and Redis 7 run in Docker. Start them with ${docker.display} compose up -d --wait; stop with ${docker.display} compose stop. The selected backend is saved in scripts/docker-backend.json. npm run dev, npm test and npm run ace -- migration:run start services through that same backend. npm run services attaches to services; npm run services:stop stops them. Only the WSL fallback keeps a WSL session open. Named volumes retain data; never use down -v unless deliberately deleting the local databases.` : 'PostgreSQL 17 and Redis use your existing services. Installation created fresh databases; keep .env and .env.test private.'}\n\n## Verification\n\nRun npm run typecheck, npm test, npm run lint and npm run build. Tests use the separate *_test database and a distinct Redis namespace.\n\n## Company identity\n\nRead docs/design-identity.md and the managed design skill before changing UI. Source files and shadcn components belong to this system.\n\n## External services and production\n\nLocal file storage is enabled. SMTP (including a local relay), OAuth provider credentials, S3, off-site backups, and production deployment need actual destination configuration. The creator does not enable unconfigured external services. Production requires backup variables validated in start/env.ts.\n\n## Incomplete installation\n\nReview the reported failing step; files and databases are retained. After resolving it, use npm exec --yes --package=pnpm@11.19.0 -- pnpm install, node ace migration:run, and node ace adula:setup. Setup reads tmp/dev-admin.txt; it refuses to promote an existing account with a different password. Then run node ace adula:doctor and npm run build. Never recreate over a nonempty directory.\n`
     )
     await writeNew(target, 'tmp/install.log', '', true)
     const options = {
@@ -408,7 +409,7 @@ export async function main(argv = process.argv.slice(2)) {
       options
     )
     await run(process.execPath, ['ace', 'adula:doctor'], options)
-    progress.start('Typecheck and build the application')
+    progress.start('Typecheck and build the system')
     await run(manager[0], [...manager.slice(1), 'run', 'typecheck'], options)
     await run(manager[0], [...manager.slice(1), 'run', 'build'], options)
     await writeNew(
@@ -428,7 +429,7 @@ export async function main(argv = process.argv.slice(2)) {
     )
     progress.finish()
     console.log(
-      `\nYour application is ready: ${target}\nAdministrator credentials: tmp/dev-admin.txt\nInstallation log: tmp/install.log\nNext: cd "${target}"\n      npm run dev\nOpen: ${appEnv.APP_URL}\n`
+      `\nYour system is ready: ${target}\nAdministrator credentials: tmp/dev-admin.txt\nInstallation log: tmp/install.log\nNext: cd "${target}"\n      npm run dev\nOpen: ${appEnv.APP_URL}\n`
     )
   } catch (error) {
     progress.finish(true)
