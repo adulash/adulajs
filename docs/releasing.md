@@ -12,7 +12,7 @@
 | Workflow | `release.yml` |
 | GitHub environment | `npm`; restricted to protected branches; `main` requires PR and CI |
 | Authentication | npm trusted publishing, GitHub-hosted runner, OIDC |
-| Current version / target | 2.1.0 authorized for latest on 2026-10-17 ([evidence](evidence/release-2-1-0-2026-10-17.json)); 2.0.0 published on latest on 2026-10-15 (ADR 039; [evidence](evidence/publication-2-0-0-2026-10-15.json)); 1.2.0 published on latest on 2026-10-01 (ADR 038; [evidence](evidence/publication-1-2-0-2026-10-01.json)); 1.0.0 published 2026-09-26 (ADR 028) |
+| Current version / target | 2.1.0 published on latest on 2026-10-17 ([evidence](evidence/publication-2-1-0-2026-10-17.json)); 2.0.0 published on latest on 2026-10-15 (ADR 039; [evidence](evidence/publication-2-0-0-2026-10-15.json)); 1.2.0 published on latest on 2026-10-01 (ADR 038; [evidence](evidence/publication-1-2-0-2026-10-01.json)); 1.0.0 published 2026-09-26 (ADR 028) |
 
 Trusted publishers must name owner `adulash`, repository `adulajs`, workflow `release.yml` and environment `npm` for **all three packages**, with publishing permission. The 1.x packages were configured this way under the repository's previous name; after the rename the owner updates `@adula/ui` and creates the publishers for `adula` and `create-adula-app` (ADR 039). The first publication used [signed bootstrap archives](alpha-bootstrap.md) and an authenticated owner session. The workflow does not establish account setup or supply credentials.
 
