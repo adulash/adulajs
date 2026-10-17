@@ -7,7 +7,7 @@
 import { cp, copyFile, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { execFile } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -35,7 +35,7 @@ export async function loadTransformDirection() {
 const TRANSLATE = /^((?:[^\s:'"`]+:)*)(-?translate-x-\S+)$/
 // [text, code before the class (up to its opening quote), class, closing punctuation]
 const token = (text) => {
-  const end = text.match(/[)"'`,;]*$/).index
+  const end = text.match(/[)}"'`,;]*$/).index
   const body = text.slice(0, end)
   const start = Math.max(body.lastIndexOf('"'), body.lastIndexOf("'"), body.lastIndexOf('`')) + 1
   return [text, body.slice(0, start), body.slice(start), text.slice(end)]
@@ -64,7 +64,9 @@ export function pairDirectionalTranslates(code) {
   return parts.join('')
 }
 
-// Every rewrite is a no-op on its own output, so prepare can run on adapted files.
+// Every rewrite is a no-op on its own output for the current sources, so prepare can run on
+// adapted files. The pairing covers translate-x only; the drift gate in packages/ui/tests fails
+// when an upstream source brings another class the direction transform keeps appending to.
 export async function adaptSource(filename, source, transformDirection) {
   let code = source
     .replaceAll('@/registry/new-york-v4/ui/', '~/components/ui/')
@@ -268,7 +270,8 @@ const commands = {
   build,
   reference: async () => console.log(`Generated ${await writeReference()} reference UI files from @adula/ui`),
 }
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Node resolves the main module through symlinks and junctions; argv[1] keeps the given path.
+if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
   const command = commands[process.argv[2]]
   if (!command) throw new Error(`Usage: node scripts/ui-registry.mjs <${Object.keys(commands).join('|')}>`)
   await command()

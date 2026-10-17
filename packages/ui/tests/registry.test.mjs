@@ -59,6 +59,10 @@ test('prepare writes each RTL translate once, as an explicit ltr/rtl pair', asyn
     pairDirectionalTranslates('"a:translate-x-1 rtl:a:-translate-x-1 rtl:a:-translate-x-1 b"'),
     '"ltr:a:translate-x-1 rtl:a:-translate-x-1 b"'
   )
+  // A single-class cn('...') call closes with ')}' right after the class.
+  const single = await adapt('x.tsx', "export const X = () => <div className={cn('translate-x-1')} />\n")
+  assert.equal(single, "export const X = () => <div className={cn('ltr:translate-x-1 rtl:-translate-x-1')} />\n")
+  assert.equal(await transformDirection(single, true), single)
 })
 
 test('drift gate: every registry file is already prepared and installs byte for byte', async () => {
