@@ -1,5 +1,7 @@
 # ADR 028 — Owner acceptance of 1.0 and release authorization
 
+Superseded by ADR 040.
+
 Date: 2026-09-25. Status: accepted by the owner.
 
 ## Decision

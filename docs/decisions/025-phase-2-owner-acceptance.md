@@ -1,5 +1,7 @@
 # ADR 025 — Phase 2 accepted by owner attestation; council 1 record
 
+Superseded by ADR 040.
+
 Date: 2026-09-24. Status: accepted by the owner.
 
 ## Decision
