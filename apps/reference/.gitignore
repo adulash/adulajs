@@ -24,3 +24,7 @@ yarn-error.log
 
 # Platform specific
 .DS_Store
+
+# Generated from packages/ui/registry by node scripts/ui-registry.mjs reference (run by pnpm build, dev, typecheck and test)
+inertia/components/ui
+ui.lock.json
