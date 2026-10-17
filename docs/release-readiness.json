@@ -169,9 +169,10 @@
       "reviewedBy": "repository owner (conversation)",
       "reviewedAt": "2026-10-17",
       "evidence": [
-        "docs/evidence/release-2-1-0-2026-10-17.json"
+        "docs/evidence/release-2-1-0-2026-10-17.json",
+        "docs/evidence/publication-2-1-0-2026-10-17.json"
       ],
-      "remaining": "Authorized by the owner on 2026-10-17 (ADR 038, ADR 039). Publication through release.yml from the v2.1.0 tag on reviewed main, then a publication record."
+      "remaining": "Authorized by the owner on 2026-10-17 (ADR 038, ADR 039) and published the same day: 2.1.0 of adula, @adula/ui and create-adula-app is on npm latest with provenance (docs/evidence/publication-2-1-0-2026-10-17.json)."
     }
   ]
 }
