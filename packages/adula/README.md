@@ -28,14 +28,14 @@ Doctor measures the deployment's `storage/uploads` directory and warns above 5 d
 
 ## Current limitations
 
-Phases 3 and 4 (collaboration, assignments, templates and realtime notifications,
-CSV import, printing, webhooks, API tokens/OpenAPI, amend-by-copy and versioned
-XState workflows) are implemented with PostgreSQL tests; see the
+Collaboration, assignments, templates and realtime notifications, CSV import, printing,
+webhooks, API tokens/OpenAPI, amend-by-copy and versioned XState workflows are implemented
+with PostgreSQL tests; see the
 [business features guide](https://github.com/adulash/adulajs/blob/main/docs/business-features.md).
 
-- Two-factor authentication is not included; it is planned for 2.0 (ADR 027).
-- Impersonation was reviewed by automated adversarial and black-box tests only; its
-  human security review is deferred to 2.0 (ADR 027).
-- XLSX import is not available (GAP-006); CSV is.
+- Two-factor authentication is not included yet.
+- Impersonation was reviewed by automated adversarial and black-box tests only, not by
+  a human security review.
+- XLSX import is not available; CSV is.
 
 See [implementation status](https://github.com/adulash/adulajs/blob/main/docs/implementation-status.md) and [gaps](https://github.com/adulash/adulajs/blob/main/GAPS.md).

@@ -1,8 +1,8 @@
-# Business features (phases 3 and 4)
+# Business features
 
 How to use AdulaJS's business features in an application. Every feature is an AdulaJS
 service plus an additive migration; the reference application shows the wiring
-(routes, controllers, pages) that `create-adula-app` copies into new projects.
+(routes, controllers, pages) that `create-adulajs` copies into new systems.
 All record features call `ResourceService.access`, so they can never reach a
 record the user could not open.
 
@@ -95,7 +95,7 @@ same resource operations with the token owner's current permissions.
 Generic index pages offer "استيراد CSV" to users who may create records. Columns
 are matched to writable fields, the worker saves each row through
 `ResourceService` with the importer's permissions, and `/imports` shows progress
-and row errors. XLSX is not supported yet (GAP-006).
+and row errors. XLSX is not supported yet ([GAPS](../GAPS.md)).
 
 ## Printing
 
@@ -104,8 +104,7 @@ may see. Set `GOTENBERG_URL` (see `docker-compose.pdf.yml`) to add `?format=pdf`
 
 ## Two-factor authentication
 
-Not part of 1.0. The owner moved 2FA to 2.0 (ADR 027); it returns there with a
-human ASVS review.
+Not available yet (ADR 027); see [GAPS](../GAPS.md).
 
 ## Documents and workflows
 
@@ -133,7 +132,7 @@ export default defineWorkflow({
 })
 ```
 
-Step types: `condition`, `update`, `notify`, `approval`, `delay`, `http`, `end`.
+Step types: `condition`, `update`, `notify`, `approval`, `decision`, `delay`, `http`, `end`.
 `{ role }` recipients name the role's stable key (`roles.key`, set when the role is
 created or once in the roles screen). Administrators can rename the Arabic display
 name without detaching approvers. A role without a key is still matched by its
