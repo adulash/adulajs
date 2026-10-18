@@ -154,7 +154,7 @@ export function appModuleSource(name: string, label: Label) {
     `  name: '${name}',`,
     '  label: {',
     `    ar: ${quoted(label.ar)},`,
-    `    en: ${quoted(label.en)},`,
+    `    en: ${quoted(label.en ?? defaultEnglishLabel(name))},`,
     '  },',
     '  dependsOn: [],',
     '  resources: [/* adula:resources */],',
