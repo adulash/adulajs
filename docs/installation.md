@@ -6,7 +6,7 @@ Released versions are listed in [releases](releases.md); every release is on npm
 
 ## New system: one command
 
-One deployment per company is a system (نظام); each business module inside it is an application (تطبيق). Create a system with:
+One deployment per company is a system (النظام); each business area inside it, such as assets, maintenance or HR, is an application (تطبيق), implemented as a module under `app/modules/<name>`. Create a system with:
 
 ```sh
 npm create adulajs my-system
@@ -14,9 +14,9 @@ npm create adulajs my-system
 
 `npx create-adulajs@latest my-system` runs the same package directly; `npm create adulajs` uses npm's [initializer convention](https://docs.npmjs.com/cli/v11/commands/npm-init/). It does not require an existing AdonisJS application. Node.js 24+ and npm are host prerequisites. The default requires installed/running Docker with Compose; it runs PostgreSQL 17 and Redis 7 in isolated local containers with persistent volumes and loopback ports. Alternatively pass `--services existing --connection /path/to/local.json`; see [creator options](../packages/create-adulajs/README.md).
 
-The wizard requests company identity and administrator email, downloads pnpm and dependencies, creates fresh development and `_test` databases, applies migrations, installs the managed skills and project-owned shadcn UI, initializes the administrator, checks doctor/types and builds assets. Credentials go to ignored `tmp/dev-admin.txt`; company identity goes to project-owned `docs/design-identity.md`. No educational modules are included. Existing files and database names are protected from replacement. On Unix these secret files are created readable only by you (mode 0600); Windows ignores that mode, so keep the project inside your own user profile, whose default permissions exclude other users.
+The wizard requests company identity and administrator email, downloads pnpm and dependencies, creates fresh development and `_test` databases, applies migrations, installs the managed skills and project-owned shadcn UI, initializes the administrator, checks doctor/types and builds assets. Credentials go to ignored `tmp/dev-admin.txt`; company identity goes to project-owned `docs/design-identity.md`. No educational applications are included. Existing files and database names are protected from replacement. On Unix these secret files are created readable only by you (mode 0600); Windows ignores that mode, so keep the project inside your own user profile, whose default permissions exclude other users.
 
-Terminal instructions are English; the application stays Arabic. Interactive terminals show color and a spinner across six stages; `NO_COLOR=1` or redirected output produces plain lines. Detailed installation output is in ignored `tmp/install.log`.
+Terminal instructions are English; the system stays Arabic. Interactive terminals show color and a spinner across six stages; `NO_COLOR=1` or redirected output produces plain lines. Detailed installation output is in ignored `tmp/install.log`.
 
 For local archive testing, first run `pnpm test:create` in this repository to produce the three verified archives. Then invoke the creator using their actual absolute paths:
 

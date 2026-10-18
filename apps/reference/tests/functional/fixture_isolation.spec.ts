@@ -11,7 +11,7 @@ test.group('Educational fixture isolation', () => {
   }) => {
     assert.includeMembers(
       modules.map((module) => module.name),
-      ['customers', 'orders', 'tasks']
+      ['customers', 'orders', 'tasks', 'leave_requests']
     )
     const { stdout } = await promisify(execFile)(
       process.execPath,
@@ -34,7 +34,9 @@ test.group('Educational fixture isolation', () => {
       []
     )
     assert.isFalse(
-      probe.migrations.some((path: string) => /fixtures|customers|orders|tasks/.test(path))
+      probe.migrations.some((path: string) =>
+        /fixtures|customers|orders|tasks|leave_requests/.test(path)
+      )
     )
   })
 

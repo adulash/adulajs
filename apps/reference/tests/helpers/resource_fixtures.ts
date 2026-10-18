@@ -159,4 +159,31 @@ export const resourceFixtures: Record<string, ResourceFixture> = {
       updated: { ...values, done: true },
     }
   },
+  leave_requests: async (context) => {
+    // adula:install seeds the module lookups; the contract adds the row it needs itself.
+    await db
+      .connection()
+      .getWriteClient()('lookups')
+      .insert({
+        group: 'leave_request_status',
+        key: 'pending',
+        label_ar: 'قيد المراجعة',
+        label_en: 'Pending',
+      })
+      .onConflict(['group', 'key'])
+      .ignore()
+    const values = {
+      employee: context.userId,
+      startDate: '2026-11-01',
+      endDate: '2026-11-05',
+      reason: `إجازة سنوية ${context.unique}`,
+      status: 'pending',
+    }
+    return {
+      input: values,
+      expected: values,
+      update: { ...values, endDate: '2026-11-07' },
+      updated: { ...values, endDate: '2026-11-07' },
+    }
+  },
 }

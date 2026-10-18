@@ -336,6 +336,10 @@
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>, id: number) => Promise<boolean>"
     },
+    "formatSequence": {
+      "kind": "FunctionDeclaration",
+      "type": "(key: string, value: string | number | bigint) => string"
+    },
     "grantInstallAdministrator": {
       "kind": "FunctionDeclaration",
       "type": "(knex: Knex<any, any[]>, userId: number, version: string) => Promise<void>"
@@ -491,6 +495,30 @@
     "logActivity": {
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>, entry: ActivityEntry) => Promise<void>"
+    },
+    "LookupFieldUse": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ resource: string; field: string; label: string; }"
+    },
+    "LookupGroupSummary": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ group: string; total: number; active: number; fields: LookupFieldUse[]; declared: boolean; }"
+    },
+    "LookupInput": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ group: unknown; key: unknown; labelAr: unknown; labelEn?: unknown; sort?: unknown; }"
+    },
+    "LookupsAdmin": {
+      "kind": "ClassDeclaration",
+      "type": "typeof LookupsAdmin"
+    },
+    "LookupUpdate": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ labelAr?: unknown; labelEn?: unknown; sort?: unknown; key?: unknown; }"
+    },
+    "LookupValue": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ id: number; group: string; key: string; labelAr: string; labelEn: string; sort: number; active: boolean; usage: number | null; declared: boolean; }"
     },
     "MAIL_TEST_KEY": {
       "kind": "VariableDeclaration",
@@ -847,6 +875,14 @@
     "sequence": {
       "kind": "FunctionDeclaration",
       "type": "(trx: Transaction<any, any[]>, key: string) => Promise<string>"
+    },
+    "SequenceRow": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ key: string; value: string; next: string; fields: { resource: string; field: string; label: string; }[]; }"
+    },
+    "SequencesAdmin": {
+      "kind": "ClassDeclaration",
+      "type": "typeof SequencesAdmin"
     },
     "serialize": {
       "kind": "FunctionDeclaration",

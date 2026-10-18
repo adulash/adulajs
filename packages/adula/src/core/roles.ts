@@ -207,7 +207,7 @@ export class RolesAdmin {
         throw new AdulaError(
           409,
           'E_ROLE_KEY_FIXED',
-          'مفتاح الدور ثابت بعد تعيينه لأن تدفقات العمل والوحدات تعتمد عليه'
+          'مفتاح الدور ثابت بعد تعيينه لأن تدفقات العمل والتطبيقات تعتمد عليه'
         )
       if (await trx('roles').where('key', key).whereNot('id', id).first())
         throw new AdulaError(409, 'E_ROLE_KEY_EXISTS', 'يوجد دور بهذا المفتاح')

@@ -25,7 +25,7 @@ Understand the user's task, the important action and the information hierarchy. 
 
 ## Business application priorities
 
-Optimize for repeated daily work: finding a record, understanding its status, entering accurate data and completing an authorized action. Use familiar layouts consistently across modules. A marketing landing page, experimental typography, oversized hero section or ornamental animation is not the default for an operational screen.
+Optimize for repeated daily work: finding a record, understanding its status, entering accurate data and completing an authorized action. Use familiar layouts consistently across applications. A marketing landing page, experimental typography, oversized hero section or ornamental animation is not the default for an operational screen.
 
 - Tables: prioritize identifiers, meaningful names, status, dates and amounts. Align numeric values consistently, use tabular numerals, preserve searchable/filterable columns, and keep row actions predictable. Prefer useful density with readable spacing; do not replace comparable rows with decorative cards. Show totals or KPIs only when backed by actual data.
 - Forms: group related fields, order them according to the business workflow, expose required fields and format hints, distinguish editable and read-only values, and place validation beside the affected field. Use sensible existing defaults, clear save/cancel actions and visible saving/success/conflict feedback. Keep inline document items within the parent transaction.

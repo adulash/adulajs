@@ -1,8 +1,10 @@
 # Business features
 
-How to use AdulaJS's business features in an application. Every feature is an AdulaJS
-service plus an additive migration; the reference application shows the wiring
-(routes, controllers, pages) that `create-adulajs` copies into new systems.
+How to use AdulaJS's business features in a system and its applications (an application
+is a business area such as assets or HR, implemented as a module under `app/modules`).
+Every feature is an AdulaJS service plus an additive migration; the reference system
+(`apps/reference`) shows the wiring (routes, controllers, pages) that `create-adulajs`
+copies into new systems.
 All record features call `ResourceService.access`, so they can never reach a
 record the user could not open.
 
@@ -67,7 +69,7 @@ X-GitHub-Delivery: <id>               # deduplicated per source
 
 A missing or wrong signature is refused before anything is stored. Each delivery
 is stored once and raised through the outbox as `inbound.<key>.<event>` with the
-payload `{ source, delivery, event, body }`. Modules react with an idempotent
+payload `{ source, delivery, event, body }`. Applications react with an idempotent
 listener in `start/listeners.ts`, for example:
 
 ```ts
@@ -111,8 +113,8 @@ Not available yet (ADR 027); see [GAPS](../GAPS.md).
 Submittable resources support submit, cancel and amend-by-copy (a cancelled
 document is copied with its inline lines into a new draft).
 
-Workflows are code in `app/modules/<module>/workflows/` and are listed in the
-module's `workflows` array:
+Workflows are code in the application's `app/modules/<module>/workflows/` and are
+listed in its module's `workflows` array:
 
 ```ts
 export default defineWorkflow({

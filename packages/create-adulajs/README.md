@@ -2,7 +2,8 @@
 
 Creates a complete, project-owned AdonisJS 7 business system with AdulaJS, React/Inertia,
 shadcn/ui, authentication, administration and the managed business-design skill.
-The business areas you then add inside the system (sales, HR and so on) are its applications.
+The business areas you then add inside the system (assets, maintenance, HR and so on) are its
+applications, each implemented as a module under `app/modules/<name>`.
 The creator always installs the matching `adula` and `@adula/ui` version. To move a 1.x
 system to the current AdulaJS, run `npx create-adulajs@latest upgrade` in it; see the
 [upgrade guide](https://github.com/adulash/adulajs/blob/main/docs/upgrade-2.0.md).
@@ -90,7 +91,7 @@ Keep this file private. The PostgreSQL role needs `CREATEDB`; the command create
 fresh development/test databases. It refuses an existing destination directory
 with content or a pre-existing database. Database failures preserve files/data
 for inspection. Local administrator credentials are saved in ignored
-`tmp/dev-admin.txt`, never printed. No educational business modules are installed.
+`tmp/dev-admin.txt`, never printed. No educational applications are installed.
 An optional `--database name` selects a fresh database name (lowercase letters,
 digits and underscores, at most 50 characters); an existing name is still refused.
 Values containing dotenv interpolation or quote characters are stored in private

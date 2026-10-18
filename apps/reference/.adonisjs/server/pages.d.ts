@@ -18,10 +18,12 @@ declare module '@adonisjs/inertia/types' {
     'admin/activity/index': ExtractProps<(typeof import('../../inertia/pages/admin/activity/index.tsx'))['default']>
     'admin/forbidden': ExtractProps<(typeof import('../../inertia/pages/admin/forbidden.tsx'))['default']>
     'admin/jobs/index': ExtractProps<(typeof import('../../inertia/pages/admin/jobs/index.tsx'))['default']>
+    'admin/lookups/index': ExtractProps<(typeof import('../../inertia/pages/admin/lookups/index.tsx'))['default']>
     'admin/notifications/index': ExtractProps<(typeof import('../../inertia/pages/admin/notifications/index.tsx'))['default']>
     'admin/org_units/index': ExtractProps<(typeof import('../../inertia/pages/admin/org_units/index.tsx'))['default']>
     'admin/roles/index': ExtractProps<(typeof import('../../inertia/pages/admin/roles/index.tsx'))['default']>
     'admin/roles/show': ExtractProps<(typeof import('../../inertia/pages/admin/roles/show.tsx'))['default']>
+    'admin/sequences/index': ExtractProps<(typeof import('../../inertia/pages/admin/sequences/index.tsx'))['default']>
     'admin/sessions/index': ExtractProps<(typeof import('../../inertia/pages/admin/sessions/index.tsx'))['default']>
     'admin/settings/index': ExtractProps<(typeof import('../../inertia/pages/admin/settings/index.tsx'))['default']>
     'admin/setup/index': ExtractProps<(typeof import('../../inertia/pages/admin/setup/index.tsx'))['default']>
