@@ -97,6 +97,48 @@ must review the new environment variables before upgrading a production deployme
   `resources/index` page of the reference application, `scripts/readme-hero.mjs` (the
   banner SVG stays) and `packages/adula/bench/list_save.ts`.
 
+### SSO and two-factor authentication
+
+Minor release: new core exports (`TwoFactor`, `createTwoFactorSchema` and related
+constants and types) and the additive core migration `1770000000020_two_factor`. See
+[docs/authentication.md](docs/authentication.md).
+
+* Two-factor authentication (TOTP, RFC 6238, through `otpauth`):
+  * Enrolment is on the profile page. It offers manual entry of the secret plus the
+    `otpauth://` link; QR rendering is an extension point and needs no new dependency.
+  * Secrets are encrypted with the application key, and each time step is accepted once.
+  * Ten single-use recovery codes are stored with a salt and SHA-256.
+  * Password and OAuth sign-in stop at `/login/two-factor`. There is no session user
+    until the code passes.
+  * Code attempts follow the login lockout rules, plus a ceiling of 20 failures per hour
+    per account.
+  * Administrators can reset a user's two-factor; this ends the user's sessions and API
+    tokens and is audited.
+  * New system setting `auth.twoFactorRequiredForAdministrators`, on by default. Users
+    with `manage all` must enrol before they can use `/admin` pages, mint API tokens, or
+    use their API tokens or MCP.
+  * Starting enrolment and linking a provider need a sign-in within ten minutes or the
+    current password.
+  * **Operators (breaking):** existing administrators are asked to enrol on their next
+    visit to the administration area, and their API tokens are refused until they do
+    (or until the setting is turned off). When rotating `APP_KEY`, append the old key in
+    `config/encryption.ts`, or enrolled secrets become unreadable.
+* SSO:
+  * New Microsoft Entra ID provider (`MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET`,
+    `MICROSOFT_TENANT_ID`), using a custom driver on ally's OAuth 2 base. It uses PKCE
+    and a nonce and validates the ID token's claims. The e-mail is trusted only for the
+    configured tenant, or when the token carries `xms_edov`.
+  * Administrators can enable and disable each configured provider (system setting
+    `auth.providers.disabled`).
+  * Signed-in users can link and unlink provider identities from their profile.
+* OAuth fixes:
+  * The callback now requires a `state` parameter. Ally accepted a request with neither
+    a state cookie nor a state parameter (login CSRF).
+  * The provider's error text is no longer shown to users.
+  * A token or profile failure no longer answers 500.
+  * Disabled accounts are no longer linked.
+  * A second identity from the same provider is refused.
+
 ## 2.1.0 — 2026-10-17
 
 Minor release: new defaults for the copied interface and a refreshed README. No API or

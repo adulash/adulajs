@@ -4,6 +4,7 @@ import User from '#models/user'
 import { positiveId, wantsJson } from '#controllers/admin/support'
 import { activeImpersonation } from '#services/impersonation'
 import { listUserTokens, presentToken as present } from '#services/access_tokens'
+import { refuseTwoFactorRequired, twoFactorRequirementUnmet } from '#services/two_factor'
 
 const ACCESS = { read: ['read'], write: ['read', 'write'] } as const
 
@@ -21,6 +22,11 @@ export default class ApiTokensController {
     // A token outlives the session, so an administrator acting as this user cannot mint one.
     if (activeImpersonation(ctx))
       throw new AdulaError(403, 'E_IMPERSONATING', 'لا يمكن إنشاء رمز وصول أثناء انتحال الهوية')
+    // A token would carry administrator power past the second-factor requirement.
+    if (await twoFactorRequirementUnmet(user.id))
+      return refuseTwoFactorRequired(ctx, {
+        message: 'فعّل التحقق بخطوتين لحسابك قبل إنشاء رمز وصول.',
+      })
     const name = String(ctx.request.input('name') ?? '').trim()
     if (!name || name.length > 60)
       throw new AdulaError(422, 'E_TOKEN_NAME', 'اسم الرمز مطلوب ولا يتجاوز 60 حرفاً')

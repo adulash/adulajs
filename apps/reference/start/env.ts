@@ -86,6 +86,10 @@ const env = await Env.create(new URL('../', import.meta.url), {
   GITHUB_CLIENT_SECRET: Env.schema.string.optional(),
   GOOGLE_CLIENT_ID: Env.schema.string.optional(),
   GOOGLE_CLIENT_SECRET: Env.schema.string.optional(),
+  // Microsoft Entra ID: offered when all three are present. A tenant GUID is recommended.
+  MICROSOFT_CLIENT_ID: Env.schema.string.optional(),
+  MICROSOFT_CLIENT_SECRET: Env.schema.string.optional(),
+  MICROSOFT_TENANT_ID: Env.schema.string.optional(),
 
   /*
   |----------------------------------------------------------

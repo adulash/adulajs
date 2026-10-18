@@ -11,6 +11,7 @@ AdulaJS builds one **system** (نظام) per company; each business module insid
 | What do I do after the first sign-in? | [Initial setup](initial-setup.md) |
 | How do I run and test the source? | [Development](development.md) |
 | How do I use collaboration, webhooks, API tokens, imports, printing and workflows? | [Business features](business-features.md) |
+| How do sign-in, SSO providers and two-factor authentication work? | [Authentication](authentication.md) |
 | How do I deploy, back up and restore? | [Operations](operations.md) |
 | What exists today, and how much is tested? | [Implementation status](implementation-status.md) |
 | What can AdulaJS not do yet? | [Gaps](../GAPS.md) |

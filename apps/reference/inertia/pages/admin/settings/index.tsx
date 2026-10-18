@@ -6,6 +6,10 @@ import Workspace from '~/layouts/workspace'
 import { AdminHeader } from '~/components/admin-nav'
 import { UiSettings } from '~/components/ui-settings'
 import { MailTest, type MailTestProps } from '~/components/mail-test'
+import {
+  AuthenticationSettings,
+  type AuthenticationSettingsProps,
+} from '~/components/authentication-settings'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
 import { useConfirmAction } from '~/components/ui/confirm-action'
 import { Button } from '~/components/ui/button'
@@ -31,7 +35,12 @@ import {
   TableRow,
 } from '~/components/ui/table'
 
-type Props = { settings: SettingRow[]; scope: SettingScope; scopeId: string } & MailTestProps
+type Props = {
+  settings: SettingRow[]
+  scope: SettingScope
+  scopeId: string
+  authentication: AuthenticationSettingsProps
+} & MailTestProps
 type Draft = { id: number | null; key: string; value: string }
 const SCOPES: [SettingScope, string][] = [
   ['system', 'النظام'],
@@ -54,6 +63,7 @@ export default function SettingsIndex({
   scopeId,
   mailTest,
   mailRecipient,
+  authentication,
 }: Props) {
   const preferences = useUiPreferences()
   const { confirm, confirmation } = useConfirmAction()
@@ -88,6 +98,7 @@ export default function SettingsIndex({
         </Button>
       </AdminHeader>
       <UiSettings key={JSON.stringify(preferences)} initial={preferences} />
+      <AuthenticationSettings authentication={authentication} />
       <MailTest mailTest={mailTest} mailRecipient={mailRecipient} />
       <h2 className="mb-4 text-lg font-semibold">إعدادات متقدمة</h2>
       <div className="mb-6 flex flex-wrap items-center gap-4">

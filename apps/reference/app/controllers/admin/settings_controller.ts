@@ -13,6 +13,7 @@ import {
   sendMailTest,
   publicMailTest,
 } from '#services/mail_delivery_test'
+import { authenticationSettings } from './authentication_settings_controller.js'
 
 function scopeOf(value: unknown): SettingScope {
   const scope = text(value) ?? 'system'
@@ -38,6 +39,7 @@ export default class SettingsController {
       scopeId,
       mailTest: publicMailTest(state),
       mailRecipient: user.email,
+      authentication: await authenticationSettings(),
     })
   }
 

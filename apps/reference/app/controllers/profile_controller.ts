@@ -4,10 +4,17 @@ import { logAuthActivity, requestContext } from '#services/auth_activity'
 import { revokeUserSessions } from '#services/sessions'
 import { revokeUserTokens } from '#services/access_tokens'
 import { acting } from '#services/impersonation'
+import { profileTwoFactor } from '#services/two_factor'
 
 export default class ProfileController {
-  async show({ inertia }: HttpContext) {
-    return inertia.render('account/profile', {})
+  async show({ inertia, auth, request }: HttpContext) {
+    const { userConnections } = await import('#services/social_accounts')
+    return inertia.render('account/profile', {
+      connections: await userConnections(auth.getUserOrFail().id),
+      twoFactor: await profileTwoFactor(auth.getUserOrFail().id),
+      // The provider link is a native form POST (it leaves the Inertia app), so it needs the token.
+      csrfToken: request.csrfToken,
+    })
   }
 
   async update(ctx: HttpContext) {

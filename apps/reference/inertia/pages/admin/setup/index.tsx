@@ -41,7 +41,7 @@ const guides = {
   },
   oauth: {
     title: 'الدخول الخارجي — اختياري',
-    text: 'اضبط APP_URL ثم بيانات GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET أو GITHUB_CLIENT_ID/GITHUB_CLIENT_SECRET. سجل عنوان الرجوع APP_URL/oauth/google/callback أو APP_URL/oauth/github/callback لدى المزود. أعد التشغيل وجرّب الدخول في جلسة أخرى مع إبقاء جلسة المدير متاحة. لا يُعد المزود مختبرًا حتى ينجح الدخول الفعلي.',
+    text: 'اضبط APP_URL ثم بيانات GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET أو GITHUB_CLIENT_ID/GITHUB_CLIENT_SECRET أو MICROSOFT_CLIENT_ID/MICROSOFT_CLIENT_SECRET/MICROSOFT_TENANT_ID. سجل عنوان الرجوع APP_URL/oauth/<المزود>/callback (google أو github أو microsoft) لدى المزود. أعد التشغيل وجرّب الدخول في جلسة أخرى مع إبقاء جلسة المدير متاحة. لا يُعد المزود مختبرًا حتى ينجح الدخول الفعلي.',
   },
 }
 

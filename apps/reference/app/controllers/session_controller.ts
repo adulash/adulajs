@@ -3,7 +3,8 @@ import { loginValidator } from '#validators/user'
 import type { HttpContext } from '@adonisjs/core/http'
 import { errors as authErrors } from '@adonisjs/auth'
 import { logAuthActivity, requestContext } from '#services/auth_activity'
-import { endSession, recordSession } from '#services/sessions'
+import { endSession } from '#services/sessions'
+import { completeSignIn } from '#services/sign_in'
 import { socialProviders } from '#services/social_accounts'
 import {
   loginAccountKey,
@@ -15,11 +16,11 @@ import { endImpersonation } from '#services/impersonation'
 
 export default class SessionController {
   async create({ inertia }: HttpContext) {
-    return inertia.render('auth/login', { socialProviders: socialProviders() })
+    return inertia.render('auth/login', { socialProviders: await socialProviders() })
   }
 
   async store(ctx: HttpContext) {
-    const { request, auth, response } = ctx
+    const { request, response } = ctx
     const { email, password } = await request.validateUsing(loginValidator)
     let user: User
     const key = loginAccountKey(email, request.ip())
@@ -76,9 +77,8 @@ export default class SessionController {
       return this.refuse(ctx, 'هذا الحساب معطّل. تواصل مع مدير النظام.')
     }
 
-    await auth.use('web').login(user)
-    await recordSession(ctx, user.id)
-    await logAuthActivity({ userId: user.id, action: 'login', changes: requestContext(ctx) })
+    if ((await completeSignIn(ctx, user, { method: 'password' })) === 'challenge')
+      return response.redirect().toRoute('two_factor.challenge')
     response.redirect().toRoute('home')
   }
 

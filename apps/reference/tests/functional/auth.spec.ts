@@ -485,15 +485,16 @@ test.group('Authentication lifecycle', (group) => {
     client,
     assert,
   }) => {
-    const configured = socialProviders().map((provider) => provider.name)
+    const offered = await socialProviders()
+    const configured = offered.map((provider) => provider.name)
     const login = await client.get('/login').withInertia()
     login.assertStatus(200)
     assert.deepEqual(
       login.body().props.socialProviders.map((provider: { name: string }) => provider.name),
       configured
     )
-    const candidates = ['unknown', 'github', 'google'].filter(
-      (name) => !configured.includes(name as 'github' | 'google')
+    const candidates = ['unknown', 'github', 'google', 'microsoft'].filter(
+      (name) => !configured.includes(name as 'github' | 'google' | 'microsoft')
     )
     assert.isAtLeast(candidates.length, 1)
     for (const provider of candidates) {
@@ -541,7 +542,7 @@ test.group('Authentication lifecycle', (group) => {
       email: existing.email.toUpperCase(),
       name: null,
     })
-    assert.isTrue(refused.unverified)
+    assert.equal(refused.refused, 'unverified')
     assert.lengthOf(await knex()('social_accounts').where({ user_id: existing.id }), 0)
 
     existing.emailVerifiedAt = DateTime.now()

@@ -179,7 +179,7 @@ test.group('Security: self-signup policy and enumeration', (group) => {
       { provider: 'github', providerId: `gh-closed-${unique}`, email: unknown, name: null },
       { allowCreate }
     )
-    assert.isTrue(refused.closed)
+    assert.equal(refused.refused, 'closed')
     assert.lengthOf(await knex()('users').where({ email: unknown }), 0)
     assert.lengthOf(
       await knex()('social_accounts').where({ provider_id: `gh-closed-${unique}` }),

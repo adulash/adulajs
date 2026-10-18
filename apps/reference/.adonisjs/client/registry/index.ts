@@ -36,6 +36,12 @@ const routes = {
     tokens: [{"old":"/mcp","type":0,"val":"mcp","end":""}],
     types: placeholder as Registry['mcp.post']['types'],
   },
+  'inbound_webhooks.receive': {
+    methods: ["POST"],
+    pattern: '/webhooks/in/:source',
+    tokens: [{"old":"/webhooks/in/:source","type":0,"val":"webhooks","end":""},{"old":"/webhooks/in/:source","type":0,"val":"in","end":""},{"old":"/webhooks/in/:source","type":1,"val":"source","end":""}],
+    types: placeholder as Registry['inbound_webhooks.receive']['types'],
+  },
   'resources.index': {
     methods: ["GET","HEAD"],
     pattern: '/resources/:resource',
@@ -53,6 +59,12 @@ const routes = {
     pattern: '/resources/:resource/options/:field',
     tokens: [{"old":"/resources/:resource/options/:field","type":0,"val":"resources","end":""},{"old":"/resources/:resource/options/:field","type":1,"val":"resource","end":""},{"old":"/resources/:resource/options/:field","type":0,"val":"options","end":""},{"old":"/resources/:resource/options/:field","type":1,"val":"field","end":""}],
     types: placeholder as Registry['resources.options']['types'],
+  },
+  'resources.aggregate': {
+    methods: ["GET","HEAD"],
+    pattern: '/resources/:resource/aggregate',
+    tokens: [{"old":"/resources/:resource/aggregate","type":0,"val":"resources","end":""},{"old":"/resources/:resource/aggregate","type":1,"val":"resource","end":""},{"old":"/resources/:resource/aggregate","type":0,"val":"aggregate","end":""}],
+    types: placeholder as Registry['resources.aggregate']['types'],
   },
   'imports.store': {
     methods: ["POST"],
@@ -180,6 +192,12 @@ const routes = {
     tokens: [{"old":"/my-tasks/:assignment/cancel","type":0,"val":"my-tasks","end":""},{"old":"/my-tasks/:assignment/cancel","type":1,"val":"assignment","end":""},{"old":"/my-tasks/:assignment/cancel","type":0,"val":"cancel","end":""}],
     types: placeholder as Registry['assignments.cancel']['types'],
   },
+  'record_views.show': {
+    methods: ["GET","HEAD"],
+    pattern: '/resources/:resource/:id/view',
+    tokens: [{"old":"/resources/:resource/:id/view","type":0,"val":"resources","end":""},{"old":"/resources/:resource/:id/view","type":1,"val":"resource","end":""},{"old":"/resources/:resource/:id/view","type":1,"val":"id","end":""},{"old":"/resources/:resource/:id/view","type":0,"val":"view","end":""}],
+    types: placeholder as Registry['record_views.show']['types'],
+  },
   'resources.edit': {
     methods: ["GET","HEAD"],
     pattern: '/resources/:resource/:id/edit',
@@ -264,6 +282,12 @@ const routes = {
     tokens: [{"old":"/api/v1/resources/:resource","type":0,"val":"api","end":""},{"old":"/api/v1/resources/:resource","type":0,"val":"v1","end":""},{"old":"/api/v1/resources/:resource","type":0,"val":"resources","end":""},{"old":"/api/v1/resources/:resource","type":1,"val":"resource","end":""}],
     types: placeholder as Registry['api.resources.index']['types'],
   },
+  'api.resources.aggregate': {
+    methods: ["GET","HEAD"],
+    pattern: '/api/v1/resources/:resource/aggregate',
+    tokens: [{"old":"/api/v1/resources/:resource/aggregate","type":0,"val":"api","end":""},{"old":"/api/v1/resources/:resource/aggregate","type":0,"val":"v1","end":""},{"old":"/api/v1/resources/:resource/aggregate","type":0,"val":"resources","end":""},{"old":"/api/v1/resources/:resource/aggregate","type":1,"val":"resource","end":""},{"old":"/api/v1/resources/:resource/aggregate","type":0,"val":"aggregate","end":""}],
+    types: placeholder as Registry['api.resources.aggregate']['types'],
+  },
   'api.resources.show': {
     methods: ["GET","HEAD"],
     pattern: '/api/v1/resources/:resource/:id',
@@ -342,6 +366,18 @@ const routes = {
     tokens: [{"old":"/login","type":0,"val":"login","end":""}],
     types: placeholder as Registry['session.store']['types'],
   },
+  'two_factor.challenge': {
+    methods: ["GET","HEAD"],
+    pattern: '/login/two-factor',
+    tokens: [{"old":"/login/two-factor","type":0,"val":"login","end":""},{"old":"/login/two-factor","type":0,"val":"two-factor","end":""}],
+    types: placeholder as Registry['two_factor.challenge']['types'],
+  },
+  'two_factor.verify': {
+    methods: ["POST"],
+    pattern: '/login/two-factor',
+    tokens: [{"old":"/login/two-factor","type":0,"val":"login","end":""},{"old":"/login/two-factor","type":0,"val":"two-factor","end":""}],
+    types: placeholder as Registry['two_factor.verify']['types'],
+  },
   'password_reset.forgot': {
     methods: ["GET","HEAD"],
     pattern: '/password/forgot',
@@ -414,6 +450,30 @@ const routes = {
     tokens: [{"old":"/account/password","type":0,"val":"account","end":""},{"old":"/account/password","type":0,"val":"password","end":""}],
     types: placeholder as Registry['profile.password']['types'],
   },
+  'two_factor.begin': {
+    methods: ["POST"],
+    pattern: '/account/two-factor/begin',
+    tokens: [{"old":"/account/two-factor/begin","type":0,"val":"account","end":""},{"old":"/account/two-factor/begin","type":0,"val":"two-factor","end":""},{"old":"/account/two-factor/begin","type":0,"val":"begin","end":""}],
+    types: placeholder as Registry['two_factor.begin']['types'],
+  },
+  'two_factor.confirm': {
+    methods: ["POST"],
+    pattern: '/account/two-factor/confirm',
+    tokens: [{"old":"/account/two-factor/confirm","type":0,"val":"account","end":""},{"old":"/account/two-factor/confirm","type":0,"val":"two-factor","end":""},{"old":"/account/two-factor/confirm","type":0,"val":"confirm","end":""}],
+    types: placeholder as Registry['two_factor.confirm']['types'],
+  },
+  'two_factor.regenerate': {
+    methods: ["POST"],
+    pattern: '/account/two-factor/recovery-codes',
+    tokens: [{"old":"/account/two-factor/recovery-codes","type":0,"val":"account","end":""},{"old":"/account/two-factor/recovery-codes","type":0,"val":"two-factor","end":""},{"old":"/account/two-factor/recovery-codes","type":0,"val":"recovery-codes","end":""}],
+    types: placeholder as Registry['two_factor.regenerate']['types'],
+  },
+  'two_factor.destroy': {
+    methods: ["DELETE"],
+    pattern: '/account/two-factor',
+    tokens: [{"old":"/account/two-factor","type":0,"val":"account","end":""},{"old":"/account/two-factor","type":0,"val":"two-factor","end":""}],
+    types: placeholder as Registry['two_factor.destroy']['types'],
+  },
   'api_tokens.index': {
     methods: ["GET","HEAD"],
     pattern: '/account/tokens',
@@ -450,6 +510,18 @@ const routes = {
     tokens: [{"old":"/account/sessions/:id","type":0,"val":"account","end":""},{"old":"/account/sessions/:id","type":0,"val":"sessions","end":""},{"old":"/account/sessions/:id","type":1,"val":"id","end":""}],
     types: placeholder as Registry['account_sessions.destroy']['types'],
   },
+  'oauth.link': {
+    methods: ["POST"],
+    pattern: '/account/connections/:provider',
+    tokens: [{"old":"/account/connections/:provider","type":0,"val":"account","end":""},{"old":"/account/connections/:provider","type":0,"val":"connections","end":""},{"old":"/account/connections/:provider","type":1,"val":"provider","end":""}],
+    types: placeholder as Registry['oauth.link']['types'],
+  },
+  'oauth.unlink': {
+    methods: ["DELETE"],
+    pattern: '/account/connections/:provider',
+    tokens: [{"old":"/account/connections/:provider","type":0,"val":"account","end":""},{"old":"/account/connections/:provider","type":0,"val":"connections","end":""},{"old":"/account/connections/:provider","type":1,"val":"provider","end":""}],
+    types: placeholder as Registry['oauth.unlink']['types'],
+  },
   'admin_sessions.index': {
     methods: ["GET","HEAD"],
     pattern: '/admin/sessions',
@@ -479,6 +551,12 @@ const routes = {
     pattern: '/notifications/:id/read',
     tokens: [{"old":"/notifications/:id/read","type":0,"val":"notifications","end":""},{"old":"/notifications/:id/read","type":1,"val":"id","end":""},{"old":"/notifications/:id/read","type":0,"val":"read","end":""}],
     types: placeholder as Registry['notifications.read']['types'],
+  },
+  'notifications.open': {
+    methods: ["GET","HEAD"],
+    pattern: '/notifications/:id/open',
+    tokens: [{"old":"/notifications/:id/open","type":0,"val":"notifications","end":""},{"old":"/notifications/:id/open","type":1,"val":"id","end":""},{"old":"/notifications/:id/open","type":0,"val":"open","end":""}],
+    types: placeholder as Registry['notifications.open']['types'],
   },
   'admin_users.stop_impersonation': {
     methods: ["POST"],
@@ -539,6 +617,18 @@ const routes = {
     pattern: '/admin/users/:id/revoke-sessions',
     tokens: [{"old":"/admin/users/:id/revoke-sessions","type":0,"val":"admin","end":""},{"old":"/admin/users/:id/revoke-sessions","type":0,"val":"users","end":""},{"old":"/admin/users/:id/revoke-sessions","type":1,"val":"id","end":""},{"old":"/admin/users/:id/revoke-sessions","type":0,"val":"revoke-sessions","end":""}],
     types: placeholder as Registry['admin_users.revoke_sessions']['types'],
+  },
+  'admin_users.revoke_tokens': {
+    methods: ["POST"],
+    pattern: '/admin/users/:id/revoke-tokens',
+    tokens: [{"old":"/admin/users/:id/revoke-tokens","type":0,"val":"admin","end":""},{"old":"/admin/users/:id/revoke-tokens","type":0,"val":"users","end":""},{"old":"/admin/users/:id/revoke-tokens","type":1,"val":"id","end":""},{"old":"/admin/users/:id/revoke-tokens","type":0,"val":"revoke-tokens","end":""}],
+    types: placeholder as Registry['admin_users.revoke_tokens']['types'],
+  },
+  'admin_users.reset_two_factor': {
+    methods: ["POST"],
+    pattern: '/admin/users/:id/reset-two-factor',
+    tokens: [{"old":"/admin/users/:id/reset-two-factor","type":0,"val":"admin","end":""},{"old":"/admin/users/:id/reset-two-factor","type":0,"val":"users","end":""},{"old":"/admin/users/:id/reset-two-factor","type":1,"val":"id","end":""},{"old":"/admin/users/:id/reset-two-factor","type":0,"val":"reset-two-factor","end":""}],
+    types: placeholder as Registry['admin_users.reset_two_factor']['types'],
   },
   'admin_users.impersonate': {
     methods: ["POST"],
@@ -708,6 +798,42 @@ const routes = {
     tokens: [{"old":"/admin/webhooks/deliveries/:delivery/retry","type":0,"val":"admin","end":""},{"old":"/admin/webhooks/deliveries/:delivery/retry","type":0,"val":"webhooks","end":""},{"old":"/admin/webhooks/deliveries/:delivery/retry","type":0,"val":"deliveries","end":""},{"old":"/admin/webhooks/deliveries/:delivery/retry","type":1,"val":"delivery","end":""},{"old":"/admin/webhooks/deliveries/:delivery/retry","type":0,"val":"retry","end":""}],
     types: placeholder as Registry['admin_webhooks.retry']['types'],
   },
+  'admin_webhooks.store_inbound': {
+    methods: ["POST"],
+    pattern: '/admin/inbound-webhooks',
+    tokens: [{"old":"/admin/inbound-webhooks","type":0,"val":"admin","end":""},{"old":"/admin/inbound-webhooks","type":0,"val":"inbound-webhooks","end":""}],
+    types: placeholder as Registry['admin_webhooks.store_inbound']['types'],
+  },
+  'admin_webhooks.update_inbound': {
+    methods: ["PUT"],
+    pattern: '/admin/inbound-webhooks/:id',
+    tokens: [{"old":"/admin/inbound-webhooks/:id","type":0,"val":"admin","end":""},{"old":"/admin/inbound-webhooks/:id","type":0,"val":"inbound-webhooks","end":""},{"old":"/admin/inbound-webhooks/:id","type":1,"val":"id","end":""}],
+    types: placeholder as Registry['admin_webhooks.update_inbound']['types'],
+  },
+  'admin_webhooks.rotate_inbound': {
+    methods: ["POST"],
+    pattern: '/admin/inbound-webhooks/:id/rotate',
+    tokens: [{"old":"/admin/inbound-webhooks/:id/rotate","type":0,"val":"admin","end":""},{"old":"/admin/inbound-webhooks/:id/rotate","type":0,"val":"inbound-webhooks","end":""},{"old":"/admin/inbound-webhooks/:id/rotate","type":1,"val":"id","end":""},{"old":"/admin/inbound-webhooks/:id/rotate","type":0,"val":"rotate","end":""}],
+    types: placeholder as Registry['admin_webhooks.rotate_inbound']['types'],
+  },
+  'admin_webhooks.destroy_inbound': {
+    methods: ["DELETE"],
+    pattern: '/admin/inbound-webhooks/:id',
+    tokens: [{"old":"/admin/inbound-webhooks/:id","type":0,"val":"admin","end":""},{"old":"/admin/inbound-webhooks/:id","type":0,"val":"inbound-webhooks","end":""},{"old":"/admin/inbound-webhooks/:id","type":1,"val":"id","end":""}],
+    types: placeholder as Registry['admin_webhooks.destroy_inbound']['types'],
+  },
+  'admin_webhooks.inbound_deliveries': {
+    methods: ["GET","HEAD"],
+    pattern: '/admin/inbound-webhooks/:id/deliveries',
+    tokens: [{"old":"/admin/inbound-webhooks/:id/deliveries","type":0,"val":"admin","end":""},{"old":"/admin/inbound-webhooks/:id/deliveries","type":0,"val":"inbound-webhooks","end":""},{"old":"/admin/inbound-webhooks/:id/deliveries","type":1,"val":"id","end":""},{"old":"/admin/inbound-webhooks/:id/deliveries","type":0,"val":"deliveries","end":""}],
+    types: placeholder as Registry['admin_webhooks.inbound_deliveries']['types'],
+  },
+  'admin_webhooks.redispatch_inbound': {
+    methods: ["POST"],
+    pattern: '/admin/inbound-webhooks/deliveries/:delivery/redispatch',
+    tokens: [{"old":"/admin/inbound-webhooks/deliveries/:delivery/redispatch","type":0,"val":"admin","end":""},{"old":"/admin/inbound-webhooks/deliveries/:delivery/redispatch","type":0,"val":"inbound-webhooks","end":""},{"old":"/admin/inbound-webhooks/deliveries/:delivery/redispatch","type":0,"val":"deliveries","end":""},{"old":"/admin/inbound-webhooks/deliveries/:delivery/redispatch","type":1,"val":"delivery","end":""},{"old":"/admin/inbound-webhooks/deliveries/:delivery/redispatch","type":0,"val":"redispatch","end":""}],
+    types: placeholder as Registry['admin_webhooks.redispatch_inbound']['types'],
+  },
   'setup.index': {
     methods: ["GET","HEAD"],
     pattern: '/admin/setup',
@@ -749,6 +875,12 @@ const routes = {
     pattern: '/admin/settings',
     tokens: [{"old":"/admin/settings","type":0,"val":"admin","end":""},{"old":"/admin/settings","type":0,"val":"settings","end":""}],
     types: placeholder as Registry['admin_settings.upsert']['types'],
+  },
+  'admin_authentication_settings.update': {
+    methods: ["PUT"],
+    pattern: '/admin/settings/authentication',
+    tokens: [{"old":"/admin/settings/authentication","type":0,"val":"admin","end":""},{"old":"/admin/settings/authentication","type":0,"val":"settings","end":""},{"old":"/admin/settings/authentication","type":0,"val":"authentication","end":""}],
+    types: placeholder as Registry['admin_authentication_settings.update']['types'],
   },
   'admin_settings.destroy': {
     methods: ["DELETE"],

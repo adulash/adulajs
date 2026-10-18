@@ -36,8 +36,11 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
 
 ## Security and integration
 
-* Two-factor authentication is not available (deferred by ADR 027).
-* No enterprise SSO (SAML/OIDC); only the optional Google/GitHub sign-in.
+* Two-factor authentication has had no written human ASVS review yet (ADR 027).
+* Two-factor uses TOTP only: there are no WebAuthn/FIDO2 keys, no QR renderer (manual
+  entry and the `otpauth://` link only) and no e-mail notice on two-factor changes.
+* SSO covers OAuth/OIDC sign-in through GitHub, Google and Microsoft Entra ID; there is
+  no SAML and no SCIM provisioning.
 * No generated, typed API client: the Tuyau registry is used for URLs, but the generic
   resource endpoints return untyped responses.
 * XLSX import is pending a maintained parser; CSV import works.
