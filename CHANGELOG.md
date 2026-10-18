@@ -73,6 +73,8 @@ must review the new environment variables before upgrading a production deployme
   the root `build`, `dev`, `typecheck` and `test` scripts generate them from the registry,
   and `pnpm --filter @adula/ui test` fails when a registry file would change on install or
   on another `prepare` run.
+  The reference stylesheet registers the generated directory with `@source "../components/ui"`,
+  because Tailwind 4 skips gitignored paths; a `@adula/ui` test guards the line.
 
 * Creator: the package is renamed `create-adulajs` (bin `create-adulajs`); new systems
   start with `npm create adulajs my-system` or `npx create-adulajs@latest my-system`.

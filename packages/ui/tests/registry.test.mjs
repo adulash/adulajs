@@ -111,3 +111,13 @@ test('drift gate: a generated apps/reference copy is current', async (t) => {
     assert.ok((await readFile(join(app, target))).equals(await readFile(source)), `${target}: ${stale}`)
   assert.deepEqual(JSON.parse(await readFile(join(app, 'ui.lock.json'), 'utf8')), lock, stale)
 })
+
+test('the reference stylesheet registers the gitignored generated copy as a Tailwind source', async () => {
+  // Tailwind 4 skips .gitignore'd paths during source detection; without this line the
+  // reference build silently ships CSS with no component classes (browser tests catch it late).
+  const css = await readFile(
+    new URL('../../../apps/reference/inertia/css/adula.css', import.meta.url),
+    'utf8'
+  )
+  assert.match(css, /@source\s+["']\.\.\/components\/ui["'];/)
+})
