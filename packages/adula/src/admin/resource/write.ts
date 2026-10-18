@@ -291,10 +291,13 @@ export async function persist(
             `${key}: اختر مستخدماً نشطاً من الوحدة التنظيمية للسجل أو الوحدات الأعلى منها`
           )
       }
+      // Shared lock: a value disabled or deleted by an administrator in a concurrent transaction
+      // cannot be stored after the check (LookupsAdmin refuses while a stored record uses it).
       if (field.type === 'lookup' && candidate[key] !== null && candidate[key] !== undefined) {
         if (
           !(await trx('lookups')
             .where({ group: field.group, key: candidate[key], active: true })
+            .forShare()
             .first())
         )
           throw new AdulaError(422, 'E_LOOKUP', `Invalid lookup: ${key}`)
