@@ -9,9 +9,11 @@ export const controllers = {
   admin: {
     Activity: () => import('#controllers/admin/activity_controller'),
     Jobs: () => import('#controllers/admin/jobs_controller'),
+    Lookups: () => import('#controllers/admin/lookups_controller'),
     Notifications: () => import('#controllers/admin/notifications_controller'),
     OrgUnits: () => import('#controllers/admin/org_units_controller'),
     Roles: () => import('#controllers/admin/roles_controller'),
+    Sequences: () => import('#controllers/admin/sequences_controller'),
     Settings: () => import('#controllers/admin/settings_controller'),
     Setup: () => import('#controllers/admin/setup_controller'),
     Support: () => import('#controllers/admin/support'),

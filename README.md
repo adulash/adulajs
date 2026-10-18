@@ -37,7 +37,7 @@ notifications, imports, printing, audit history and backups. AdulaJS is a TypeSc
 framework built for business systems: it turns that work into declarations and
 services, so your team (or your agent) writes only what is specific to the business.
 
-- **One declaration, a whole module.** `defineResource` describes fields, forms, lists,
+- **One declaration, a whole feature.** `defineResource` describes fields, forms, lists,
   actions and scope. AdulaJS derives the table, validation, serialization, HTTP routes,
   screens, OpenAPI description and contract tests.
 - **Permissions you can trust.** One CASL rule set is evaluated in the browser and in the
@@ -65,7 +65,10 @@ The creator starts from an empty folder and does the rest. It installs AdulaJS a
 its stack, starts PostgreSQL 17 and Redis 7 in Docker (or uses your existing services),
 creates the development and test databases, runs migrations, creates the administrator,
 asks for your company identity and builds the system. Each business area you add
-inside the system, such as sales or HR, is an application.
+inside the system, such as assets, maintenance or HR, is an application: a module under
+`app/modules/<name>`. Applications share users, roles, the organisation tree,
+notifications and the task inbox, and the system integrates with your other software
+through the API, webhooks and imports.
 
 ```sh
 cd my-system
@@ -76,13 +79,14 @@ Requirements: Node.js 24+, npm, and Docker with Compose for the default mode. Th
 terminal speaks English; the system speaks Arabic. The
 [installation guide](docs/installation.md) covers existing services and offline archives.
 
-## Define a resource, get a working module
+## Define a resource, get working screens
 
 ```sh
 node ace adula:resource customers --module=sales
 ```
 
-This writes the resource, model, validator, migration, factory and an HTTP contract test.
+This adds a customers resource to the sales application (`app/modules/sales`) and writes
+its model, validator, migration, factory and an HTTP contract test.
 You describe the business in the resource:
 
 ```ts
@@ -170,8 +174,8 @@ AdulaJS composes proven open-source tools instead of reinventing them:
 | [`@adula/ui`](packages/ui) | Arabic RTL shadcn/ui registry: 25 primitives and nine resource components copied into your project |
 | [`create-adulajs`](packages/create-adulajs) | Creates a complete system in one command (`npm create adulajs`), and upgrades 1.x systems |
 
-The backend updates as a package. Copied UI, pages, domain modules and branding belong to
-your system.
+The backend updates as a package. Copied UI, pages, your applications and branding belong
+to your system.
 
 ## Status
 

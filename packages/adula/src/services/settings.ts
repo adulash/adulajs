@@ -13,12 +13,16 @@ export class Settings {
       .merge(['value'])
   }
 }
+/** The number a sequence value is issued as: `ORD-000042`. */
+export function formatSequence(key: string, value: string | number | bigint) {
+  return `${key}-${String(value).padStart(6, '0')}`
+}
 export async function sequence(trx: Knex.Transaction, key: string) {
   const result = await trx.raw(
     'INSERT INTO sequences (key,value) VALUES (?,1) ON CONFLICT (key) DO UPDATE SET value=sequences.value+1 RETURNING value',
     [key]
   )
-  return `${key}-${String(result.rows[0].value).padStart(6, '0')}`
+  return formatSequence(key, result.rows[0].value)
 }
 /** The record a notification is about; opening the notification opens the record. */
 export type NotificationTarget = { resource: string; recordId: number }

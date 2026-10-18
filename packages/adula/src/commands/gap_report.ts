@@ -18,7 +18,7 @@ export const GAP_FIELDS = [
 export const GAPS_TEMPLATE = `# AdulaJS gaps
 
 Record each limitation of AdulaJS as one entry. Describe AdulaJS capability, not this
-project: reproduce it on a new application from create-app. Run \`node ace adula:gaps report\`
+project: reproduce it on a new system from create-adulajs. Run \`node ace adula:gaps report\`
 to open AdulaJS's gap form prefilled, then write the issue number in \`Issue:\`.
 
 <!--
@@ -28,7 +28,7 @@ Needed by: AdulaJS capability that is missing, stated without project details
 Tried: AdulaJS extension points tried
 Blocked because: why none of them works
 Proposed AdulaJS change: the API, option or fix AdulaJS should offer
-Reproduction: steps on a new application from create-app
+Reproduction: steps on a new system from create-adulajs
 Acceptance: the test that proves the gap is closed
 Workaround: none, or what the project does meanwhile
 Issue:

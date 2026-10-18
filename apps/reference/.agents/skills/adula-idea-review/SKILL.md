@@ -1,9 +1,9 @@
 ---
 name: idea-review
-description: Translate a new module or workflow into existing AdulaJS resources and declared extension points before writing code.
+description: Translate a new application (a module under app/modules) or workflow into existing AdulaJS resources and declared extension points before writing code.
 ---
 
-Use for a new module or workflow only; field changes do not need it.
+Use for a new application or workflow only; field changes do not need it.
 
 1. Run `node ace adula:capabilities` and read the output: AdulaJS field types, services,
    workflow steps, extension points, what is outside AdulaJS, and this project's

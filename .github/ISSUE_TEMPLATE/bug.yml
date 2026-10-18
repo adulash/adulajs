@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Report only defects in AdulaJS's packages. Reproduce them on a new application
+        Report only defects in AdulaJS's packages. Reproduce them on a new system
         from `npx create-adulajs` or on `apps/reference`, and leave out project names,
         records and credentials. A report outside AdulaJS's scope is closed as not planned.
   - type: input
@@ -19,7 +19,7 @@ body:
     id: reproduction
     attributes:
       label: Reproduction
-      description: Numbered steps on a new application from create-app or on apps/reference.
+      description: Numbered steps on a new system from create-adulajs or on apps/reference.
     validations:
       required: true
   - type: textarea

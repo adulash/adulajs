@@ -22,7 +22,6 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
 * No dashboards or charts, although `ResourceService.aggregate()` and its HTTP endpoint
   provide grouped counts and sums.
 * Soft delete has no restore (undelete) operation or screen.
-* No administration screens for lookups or sequences; lookups are seeded by modules.
 
 ## Notifications, printing and files
 

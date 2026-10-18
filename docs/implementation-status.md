@@ -48,7 +48,7 @@ All three share one version and are published together from a `v<version>` tag
 * Operations: outbox and jobs, scheduler/worker heartbeats, `backup:create`,
   `backup:verify`, `backup:restore-files`, `backup:restore-test`,
   `adula:restore:reconcile` (see [operations](operations.md)).
-* Commands: `adula:install`, `adula:doctor`, `adula:resource`, `adula:module:add`,
+* Commands: `adula:install`, `adula:doctor`, `adula:resource`, `adula:app`, `adula:module:add`,
   `adula:module:remove`, `adula:ui`, `adula:capabilities`, `adula:gaps`, `adula:upgrade`.
 * Agent support: managed AGENTS.md block, business-design and review skills, generated
   capability catalog, ESLint rules `adula/no-core-patching` and

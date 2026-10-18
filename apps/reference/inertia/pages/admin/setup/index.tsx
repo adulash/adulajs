@@ -25,7 +25,7 @@ const guides = {
   },
   mail: {
     title: 'إعداد البريد',
-    text: 'اضبط SMTP_HOST وSMTP_PORT وSMTP_USERNAME وSMTP_PASSWORD وMAIL_FROM_NAME وMAIL_FROM_ADDRESS في بيئة التطبيق، ثم أعد تشغيل الخادم والعامل. استخدم عنوان مرسل موثقًا لدى مزودك واتبع تعليماته لتوثيق النطاق. لا تضع كلمات المرور في الإعدادات العامة أو مستودع المشروع. بعد ذلك أرسل تجربة وأكد استلامها.',
+    text: 'اضبط SMTP_HOST وSMTP_PORT وSMTP_USERNAME وSMTP_PASSWORD وMAIL_FROM_NAME وMAIL_FROM_ADDRESS في بيئة النظام، ثم أعد تشغيل الخادم والعامل. استخدم عنوان مرسل موثقًا لدى مزودك واتبع تعليماته لتوثيق النطاق. لا تضع كلمات المرور في الإعدادات العامة أو مستودع المشروع. بعد ذلك أرسل تجربة وأكد استلامها.',
   },
   storage: {
     title: 'إعداد الملفات',
@@ -33,11 +33,11 @@ const guides = {
   },
   runtime: {
     title: 'تشغيل الخدمات الخلفية',
-    text: 'تحقق من اتصالات PostgreSQL وRedis في بيئة التطبيق. شغّل node ace adula:worker باستمرار، وعملية واحدة فقط من node ace scheduler:run تحت مدير عمليات أو خدمات النشر. نجاح الاتصال لا يثبت تنفيذ المهام؛ راقب نبضات التشغيل والطابور في صفحة تشغيل النظام.',
+    text: 'تحقق من اتصالات PostgreSQL وRedis في بيئة النظام. شغّل node ace adula:worker باستمرار، وعملية واحدة فقط من node ace scheduler:run تحت مدير عمليات أو خدمات النشر. نجاح الاتصال لا يثبت تنفيذ المهام؛ راقب نبضات التشغيل والطابور في صفحة تشغيل النظام.',
   },
   backup: {
     title: 'النسخ الاحتياطي والاستعادة',
-    text: 'اضبط BACKUP_S3_ENDPOINT وBACKUP_S3_BUCKET وBACKUP_S3_REGION وBACKUP_S3_ACCESS_KEY_ID وBACKUP_S3_SECRET_ACCESS_KEY في بيئة التشغيل. شغّل خدمة النسخ المرفقة وحدد سياسة الاحتفاظ وفق احتياجك. افحص النسخة عبر node ace backup:verify، ثم نفّذ backup:restore-test على نسخة محمّلة من المخزن الخارجي. وجود الملفات لا يثبت استعادة سجل ومرفقه. لا تبدأ الاستعادة على قاعدة التطبيق الحالية.',
+    text: 'اضبط BACKUP_S3_ENDPOINT وBACKUP_S3_BUCKET وBACKUP_S3_REGION وBACKUP_S3_ACCESS_KEY_ID وBACKUP_S3_SECRET_ACCESS_KEY في بيئة التشغيل. شغّل خدمة النسخ المرفقة وحدد سياسة الاحتفاظ وفق احتياجك. افحص النسخة عبر node ace backup:verify، ثم نفّذ backup:restore-test على نسخة محمّلة من المخزن الخارجي. وجود الملفات لا يثبت استعادة سجل ومرفقه. لا تبدأ الاستعادة على قاعدة بيانات النظام الحالية.',
   },
   oauth: {
     title: 'الدخول الخارجي — اختياري',
@@ -81,9 +81,9 @@ export default function SetupIndex(props: Props) {
       </AdminHeader>
       <div className="mb-6 rounded-lg border bg-muted/30 p-4 text-sm">
         {props.environment === 'development'
-          ? 'بيئة تطوير: يمكنك تجربة التطبيق قبل ربط الخدمات الخارجية.'
+          ? 'بيئة تطوير: يمكنك تجربة النظام قبل ربط الخدمات الخارجية.'
           : 'بيئة إنتاج: عالج الخدمات غير المختبرة أو المتعطلة قبل الاعتماد على وظائفها.'}{' '}
-        بيانات الاتصال والأسرار تُضبط في بيئة التطبيق، ولا تظهر هنا.
+        بيانات الاتصال والأسرار تُضبط في بيئة النظام، ولا تظهر هنا.
       </div>
       <div className="mb-6 grid gap-5 xl:grid-cols-2">
         <Card>
@@ -110,7 +110,7 @@ export default function SetupIndex(props: Props) {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>٢. الإشعارات داخل التطبيق</CardTitle>
+            <CardTitle>٢. الإشعارات داخل النظام</CardTitle>
             <CardDescription>تحقق من وصول إشعار لحسابك وظهور حالة القراءة.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

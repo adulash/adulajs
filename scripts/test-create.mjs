@@ -400,7 +400,7 @@ try {
       !(await readFile(join(work, name), 'utf8')).includes(password),
       'Administrator password leaked to a log'
     )
-  console.log(`Verified new application from packed creator: ${target}`)
+  console.log(`Verified new system from packed creator: ${target}`)
 } finally {
   if (docker) {
     try {

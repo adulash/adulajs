@@ -42,3 +42,42 @@ export function moduleSource(name: string, options: { reference?: boolean; typed
     '',
   ].join('\n')
 }
+
+/**
+ * Registers a module in the application's start/modules.ts source: one import before
+ * `// adula:imports` and one item in the `/* adula:modules *\/` list. Shared by
+ * adula:module:add, adula:resource and adula:app so the three stay identical.
+ */
+export function registerModuleSource(source: string, name: string) {
+  if (!source.includes('// adula:imports') || !source.includes('/* adula:modules */'))
+    throw new Error('Module index registration markers are missing')
+  const alias = `module_${name}`
+  return appendMarkedItem(
+    source.replace(
+      '// adula:imports',
+      `import ${alias} from '#modules/${name}/module'\n// adula:imports`
+    ),
+    '/* adula:modules */',
+    alias
+  )
+}
+
+/** True when start/modules.ts already imports the module. */
+export function moduleRegistered(source: string, name: string) {
+  return source.includes(`'#modules/${name}/module'`)
+}
+
+/** The folders every application-owned module starts with. */
+export const MODULE_DIRECTORIES = [
+  'models',
+  'resources',
+  'validators',
+  'migrations',
+  'factories',
+  'listeners',
+  'jobs',
+  'workflows',
+  'reports',
+  'pages',
+  'tests',
+] as const

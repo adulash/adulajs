@@ -232,7 +232,7 @@ test.group('Administration screens in the browser', (group) => {
         .where({ role_id: roleId, subject: 'tasks', action: 'view', inverted: true })
         .first()
     )
-    await page.assertElementsCount('tbody tr', 2 + 7 + 1 + 1)
+    await page.assertElementsCount('tbody tr', 2 + 8 + 1 + 1)
     await allow.click()
     await page.getByRole('button', { name: 'تأكيد حذف الصلاحية', exact: true }).click()
     await page.locator('button[aria-label="سماح: المهام / عرض"][aria-pressed="false"]').waitFor()

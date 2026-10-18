@@ -59,7 +59,7 @@ export async function identity() {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     const root = await database()('org_units').whereNull('parent_id').orderBy('id').first('name')
-    return { company: root?.name ?? 'التطبيق المرجعي', logo: null }
+    return { company: root?.name ?? 'النظام المرجعي', logo: null }
   }
 }
 

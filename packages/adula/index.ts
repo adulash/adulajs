@@ -178,7 +178,7 @@ export type {
   StorageMigrationResult,
 } from './src/attachments/storage_migrate.js'
 export { diagnoseAttachments } from './src/attachments/doctor.js'
-export { Settings, sequence, notify } from './src/services/settings.js'
+export { Settings, sequence, formatSequence, notify } from './src/services/settings.js'
 export type { NotificationTarget } from './src/services/settings.js'
 export {
   uiPreferences,
@@ -234,6 +234,16 @@ export {
   PROTECTED_SETTING_KEYS,
 } from './src/core/settings.js'
 export type { SettingScope, SettingRow, SettingInput } from './src/core/settings.js'
+export { LookupsAdmin } from './src/core/lookups.js'
+export type {
+  LookupFieldUse,
+  LookupGroupSummary,
+  LookupValue,
+  LookupInput,
+  LookupUpdate,
+} from './src/core/lookups.js'
+export { SequencesAdmin } from './src/core/sequences.js'
+export type { SequenceRow } from './src/core/sequences.js'
 export {
   runtimeHealth,
   isBackupStale,

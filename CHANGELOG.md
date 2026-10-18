@@ -97,6 +97,29 @@ must review the new environment variables before upgrading a production deployme
   `resources/index` page of the reference application, `scripts/readme-hero.mjs` (the
   banner SVG stays) and `packages/adula/bench/list_save.ts`.
 
+### Applications in a system
+
+* New `node ace adula:app <name> --label-ar=<Arabic> [--label-en=<English>] [--dry-run]`
+  scaffolds an application (a module under `app/modules/<name>`): the module definition,
+  one example resource with its migration, model, validator, factory and security contract,
+  default roles `<name>_manager` and `<name>_user` (seeded by `adula:install`), a smoke test
+  under `tests/functional/<name>/` and the registration in `start/modules.ts`. Names must
+  be slugs of at most 40 characters; reserved framework names (`RESERVED_APP_NAMES`) and
+  existing applications are refused. `--dry-run` prints the plan and writes nothing.
+* Administration screens for lookups (`/admin/lookups`) and sequences (`/admin/sequences`).
+  Administrators add values to a group (Arabic label required, English optional), edit
+  labels, reorder, disable, enable and delete them. Keys never change; a value used by
+  stored records cannot be disabled or deleted, and a value a module declares cannot be
+  deleted. Sequences move forward only. Every change is recorded in the activity log
+  (`core.lookups`, `core.sequences`). New exports: `LookupsAdmin`, `SequencesAdmin`,
+  `formatSequence` and their types; `sequence()` output is unchanged.
+* Wording: the deployment is the system (النظام) and each business area an application
+  (تطبيق) in the framework's Arabic text, the reference UI, the agent rules and skills, the
+  issue forms and the docs. Code identifiers and routes are unchanged. New
+  [docs/applications.md](docs/applications.md) explains adding an application, what
+  applications share and how a system integrates with other software, with a "leave
+  requests" example checked by a test fixture.
+
 ## 2.1.0 — 2026-10-17
 
 Minor release: new defaults for the copied interface and a refreshed README. No API or

@@ -15,6 +15,8 @@ import {
   Mail,
   Webhook,
   GitBranch,
+  Hash,
+  ListChecks,
   type LucideIcon,
 } from 'lucide-react'
 import { calendarDisplay } from '~/components/ui/calendar_date'
@@ -40,6 +42,8 @@ export const adminGroups: AdminGroup[] = [
     label: 'الإعدادات',
     links: [
       { href: '/admin/settings', label: 'الإعدادات', icon: SlidersHorizontal },
+      { href: '/admin/lookups', label: 'القوائم المرجعية', icon: ListChecks },
+      { href: '/admin/sequences', label: 'الترقيم التسلسلي', icon: Hash },
       { href: '/admin/templates', label: 'قوالب الرسائل', icon: Mail },
       { href: '/admin/webhooks', label: 'الربط الخارجي', icon: Webhook },
     ],

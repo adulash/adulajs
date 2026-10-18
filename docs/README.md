@@ -2,11 +2,12 @@
 
 The approved [v4 plan](../adulajs-plan.md) records the original architecture and 1.0 scope. Later owner decisions are recorded in ADRs and take precedence where they change that plan, including the [removal of educational modules](decisions/017-test-only-examples-and-release-gates.md).
 
-AdulaJS builds one **system** (نظام) per company; each business module inside it is an **application** (تطبيق).
+AdulaJS builds one **system** (النظام) per company. Each business area inside it, such as assets, maintenance or HR, is an **application** (تطبيق), implemented as a module under `app/modules/<name>`. Applications share users, roles, the organisation tree, notifications and the task inbox, and the system integrates with the company's other software through the API, webhooks and imports.
 
 | Question | Document |
 |---|---|
 | How do I create a system? | [Installation](installation.md) |
+| How do I add an application to a system? | [Applications](applications.md) |
 | How do I upgrade a 1.x system to 2.x? | [Upgrade to 2.0](upgrade-2.0.md) |
 | What do I do after the first sign-in? | [Initial setup](initial-setup.md) |
 | How do I run and test the source? | [Development](development.md) |

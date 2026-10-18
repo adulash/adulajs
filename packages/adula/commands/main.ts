@@ -9,6 +9,7 @@ import Ui from './ui.js'
 import StorageMigrate from './storage_migrate.js'
 import Gaps from './gaps.js'
 import Upgrade from './upgrade.js'
+import App from './app.js'
 const commands = [
   Resource,
   ResourceSnapshot,
@@ -21,6 +22,7 @@ const commands = [
   StorageMigrate,
   Gaps,
   Upgrade,
+  App,
 ]
 export async function getMetaData() {
   return commands.map((command) => {

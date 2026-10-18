@@ -321,7 +321,7 @@ export default function RoleShow({ role, matrix }: Props) {
     event.preventDefault()
     confirm({
       title: 'تعيين المفتاح الثابت؟',
-      description: `تشير تدفقات العمل والوحدات إلى الدور بالمفتاح ${key}. لا يمكن تغييره بعد تعيينه، ويبقى تغيير الاسم ممكنًا.`,
+      description: `تشير تدفقات العمل والتطبيقات إلى الدور بالمفتاح ${key}. لا يمكن تغييره بعد تعيينه، ويبقى تغيير الاسم ممكنًا.`,
       action: () => router.patch(`/admin/roles/${role.id}`, { key }, options),
     })
   }
