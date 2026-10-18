@@ -6,6 +6,7 @@ import { createResourceController } from 'adula'
 import type { Actor, ResourceDescription } from 'adula'
 import { adula, requestActor } from '#services/adula'
 import { testFixturesEnabled } from '#start/test_fixtures'
+import { localizeResource, requestLanguage } from '#services/languages'
 const fixtureRenderers = testFixturesEnabled ? await import('#tests/fixtures/presentation') : null
 
 type Mode = 'index' | 'form' | 'show'
@@ -47,12 +48,15 @@ async function actorOf(ctx: HttpContext) {
   return requestActor(ctx)
 }
 
-export function childDescriptions(description: ResourceDescription, actor: Actor) {
+export function childDescriptions(description: ResourceDescription, actor: Actor, language = 'ar') {
   const children: Record<string, ResourceDescription> = {}
   for (const field of description.fields) {
     if (field.type !== 'hasMany') continue
     try {
-      children[field.key] = adula().resources.describe(field.resource, actor)
+      children[field.key] = localizeResource(
+        adula().resources.describe(field.resource, actor),
+        language
+      )
     } catch {
       // A child the actor cannot view is omitted; the deferred rows are authorized separately.
     }
@@ -74,7 +78,10 @@ export default createResourceController(
     return ctx.inertia.render(generic(page), {
       view: async () => ({
         mode: 'index' as const,
-        resource: runtime.resources.describe(resource.name, actor),
+        resource: localizeResource(
+          runtime.resources.describe(resource.name, actor),
+          requestLanguage(ctx)
+        ),
         lookups: await runtime.resources.lookups(resource.name, actor),
         savedViews: await runtime.savedViews.list(resource.name, actor),
       }),
@@ -98,14 +105,15 @@ export default createResourceController(
       : null
     const permissions = shown ? shown.permissions : {}
     return ctx.inertia.render(generic(page), {
-      view: { mode: 'form', editor, permissions },
+      view: { mode: 'form', editor: localizeResource(editor, requestLanguage(ctx)), permissions },
     })
   },
   async (ctx, resource, result) => {
     const runtime = adula()
     const actor = await actorOf(ctx)
     const id = Number(result.data.id)
-    const description = runtime.resources.describe(resource.name, actor)
+    const language = requestLanguage(ctx)
+    const description = localizeResource(runtime.resources.describe(resource.name, actor), language)
     let pending: ReturnType<typeof runtime.resources.details> | undefined
     const details = () => (pending ??= runtime.resources.details(resource.name, id, actor))
     return ctx.inertia.render(generic(pageFor(resource.name, 'show')), {
@@ -114,7 +122,7 @@ export default createResourceController(
         resource: description,
         result,
         lookups: await runtime.resources.lookups(resource.name, actor),
-        childResources: childDescriptions(description, actor),
+        childResources: childDescriptions(description, actor, language),
       }),
       // One deferred request and one record read serve both sections (#31).
       childrenData: ctx.inertia.defer(() => details().then((loaded) => loaded.children), 'details'),

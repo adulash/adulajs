@@ -4,6 +4,7 @@ import type { ResourceRegistry } from '../resource/registry.js'
 import type { Resource } from '../resource/types.js'
 import type { ResourceService } from './resource_service.js'
 import { AdulaError } from './errors.js'
+import { translate } from '../languages/catalog.js'
 
 export type ResourceRuntime = {
   registry: ResourceRegistry
@@ -206,11 +207,11 @@ export function createResourceController(
             .send({ error: { code: error.code, message: error.message } })
         if ((error as { code?: string })?.code === '23505')
           return ctx.response.conflict({
-            error: { code: 'E_DUPLICATE', message: 'هذه القيمة مستخدمة في سجل آخر' },
+            error: { code: 'E_DUPLICATE', message: translate('errors.E_DUPLICATE') },
           })
         if ((error as { code?: string })?.code === '23503')
           return ctx.response.unprocessableEntity({
-            error: { code: 'E_RELATION', message: 'تحقق من السجلات المرتبطة' },
+            error: { code: 'E_RELATION', message: translate('errors.E_RELATION') },
           })
         throw error
       }

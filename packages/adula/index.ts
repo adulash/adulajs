@@ -25,6 +25,31 @@ export type { AggregateOptions, AggregateRow, ListOptions } from './src/admin/re
 export { serialize, writableInput, selectedFields } from './src/admin/contracts.js'
 export { AdulaError } from './src/admin/errors.js'
 export {
+  BASE_LANGUAGE,
+  registerLanguage,
+  registeredLanguages,
+  enabledLanguages,
+  resolveLanguage,
+  languageDirection,
+  translate,
+  localizeText,
+  messageKeyOf,
+  clientMessages,
+  runWithLanguage,
+  currentLanguage,
+  labelText,
+} from './src/languages/catalog.js'
+export type {
+  MessageCatalog,
+  MessageParams,
+  TextDirection,
+  LanguageInfo,
+  LanguageOptions,
+} from './src/languages/catalog.js'
+export { arabicMessages } from './src/languages/ar.js'
+export { englishMessages } from './src/languages/en.js'
+export { CatalogMessagesProvider, installCatalogMessages } from './src/languages/validation.js'
+export {
   createCoreSchema,
   createResourceTable,
   createAttachmentsSchema,

@@ -1,5 +1,5 @@
 import type { Module, Resource } from './types.js'
-import { identifier } from './define_resource.js'
+import { assertLabel, identifier } from './define_resource.js'
 
 export class ResourceRegistry {
   #resources = new Map<string, Resource>()
@@ -30,10 +30,7 @@ export class ResourceRegistry {
         for (const row of rows) {
           if (typeof row.key !== 'string' || !row.key.trim() || row.key.length > 255)
             throw new Error(`Module ${module.name}: invalid lookup key in ${group}`)
-          if (!row.label?.ar || !row.label?.en)
-            throw new Error(
-              `Module ${module.name}: lookup ${group}.${row.key} needs bilingual labels`
-            )
+          assertLabel(row.label, `Module ${module.name}: lookup ${group}.${row.key}`)
           if (lookupKeys.has(`${group}\u0000${row.key}`))
             throw new Error(`Duplicate lookup: ${group}.${row.key}`)
           lookupKeys.add(`${group}\u0000${row.key}`)

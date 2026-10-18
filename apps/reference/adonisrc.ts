@@ -88,9 +88,12 @@ export default defineConfig({
   |
   */
   preloads: [
+    // Languages and the validator come first: validators capture VineJS's messages
+    // provider when they are created, and routes may import modules that create them.
+    () => import('#start/languages'),
+    () => import('#start/validator'),
     () => import('#start/routes'),
     () => import('#start/kernel'),
-    () => import('#start/validator'),
     { file: () => import('#start/scheduler'), environment: ['console'] },
     { file: () => import('#start/realtime'), environment: ['web', 'test'] },
   ],

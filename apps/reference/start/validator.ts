@@ -12,7 +12,9 @@
 */
 
 import { DateTime } from 'luxon'
-import { VineDate } from '@vinejs/vine'
+import vine, { VineDate } from '@vinejs/vine'
+import { installCatalogMessages } from 'adula'
+import { registry } from '#start/modules'
 
 declare module '@vinejs/vine/types' {
   interface VineGlobalTransforms {
@@ -21,3 +23,11 @@ declare module '@vinejs/vine/types' {
 }
 
 VineDate.transform((value) => DateTime.fromJSDate(value))
+
+/**
+ * Validation messages follow the request's language (see LanguageMiddleware):
+ * Arabic by default, the user's enabled language otherwise. Validators created
+ * later use it; resource validators created while the configuration loaded are
+ * switched to it unless they declare their own messages provider.
+ */
+installCatalogMessages(vine, registry.all())

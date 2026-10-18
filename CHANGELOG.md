@@ -2,6 +2,41 @@
 
 ## Unreleased
 
+### Optional languages
+
+Minor: Arabic stays the base language and every other language is an optional layer
+(see docs/languages.md, ADR 041). Resource definitions need no change. Code that
+*reads* `label.en` now gets `string | undefined` and must fall back to `label.ar`
+(`labelText`); `pnpm check:api` reports `Label` as changed for this reason.
+
+* `label.en` is optional on resources, fields, record and create labels, module lookups
+  and modules; `label.ar` stays required. `Label` widens from `{ ar; en }` to
+  `{ ar: string; en?: string; [language: string]: string | undefined }`, so existing
+  definitions compile unchanged. A label that names a language must give it text
+  (`en: ''` is still refused). `label.<lang>` falls back to `label.ar` in pages and in
+  the OpenAPI document; lookups without English store their Arabic text in `label_en`.
+* Message catalog: new exports `BASE_LANGUAGE`, `arabicMessages`, `englishMessages`,
+  `registerLanguage`, `registeredLanguages`, `enabledLanguages`, `resolveLanguage`,
+  `languageDirection`, `translate`, `localizeText`, `messageKeyOf`, `clientMessages`,
+  `labelText`, `runWithLanguage`, `currentLanguage`, `CatalogMessagesProvider`,
+  `installCatalogMessages` and the types `MessageCatalog`, `MessageParams`,
+  `TextDirection`, `LanguageInfo` and `LanguageOptions`. `AdulaError` gains `messageKey` and translates its message
+  inside a request running in another language; Arabic output is byte-identical.
+* VineJS messages answer through the catalog. Rules that previously fell back to
+  VineJS's English defaults (for example `required` on resource validators) now answer
+  in Arabic, or in the user's enabled language.
+* Reference application: `config/adula.ts` (`languages: ['ar']`; add `'en'` to offer
+  the bundled English catalog), `start/languages.ts`, an additive `users.language`
+  migration (default `ar`), a language card on the profile page (`PUT /account/language`),
+  the shared props `locale`, `dir`, `languages` and `messages`, and `<html lang dir>`
+  following the user. `start/languages` and `start/validator` now preload before the
+  routes. The order-receipts fixture has no `label.en` and is the Arabic-only consumer.
+  The 404 and 500 pages, previously English, now read «الصفحة غير موجودة» and «حدث خطأ
+  غير متوقع» (English for English users).
+* `@adula/ui`: new `messages` registry item (`useMessages()` → `t`, `label`, `locale`,
+  `dir`); the generic resource components, dialog, pagination and confirm-action look
+  their Arabic text up through it and take `dir` from the page.
+
 ### Security hardening
 
 Minor release (semver minor, not a patch): the public interfaces `ActivityEntry`,

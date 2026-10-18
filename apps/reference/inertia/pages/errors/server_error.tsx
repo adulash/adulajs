@@ -1,7 +1,12 @@
+import { Head } from '@inertiajs/react'
+import { useMessages } from '~/components/ui/messages'
+
 export default function ServerError() {
+  const { t } = useMessages()
   return (
     <>
-      <h1>Something went wrong</h1>
+      <Head title={t('حدث خطأ غير متوقع')} />
+      <h1>{t('حدث خطأ غير متوقع')}</h1>
     </>
   )
 }

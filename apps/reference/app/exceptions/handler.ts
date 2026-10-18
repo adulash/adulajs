@@ -1,7 +1,8 @@
 import app from '@adonisjs/core/services/app'
 import { type HttpContext, ExceptionHandler } from '@adonisjs/core/http'
 import type { StatusPageRange, StatusPageRenderer } from '@adonisjs/core/types/http'
-import { AdulaError } from 'adula'
+import { AdulaError, localizeText, translate } from 'adula'
+import { requestLanguage } from '#services/languages'
 
 export default class HttpExceptionHandler extends ExceptionHandler {
   /**
@@ -38,20 +39,28 @@ export default class HttpExceptionHandler extends ExceptionHandler {
       return ctx.response.forbidden({
         error: {
           code: 'E_BAD_CSRF_TOKEN',
-          message: 'انتهت صلاحية الطلب. حدّث الصفحة وحاول مجدداً.',
+          message: translate('errors.E_BAD_CSRF_TOKEN', requestLanguage(ctx)),
         },
       })
+    // An AdulaError thrown inside the request is already in the request's language.
+    // Errors raised before the language middleware (CSRF, unknown routes) stay Arabic.
     if (error instanceof AdulaError)
-      return ctx.response
-        .status(error.status)
-        .send({ error: { code: error.code, message: error.message } })
+      return ctx.response.status(error.status).send({
+        error: { code: error.code, message: localizeText(error.message, requestLanguage(ctx)) },
+      })
     if ((error as { code?: string })?.code === '23505')
       return ctx.response.conflict({
-        error: { code: 'E_DUPLICATE', message: 'هذه القيمة مستخدمة في سجل آخر' },
+        error: {
+          code: 'E_DUPLICATE',
+          message: translate('errors.E_DUPLICATE', requestLanguage(ctx)),
+        },
       })
     if ((error as { code?: string })?.code === '23503')
       return ctx.response.unprocessableEntity({
-        error: { code: 'E_RELATION', message: 'تحقق من السجلات المرتبطة' },
+        error: {
+          code: 'E_RELATION',
+          message: translate('errors.E_RELATION', requestLanguage(ctx)),
+        },
       })
     return super.handle(error, ctx)
   }

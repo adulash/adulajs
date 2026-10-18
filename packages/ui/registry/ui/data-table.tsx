@@ -38,6 +38,7 @@ import type {
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
+import { useMessages } from '~/components/ui/messages'
 import { Can } from '~/components/ui/can'
 import { Input } from '~/components/ui/input'
 import { ResourceActions } from '~/components/ui/resource-actions'
@@ -80,6 +81,7 @@ export function DataTable({
   savedViews?: SavedView[]
 }) {
   const { calendar } = useUiPreferences()
+  const { t, label } = useMessages()
   const { url } = usePage()
   const query = new URL(url, 'http://localhost').searchParams
   const [search, setSearch] = useState(query.get('search') ?? '')
@@ -154,9 +156,9 @@ export function DataTable({
   const activeFilters = filterable.filter((field) => query.get(`filters[${field.key}]`))
   const csv = () => {
     const content = [
-      fields.map((field) => field.label.ar),
+      fields.map((field) => label(field.label)),
       ...result.data.map((row) =>
-        fields.map((field) => displayValue(field, row, related, lookups, calendar))
+        fields.map((field) => displayValue(field, row, related, lookups, calendar, t))
       ),
     ]
     const href = URL.createObjectURL(
@@ -214,24 +216,26 @@ export function DataTable({
   }
   return (
     <section
-      aria-label={`قائمة ${resource.label}`}
+      aria-label={t('قائمة {resource}', { resource: resource.label })}
       className="min-w-0 overflow-hidden rounded-xl border border-border bg-white shadow-[0_2px_10px_#1c302804]"
     >
       <div className="flex flex-wrap items-center justify-between gap-4 border-b px-5 py-4">
         <div className="flex flex-wrap items-center gap-3">
-          <h2 className="text-sm font-semibold">سجل {resource.label}</h2>
+          <h2 className="text-sm font-semibold">
+            {t('سجل {resource}', { resource: resource.label })}
+          </h2>
           <Badge variant="secondary" className="font-normal tabular-nums">
-            {rows.length} معروض
+            {t('{count} معروض', { count: rows.length })}
           </Badge>
           <span className="text-xs text-muted-foreground">
             {result.meta.estimatedTotal !== undefined
-              ? `نحو ${result.meta.estimatedTotal} سجل ضمن نطاقك`
-              : 'حسب نطاق صلاحياتك'}
+              ? t('نحو {count} سجل ضمن نطاقك', { count: result.meta.estimatedTotal })
+              : t('حسب نطاق صلاحياتك')}
           </span>
         </div>
         <Button variant="outline" size="sm" onClick={csv} disabled={!rows.length}>
           <Download size={15} />
-          تصدير المعروض
+          {t('تصدير المعروض')}
         </Button>
       </div>
       {(resource.searchable || filterable.length > 0) && (
@@ -260,10 +264,10 @@ export function DataTable({
                 size={16}
               />
               <Input
-                aria-label={`البحث في ${resource.label}`}
+                aria-label={t('البحث في {field}', { field: resource.label })}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="ابحث في السجلات..."
+                placeholder={t('ابحث في السجلات...')}
                 className="h-9 bg-background/60 ps-10 text-xs"
               />
             </form>
@@ -271,7 +275,7 @@ export function DataTable({
           {filterable.length > 0 && (
             <span className="flex items-center gap-2 text-xs text-muted-foreground">
               <SlidersHorizontal size={15} />
-              تصفية
+              {t('تصفية')}
             </span>
           )}
           {filterable.map((field) => (
@@ -298,7 +302,7 @@ export function DataTable({
               }
             >
               <X size={14} />
-              مسح التصفية
+              {t('مسح التصفية')}
             </Button>
           )}
         </div>
@@ -317,11 +321,11 @@ export function DataTable({
             setFailure('')
           },
           onHttpException: () => {
-            setFailure('تعذر تحميل السجلات التالية. أعد المحاولة.')
+            setFailure(t('تعذر تحميل السجلات التالية. أعد المحاولة.'))
             return false
           },
           onNetworkError: () => {
-            setFailure('تعذر الاتصال بالخادم. تحقق من الاتصال ثم أعد المحاولة.')
+            setFailure(t('تعذر الاتصال بالخادم. تحقق من الاتصال ثم أعد المحاولة.'))
             return false
           },
         }}
@@ -335,14 +339,14 @@ export function DataTable({
             {loading ? (
               <span role="status" className="inline-flex items-center gap-2">
                 <Loader2 size={14} className="animate-spin" />
-                جارٍ تحميل المزيد...
+                {t('جارٍ تحميل المزيد...')}
               </span>
             ) : hasMore ? (
               <Button variant="ghost" size="sm" onClick={fetch}>
-                تحميل المزيد
+                {t('تحميل المزيد')}
               </Button>
             ) : (
-              <span>{rows.length ? 'نهاية السجلات' : ''}</span>
+              <span>{rows.length ? t('نهاية السجلات') : ''}</span>
             )}
           </div>
         )}
@@ -392,7 +396,7 @@ export function DataTable({
                           })
                         }
                       >
-                        {field.label.ar}
+                        {label(field.label)}
                         {sort === field.key ? (
                           direction === 'desc' ? (
                             <ArrowDown size={12} />
@@ -404,7 +408,7 @@ export function DataTable({
                         )}
                       </button>
                     ) : (
-                      field.label.ar
+                      label(field.label)
                     )}
                   </th>
                 ))}
@@ -412,7 +416,7 @@ export function DataTable({
                   scope="col"
                   className="sticky end-0 border-s bg-muted px-5 text-start font-medium"
                 >
-                  الإجراءات
+                  {t('الإجراءات')}
                 </th>
               </tr>
             </thead>
@@ -447,20 +451,20 @@ export function DataTable({
                         <Button variant="ghost" size="sm" asChild>
                           <Link
                             href={`/resources/${resource.name}/${id}`}
-                            aria-label={`عرض السجل ${id}`}
+                            aria-label={t('عرض السجل {id}', { id })}
                             onClick={(event) => overlay(event, id, 'show')}
                           >
-                            عرض
+                            {t('عرض')}
                           </Link>
                         </Button>
                         <Can permissions={permissions[id] ?? {}} action="update">
                           <Button variant="ghost" size="sm" asChild>
                             <Link
                               href={`/resources/${resource.name}/${id}/edit`}
-                              aria-label={`تعديل السجل ${id}`}
+                              aria-label={t('تعديل السجل {id}', { id })}
                               onClick={(event) => overlay(event, id, 'edit')}
                             >
-                              تعديل
+                              {t('تعديل')}
                             </Link>
                           </Button>
                         </Can>
@@ -469,7 +473,7 @@ export function DataTable({
                           id={id}
                           version={row.version ?? undefined}
                           permissions={permissions[id] ?? {}}
-                          label={`السجل ${id}`}
+                          label={t('السجل {id}', { id })}
                           size="sm"
                           variant="ghost"
                           onDone={refresh}
@@ -497,11 +501,11 @@ export function DataTable({
                       size={30}
                       strokeWidth={1.3}
                     />
-                    <p className="text-sm font-medium">لا توجد سجلات مطابقة</p>
+                    <p className="text-sm font-medium">{t('لا توجد سجلات مطابقة')}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {query.get('search') || activeFilters.length
-                        ? 'غيّر البحث أو التصفية لعرض سجلات أخرى.'
-                        : 'لم تُضف سجلات ضمن نطاقك بعد.'}
+                        ? t('غيّر البحث أو التصفية لعرض سجلات أخرى.')
+                        : t('لم تُضف سجلات ضمن نطاقك بعد.')}
                     </p>
                   </td>
                 </tr>
@@ -530,6 +534,7 @@ function SavedViewsBar({
   onChanged: () => void
   onFailure: (message: string) => void
 }) {
+  const { t } = useMessages()
   const [naming, setNaming] = useState(false)
   const [name, setName] = useState('')
   const [shared, setShared] = useState(false)
@@ -553,7 +558,7 @@ function SavedViewsBar({
       onFailure(
         axios.isAxiosError(error) && error.response?.data?.error?.message
           ? String(error.response.data.error.message)
-          : 'تعذر حفظ العرض.'
+          : t('تعذر حفظ العرض.')
       )
     } finally {
       setBusy(false)
@@ -569,7 +574,7 @@ function SavedViewsBar({
       })
       onChanged()
     } catch {
-      onFailure('تعذر حذف العرض.')
+      onFailure(t('تعذر حذف العرض.'))
     } finally {
       setBusy(false)
     }
@@ -578,9 +583,11 @@ function SavedViewsBar({
     <div className="flex flex-wrap items-center gap-2 border-b px-5 py-3">
       <span className="flex items-center gap-2 text-xs text-muted-foreground">
         <Bookmark size={15} />
-        العروض المحفوظة
+        {t('العروض المحفوظة')}
       </span>
-      {views.length === 0 && <span className="text-xs text-muted-foreground">لا عروض بعد</span>}
+      {views.length === 0 && (
+        <span className="text-xs text-muted-foreground">{t('لا عروض بعد')}</span>
+      )}
       {views.map((view) => (
         <span
           key={view.id}
@@ -593,12 +600,12 @@ function SavedViewsBar({
             onClick={() => onApply(view)}
           >
             {view.name}
-            {!view.own && <span className="text-muted-foreground"> · مشترك</span>}
+            {!view.own && <span className="text-muted-foreground"> · {t('مشترك')}</span>}
           </Button>
           {view.own && (
             <button
               type="button"
-              aria-label={`حذف العرض ${view.name}`}
+              aria-label={t('حذف العرض {name}', { name: view.name })}
               disabled={busy}
               onClick={() => remove(view)}
               className="text-muted-foreground transition-colors hover:text-destructive"
@@ -611,12 +618,12 @@ function SavedViewsBar({
       {naming ? (
         <form onSubmit={save} className="flex flex-wrap items-center gap-2">
           <Input
-            aria-label="اسم العرض"
+            aria-label={t('اسم العرض')}
             value={name}
             autoFocus
             maxLength={60}
             onChange={(event) => setName(event.target.value)}
-            placeholder="اسم العرض"
+            placeholder={t('اسم العرض')}
             className="h-8 w-44 text-xs"
           />
           <label className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -625,10 +632,10 @@ function SavedViewsBar({
               checked={shared}
               onChange={(event) => setShared(event.target.checked)}
             />
-            مشترك
+            {t('مشترك')}
           </label>
           <Button type="submit" size="sm" className="h-8" disabled={busy || !name.trim()}>
-            حفظ
+            {t('حفظ')}
           </Button>
           <Button
             type="button"
@@ -637,13 +644,13 @@ function SavedViewsBar({
             className="h-8"
             onClick={() => setNaming(false)}
           >
-            إلغاء
+            {t('إلغاء')}
           </Button>
         </form>
       ) : (
         <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setNaming(true)}>
           <BookmarkPlus size={14} />
-          حفظ العرض الحالي
+          {t('حفظ العرض الحالي')}
         </Button>
       )}
     </div>
@@ -662,7 +669,8 @@ function Cell({
   lookups: LookupOptions
 }) {
   const { calendar } = useUiPreferences()
-  const text = displayValue(field, row, related, lookups, calendar)
+  const { t } = useMessages()
+  const text = displayValue(field, row, related, lookups, calendar, t)
   const numeric = ['money', 'integer', 'date', 'datetime'].includes(field.type)
   return (
     <td
@@ -694,6 +702,7 @@ function Filter({
   related?: SerializedRecord[]
   onApply: (value: string | undefined) => void
 }): ReactNode {
+  const { t, label } = useMessages()
   const [draft, setDraft] = useState(value)
   const id = `filter-${field.key}`
   const select = (choices: Option[]) => (
@@ -701,20 +710,20 @@ function Filter({
       id={id}
       className="h-9 w-44 text-xs"
       value={value}
-      placeholder="الكل"
+      placeholder={t('الكل')}
       options={choices}
       onChange={(next) => onApply(next || undefined)}
     />
   )
   return (
     <label htmlFor={id} className="flex flex-col gap-1 text-xs text-muted-foreground">
-      {field.label.ar}
+      {label(field.label)}
       {field.type === 'lookup' ? (
         select(options ?? [])
       ) : field.type === 'boolean' ? (
         select([
-          { value: 'true', label: 'نعم' },
-          { value: 'false', label: 'لا' },
+          { value: 'true', label: t('نعم') },
+          { value: 'false', label: t('لا') },
         ])
       ) : field.type === 'belongsTo' || field.type === 'user' ? (
         <RelationFilter
@@ -730,7 +739,7 @@ function Filter({
             field={field}
             id={id}
             value={draft}
-            label={`تصفية ${field.label.ar}`}
+            label={t('تصفية {field}', { field: label(field.label) })}
             onChange={(next) => {
               setDraft(next)
               try {
@@ -747,7 +756,7 @@ function Filter({
           id={id}
           className="h-9 w-44 text-xs"
           value={draft}
-          placeholder="اضغط Enter للتطبيق"
+          placeholder={t('اضغط Enter للتطبيق')}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === 'Enter') {
@@ -779,6 +788,7 @@ function RelationFilter({
   related?: SerializedRecord[]
   onApply: (value: string | undefined) => void
 }) {
+  const { t, label } = useMessages()
   const [open, setOpen] = useState(false)
   const [term, setTerm] = useState('')
   const [choices, setChoices] = useState<Option[]>([])
@@ -848,15 +858,15 @@ function RelationFilter({
           aria-controls={listId}
           className={`h-9 w-44 justify-between bg-transparent text-xs font-normal ${value ? '' : 'text-muted-foreground'}`}
         >
-          <span className="truncate">{value ? (current?.label ?? `#${value}`) : 'الكل'}</span>
+          <span className="truncate">{value ? (current?.label ?? `#${value}`) : t('الكل')}</span>
           <ChevronsUpDown className="opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-64 p-0" align="start">
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder="ابحث في السجلات المرتبطة"
-            aria-label={`البحث في ${field.label.ar}`}
+            placeholder={t('ابحث في السجلات المرتبطة')}
+            aria-label={t('البحث في {field}', { field: label(field.label) })}
             value={term}
             onValueChange={(next) => {
               setTerm(next)
@@ -865,11 +875,11 @@ function RelationFilter({
             }}
           />
           <CommandList id={listId}>
-            <CommandEmpty>{busy ? 'جارٍ البحث...' : 'لا توجد سجلات مطابقة'}</CommandEmpty>
+            <CommandEmpty>{busy ? t('جارٍ البحث...') : t('لا توجد سجلات مطابقة')}</CommandEmpty>
             <CommandGroup>
               <CommandItem value="__all__" onSelect={() => choose(null)}>
                 <Check className={value ? 'opacity-0' : 'opacity-100'} />
-                الكل
+                {t('الكل')}
               </CommandItem>
               {choices.map((choice) => (
                 <CommandItem

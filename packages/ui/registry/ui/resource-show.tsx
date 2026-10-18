@@ -12,6 +12,7 @@ import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
 import { Can } from '~/components/ui/can'
+import { arabicText, useMessages, type Translate } from '~/components/ui/messages'
 import { Skeleton } from '~/components/ui/skeleton'
 import { ResourceActions } from '~/components/ui/resource-actions'
 import { ResourceValue, formatDatetime, type LookupOptions } from '~/components/ui/resource-value'
@@ -31,8 +32,8 @@ const activityLabels: Record<string, string> = {
   assignment_closed: 'إغلاق مهمة مع السجل',
 }
 
-export function documentStatus(status: unknown) {
-  return status === 1 ? 'معتمد' : status === 2 ? 'ملغي' : 'مسودة'
+export function documentStatus(status: unknown, t: Translate = arabicText) {
+  return status === 1 ? t('معتمد') : status === 2 ? t('ملغي') : t('مسودة')
 }
 
 export function ResourceShow({
@@ -57,6 +58,7 @@ export function ResourceShow({
   onAction?: (action: string) => void
 }) {
   const { calendar } = useUiPreferences()
+  const { t, label } = useMessages()
   const base = `/resources/${resource.name}/${result.data.id}`
   const fields = resource.fields.filter(
     (field) =>
@@ -65,8 +67,12 @@ export function ResourceShow({
   const children = resource.fields.filter(
     (field) => field.type === 'hasMany' && resource.show.includes(field.key)
   )
-  const fieldLabel = (key: string) =>
-    resource.fields.find((field) => field.key === key)?.label.ar ?? key
+  const fieldLabel = (key: string) => {
+    const field = resource.fields.find((entry) => entry.key === key)
+    return field ? label(field.label) : key
+  }
+  const columnLabel = (field: ResourceDescription['fields'][number] | undefined) =>
+    field ? label(field.label) : undefined
   return (
     <div className="max-w-5xl space-y-6">
       <div className="flex flex-wrap items-center gap-3">
@@ -74,13 +80,13 @@ export function ResourceShow({
           {onEdit ? (
             <Button onClick={onEdit}>
               <Pencil size={15} />
-              تعديل السجل
+              {t('تعديل السجل')}
             </Button>
           ) : (
             <Button asChild>
               <Link href={`${base}/edit`}>
                 <Pencil size={15} />
-                تعديل السجل
+                {t('تعديل السجل')}
               </Link>
             </Button>
           )}
@@ -88,7 +94,7 @@ export function ResourceShow({
         <Button variant="outline" asChild>
           <a href={`${base}/print`} target="_blank" rel="noopener">
             <Printer size={15} />
-            طباعة
+            {t('طباعة')}
           </a>
         </Button>
         <ResourceActions
@@ -109,7 +115,7 @@ export function ResourceShow({
             variant={result.data.docStatus === 1 ? 'default' : 'secondary'}
             className={result.data.docStatus === 2 ? 'bg-red-50 text-red-800' : ''}
           >
-            {documentStatus(result.data.docStatus)}
+            {documentStatus(result.data.docStatus, t)}
           </Badge>
         )}
       </div>
@@ -119,7 +125,7 @@ export function ResourceShow({
             key={field.key}
             className={['text', 'json'].includes(field.type) ? 'md:col-span-2' : ''}
           >
-            <dt className="mb-2 text-xs text-muted-foreground">{field.label.ar}</dt>
+            <dt className="mb-2 text-xs text-muted-foreground">{label(field.label)}</dt>
             <dd className="break-words text-sm whitespace-pre-wrap">
               <ResourceValue
                 field={field}
@@ -132,13 +138,13 @@ export function ResourceShow({
         ))}
         {resource.scoped && result.data.orgUnitId !== undefined && (
           <div>
-            <dt className="mb-2 text-xs text-muted-foreground">الوحدة التنظيمية</dt>
+            <dt className="mb-2 text-xs text-muted-foreground">{t('الوحدة التنظيمية')}</dt>
             <dd className="text-sm">#{String(result.data.orgUnitId)}</dd>
           </div>
         )}
       </dl>
       {children.length > 0 && (
-        <Deferred data="childrenData" fallback={<SectionSkeleton title="البنود" rows={3} />}>
+        <Deferred data="childrenData" fallback={<SectionSkeleton title={t('البنود')} rows={3} />}>
           <div className="space-y-5">
             {children.map((field) => {
               const group = childrenData?.[field.key]
@@ -157,13 +163,14 @@ export function ResourceShow({
               return (
                 <section
                   key={field.key}
-                  aria-label={field.label.ar}
+                  aria-label={label(field.label)}
                   className="rounded-xl border bg-white"
                 >
                   <div className="flex items-center justify-between border-b px-7 py-4">
-                    <h2 className="text-sm font-semibold">{field.label.ar}</h2>
+                    <h2 className="text-sm font-semibold">{label(field.label)}</h2>
                     <span className="text-xs text-muted-foreground">
-                      {group.rows.length} بند{group.hasMore ? ' · تظهر أول 100 بند متاح' : ''}
+                      {t('{count} بند', { count: group.rows.length })}
+                      {group.hasMore ? ` · ${t('تظهر أول 100 بند متاح')}` : ''}
                     </span>
                   </div>
                   {group.rows.length ? (
@@ -177,7 +184,7 @@ export function ResourceShow({
                                 scope="col"
                                 className="px-5 py-3 text-start font-medium"
                               >
-                                {columns.find((entry) => entry.key === key)?.label.ar ?? key}
+                                {columnLabel(columns.find((entry) => entry.key === key)) ?? key}
                               </th>
                             ))}
                           </tr>
@@ -203,7 +210,9 @@ export function ResourceShow({
                       </table>
                     </div>
                   ) : (
-                    <p className="px-7 py-6 text-xs text-muted-foreground">لا توجد بنود متاحة.</p>
+                    <p className="px-7 py-6 text-xs text-muted-foreground">
+                      {t('لا توجد بنود متاحة.')}
+                    </p>
                   )}
                 </section>
               )
@@ -220,13 +229,13 @@ export function ResourceShow({
         canAssign={Boolean(result.permissions.update)}
       />
       <RecordCollaboration resource={resource} id={result.data.id as number} />
-      <Deferred data="activity" fallback={<SectionSkeleton title="سجل النشاط" rows={4} />}>
-        <section aria-label="سجل النشاط" className="rounded-xl border bg-white">
+      <Deferred data="activity" fallback={<SectionSkeleton title={t('سجل النشاط')} rows={4} />}>
+        <section aria-label={t('سجل النشاط')} className="rounded-xl border bg-white">
           <div className="flex items-center gap-2 border-b px-7 py-4">
             <History size={16} className="text-muted-foreground" />
-            <h2 className="text-sm font-semibold">سجل النشاط</h2>
+            <h2 className="text-sm font-semibold">{t('سجل النشاط')}</h2>
             <span className="ms-auto text-xs text-muted-foreground">
-              آخر {activity?.length ?? 0} إجراء
+              {t('آخر {count} إجراء', { count: activity?.length ?? 0 })}
             </span>
           </div>
           {activity?.length ? (
@@ -237,10 +246,10 @@ export function ResourceShow({
                   className="flex flex-wrap items-baseline gap-x-4 gap-y-1 px-7 py-3 text-sm"
                 >
                   <span className="font-medium">
-                    {activityLabels[entry.action] ?? entry.action}
+                    {activityLabels[entry.action] ? t(activityLabels[entry.action]) : entry.action}
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    {entry.actorName ?? `مستخدم #${entry.actorId}`}
+                    {entry.actorName ?? t('مستخدم #{id}', { id: String(entry.actorId) })}
                   </span>
                   <time
                     dateTime={entry.createdAt}
@@ -250,14 +259,16 @@ export function ResourceShow({
                   </time>
                   {entry.fields.length > 0 && (
                     <span className="basis-full text-xs text-muted-foreground">
-                      الحقول: {entry.fields.map(fieldLabel).join('، ')}
+                      {t('الحقول: {fields}', {
+                        fields: entry.fields.map(fieldLabel).join(t('، ')),
+                      })}
                     </span>
                   )}
                 </li>
               ))}
             </ol>
           ) : (
-            <p className="px-7 py-6 text-xs text-muted-foreground">لا يوجد نشاط مسجل بعد.</p>
+            <p className="px-7 py-6 text-xs text-muted-foreground">{t('لا يوجد نشاط مسجل بعد.')}</p>
           )}
         </section>
       </Deferred>
@@ -272,10 +283,11 @@ function plain(row: SerializedRecord, key: string) {
 }
 
 function SectionSkeleton({ title, rows }: { title: string; rows: number }) {
+  const { t } = useMessages()
   return (
     <section
       role="status"
-      aria-label={`جارٍ تحميل ${title}`}
+      aria-label={t('جارٍ تحميل {section}', { section: title })}
       className="rounded-xl border bg-white"
     >
       <div className="border-b px-7 py-4">

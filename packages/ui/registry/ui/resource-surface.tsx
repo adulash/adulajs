@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '~/components/ui/dialog'
+import { useMessages } from '~/components/ui/messages'
 
 export type ResourcePresentation = 'dialog' | 'page'
 
@@ -162,14 +163,15 @@ export function ResourceSurface({
   onClose?: () => void
   children: ReactNode
 }) {
+  const { t, dir } = useMessages()
   const [open, setOpen] = useState(true)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   useEffect(() => () => clearTimeout(closeTimer.current), [])
   if (presentation === 'page')
     return (
-      <section dir="rtl" className="space-y-6">
+      <section dir={dir} className="space-y-6">
         <Button variant="outline" asChild>
-          <Link href={backHref}>العودة إلى القائمة</Link>
+          <Link href={backHref}>{t('العودة إلى القائمة')}</Link>
         </Button>
         <header>
           <h1 className="text-3xl font-semibold">{title}</h1>
@@ -205,7 +207,7 @@ export function ResourceSurface({
       }}
     >
       <DialogContent
-        dir="rtl"
+        dir={dir}
         className="flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl"
       >
         <DialogHeader className="shrink-0 border-b px-6 py-5 pe-12 text-start">

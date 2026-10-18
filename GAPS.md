@@ -43,5 +43,7 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
 
 ## Language and documentation
 
-* The interface is Arabic only; other languages are optional and planned.
+* Arabic is the base language; other languages are optional (docs/languages.md).
+  English is bundled for the framework's own strings; the administration pages,
+  record assignments, workflows, collaboration and CSV import are not in the catalog yet.
 * No documentation site and no complete `defineResource` reference.

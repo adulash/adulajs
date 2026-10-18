@@ -34,7 +34,7 @@ export default class ModuleAdd extends BaseCommand {
     )
     await writeFile(indexPath, next)
     this.logger.success(
-      `Created ${this.name}. Fill bilingual labels and declare dependencies before adding resources.`
+      `Created ${this.name}. Fill the Arabic labels (other languages are optional) and declare dependencies before adding resources.`
     )
   }
 }

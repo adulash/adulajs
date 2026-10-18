@@ -13,6 +13,7 @@ import {
   DialogTitle,
 } from '~/components/ui/dialog'
 import { Can } from '~/components/ui/can'
+import { arabicText, useMessages, type Translate } from '~/components/ui/messages'
 
 export type TransitionAction = 'delete' | 'submit' | 'cancel' | 'amend'
 export const transitionLabels: Record<TransitionAction, string> = {
@@ -27,11 +28,18 @@ const descriptions: Record<TransitionAction, string> = {
   cancel: 'سيُعاد المستند إلى حالة الإلغاء ولن يُحتسب.',
   amend: 'تُنشأ مسودة جديدة منسوخة من هذا المستند الملغي مع بنوده، ويبقى الأصل كما هو.',
 }
+const successes: Record<TransitionAction, string> = {
+  delete: 'تم حذف السجل',
+  submit: 'تم اعتماد المستند',
+  cancel: 'تم إلغاء الاعتماد',
+  amend: 'تم تعديل بالنسخ',
+}
 
-export function failureMessage(error: unknown, fallback: string) {
-  if (!axios.isAxiosError(error)) return 'تعذر الاتصال بالخادم. حاول مجدداً.'
+/** Pass the component's `t` so the built-in messages follow the interface language. */
+export function failureMessage(error: unknown, fallback: string, t: Translate = arabicText) {
+  if (!axios.isAxiosError(error)) return t('تعذر الاتصال بالخادم. حاول مجدداً.')
   if (error.response?.status === 409 && error.response.data?.error?.code === 'E_VERSION_CONFLICT')
-    return 'تغير السجل منذ فتحه. أعد تحميل الصفحة قبل المتابعة.'
+    return t('تغير السجل منذ فتحه. أعد تحميل الصفحة قبل المتابعة.')
   return error.response?.data?.error?.message ?? fallback
 }
 
@@ -59,6 +67,7 @@ export function ResourceActions({
   variant?: 'outline' | 'ghost'
   onDone?: (action: TransitionAction) => void
 }) {
+  const { t } = useMessages()
   const [pending, setPending] = useState<TransitionAction | null>(null)
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState('')
@@ -76,7 +85,7 @@ export function ResourceActions({
         headers: { Accept: 'application/json' },
         withXSRFToken: true,
       })
-      toast.success(`تم ${transitionLabels[pending]}`)
+      toast.success(t(successes[pending]))
       const done = pending
       setPending(null)
       // The amended copy is a new draft; continue editing it.
@@ -86,7 +95,9 @@ export function ResourceActions({
       else router.reload()
     } catch (error) {
       setConflict(isConflict(error))
-      setFailure(failureMessage(error, 'تعذر تنفيذ الإجراء. تحقق من صلاحياتك وحاول مجدداً.'))
+      setFailure(
+        failureMessage(error, t('تعذر تنفيذ الإجراء. تحقق من صلاحياتك وحاول مجدداً.'), t)
+      )
     } finally {
       setBusy(false)
     }
@@ -100,23 +111,23 @@ export function ResourceActions({
             variant={variant}
             size={size}
             className={action === 'delete' ? 'text-destructive' : undefined}
-            aria-label={label ? `${transitionLabels[action]} ${label}` : undefined}
+            aria-label={label ? `${t(transitionLabels[action])} ${label}` : undefined}
             onClick={() => {
               setPending(action)
               setFailure('')
               setConflict(false)
             }}
           >
-            {transitionLabels[action]}
+            {t(transitionLabels[action])}
           </Button>
         </Can>
       ))}
       <Dialog open={pending !== null} onOpenChange={(open) => !open && !busy && setPending(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{pending ? transitionLabels[pending] : ''}</DialogTitle>
+            <DialogTitle>{pending ? t(transitionLabels[pending]) : ''}</DialogTitle>
             <DialogDescription>
-              {pending ? descriptions[pending] : ''}
+              {pending ? t(descriptions[pending]) : ''}
               {label ? ` (${label})` : ''}
             </DialogDescription>
           </DialogHeader>
@@ -125,14 +136,14 @@ export function ResourceActions({
               {failure}
               {conflict && (
                 <Button type="button" variant="outline" size="sm" onClick={() => router.reload()}>
-                  إعادة التحميل
+                  {t('إعادة التحميل')}
                 </Button>
               )}
             </div>
           )}
           <DialogFooter>
             <Button type="button" variant="outline" disabled={busy} onClick={() => setPending(null)}>
-              تراجع
+              {t('تراجع')}
             </Button>
             <Button
               type="button"
@@ -140,7 +151,7 @@ export function ResourceActions({
               disabled={busy || conflict}
               onClick={() => void execute()}
             >
-              {busy ? 'جارٍ التنفيذ...' : 'تأكيد'}
+              {busy ? t('جارٍ التنفيذ...') : t('تأكيد')}
             </Button>
           </DialogFooter>
         </DialogContent>

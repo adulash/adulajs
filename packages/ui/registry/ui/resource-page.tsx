@@ -24,6 +24,7 @@ import {
   type RecordOverlay,
   type ResourcePresentation,
 } from '~/components/ui/resource-surface'
+import { useMessages, type Translate } from '~/components/ui/messages'
 
 /** The discriminated view stays nested: Inertia's page typing flattens top-level unions. */
 export type ResourceView =
@@ -53,13 +54,17 @@ export type ResourcePageProps = {
 type RecordView = Exclude<ResourceView, { mode: 'index' }>
 
 /** Title of a record dialog: «إضافة حساب», «تعديل · الحسابات» or «تفاصيل · الحسابات». */
-function recordTitle(view: RecordView) {
-  if (view.mode === 'show') return `تفاصيل · ${view.resource.label}`
-  const verb = view.editor.mode === 'create' ? 'إضافة' : 'تعديل'
+function recordTitle(view: RecordView, t: Translate) {
+  if (view.mode === 'show') return t('تفاصيل · {resource}', { resource: view.resource.label })
+  const create = view.editor.mode === 'create'
   // A singular record noun («حساب») reads better than the plural list label (#37).
-  return view.editor.recordLabel
-    ? `${verb} ${view.editor.recordLabel}`
-    : `${verb} · ${view.editor.label}`
+  if (view.editor.recordLabel)
+    return create
+      ? t('إضافة {record}', { record: view.editor.recordLabel })
+      : t('تعديل {record}', { record: view.editor.recordLabel })
+  return create
+    ? t('إضافة · {resource}', { resource: view.editor.label })
+    : t('تعديل · {resource}', { resource: view.editor.label })
 }
 
 function RecordBody({
@@ -112,13 +117,15 @@ export function ResourcePage({
 }: ResourcePageProps) {
   // A record opened over this list by openRecord(); a client-only prop, never sent by the server.
   const overlay = usePage<{ overlay?: RecordOverlay }>().props.overlay
+  const { t } = useMessages()
   const name = view.mode === 'form' ? view.editor.name : view.resource.name
   const label = view.mode === 'form' ? view.editor.label : view.resource.label
-  const title = view.mode === 'index' ? label : recordTitle(view)
+  const title = view.mode === 'index' ? label : recordTitle(view, t)
   const noun = view.mode === 'index' ? view.resource.recordLabel : null
   const createText =
     view.mode === 'index'
-      ? (view.resource.createLabel ?? (noun ? `إضافة ${noun}` : 'إضافة سجل'))
+      ? (view.resource.createLabel ??
+        (noun ? t('إضافة {record}', { record: noun }) : t('إضافة سجل')))
       : ''
   const overlayView = view.mode === 'index' ? (overlay?.view as RecordView | undefined) : undefined
   const overlayRecord =
@@ -133,7 +140,7 @@ export function ResourcePage({
           <div>
             <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
             <p className="mt-3 text-sm text-muted-foreground">
-              سجلاتك ومتابعتك اليومية في مكان واحد.
+              {t('سجلاتك ومتابعتك اليومية في مكان واحد.')}
             </p>
           </div>
           {view.mode === 'index' && view.resource.canCreate && (
@@ -165,11 +172,11 @@ export function ResourcePage({
             <ResourceSurface
               key={`overlay:${name}:${overlayId}`}
               mode={overlayView.mode === 'form' ? 'edit' : 'view'}
-              title={recordTitle(overlayView)}
+              title={recordTitle(overlayView, t)}
               description={
                 overlayView.mode === 'form'
-                  ? 'أكمل الحقول المطلوبة ثم احفظ السجل.'
-                  : 'راجع التفاصيل المتاحة لك وأكمل عملك.'
+                  ? t('أكمل الحقول المطلوبة ثم احفظ السجل.')
+                  : t('راجع التفاصيل المتاحة لك وأكمل عملك.')
               }
               backHref={overlay.list}
               onClose={() => closeRecord(overlay)}
@@ -200,8 +207,8 @@ export function ResourcePage({
           title={title}
           description={
             view.mode === 'form'
-              ? 'أكمل الحقول المطلوبة ثم احفظ السجل.'
-              : 'راجع التفاصيل المتاحة لك وأكمل عملك.'
+              ? t('أكمل الحقول المطلوبة ثم احفظ السجل.')
+              : t('راجع التفاصيل المتاحة لك وأكمل عملك.')
           }
           backHref={`/resources/${name}`}
           presentation={presentation}

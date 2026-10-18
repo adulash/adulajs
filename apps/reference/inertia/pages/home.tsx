@@ -3,6 +3,7 @@ import { Link } from '@adonisjs/inertia/react'
 import type { ResourceNavigation } from 'adula'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
+import { useMessages } from '~/components/ui/messages'
 import Workspace from '~/layouts/workspace'
 import Layout from '~/layouts/default'
 
@@ -12,40 +13,41 @@ export default function Home() {
     isAdmin: boolean
     navigation: ResourceNavigation
   }>().props
+  const { t, dir } = useMessages()
   return (
     <>
-      <Head title="مساحة العمل · AdulaJS" />
-      <div className="mx-auto max-w-5xl space-y-6 px-6 py-12" dir="rtl">
+      <Head title={t('مساحة العمل · {app}', { app: 'AdulaJS' })} />
+      <div className="mx-auto max-w-5xl space-y-6 px-6 py-12" dir={dir}>
         <Card>
           <CardHeader>
             <CardTitle>
-              <h1 className="text-3xl">مساحة العمل</h1>
+              <h1 className="text-3xl">{t('مساحة العمل')}</h1>
             </CardTitle>
-            <CardDescription>وحدات أعمالك وإعدادات حسابك في مكان واحد.</CardDescription>
+            <CardDescription>{t('وحدات أعمالك وإعدادات حسابك في مكان واحد.')}</CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-3">
             {user ? (
               <>
                 <Button asChild>
-                  <Link href="/account/profile">حسابي</Link>
+                  <Link href="/account/profile">{t('حسابي')}</Link>
                 </Button>
                 <Button asChild variant="outline">
-                  <Link href="/notifications">الإشعارات</Link>
+                  <Link href="/notifications">{t('الإشعارات')}</Link>
                 </Button>
                 {isAdmin && (
                   <Button asChild variant="outline">
-                    <Link href="/admin/setup">بدء الإعداد الأولي</Link>
+                    <Link href="/admin/setup">{t('بدء الإعداد الأولي')}</Link>
                   </Button>
                 )}
                 {isAdmin && (
                   <Button asChild variant="outline">
-                    <Link href="/admin/users">إدارة النظام</Link>
+                    <Link href="/admin/users">{t('إدارة النظام')}</Link>
                   </Button>
                 )}
               </>
             ) : (
               <Button asChild>
-                <Link href="/login">تسجيل الدخول</Link>
+                <Link href="/login">{t('تسجيل الدخول')}</Link>
               </Button>
             )}
           </CardContent>
@@ -59,14 +61,16 @@ export default function Home() {
                 </CardHeader>
                 <CardContent>
                   <Button asChild variant="outline">
-                    <Link href={entry.href}>فتح {entry.label}</Link>
+                    <Link href={entry.href}>{t('فتح {resource}', { resource: entry.label })}</Link>
                   </Button>
                 </CardContent>
               </Card>
             ))}
           </div>
         ) : (
-          <p className="text-sm text-muted-foreground">ستظهر هنا وحدات العمل المتاحة لحسابك.</p>
+          <p className="text-sm text-muted-foreground">
+            {t('ستظهر هنا وحدات العمل المتاحة لحسابك.')}
+          </p>
         )}
       </div>
     </>
