@@ -171,7 +171,8 @@
       ],
       "type": "registry:ui",
       "registryDependencies": [
-        "ui-preferences"
+        "ui-preferences",
+        "messages"
       ]
     },
     {
@@ -337,7 +338,8 @@
         "lucide-react@1.47.0"
       ],
       "registryDependencies": [
-        "button"
+        "button",
+        "messages"
       ],
       "files": [
         {
@@ -411,7 +413,8 @@
       "registryDependencies": [
         "badge",
         "calendar-date",
-        "ui-preferences"
+        "ui-preferences",
+        "messages"
       ],
       "dependencies": [
         "lucide-react@1.47.0"
@@ -439,7 +442,8 @@
         "resource-value",
         "hijri-calendar",
         "calendar-date",
-        "ui-preferences"
+        "ui-preferences",
+        "messages"
       ],
       "dependencies": [
         "axios@1.19.0",
@@ -467,7 +471,8 @@
         "ui-preferences",
         "command",
         "popover",
-        "resource-surface"
+        "resource-surface",
+        "messages"
       ],
       "dependencies": [
         "@tanstack/react-table@9.2.4",
@@ -491,7 +496,8 @@
         "label",
         "resource-actions",
         "resource-field",
-        "resource-value"
+        "resource-value",
+        "messages"
       ],
       "dependencies": [
         "axios@1.19.0",
@@ -517,7 +523,8 @@
         "command",
         "tabs",
         "ui-preferences",
-        "resource-value"
+        "resource-value",
+        "messages"
       ],
       "dependencies": [
         "lucide-react@1.47.0",
@@ -591,7 +598,8 @@
         "ui-preferences",
         "record-collaboration",
         "record-assignments",
-        "record-workflows"
+        "record-workflows",
+        "messages"
       ],
       "dependencies": [
         "lucide-react@1.47.0"
@@ -633,7 +641,8 @@
         "resource-form",
         "resource-show",
         "resource-surface",
-        "resource-import"
+        "resource-import",
+        "messages"
       ],
       "dependencies": [
         "lucide-react@1.47.0"
@@ -651,7 +660,8 @@
       "registryDependencies": [
         "button",
         "dialog",
-        "can"
+        "can",
+        "messages"
       ],
       "dependencies": [
         "axios@1.19.0",
@@ -669,7 +679,8 @@
       "type": "registry:ui",
       "registryDependencies": [
         "button",
-        "dialog"
+        "dialog",
+        "messages"
       ],
       "dependencies": [],
       "files": [
@@ -704,6 +715,22 @@
       ]
     },
     {
+      "name": "messages",
+      "type": "registry:ui",
+      "registryDependencies": [],
+      "dependencies": [],
+      "files": [
+        {
+          "path": "registry/ui/messages.ts",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/ui/message_format.ts",
+          "type": "registry:ui"
+        }
+      ]
+    },
+    {
       "name": "hijri-calendar",
       "type": "registry:ui",
       "registryDependencies": [
@@ -724,7 +751,8 @@
       "type": "registry:ui",
       "registryDependencies": [
         "dialog",
-        "button"
+        "button",
+        "messages"
       ],
       "dependencies": [],
       "files": [

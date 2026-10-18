@@ -8,6 +8,7 @@ import { Label } from '~/components/ui/label'
 import { Alert, AlertDescription } from '~/components/ui/alert'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
 import Workspace from '~/layouts/workspace'
+import { LanguageSetting } from '~/components/language-setting'
 
 export default function Profile() {
   const { props, flash } = usePage<{ user?: { fullName: string | null; email: string } }>()
@@ -152,6 +153,7 @@ export default function Profile() {
           </CardContent>
         </Card>
       </div>
+      <LanguageSetting />
     </>
   )
 }

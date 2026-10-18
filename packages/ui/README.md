@@ -39,6 +39,7 @@ Nine AdulaJS components sit on top of the primitives and are registered by `node
 | `resource-show` | Field cards, status badge, actions by permission, deferred `childrenData` tables described by `childResources`, and the deferred `activity` list, each behind a skeleton. |
 | `resource-actions` | Confirmation dialog and versioned `DELETE`/`submit`/`cancel` requests shared by the table and the show page. |
 | `can` | Renders children only when the server-computed record permission allows the action. |
+| `messages` | `useMessages()` returns `{ t, label, locale, dir }` from the shared `locale`, `dir` and `messages` props. Arabic is the base language: `t('نص عربي', { name })` returns the translation of that exact Arabic text or the text itself, filling `{name}` placeholders; `label(field.label)` returns `label.<locale>` or `label.ar`. Without the shared props every component renders Arabic. Helpers outside components (`failureMessage`, `documentStatus`, `displayValue`, `fileSize`) take an optional `t`. |
 
 Override rule: a page file at `inertia/pages/<resource>/{index,form,show}.tsx` replaces the generic page for that resource and mode; there is no setting or hook. See docs/decisions/015-generic-resource-ui.md.
 

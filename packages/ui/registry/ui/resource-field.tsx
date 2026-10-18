@@ -19,6 +19,7 @@ import { Calendar } from '~/components/ui/calendar'
 import { HijriCalendar } from '~/components/ui/hijri-calendar'
 import { calendarInput, calendarIso } from '~/components/ui/calendar_date'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
+import { useMessages } from '~/components/ui/messages'
 import {
   Command,
   CommandEmpty,
@@ -79,7 +80,7 @@ export function ResourceSelect({
   value,
   onChange,
   options,
-  placeholder = 'اختر قيمة',
+  placeholder,
   required,
   disabled,
   className = 'h-10 w-full',
@@ -97,6 +98,8 @@ export function ResourceSelect({
   /** Trigger size and width; forms keep the default, toolbars pass a compact size. */
   className?: string
 }) {
+  const { t } = useMessages()
+  const empty = placeholder ?? t('اختر قيمة')
   // Encode values so an empty selection cannot collide with a business lookup key.
   return (
     <Select
@@ -106,10 +109,10 @@ export function ResourceSelect({
       disabled={disabled}
     >
       <SelectTrigger {...trigger} className={className} aria-required={required}>
-        <SelectValue placeholder={placeholder} />
+        <SelectValue placeholder={empty} />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="value:">{placeholder}</SelectItem>
+        <SelectItem value="value:">{empty}</SelectItem>
         {options
           .filter((option) => String(option.value) !== '')
           .map((option) => (
@@ -124,13 +127,14 @@ export function ResourceSelect({
 
 export function ResourceField(props: FieldProps) {
   const { field, id, error } = props
+  const { label } = useMessages()
   return (
     <div
       className={`min-w-0 space-y-2 ${['text', 'json'].includes(field.type) ? 'md:col-span-2' : ''}`}
     >
       {/* The marker stays outside the label so the field's accessible name is the label alone. */}
       <div className="flex items-center gap-1">
-        <Label htmlFor={id}>{field.label.ar}</Label>
+        <Label htmlFor={id}>{label(field.label)}</Label>
         {field.required && (
           <span className="text-destructive" aria-hidden="true">
             *
@@ -149,6 +153,7 @@ export function ResourceField(props: FieldProps) {
 
 export function FieldControl(props: FieldProps) {
   const { field, id, value, onChange, disabled, error, label } = props
+  const { t } = useMessages()
   const shared = {
     id,
     disabled,
@@ -179,7 +184,9 @@ export function FieldControl(props: FieldProps) {
             checked={value === 'true'}
             onCheckedChange={(checked) => onChange(checked ? 'true' : 'false')}
           />
-          <span className="text-sm text-muted-foreground">{value === 'true' ? 'نعم' : 'لا'}</span>
+          <span className="text-sm text-muted-foreground">
+            {value === 'true' ? t('نعم') : t('لا')}
+          </span>
         </div>
       )
     case 'attachment':
@@ -228,6 +235,7 @@ export function FieldControl(props: FieldProps) {
 }
 
 function MoneyControl({ id, value, onChange, disabled, error, field, label }: FieldProps) {
+  const { t } = useMessages()
   let preview = ''
   try {
     if (value) preview = moneyDisplay(parseMoney(value))
@@ -260,12 +268,12 @@ function MoneyControl({ id, value, onChange, disabled, error, field, label }: Fi
           }}
         />
         <span className="pointer-events-none absolute inset-y-0 end-3 flex items-center text-xs text-muted-foreground">
-          {CURRENCY_LABEL}
+          {t(CURRENCY_LABEL)}
         </span>
       </div>
       {preview && (
         <p className="text-xs text-muted-foreground" dir="ltr">
-          {preview} {CURRENCY_LABEL}
+          {preview} {t(CURRENCY_LABEL)}
         </p>
       )}
     </div>
@@ -274,6 +282,8 @@ function MoneyControl({ id, value, onChange, disabled, error, field, label }: Fi
 
 function DateControl({ id, value, onChange, disabled, error, field, label }: FieldProps) {
   const { calendar: preference } = useUiPreferences()
+  const { t, label: localized } = useMessages()
+  const name = label ?? localized(field.label)
   const [entryCalendar, setEntryCalendar] = useState<CalendarSystem>('gregory')
   const calendar = preference === 'both' ? entryCalendar : preference
   const [open, setOpen] = useState(false)
@@ -299,7 +309,7 @@ function DateControl({ id, value, onChange, disabled, error, field, label }: Fie
         <div
           className="flex gap-1"
           role="group"
-          aria-label={`تقويم الإدخال: ${label ?? field.label.ar}`}
+          aria-label={t('تقويم الإدخال: {field}', { field: name })}
         >
           <Button
             type="button"
@@ -308,7 +318,7 @@ function DateControl({ id, value, onChange, disabled, error, field, label }: Fie
             aria-pressed={calendar === 'gregory'}
             onClick={() => setEntryCalendar('gregory')}
           >
-            إدخال ميلادي
+            {t('إدخال ميلادي')}
           </Button>
           <Button
             type="button"
@@ -317,7 +327,7 @@ function DateControl({ id, value, onChange, disabled, error, field, label }: Fie
             aria-pressed={calendar === 'islamic-umalqura'}
             onClick={() => setEntryCalendar('islamic-umalqura')}
           >
-            إدخال هجري
+            {t('إدخال هجري')}
           </Button>
         </div>
       )}
@@ -350,7 +360,7 @@ function DateControl({ id, value, onChange, disabled, error, field, label }: Fie
               variant="outline"
               size="icon-lg"
               disabled={disabled}
-              aria-label={`التقويم: ${label ?? field.label.ar}`}
+              aria-label={t('التقويم: {field}', { field: name })}
             >
               <CalendarDays />
             </Button>
@@ -380,12 +390,14 @@ function DateControl({ id, value, onChange, disabled, error, field, label }: Fie
       </div>
       {calendar === 'islamic-umalqura' && (
         <p className="text-xs text-muted-foreground">
-          هجري · أم القرى {valid && <span dir="ltr">({normalized} ميلادي)</span>}
+          {t('هجري · أم القرى')}{' '}
+          {valid && <span dir="ltr">{t('({date} ميلادي)', { date: normalized })}</span>}
         </p>
       )}
       {preference === 'both' && calendar === 'gregory' && valid && (
         <p className="text-xs text-muted-foreground" aria-live="polite">
-          الموافق هجريًا: <span dir="ltr">{calendarInput(normalized, 'islamic-umalqura')}</span> هـ
+          {t('الموافق هجريًا:')}{' '}
+          <span dir="ltr">{calendarInput(normalized, 'islamic-umalqura')}</span> {t('هـ')}
         </p>
       )}
     </div>
@@ -394,6 +406,7 @@ function DateControl({ id, value, onChange, disabled, error, field, label }: Fie
 
 function DatetimeControl(props: FieldProps) {
   const { calendar } = useUiPreferences()
+  const { t, label } = useMessages()
   if (calendar === 'gregory')
     return (
       <Input
@@ -420,7 +433,7 @@ function DatetimeControl(props: FieldProps) {
       <Input
         type="time"
         dir="ltr"
-        aria-label={`الوقت: ${props.label ?? props.field.label.ar}`}
+        aria-label={t('الوقت: {field}', { field: props.label ?? label(props.field.label) })}
         value={time}
         disabled={props.disabled}
         onChange={(event) => props.onChange(`${date}T${event.target.value}`)}
@@ -430,6 +443,7 @@ function DatetimeControl(props: FieldProps) {
 }
 
 function JsonControl({ id, value, onChange, disabled, error, field, label }: FieldProps) {
+  const { t } = useMessages()
   const [invalid, setInvalid] = useState('')
   const check = () => {
     if (!value.trim()) return setInvalid('')
@@ -437,7 +451,7 @@ function JsonControl({ id, value, onChange, disabled, error, field, label }: Fie
       JSON.parse(value)
       setInvalid('')
     } catch {
-      setInvalid('أدخل بيانات JSON صحيحة')
+      setInvalid(t('أدخل بيانات JSON صحيحة'))
     }
   }
   return (
@@ -468,11 +482,11 @@ function JsonControl({ id, value, onChange, disabled, error, field, label }: Fie
               onChange(JSON.stringify(JSON.parse(value), null, 2))
               setInvalid('')
             } catch {
-              setInvalid('أدخل بيانات JSON صحيحة')
+              setInvalid(t('أدخل بيانات JSON صحيحة'))
             }
           }}
         >
-          تنسيق JSON
+          {t('تنسيق JSON')}
         </Button>
         {invalid && !error && (
           <p role="alert" className="text-xs text-destructive">
@@ -496,6 +510,7 @@ function AttachmentControl({
   attachment,
   resource,
 }: FieldProps) {
+  const { t, label: localized } = useMessages()
   const [current, setCurrent] = useState<AttachmentValue | null>(attachment ?? null)
   const [progress, setProgress] = useState<number | null>(null)
   const [failure, setFailure] = useState('')
@@ -519,8 +534,8 @@ function AttachmentControl({
     } catch (caught) {
       setFailure(
         axios.isAxiosError(caught)
-          ? (caught.response?.data?.error?.message ?? 'تعذر رفع الملف. حاول مجدداً.')
-          : 'تعذر الاتصال بالخادم.'
+          ? (caught.response?.data?.error?.message ?? t('تعذر رفع الملف. حاول مجدداً.'))
+          : t('تعذر الاتصال بالخادم.')
       )
     } finally {
       setProgress(null)
@@ -553,7 +568,7 @@ function AttachmentControl({
           >
             {shown.name}
           </a>
-          <span className="text-xs text-muted-foreground">{fileSize(shown.size)}</span>
+          <span className="text-xs text-muted-foreground">{fileSize(shown.size, t)}</span>
           <span className="ms-auto flex gap-1">
             <Button
               type="button"
@@ -563,7 +578,7 @@ function AttachmentControl({
               onClick={() => input.current?.click()}
             >
               <Upload size={14} />
-              استبدال
+              {t('استبدال')}
             </Button>
             <Button
               type="button"
@@ -574,7 +589,7 @@ function AttachmentControl({
               onClick={() => onChange('')}
             >
               <X size={14} />
-              إزالة
+              {t('إزالة')}
             </Button>
           </span>
         </div>
@@ -586,7 +601,7 @@ function AttachmentControl({
           onClick={() => input.current?.click()}
         >
           <Upload size={15} />
-          {progress === null ? 'اختيار ملف' : `جارٍ الرفع ${progress}%`}
+          {progress === null ? t('اختيار ملف') : t('جارٍ الرفع {progress}%', { progress })}
         </Button>
       )}
       {progress !== null && (
@@ -595,7 +610,7 @@ function AttachmentControl({
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={progress}
-          aria-label={`رفع ${label ?? field.label.ar}`}
+          aria-label={t('رفع {field}', { field: label ?? localized(field.label) })}
           className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
         >
           <div className="h-full bg-primary transition-all" style={{ width: `${progress}%` }} />
@@ -623,6 +638,7 @@ function RelationCombobox({
   options = [],
   relation,
 }: FieldProps) {
+  const { t, label: localized } = useMessages()
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [loaded, setLoaded] = useState<Option[]>(options)
@@ -653,7 +669,7 @@ function RelationCombobox({
         ]
       })
     } catch {
-      setFailure('تعذر تحميل الخيارات')
+      setFailure(t('تعذر تحميل الخيارات'))
     }
   }
   useEffect(() => () => clearTimeout(timer.current), [])
@@ -682,7 +698,7 @@ function RelationCombobox({
         >
           <span className="truncate">
             {current?.label ??
-              (value ? `#${value}` : field.type === 'user' ? 'اختر مستخدماً' : 'اختر سجلاً')}
+              (value ? `#${value}` : field.type === 'user' ? t('اختر مستخدماً') : t('اختر سجلاً'))}
           </span>
           <ChevronsUpDown className="opacity-50" />
         </Button>
@@ -692,12 +708,12 @@ function RelationCombobox({
           <CommandInput
             placeholder={
               field.type === 'user'
-                ? 'ابحث بالاسم'
+                ? t('ابحث بالاسم')
                 : searchable
-                  ? 'ابحث في السجلات المرتبطة'
-                  : 'تصفية الخيارات'
+                  ? t('ابحث في السجلات المرتبطة')
+                  : t('تصفية الخيارات')
             }
-            aria-label={`البحث في ${label ?? field.label.ar}`}
+            aria-label={t('البحث في {field}', { field: label ?? localized(field.label) })}
             value={search}
             onValueChange={(term) => {
               setSearch(term)
@@ -708,7 +724,7 @@ function RelationCombobox({
           />
           <CommandList id={listId}>
             <CommandEmpty>
-              {http.processing ? 'جارٍ البحث...' : 'لا توجد سجلات مطابقة'}
+              {http.processing ? t('جارٍ البحث...') : t('لا توجد سجلات مطابقة')}
             </CommandEmpty>
             <CommandGroup>
               {value && !field.required && (
@@ -720,7 +736,7 @@ function RelationCombobox({
                   }}
                 >
                   <X />
-                  بدون اختيار
+                  {t('بدون اختيار')}
                 </CommandItem>
               )}
               {loaded.map((option) => (
@@ -748,7 +764,7 @@ function RelationCombobox({
                   disabled={http.processing}
                   onClick={() => void load(true)}
                 >
-                  {http.processing ? 'جارٍ التحميل...' : 'المزيد'}
+                  {http.processing ? t('جارٍ التحميل...') : t('المزيد')}
                 </Button>
               </div>
             )}
@@ -803,15 +819,16 @@ export function InlineRows({
       ? inline.createFields.includes(key)
       : Boolean(inline.permissions[String(row.id)]?.update) &&
         (inline.updateFields[String(row.id)] ?? []).includes(key)
+  const { t, label } = useMessages()
   const live = rows.filter((row) => !row.deleted)
   return (
-    <section aria-label={field.label.ar} className="rounded-xl border bg-white">
+    <section aria-label={label(field.label)} className="rounded-xl border bg-white">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b px-7 py-4">
         <div>
-          <h2 className="text-sm font-semibold">{field.label.ar}</h2>
+          <h2 className="text-sm font-semibold">{label(field.label)}</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            {live.length ? `${live.length} بند` : 'لا توجد بنود بعد'}
-            {inline.hasMore && ' · تظهر أول 100 بند فقط'}
+            {live.length ? t('{count} بند', { count: live.length }) : t('لا توجد بنود بعد')}
+            {inline.hasMore && ` · ${t('تظهر أول 100 بند فقط')}`}
           </p>
         </div>
         {inline.canCreate && (
@@ -823,7 +840,7 @@ export function InlineRows({
             onClick={() => onChange([...rows, newInlineRow(inline.fields)])}
           >
             <Plus size={15} />
-            إضافة بند
+            {t('إضافة بند')}
           </Button>
         )}
       </div>
@@ -840,7 +857,7 @@ export function InlineRows({
                 <th className="w-12 px-4 py-3 text-start font-medium">#</th>
                 {inline.fields.map((child) => (
                   <th key={child.key} className="px-3 py-3 text-start font-medium">
-                    {child.label.ar}
+                    {label(child.label)}
                     {child.required && (
                       <span className="text-destructive" aria-hidden="true">
                         {' '}
@@ -850,7 +867,7 @@ export function InlineRows({
                   </th>
                 ))}
                 <th className="w-24 px-4 py-3 text-start font-medium">
-                  <span className="sr-only">الإجراء</span>
+                  <span className="sr-only">{t('الإجراء')}</span>
                 </th>
               </tr>
             </thead>
@@ -861,7 +878,7 @@ export function InlineRows({
                 return (
                   <tr
                     key={row.key}
-                    aria-label={`بند ${number}`}
+                    aria-label={t('بند {number}', { number })}
                     className={`border-b align-top last:border-0 ${row.deleted ? 'bg-destructive/5 opacity-60' : ''}`}
                   >
                     <td className="px-4 py-3 tabular-nums text-muted-foreground">{number}</td>
@@ -870,7 +887,7 @@ export function InlineRows({
                         <FieldControl
                           field={child}
                           id={`${field.key}-${row.key}-${child.key}`}
-                          label={`${child.label.ar} للبند ${number}`}
+                          label={t('{field} للبند {number}', { field: label(child.label), number })}
                           value={row.values[child.key] ?? ''}
                           disabled={disabled || row.deleted || !editable(row, child.key)}
                           error={rowErrors[child.key]}
@@ -904,7 +921,7 @@ export function InlineRows({
                           variant="ghost"
                           size="icon-sm"
                           disabled={disabled}
-                          aria-label={`إزالة البند ${number}`}
+                          aria-label={t('إزالة البند {number}', { number })}
                           onClick={() => onChange(rows.filter((entry) => entry.key !== row.key))}
                         >
                           <Trash2 className="text-destructive" />
@@ -916,7 +933,9 @@ export function InlineRows({
                           size="icon-sm"
                           disabled={disabled}
                           aria-label={
-                            row.deleted ? `التراجع عن حذف البند ${number}` : `حذف البند ${number}`
+                            row.deleted
+                              ? t('التراجع عن حذف البند {number}', { number })
+                              : t('حذف البند {number}', { number })
                           }
                           onClick={() => update(row.key, { deleted: !row.deleted })}
                         >

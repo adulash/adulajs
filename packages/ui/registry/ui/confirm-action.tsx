@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '~/components/ui/dialog'
+import { useMessages } from '~/components/ui/messages'
 
 type Confirmation = {
   title: string
@@ -19,6 +20,7 @@ type Confirmation = {
 
 /** Keep confirmation separate from editor state; cancel never sends a mutation. */
 export function useConfirmAction() {
+  const { t, dir } = useMessages()
   const [pending, confirm] = useState<Confirmation | null>(null)
   return {
     confirm,
@@ -28,14 +30,14 @@ export function useConfirmAction() {
         open={Boolean(pending)}
         onOpenChange={(open) => !open && confirm(null)}
       >
-        <DialogContent dir="rtl" className="sm:max-w-md">
+        <DialogContent dir={dir} className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{pending?.title ?? 'تأكيد الإجراء'}</DialogTitle>
+            <DialogTitle>{pending?.title ?? t('تأكيد الإجراء')}</DialogTitle>
             <DialogDescription>{pending?.description}</DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => confirm(null)}>
-              تراجع
+              {t('تراجع')}
             </Button>
             <Button
               type="button"
@@ -46,7 +48,7 @@ export function useConfirmAction() {
                 action?.()
               }}
             >
-              {pending?.label ?? 'تأكيد التغيير'}
+              {pending?.label ?? t('تأكيد التغيير')}
             </Button>
           </DialogFooter>
         </DialogContent>

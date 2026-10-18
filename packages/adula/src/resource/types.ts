@@ -3,7 +3,11 @@ import type { LucidModel } from '@adonisjs/lucid/types/model'
 import type { WorkflowDefinition } from '../workflows/define_workflow.js'
 import type { Conditions } from '../auth/conditions.js'
 
-export type Label = { ar: string; en: string }
+/**
+ * A display label. Arabic is required: it is the base language of every system.
+ * Other languages are optional; a missing `label.<lang>` falls back to `label.ar`.
+ */
+export type Label = { ar: string; en?: string; [language: string]: string | undefined }
 export type Action = 'view' | 'create' | 'update' | 'delete' | 'submit' | 'cancel' | 'amend'
 export type Scalar = string | number | boolean | null
 export type RecordData = Record<string, unknown>

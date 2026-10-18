@@ -128,7 +128,7 @@ test.group('Module lookups and default roles', (group) => {
             lookups: { order_status: [{ key: 'x', label: { ar: 'س', en: '' } }] },
           },
         ]),
-      /bilingual/
+      /needs Arabic text; en is optional but cannot be empty/
     )
     assert.throws(
       () =>

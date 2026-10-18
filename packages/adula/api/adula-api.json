@@ -80,6 +80,10 @@
       "kind": "VariableDeclaration",
       "type": "Label"
     },
+    "arabicMessages": {
+      "kind": "VariableDeclaration",
+      "type": "Readonly<Record<string, string>>"
+    },
     "assessBackup": {
       "kind": "FunctionDeclaration",
       "type": "(objects: BackupObject[], now?: number | undefined, prefix?: string | undefined) => BackupStatus"
@@ -140,6 +144,10 @@
       "kind": "TypeAliasDeclaration",
       "type": "{ healthy: boolean; reason: string; checkedAt: string; }"
     },
+    "BASE_LANGUAGE": {
+      "kind": "VariableDeclaration",
+      "type": "\"ar\""
+    },
     "buildAbility": {
       "kind": "FunctionDeclaration",
       "type": "(rules: readonly Rule[], schemas?: readonly Pick<Resource, \"fields\" | \"name\">[] | undefined) => AdulaAbility"
@@ -168,6 +176,10 @@
       "kind": "FunctionDeclaration",
       "type": "(options?: { registry?: ResourceRegistry | undefined; commands?: string[] | undefined; } | undefined) => string"
     },
+    "CatalogMessagesProvider": {
+      "kind": "ClassDeclaration",
+      "type": "typeof CatalogMessagesProvider"
+    },
     "claimAttachment": {
       "kind": "FunctionDeclaration",
       "type": "(trx: Transaction<any, any[]>, input: ClaimInput) => Promise<AttachmentRecord>"
@@ -175,6 +187,10 @@
     "ClaimInput": {
       "kind": "TypeAliasDeclaration",
       "type": "{ attachmentId: number; actor: { id: number; }; resource: string; field: string; recordId?: number | undefined; orgUnitId?: number | null | undefined; scoped: boolean; }"
+    },
+    "clientMessages": {
+      "kind": "FunctionDeclaration",
+      "type": "(language: string, prefix?: string | undefined) => Record<string, string>"
     },
     "CloseNotePolicy": {
       "kind": "TypeAliasDeclaration",
@@ -268,6 +284,10 @@
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>) => Promise<void>"
     },
+    "currentLanguage": {
+      "kind": "FunctionDeclaration",
+      "type": "() => string"
+    },
     "DecisionOutcome": {
       "kind": "TypeAliasDeclaration",
       "type": "{ label: string; next: string; comment?: \"optional\" | \"required\" | undefined; }"
@@ -303,6 +323,14 @@
     "DomainEvent": {
       "kind": "TypeAliasDeclaration",
       "type": "{ id: string; event: string; payload: Record<string, unknown>; }"
+    },
+    "enabledLanguages": {
+      "kind": "FunctionDeclaration",
+      "type": "(configured?: readonly string[] | undefined) => LanguageInfo[]"
+    },
+    "englishMessages": {
+      "kind": "VariableDeclaration",
+      "type": "Readonly<Record<string, string>>"
     },
     "FailedJob": {
       "kind": "TypeAliasDeclaration",
@@ -436,6 +464,10 @@
       "kind": "FunctionDeclaration",
       "type": "(path: unknown, paths: readonly string[]) => boolean"
     },
+    "installCatalogMessages": {
+      "kind": "FunctionDeclaration",
+      "type": "(vine: { messagesProvider: unknown; }, resources?: readonly { validator: unknown; }[] | undefined) => CatalogMessagesProvider"
+    },
     "InvitationDelivery": {
       "kind": "TypeAliasDeclaration",
       "type": "{ email: string; fullName: string; token: string; }"
@@ -470,7 +502,23 @@
     },
     "Label": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ ar: string; en: string; }"
+      "type": "{ [language: string]: string | undefined; ar: string; en?: string | undefined; }"
+    },
+    "labelText": {
+      "kind": "FunctionDeclaration",
+      "type": "(label: { [language: string]: string | undefined; ar: string; }, language?: string | undefined) => string"
+    },
+    "languageDirection": {
+      "kind": "FunctionDeclaration",
+      "type": "(code: string) => TextDirection"
+    },
+    "LanguageInfo": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ code: string; name: string; dir: TextDirection; }"
+    },
+    "LanguageOptions": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ name: string; dir?: TextDirection | undefined; }"
     },
     "Listener": {
       "kind": "TypeAliasDeclaration",
@@ -487,6 +535,10 @@
     "loadAttachments": {
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>, ids: readonly number[]) => Promise<Map<number, AttachmentSummary>>"
+    },
+    "localizeText": {
+      "kind": "FunctionDeclaration",
+      "type": "(text: string, language?: string | undefined) => string"
     },
     "logActivity": {
       "kind": "FunctionDeclaration",
@@ -519,6 +571,18 @@
     "MentionCandidate": {
       "kind": "TypeAliasDeclaration",
       "type": "{ id: number; name: string; }"
+    },
+    "MessageCatalog": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ readonly [x: string]: string; }"
+    },
+    "messageKeyOf": {
+      "kind": "FunctionDeclaration",
+      "type": "(text: string) => string | undefined"
+    },
+    "MessageParams": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ readonly [x: string]: string | number; }"
     },
     "MessageTemplate": {
       "kind": "TypeAliasDeclaration",
@@ -696,6 +760,14 @@
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>, registry: Pick<ResourceRegistry, \"all\" | \"get\">, token: unknown, userId: number) => Promise<RedeemedUploadGrant | null>"
     },
+    "registeredLanguages": {
+      "kind": "FunctionDeclaration",
+      "type": "() => LanguageInfo[]"
+    },
+    "registerLanguage": {
+      "kind": "FunctionDeclaration",
+      "type": "(code: string, catalog: Readonly<Record<string, string>>, options: LanguageOptions) => void"
+    },
     "registerUpload": {
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>, input: UploadInput) => Promise<AttachmentRecord>"
@@ -723,6 +795,10 @@
     "resolveInstallAdministrator": {
       "kind": "FunctionDeclaration",
       "type": "(knex: Knex<any, any[]>, email: string, create: () => Promise<number>, options?: { rotatePassword?: ((userId: number) => Promise<void>) | undefined; } | undefined) => Promise<{ id: number; created: boolean; rotated?: InstallAccountRotation | undefined; }>"
+    },
+    "resolveLanguage": {
+      "kind": "FunctionDeclaration",
+      "type": "(preferred: string | null | undefined, configured?: readonly string[] | undefined) => string"
     },
     "Resource": {
       "kind": "TypeAliasDeclaration",
@@ -815,6 +891,10 @@
     "RuntimeHealth": {
       "kind": "TypeAliasDeclaration",
       "type": "{ outbox: { backlog: number; oldestAgeMs: number | null; }; processedEvents: number; heartbeats: { scheduler: HeartbeatStatus; worker: HeartbeatStatus; }; backup: { lastOffsite: string | null; lastRestoreTest: string | null; stale: boolean; }; }"
+    },
+    "runWithLanguage": {
+      "kind": "FunctionDeclaration",
+      "type": "<T>(language: string, callback: () => T) => T"
     },
     "SavedView": {
       "kind": "TypeAliasDeclaration",
@@ -915,6 +995,14 @@
     "TemplateDefinition": {
       "kind": "TypeAliasDeclaration",
       "type": "{ label: string; subject: string; body: string; variables: string[]; mail: boolean; }"
+    },
+    "TextDirection": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"rtl\" | \"ltr\""
+    },
+    "translate": {
+      "kind": "FunctionDeclaration",
+      "type": "(key: string, language?: string | undefined, params?: Readonly<Record<string, string | number>> | undefined) => string"
     },
     "UI_PREFERENCES_KEY": {
       "kind": "VariableDeclaration",
@@ -1106,7 +1194,7 @@
     },
     "Label": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ ar: string; en: string; }"
+      "type": "{ [language: string]: string | undefined; ar: string; en?: string | undefined; }"
     },
     "Module": {
       "kind": "TypeAliasDeclaration",

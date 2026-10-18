@@ -1,4 +1,4 @@
-import type { Field, Resource, ResourceInput } from './types.js'
+import type { Field, Label, Resource, ResourceInput } from './types.js'
 import { assertTitle } from '../admin/record_title.js'
 
 export function identifier(value: string): string {
@@ -14,15 +14,25 @@ export function columnName(name: string): string {
   if (columns.size < 10000) columns.set(name, column)
   return column
 }
+/**
+ * Arabic is required; every other language is optional, but a language a label
+ * names must have text (an empty `en: ''` is a mistake, not an omission).
+ */
+export function assertLabel(label: Label | undefined, context: string) {
+  if (!label || typeof label.ar !== 'string' || !label.ar.trim())
+    throw new Error(`${context} needs Arabic text`)
+  for (const [language, text] of Object.entries(label))
+    if (typeof text !== 'string' || !text.trim())
+      throw new Error(`${context} needs Arabic text; ${language} is optional but cannot be empty`)
+}
 export function defineResource<const F extends Record<string, Field>>(
   input: ResourceInput<F>
 ): ResourceInput<F> & Resource {
   identifier(input.name)
   if (typeof input.scoped !== 'boolean') throw new Error(`${input.name}: scoped must be explicit`)
-  if (!input.label.ar || !input.label.en) throw new Error('Bilingual labels are required')
+  assertLabel(input.label, `${input.name}: label`)
   for (const optional of [input.recordLabel, input.createLabel])
-    if (optional && (!optional.ar || !optional.en))
-      throw new Error(`${input.name}: recordLabel and createLabel need Arabic and English`)
+    if (optional) assertLabel(optional, `${input.name}: recordLabel and createLabel`)
   for (const [key, field] of Object.entries(input.fields)) {
     columnName(key)
     identifier(field.column ?? columnName(key))
@@ -41,7 +51,7 @@ export function defineResource<const F extends Record<string, Field>>(
       ].includes(key)
     )
       throw new Error(`Reserved field: ${key}`)
-    if (!field.label.ar || !field.label.en) throw new Error(`${key}: bilingual labels are required`)
+    assertLabel(field.label, `${key}: label`)
   }
   for (const keys of [
     input.list,

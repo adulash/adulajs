@@ -16,6 +16,7 @@ import {
 } from '~/components/ui/command'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
+import { useMessages } from '~/components/ui/messages'
 import { formatDatetime } from '~/components/ui/resource-value'
 
 const json = { headers: { Accept: 'application/json' }, withXSRFToken: true }
@@ -81,8 +82,11 @@ export function RecordCollaboration({
       setBusy(false)
     }
   }
-  const fieldLabel = (key: string) =>
-    resource.fields.find((field) => field.key === key)?.label.ar ?? key
+  const { label } = useMessages()
+  const fieldLabel = (key: string) => {
+    const field = resource.fields.find((entry) => entry.key === key)
+    return field ? label(field.label) : key
+  }
 
   if (!state)
     return (

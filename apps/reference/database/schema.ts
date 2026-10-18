@@ -584,6 +584,7 @@ export class UserSchema extends BaseModel {
     'emailVerifiedAt',
     'fullName',
     'id',
+    'language',
     'password',
     'updatedAt',
   ] as const
@@ -600,6 +601,8 @@ export class UserSchema extends BaseModel {
   declare fullName: string | null
   @column({ isPrimary: true })
   declare id: number
+  @column()
+  declare language: string
   @column({ serializeAs: null })
   declare password: string
   @column.dateTime({ autoCreate: true, autoUpdate: true })

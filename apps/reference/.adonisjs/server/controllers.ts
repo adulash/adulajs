@@ -24,6 +24,7 @@ export const controllers = {
   Attachments: () => import('#controllers/attachments_controller'),
   Imports: () => import('#controllers/imports_controller'),
   InboundWebhooks: () => import('#controllers/inbound_webhooks_controller'),
+  Language: () => import('#controllers/language_controller'),
   NewAccount: () => import('#controllers/new_account_controller'),
   Oauth: () => import('#controllers/oauth_controller'),
   Openapi: () => import('#controllers/openapi_controller'),

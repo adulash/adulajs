@@ -8,7 +8,8 @@ do. This page describes what exists today.
 
 One deployment per company is a **system** (نظام). Each business module inside it
 (sales, HR and so on) is an **application** (تطبيق), registered as an AdulaJS module.
-Arabic is the base language of the interface.
+Arabic is the base language of the interface; other languages are optional and
+chosen per user (docs/languages.md, ADR 041).
 
 ## Packages
 

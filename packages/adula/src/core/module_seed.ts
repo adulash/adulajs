@@ -31,7 +31,8 @@ export async function seedModules(
               group,
               key: row.key,
               label_ar: row.label.ar,
-              label_en: row.label.en,
+              // label_en is NOT NULL; an Arabic-only lookup shows its Arabic text there.
+              label_en: row.label.en ?? row.label.ar,
               sort: row.sort ?? index,
               active: true,
             })

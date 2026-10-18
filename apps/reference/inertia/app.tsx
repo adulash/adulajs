@@ -3,13 +3,23 @@ import { client } from './client'
 import Layout from '~/layouts/default'
 import { type Data } from '@generated/data'
 import { createRoot } from 'react-dom/client'
-import { createInertiaApp, type ResolvedComponent } from '@inertiajs/react'
+import { createInertiaApp, router, type ResolvedComponent } from '@inertiajs/react'
 import { TuyauProvider } from '@adonisjs/inertia/react'
 import { resolvePageComponent } from '@adonisjs/inertia/helpers'
 import fixturePages from '~/fixture_pages'
 import './css/adula.css'
 
 const appName = import.meta.env.VITE_APP_NAME || 'AdulaJS'
+
+/**
+ * The server renders `lang` and `dir` into the HTML; client navigations can switch the
+ * interface language (for example after saving it), so keep them in sync with the page.
+ */
+function syncDocumentLanguage(props: { [key: string]: unknown; locale?: unknown; dir?: unknown }) {
+  const root = document.documentElement
+  root.lang = typeof props.locale === 'string' ? props.locale : 'ar'
+  root.dir = props.dir === 'ltr' ? 'ltr' : 'rtl'
+}
 
 createInertiaApp({
   title: (title) => (title ? `${title} - ${appName}` : appName),
@@ -21,6 +31,8 @@ createInertiaApp({
     )
   },
   setup({ el, App, props }) {
+    syncDocumentLanguage(props.initialPage.props)
+    router.on('navigate', (event) => syncDocumentLanguage(event.detail.page.props))
     createRoot(el).render(
       <TuyauProvider client={client}>
         <App {...props} />

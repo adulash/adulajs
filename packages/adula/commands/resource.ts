@@ -16,7 +16,7 @@ export default class Resource extends BaseCommand {
     const files = await generateResource(fileURLToPath(this.app.appRoot), this.name, this.module)
     files.forEach((file) => this.logger.success(file))
     this.logger.info(
-      'Set bilingual labels (label: the plural list heading; recordLabel: the singular record noun) and fill the resource definition. The generated migration embeds the definition as scaffolded: after filling the definition, run `node ace adula:resource:snapshot <name>` to refresh the pending migration, and update the model, factory and contract fixture, before migration:run. adula:doctor reports a pending migration that differs. Then run the generated security contract.'
+      'Set the Arabic labels (label: the plural list heading; recordLabel: the singular record noun; label.en and other languages are optional) and fill the resource definition. The generated migration embeds the definition as scaffolded: after filling the definition, run `node ace adula:resource:snapshot <name>` to refresh the pending migration, and update the model, factory and contract fixture, before migration:run. adula:doctor reports a pending migration that differs. Then run the generated security contract.'
     )
   }
 }

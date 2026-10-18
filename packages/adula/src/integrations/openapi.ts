@@ -174,7 +174,8 @@ export function openApiDocument(
     if (children.has(resource.name)) continue
     const ref = { $ref: `#/components/schemas/${resource.name}` }
     const inputRef = { $ref: `#/components/schemas/${resource.name}_input` }
-    const tag = resource.label.en
+    // The API document is English; a resource without label.en falls back to Arabic.
+    const tag = resource.label.en ?? resource.label.ar
     const one = (description: string) => ({
       description,
       content: { 'application/json': { schema: { type: 'object', properties: { data: ref } } } },
@@ -185,7 +186,7 @@ export function openApiDocument(
     if (allowed.has('view')) {
       collection.get = {
         tags: [tag],
-        summary: `List ${resource.label.en}`,
+        summary: `List ${tag}`,
         parameters: [
           { name: 'limit', in: 'query', schema: { type: 'integer', maximum: 100 } },
           { name: 'cursor', in: 'query', schema: { type: 'string' } },
@@ -221,7 +222,7 @@ export function openApiDocument(
       }
       item.get = {
         tags: [tag],
-        summary: `Show one ${resource.label.en} record`,
+        summary: `Show one ${tag} record`,
         parameters: [idParam],
         responses: { 200: one('Record'), 403: error, 404: error },
       }
@@ -229,14 +230,14 @@ export function openApiDocument(
     if (allowed.has('create'))
       collection.post = {
         tags: [tag],
-        summary: `Create ${resource.label.en}`,
+        summary: `Create ${tag}`,
         requestBody: { required: true, content: { 'application/json': { schema: inputRef } } },
         responses: { 201: one('Created'), 403: error, 409: error, 422: error },
       }
     if (allowed.has('update'))
       item.patch = {
         tags: [tag],
-        summary: `Update ${resource.label.en}`,
+        summary: `Update ${tag}`,
         parameters: [idParam],
         requestBody: { required: true, content: { 'application/json': { schema: inputRef } } },
         responses: { 200: one('Updated'), 403: error, 404: error, 409: error, 422: error },
@@ -244,7 +245,7 @@ export function openApiDocument(
     if (allowed.has('delete'))
       item.delete = {
         tags: [tag],
-        summary: `Soft-delete ${resource.label.en}`,
+        summary: `Soft-delete ${tag}`,
         parameters: [idParam],
         responses: { 200: one('Deleted'), 403: error, 404: error, 409: error },
       }
@@ -252,7 +253,7 @@ export function openApiDocument(
       paths[`${base}/resources/${resource.name}/aggregate`] = {
         get: {
           tags: [tag],
-          summary: `Count and total ${resource.label.en} by group`,
+          summary: `Count and total ${tag} by group`,
           description:
             'Only records the token may view are counted; grouped, totalled and filtered fields must be readable without conditions.',
           parameters: [
@@ -321,7 +322,7 @@ export function openApiDocument(
         paths[`${base}/resources/${resource.name}/{id}/${action}`] = {
           post: {
             tags: [tag],
-            summary: `${action === 'submit' ? 'Submit' : 'Cancel'} ${resource.label.en}`,
+            summary: `${action === 'submit' ? 'Submit' : 'Cancel'} ${tag}`,
             parameters: [idParam],
             requestBody: {
               content: {

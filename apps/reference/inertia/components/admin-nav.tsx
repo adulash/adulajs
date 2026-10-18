@@ -19,13 +19,17 @@ import {
 } from 'lucide-react'
 import { calendarDisplay } from '~/components/ui/calendar_date'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
+import { useMessages } from '~/components/ui/messages'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 
 export type NavLink = { href: string; label: string; icon: LucideIcon }
 export type AdminGroup = { label: string; links: NavLink[] }
 
-/** The administration area by concern (#34); it replaces a flat list next to daily work. */
+/**
+ * The administration area by concern (#34); it replaces a flat list next to daily work.
+ * Labels are the Arabic interface text and are shown through `t()`.
+ */
 export const adminGroups: AdminGroup[] = [
   {
     label: 'الأشخاص والصلاحيات',
@@ -66,6 +70,7 @@ const linkClass = (active: boolean) =>
  */
 export function AdminNav() {
   const page = usePage<{ isAdmin?: boolean; adminAlerts?: number; setupPending?: boolean }>()
+  const { t } = useMessages()
   if (!page.props.isAdmin) return null
   const inside = page.url.startsWith('/admin')
   const alerts = page.props.adminAlerts ?? 0
@@ -77,19 +82,19 @@ export function AdminNav() {
         className={`${linkClass(false)} ${inside ? 'font-semibold text-foreground' : ''}`}
       >
         <Settings size={17} strokeWidth={1.6} />
-        الإدارة
+        {t('الإدارة')}
         {alerts > 0 && (
           <Badge
             variant="destructive"
             className="ms-auto px-1.5"
-            aria-label={`${alerts} تنبيه إداري`}
+            aria-label={t('{count} تنبيه إداري', { count: alerts })}
           >
             {alerts}
           </Badge>
         )}
       </Link>
       {inside && (
-        <nav aria-label="التنقل الإداري" className="mt-2 space-y-4">
+        <nav aria-label={t('التنقل الإداري')} className="mt-2 space-y-4">
           {page.props.setupPending && (
             <Link
               href={setupLink.href}
@@ -97,13 +102,13 @@ export function AdminNav() {
               className={linkClass(page.url.startsWith(setupLink.href))}
             >
               <setupLink.icon size={17} strokeWidth={1.6} />
-              {setupLink.label}
+              {t(setupLink.label)}
             </Link>
           )}
           {adminGroups.map((group) => (
-            <div key={group.label} role="group" aria-label={group.label}>
+            <div key={group.label} role="group" aria-label={t(group.label)}>
               <p className="mb-1 px-4 text-[11px] font-semibold text-muted-foreground">
-                {group.label}
+                {t(group.label)}
               </p>
               {group.links.map(({ href, label, icon: Icon }) => {
                 const active = page.url.startsWith(href)
@@ -115,7 +120,7 @@ export function AdminNav() {
                     className={linkClass(active)}
                   >
                     <Icon size={17} strokeWidth={1.6} />
-                    {label}
+                    {t(label)}
                   </Link>
                 )
               })}
@@ -132,6 +137,7 @@ export function ImpersonationBar() {
     impersonating?: boolean
     user?: { fullName: string | null; email: string }
   }>()
+  const { t } = useMessages()
   if (!page.props.impersonating) return null
   return (
     <div
@@ -140,10 +146,12 @@ export function ImpersonationBar() {
     >
       <span className="flex items-center gap-2">
         <UserCog size={16} />
-        أنت تتصفح باسم {page.props.user?.fullName || page.props.user?.email}
+        {t('أنت تتصفح باسم {name}', {
+          name: page.props.user?.fullName || page.props.user?.email || '',
+        })}
       </span>
       <Button size="sm" variant="outline" onClick={() => router.post('/impersonation/stop')}>
-        إنهاء الانتحال
+        {t('إنهاء الانتحال')}
       </Button>
     </div>
   )
@@ -158,12 +166,13 @@ export function AdminHeader({
   description?: string
   children?: ReactNode
 }) {
+  const { t } = useMessages()
   return (
     <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
       <div>
         <div className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
           <ShieldCheck size={15} />
-          <span>الإدارة</span>
+          <span>{t('الإدارة')}</span>
         </div>
         <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
         {description && <p className="mt-3 text-sm text-muted-foreground">{description}</p>}
