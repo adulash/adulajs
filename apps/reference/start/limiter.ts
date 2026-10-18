@@ -125,3 +125,37 @@ export const inboundThrottle = limiter.define('inbound_webhooks', (ctx) =>
 export const inboundAddressThrottle = limiter.define('inbound_webhooks_address', (ctx) =>
   limiter.allowRequests(600).every('1 minute').usingKey(ctx.request.ip()).limitExceeded(withMessage)
 )
+
+/**
+ * Second-factor codes: failed attempts per account and address, with the login rules
+ * (5 failures in 15 minutes, then escalating blocks of `lockoutMinutes` tracked by
+ * `loginLockoutLimiter` under `twoFactorLockoutKey`). Only failures count.
+ */
+export const twoFactorAttemptLimiter = limiter.use({ requests: 5, duration: '15 minutes' })
+export const twoFactorAttemptKey = (userId: number, ip: string) => `two_factor:${userId}:${ip}`
+export const twoFactorLockoutKey = (userId: number, ip: string) =>
+  `two_factor_lockout:${userId}:${ip}`
+/**
+ * Second-factor failures per account across all addresses. The attacker already holds
+ * the password, so rotating addresses must not multiply guesses; a success does not reset it.
+ */
+export const TWO_FACTOR_ACCOUNT_LIMIT = 20
+export const twoFactorAccountLimiter = limiter.use({
+  requests: TWO_FACTOR_ACCOUNT_LIMIT,
+  duration: '1 hour',
+})
+export const twoFactorAccountKey = (userId: number) => `two_factor_account:${userId}`
+
+/** Second-factor submissions: 10 per minute per address (beside the address-wide login cap). */
+export const twoFactorThrottle = limiter.define('two_factor', (ctx) =>
+  limiter.allowRequests(10).every('1 minute').usingKey(ctx.request.ip()).limitExceeded(withMessage)
+)
+
+/** Disabling 2FA and regenerating recovery codes: 5 per 15 minutes per signed-in user. */
+export const twoFactorManageThrottle = limiter.define('two_factor_manage', (ctx) =>
+  limiter
+    .allowRequests(5)
+    .every('15 minutes')
+    .usingKey(`user:${ctx.auth.user?.id ?? ctx.request.ip()}`)
+    .limitExceeded(withMessage)
+)

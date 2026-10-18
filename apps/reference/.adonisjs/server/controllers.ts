@@ -8,6 +8,7 @@ export const controllers = {
   AdminSessions: () => import('#controllers/admin_sessions_controller'),
   admin: {
     Activity: () => import('#controllers/admin/activity_controller'),
+    AuthenticationSettings: () => import('#controllers/admin/authentication_settings_controller'),
     Jobs: () => import('#controllers/admin/jobs_controller'),
     Lookups: () => import('#controllers/admin/lookups_controller'),
     Notifications: () => import('#controllers/admin/notifications_controller'),
@@ -38,6 +39,8 @@ export const controllers = {
   Resources: () => import('#controllers/resources_controller'),
   SavedViews: () => import('#controllers/saved_views_controller'),
   Session: () => import('#controllers/session_controller'),
+  TwoFactorChallenge: () => import('#controllers/two_factor_challenge_controller'),
+  TwoFactor: () => import('#controllers/two_factor_controller'),
   UserInvitations: () => import('#controllers/user_invitations_controller'),
   Workflows: () => import('#controllers/workflows_controller'),
 }

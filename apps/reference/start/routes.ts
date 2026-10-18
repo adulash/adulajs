@@ -25,6 +25,8 @@ import {
   passwordChangeThrottle,
   passwordThrottle,
   signupThrottle,
+  twoFactorManageThrottle,
+  twoFactorThrottle,
 } from '#start/limiter'
 const ResourcesController = () => import('#controllers/resources_controller')
 const RecordViewsController = () => import('#controllers/record_views_controller')
@@ -42,6 +44,8 @@ const UserInvitationsController = () => import('#controllers/user_invitations_co
 const OauthController = () => import('#controllers/oauth_controller')
 const ProfileController = () => import('#controllers/profile_controller')
 const LanguageController = () => import('#controllers/language_controller')
+const TwoFactorController = () => import('#controllers/two_factor_controller')
+const TwoFactorChallengeController = () => import('#controllers/two_factor_challenge_controller')
 const AccountSessionsController = () => import('#controllers/account_sessions_controller')
 const AdminSessionsController = () => import('#controllers/admin_sessions_controller')
 const AdminUsersController = () => import('#controllers/admin/users_controller')
@@ -50,6 +54,8 @@ const AdminOrgUnitsController = () => import('#controllers/admin/org_units_contr
 const AdminActivityController = () => import('#controllers/admin/activity_controller')
 const AdminJobsController = () => import('#controllers/admin/jobs_controller')
 const AdminSettingsController = () => import('#controllers/admin/settings_controller')
+const AdminAuthenticationSettingsController = () =>
+  import('#controllers/admin/authentication_settings_controller')
 const SetupController = () => import('#controllers/admin/setup_controller')
 const NotificationsController = () => import('#controllers/admin/notifications_controller')
 const AdminTemplatesController = () => import('#controllers/admin/templates_controller')
@@ -187,6 +193,13 @@ router
 
     router.get('login', [controllers.Session, 'create'])
     router.post('login', [controllers.Session, 'store']).use([loginAddressThrottle, loginThrottle])
+    router
+      .get('login/two-factor', [TwoFactorChallengeController, 'create'])
+      .as('two_factor.challenge')
+    router
+      .post('login/two-factor', [TwoFactorChallengeController, 'store'])
+      .as('two_factor.verify')
+      .use([loginAddressThrottle, twoFactorThrottle])
 
     router.get('password/forgot', [PasswordResetController, 'forgot'])
     router.post('password/forgot', [PasswordResetController, 'send']).use(passwordThrottle)
@@ -194,9 +207,12 @@ router
     router.post('password/reset/:token', [PasswordResetController, 'update']).use(passwordThrottle)
 
     router.get('oauth/:provider/redirect', [OauthController, 'redirect']).use(oauthThrottle)
-    router.get('oauth/:provider/callback', [OauthController, 'callback']).use(oauthThrottle)
   })
   .use(middleware.guest())
+
+// Outside the guest group: a signed-in user returns here after linking an identity.
+// Global silent auth has already resolved the user; the controller handles both cases.
+router.get('oauth/:provider/callback', [OauthController, 'callback']).use(oauthThrottle)
 
 router
   .group(() => {
@@ -208,12 +224,29 @@ router
     router.patch('account/profile', [ProfileController, 'update'])
     router.post('account/password', [ProfileController, 'password']).use(passwordChangeThrottle)
     router.put('account/language', [LanguageController, 'update'])
+    router
+      .post('account/two-factor/begin', [TwoFactorController, 'begin'])
+      .use(passwordChangeThrottle)
+    router
+      .post('account/two-factor/confirm', [TwoFactorController, 'confirm'])
+      .use(passwordChangeThrottle)
+    router
+      .post('account/two-factor/recovery-codes', [TwoFactorController, 'regenerate'])
+      .use(twoFactorManageThrottle)
+    router
+      .delete('account/two-factor', [TwoFactorController, 'destroy'])
+      .use(twoFactorManageThrottle)
     router.get('account/tokens', [ApiTokensController, 'index'])
     router.post('account/tokens', [ApiTokensController, 'store']).use(apiThrottle)
     router.delete('account/tokens/:id', [ApiTokensController, 'destroy'])
     router.get('account/sessions', [AccountSessionsController, 'index'])
     router.delete('account/sessions', [AccountSessionsController, 'purge'])
     router.delete('account/sessions/:id', [AccountSessionsController, 'destroy'])
+    // A stale session confirms the password here, so password guesses share its throttle.
+    router
+      .post('account/connections/:provider', [OauthController, 'link'])
+      .use([oauthThrottle, passwordChangeThrottle])
+    router.delete('account/connections/:provider', [OauthController, 'unlink'])
 
     router.get('admin/sessions', [AdminSessionsController, 'index'])
     router.delete('admin/sessions/:id', [AdminSessionsController, 'destroy'])
@@ -247,6 +280,7 @@ router
     router.post('users/:id/enable', [AdminUsersController, 'enable'])
     router.post('users/:id/revoke-sessions', [AdminUsersController, 'revokeSessions'])
     router.post('users/:id/revoke-tokens', [AdminUsersController, 'revokeTokens'])
+    router.post('users/:id/reset-two-factor', [AdminUsersController, 'resetTwoFactor'])
     router.post('users/:id/impersonate', [AdminUsersController, 'impersonate'])
     router.get('roles', [AdminRolesController, 'index'])
     router.post('roles', [AdminRolesController, 'store'])
@@ -291,6 +325,7 @@ router
     router.post('settings/mail/test', [AdminSettingsController, 'testMail'])
     router.post('settings/mail/confirm', [AdminSettingsController, 'confirmMail'])
     router.put('settings', [AdminSettingsController, 'upsert'])
+    router.put('settings/authentication', [AdminAuthenticationSettingsController, 'update'])
     router.delete('settings/:id', [AdminSettingsController, 'destroy'])
     router.get('lookups', [AdminLookupsController, 'index'])
     router.post('lookups', [AdminLookupsController, 'store'])

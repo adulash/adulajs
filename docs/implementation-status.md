@@ -95,7 +95,8 @@ Japa and `node:test` run more cases than declarations where a helper registers t
 ## Known limits
 
 * Validator, Lucid model and migration are written by hand next to each resource.
-* Two-factor authentication, SSO, XLSX import and a typed API client are not available.
+* XLSX import, SAML SSO and a typed API client are not available. Two-factor
+  authentication (TOTP) and OAuth/OIDC SSO are described in [authentication.md](authentication.md).
 * Lists filter by equality only; CSV export covers the loaded rows.
 * The interface is Arabic only.
 

@@ -9,8 +9,15 @@ import { Alert, AlertDescription } from '~/components/ui/alert'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
 import Workspace from '~/layouts/workspace'
 import { LanguageSetting } from '~/components/language-setting'
+import { TwoFactorCard, type TwoFactorProps } from '~/components/account/two-factor-card'
+import {
+  ConnectedAccountsCard,
+  type ConnectionsProps,
+} from '~/components/account/connected-accounts-card'
 
-export default function Profile() {
+type Props = { twoFactor: TwoFactorProps; connections: ConnectionsProps; csrfToken: string }
+
+export default function Profile({ twoFactor, connections, csrfToken }: Props) {
   const { props, flash } = usePage<{ user?: { fullName: string | null; email: string } }>()
   const user = props.user
   return (
@@ -154,6 +161,12 @@ export default function Profile() {
         </Card>
       </div>
       <LanguageSetting />
+
+      <h2 className="mt-10 mb-4 text-lg font-semibold">الأمان وطرق الدخول</h2>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <TwoFactorCard twoFactor={twoFactor} />
+        <ConnectedAccountsCard connections={connections} csrfToken={csrfToken} />
+      </div>
     </>
   )
 }

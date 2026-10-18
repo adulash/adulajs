@@ -18,7 +18,7 @@ After creation, sign in as administrator and open **الإعداد الأولي*
 | TLS     | `SMTP_SECURE` for implicit TLS; `SMTP_REQUIRE_TLS` for STARTTLS. Without overrides, port 465 uses implicit TLS and production requires TLS. |
 | File S3 | `DRIVE_DISK=s3`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `S3_BUCKET`, optional `AWS_ENDPOINT`                           |
 | Backups | `BACKUP_S3_ENDPOINT`, `BACKUP_S3_BUCKET`, `BACKUP_S3_REGION`, `BACKUP_S3_ACCESS_KEY_ID`, `BACKUP_S3_SECRET_ACCESS_KEY`                      |
-| OAuth   | `APP_URL`, plus `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` or `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`                                      |
+| OAuth   | `APP_URL`, plus `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` or `MICROSOFT_CLIENT_ID`/`MICROSOFT_CLIENT_SECRET`/`MICROSOFT_TENANT_ID` ([authentication.md](authentication.md))                                      |
 
 Verify the sender/domain with the mail provider. Keep secrets out of Git and generic JSON settings. Restart affected processes after environment changes and repeat the relevant test. Never disable certificate verification to make a test pass.
 

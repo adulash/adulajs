@@ -13,8 +13,18 @@ export type AuthAction =
   | 'password_reset'
   | 'session_revoked'
   | 'oauth_login'
+  | 'social_linked'
+  | 'social_unlinked'
+  | 'social_link_refused'
   | 'profile_updated'
   | 'password_changed'
+  | 'two_factor_enabled'
+  | 'two_factor_disabled'
+  | 'two_factor_recovery_regenerated'
+  | 'two_factor_recovery_used'
+  | 'two_factor_failed'
+  | 'two_factor_locked'
+  | 'password_confirmation_failed'
 
 export type AuthActivityEntry = {
   /** The user the event is about; also the record id of the activity row. */

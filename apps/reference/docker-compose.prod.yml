@@ -62,6 +62,9 @@ x-application-environment: &application-environment
   GITHUB_CLIENT_SECRET:
   GOOGLE_CLIENT_ID:
   GOOGLE_CLIENT_SECRET:
+  MICROSOFT_CLIENT_ID:
+  MICROSOFT_CLIENT_SECRET:
+  MICROSOFT_TENANT_ID:
   # One-off `run --rm web node ace.js adula:install` reads it.
   ADULA_ADMIN_EMAIL:
 services:

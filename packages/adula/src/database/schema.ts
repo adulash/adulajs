@@ -567,3 +567,28 @@ export async function createInboundWebhooksSchema(db: Knex) {
     t.index(['received_at'])
   })
 }
+
+/**
+ * TOTP two-factor authentication (2.2): one row per user with the sealed secret and
+ * the last accepted time step (replay guard), and one row per recovery code so a
+ * code is consumed atomically. Codes are stored as SHA-256 over a per-code salt.
+ */
+export async function createTwoFactorSchema(db: Knex) {
+  await db.schema.createTable('user_two_factor', (t) => {
+    t.integer('user_id').primary().references('id').inTable('users').onDelete('CASCADE')
+    t.text('secret').notNullable()
+    t.bigInteger('last_used_step')
+    t.timestamp('enabled_at', { useTz: true })
+    t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+    t.timestamp('updated_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+  })
+  await db.schema.createTable('user_two_factor_recovery_codes', (t) => {
+    t.increments('id')
+    t.integer('user_id').notNullable().references('id').inTable('users').onDelete('CASCADE')
+    t.string('salt', 32).notNullable()
+    t.string('code_hash', 64).notNullable()
+    t.timestamp('used_at', { useTz: true })
+    t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+    t.index(['user_id'])
+  })
+}

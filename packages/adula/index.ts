@@ -50,6 +50,22 @@ export { arabicMessages } from './src/languages/ar.js'
 export { englishMessages } from './src/languages/en.js'
 export { CatalogMessagesProvider, installCatalogMessages } from './src/languages/validation.js'
 export {
+  TwoFactor,
+  normalizeRecoveryCode,
+  RECOVERY_CODE_COUNT,
+  TWO_FACTOR_PERIOD,
+  TWO_FACTOR_DIGITS,
+  TWO_FACTOR_WINDOW,
+  TWO_FACTOR_UNREADABLE,
+} from './src/auth/two_factor.js'
+export type {
+  TwoFactorStatus,
+  TwoFactorEnrolment,
+  TwoFactorResult,
+  TwoFactorOptions,
+  TwoFactorVerifyOptions,
+} from './src/auth/two_factor.js'
+export {
   createCoreSchema,
   createResourceTable,
   createAttachmentsSchema,
@@ -65,6 +81,7 @@ export {
   createNotificationTargetsSchema,
   createUploadGrantsSchema,
   createInboundWebhooksSchema,
+  createTwoFactorSchema,
 } from './src/database/schema.js'
 export { defineWorkflow, nextStep } from './src/workflows/define_workflow.js'
 export type {

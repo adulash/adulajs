@@ -18,6 +18,7 @@ import {
   createNotificationTargetsSchema,
   createUploadGrantsSchema,
   createInboundWebhooksSchema,
+  createTwoFactorSchema,
   createResourceTable,
 } from '../index.js'
 import type { Actor, RecordData } from '../index.js'
@@ -176,6 +177,7 @@ export async function setup() {
   await createNotificationTargetsSchema(db)
   await createUploadGrantsSchema(db)
   await createInboundWebhooksSchema(db)
+  await createTwoFactorSchema(db)
   await db('org_units').insert([
     { id: 1, name: 'Root', type: 'root', path: '1' },
     { id: 2, parent_id: 1, name: 'A', type: 'unit', path: '1.2' },

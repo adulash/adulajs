@@ -332,6 +332,17 @@ try {
       }),
       'rgb(20, 83, 45)'
     )
+    // A new application requires administrators to enrol a second factor first.
+    await page.goto(`${appEnv.APP_URL}/admin/users`)
+    assert.equal(page.url(), `${appEnv.APP_URL}/account/profile?enrol=two-factor`)
+    // The rest of this smoke test drives the administration without an authenticator app,
+    // so it switches the rule off the way an owner would (system setting, audited elsewhere).
+    const settings = new Client({ ...generatedConnection, database: appEnv.DB_DATABASE })
+    await settings.connect()
+    await settings.query(
+      "INSERT INTO settings (key, scope, scope_id, value) VALUES ('auth.twoFactorRequiredForAdministrators', 'system', '0', 'false')"
+    )
+    await settings.end()
     const response = await page.goto(`${appEnv.APP_URL}/admin/users`)
     assert.equal(response.status(), 200)
     await page

@@ -67,6 +67,18 @@ export interface Registry {
       errorResponse: unknown
     }
   }
+  'inbound_webhooks.receive': {
+    methods: ["POST"]
+    pattern: '/webhooks/in/:source'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { source: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/inbound_webhooks_controller').default['receive']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/inbound_webhooks_controller').default['receive']>>>
+    }
+  }
   'resources.index': {
     methods: ["GET","HEAD"]
     pattern: '/resources/:resource'
@@ -101,6 +113,18 @@ export interface Registry {
       query: {}
       response: ExtractResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['options']>>>
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['options']>>>
+    }
+  }
+  'resources.aggregate': {
+    methods: ["GET","HEAD"]
+    pattern: '/resources/:resource/aggregate'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { resource: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['aggregate']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['aggregate']>>>
     }
   }
   'imports.store': {
@@ -355,6 +379,18 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/assignments_controller').default['cancel']>>>
     }
   }
+  'record_views.show': {
+    methods: ["GET","HEAD"]
+    pattern: '/resources/:resource/:id/view'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue, ParamValue]
+      params: { resource: ParamValue; id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/record_views_controller').default['show']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/record_views_controller').default['show']>>>
+    }
+  }
   'resources.edit': {
     methods: ["GET","HEAD"]
     pattern: '/resources/:resource/:id/edit'
@@ -523,6 +559,18 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['index']>>>
     }
   }
+  'api.resources.aggregate': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/resources/:resource/aggregate'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { resource: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['aggregate']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['aggregate']>>>
+    }
+  }
   'api.resources.show': {
     methods: ["GET","HEAD"]
     pattern: '/api/v1/resources/:resource/:id'
@@ -679,6 +727,30 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/session_controller').default['store']>>> | { status: 422; response: { errors: SimpleError[] } }
     }
   }
+  'two_factor.challenge': {
+    methods: ["GET","HEAD"]
+    pattern: '/login/two-factor'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/two_factor_challenge_controller').default['create']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/two_factor_challenge_controller').default['create']>>>
+    }
+  }
+  'two_factor.verify': {
+    methods: ["POST"]
+    pattern: '/login/two-factor'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/two_factor_challenge_controller').default['store']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/two_factor_challenge_controller').default['store']>>>
+    }
+  }
   'password_reset.forgot': {
     methods: ["GET","HEAD"]
     pattern: '/password/forgot'
@@ -823,6 +895,54 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/profile_controller').default['password']>>> | { status: 422; response: { errors: SimpleError[] } }
     }
   }
+  'two_factor.begin': {
+    methods: ["POST"]
+    pattern: '/account/two-factor/begin'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/two_factor_controller').default['begin']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/two_factor_controller').default['begin']>>>
+    }
+  }
+  'two_factor.confirm': {
+    methods: ["POST"]
+    pattern: '/account/two-factor/confirm'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/two_factor_controller').default['confirm']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/two_factor_controller').default['confirm']>>>
+    }
+  }
+  'two_factor.regenerate': {
+    methods: ["POST"]
+    pattern: '/account/two-factor/recovery-codes'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/two_factor_controller').default['regenerate']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/two_factor_controller').default['regenerate']>>>
+    }
+  }
+  'two_factor.destroy': {
+    methods: ["DELETE"]
+    pattern: '/account/two-factor'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/two_factor_controller').default['destroy']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/two_factor_controller').default['destroy']>>>
+    }
+  }
   'api_tokens.index': {
     methods: ["GET","HEAD"]
     pattern: '/account/tokens'
@@ -895,6 +1015,30 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/account_sessions_controller').default['destroy']>>>
     }
   }
+  'oauth.link': {
+    methods: ["POST"]
+    pattern: '/account/connections/:provider'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { provider: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/oauth_controller').default['link']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/oauth_controller').default['link']>>>
+    }
+  }
+  'oauth.unlink': {
+    methods: ["DELETE"]
+    pattern: '/account/connections/:provider'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { provider: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/oauth_controller').default['unlink']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/oauth_controller').default['unlink']>>>
+    }
+  }
   'admin_sessions.index': {
     methods: ["GET","HEAD"]
     pattern: '/admin/sessions'
@@ -953,6 +1097,18 @@ export interface Registry {
       query: {}
       response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/notifications_controller').default['read']>>>
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/notifications_controller').default['read']>>>
+    }
+  }
+  'notifications.open': {
+    methods: ["GET","HEAD"]
+    pattern: '/notifications/:id/open'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/notifications_controller').default['open']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/notifications_controller').default['open']>>>
     }
   }
   'admin_users.stop_impersonation': {
@@ -1073,6 +1229,30 @@ export interface Registry {
       query: {}
       response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/users_controller').default['revokeSessions']>>>
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/users_controller').default['revokeSessions']>>>
+    }
+  }
+  'admin_users.revoke_tokens': {
+    methods: ["POST"]
+    pattern: '/admin/users/:id/revoke-tokens'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/users_controller').default['revokeTokens']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/users_controller').default['revokeTokens']>>>
+    }
+  }
+  'admin_users.reset_two_factor': {
+    methods: ["POST"]
+    pattern: '/admin/users/:id/reset-two-factor'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/users_controller').default['resetTwoFactor']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/users_controller').default['resetTwoFactor']>>>
     }
   }
   'admin_users.impersonate': {
@@ -1411,6 +1591,78 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/webhooks_controller').default['retry']>>>
     }
   }
+  'admin_webhooks.store_inbound': {
+    methods: ["POST"]
+    pattern: '/admin/inbound-webhooks'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/webhooks_controller').default['storeInbound']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/webhooks_controller').default['storeInbound']>>>
+    }
+  }
+  'admin_webhooks.update_inbound': {
+    methods: ["PUT"]
+    pattern: '/admin/inbound-webhooks/:id'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/webhooks_controller').default['updateInbound']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/webhooks_controller').default['updateInbound']>>>
+    }
+  }
+  'admin_webhooks.rotate_inbound': {
+    methods: ["POST"]
+    pattern: '/admin/inbound-webhooks/:id/rotate'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/webhooks_controller').default['rotateInbound']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/webhooks_controller').default['rotateInbound']>>>
+    }
+  }
+  'admin_webhooks.destroy_inbound': {
+    methods: ["DELETE"]
+    pattern: '/admin/inbound-webhooks/:id'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/webhooks_controller').default['destroyInbound']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/webhooks_controller').default['destroyInbound']>>>
+    }
+  }
+  'admin_webhooks.inbound_deliveries': {
+    methods: ["GET","HEAD"]
+    pattern: '/admin/inbound-webhooks/:id/deliveries'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/webhooks_controller').default['inboundDeliveries']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/webhooks_controller').default['inboundDeliveries']>>>
+    }
+  }
+  'admin_webhooks.redispatch_inbound': {
+    methods: ["POST"]
+    pattern: '/admin/inbound-webhooks/deliveries/:delivery/redispatch'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { delivery: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/webhooks_controller').default['redispatchInbound']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/webhooks_controller').default['redispatchInbound']>>>
+    }
+  }
   'setup.index': {
     methods: ["GET","HEAD"]
     pattern: '/admin/setup'
@@ -1493,6 +1745,18 @@ export interface Registry {
       query: {}
       response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/settings_controller').default['upsert']>>>
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/settings_controller').default['upsert']>>>
+    }
+  }
+  'admin_authentication_settings.update': {
+    methods: ["PUT"]
+    pattern: '/admin/settings/authentication'
+    types: {
+      body: ExtractBody<InferInput<(typeof import('#validators/authentication_settings').authenticationSettingsValidator)>>
+      paramsTuple: []
+      params: {}
+      query: ExtractQuery<InferInput<(typeof import('#validators/authentication_settings').authenticationSettingsValidator)>>
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/authentication_settings_controller').default['update']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/authentication_settings_controller').default['update']>>> | { status: 422; response: { errors: SimpleError[] } }
     }
   }
   'admin_settings.destroy': {

@@ -272,6 +272,10 @@
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>) => Promise<void>"
     },
+    "createTwoFactorSchema": {
+      "kind": "FunctionDeclaration",
+      "type": "(db: Knex<any, any[]>) => Promise<void>"
+    },
     "createUploadGrantsSchema": {
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>) => Promise<void>"
@@ -648,6 +652,10 @@
       "kind": "FunctionDeclaration",
       "type": "(definition: WorkflowDefinition, current: string, event: WorkflowEvent) => string"
     },
+    "normalizeRecoveryCode": {
+      "kind": "FunctionDeclaration",
+      "type": "(code: string) => string"
+    },
     "Notification": {
       "kind": "TypeAliasDeclaration",
       "type": "{ id: number; title: string; body: string; readAt: string | null; createdAt: string; target: { resource: string; recordId: number; href: string; } | null; }"
@@ -779,6 +787,10 @@
     "RecordPermissions": {
       "kind": "TypeAliasDeclaration",
       "type": "{ view?: boolean | undefined; create?: boolean | undefined; update?: boolean | undefined; delete?: boolean | undefined; submit?: boolean | undefined; cancel?: boolean | undefined; amend?: boolean | undefined; }"
+    },
+    "RECOVERY_CODE_COUNT": {
+      "kind": "VariableDeclaration",
+      "type": "10"
     },
     "RedeemedUploadGrant": {
       "kind": "TypeAliasDeclaration",
@@ -1039,6 +1051,46 @@
     "translate": {
       "kind": "FunctionDeclaration",
       "type": "(key: string, language?: string | undefined, params?: Readonly<Record<string, string | number>> | undefined) => string"
+    },
+    "TWO_FACTOR_DIGITS": {
+      "kind": "VariableDeclaration",
+      "type": "6"
+    },
+    "TWO_FACTOR_PERIOD": {
+      "kind": "VariableDeclaration",
+      "type": "30"
+    },
+    "TWO_FACTOR_UNREADABLE": {
+      "kind": "VariableDeclaration",
+      "type": "\"E_TWO_FACTOR_UNREADABLE\""
+    },
+    "TWO_FACTOR_WINDOW": {
+      "kind": "VariableDeclaration",
+      "type": "1"
+    },
+    "TwoFactor": {
+      "kind": "ClassDeclaration",
+      "type": "typeof TwoFactor"
+    },
+    "TwoFactorEnrolment": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ otpauthUrl: string; secret: string; issuer: string; account: string; }"
+    },
+    "TwoFactorOptions": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ now?: (() => number) | undefined; }"
+    },
+    "TwoFactorResult": {
+      "kind": "TypeAliasDeclaration",
+      "type": "false | \"totp\" | \"recovery\""
+    },
+    "TwoFactorStatus": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ enabled: boolean; pending: boolean; enabledAt: string | null; recoveryRemaining: number; }"
+    },
+    "TwoFactorVerifyOptions": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ allowRecovery?: boolean | undefined; }"
     },
     "UI_PREFERENCES_KEY": {
       "kind": "VariableDeclaration",
