@@ -10,7 +10,7 @@ import { resources } from '../medical-consumer/resources.mjs'
 test('packed creator module entrypoint supports generating and specializing an independent module', async () => {
   const target = await mkdtemp(join(tmpdir(), 'adula-medical-scaffold-'))
   try {
-    const { files } = JSON.parse(await readFile(new URL('../../packages/create-adula-app/build/template.json', import.meta.url)))
+    const { files } = JSON.parse(await readFile(new URL('../../packages/create-adulajs/build/template.json', import.meta.url)))
     await mkdir(join(target, 'start'))
     await mkdir(join(target, 'docs'))
     await writeFile(join(target, 'start/modules.ts'), files['start/modules.ts'])

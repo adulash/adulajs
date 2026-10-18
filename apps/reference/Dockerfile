@@ -4,7 +4,7 @@ RUN npm install --global pnpm@11.19.0
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/adula/package.json ./packages/adula/package.json
 COPY packages/ui/package.json ./packages/ui/package.json
-COPY packages/create-adula-app/package.json ./packages/create-adula-app/package.json
+COPY packages/create-adulajs/package.json ./packages/create-adulajs/package.json
 COPY apps/reference/package.json ./apps/reference/package.json
 RUN pnpm install --frozen-lockfile
 

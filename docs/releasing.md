@@ -14,6 +14,7 @@ lists what was published.
 | Repository | `adulash/adulajs` (public; provenance requires it) |
 | Workflow | `.github/workflows/release.yml`, triggered by `push: tags: ['v*']` |
 | GitHub environment | `npm`, with the owner as required reviewer; its deployment rule must allow tags `v*` |
+| Trigger | `push: tags: ['v[0-9]+.[0-9]+.[0-9]+']`; a tag ruleset should restrict who creates `v*` tags |
 | Authentication | npm trusted publishing (OIDC) from a GitHub-hosted runner; no npm token anywhere |
 
 Each package's trusted publisher names owner `adulash`, repository `adulajs`, workflow
@@ -23,7 +24,7 @@ workflow installs npm 11.19.1 on Node 24.
 ## Steps
 
 1. In a reviewed pull request, set the new version in `packages/adula`, `packages/ui`,
-   `packages/create-adula-app`, the root and `apps/reference` `package.json` files and the
+   `packages/create-adulajs`, the root and `apps/reference` `package.json` files and the
    agent/UI lock versions, move the CHANGELOG `Unreleased` entries under the version, and
    rebuild so the UI registry and the creator template carry the version. Merge after CI.
 2. Tag the merge commit on `main` and push the tag:
@@ -70,12 +71,15 @@ pnpm check:release --artifacts=.work
 
 ## A new package name
 
-npm can configure a trusted publisher only for a package that already exists. The first
-version of a new name (as `create-adulajs` after the rename) is published once by the owner
-from the CI-built archive of the approved run: download `npm-packages-<run-id>`, run
+npm can configure a trusted publisher only for a package that already exists. While
+`create-adulajs` is not on npm, the publish job publishes core and UI and skips the creator
+with a warning. The owner then publishes that first version once from the CI-built archive
+of the approved run: download `npm-packages-<run-id>`, run
 `sha256sum --check SHA256SUMS`, then `npm publish create-adulajs-<version>.tgz --access
 public --tag latest` with the owner's npm session and 2FA. That one version has no
 provenance. Then add the trusted publisher above; later versions go through the workflow.
+Finally retire the old name:
+`npm deprecate create-adula-app "Renamed to create-adulajs: npm create adulajs my-system"`.
 
 ## Failure handling
 

@@ -183,7 +183,7 @@ export async function main(argv = process.argv.slice(2)) {
       output: process.stdout,
     })
     try {
-      directory ||= await prompt.question('Application directory: ')
+      directory ||= await prompt.question('System directory: ')
       projectName(resolve(directory))
       await assertEmpty(resolve(directory))
       if (values.services === 'docker') {

@@ -3,7 +3,7 @@ name: Release npm packages
 # The `npm` environment's required reviewer is the owner's authorization (ADR 040).
 on:
   push:
-    tags: ['v*']
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
 permissions:
   contents: read
 concurrency:
@@ -82,4 +82,9 @@ jobs:
         run: |
           npm publish ".work/release/adula-${VERSION}.tgz" --access public --provenance --tag latest --ignore-scripts
           npm publish ".work/release/adula-ui-${VERSION}.tgz" --access public --provenance --tag latest --ignore-scripts
-          npm publish ".work/release/create-adulajs-${VERSION}.tgz" --access public --provenance --tag latest --ignore-scripts
+          # A new package name has no trusted publisher until its first manual publication.
+          if npm view create-adulajs version > /dev/null 2>&1; then
+            npm publish ".work/release/create-adulajs-${VERSION}.tgz" --access public --provenance --tag latest --ignore-scripts
+          else
+            echo "::warning::create-adulajs is not on npm yet; publish create-adulajs-${VERSION}.tgz from this run's artifact by hand (docs/releasing.md)"
+          fi

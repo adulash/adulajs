@@ -16,7 +16,7 @@ AdulaJS builds one **system** (نظام) per company; each business module insid
 | What can AdulaJS not do yet? | [Gaps](../GAPS.md) |
 | How is a version published? | [Releasing](releasing.md) |
 | Which versions are published? | [Releases](releases.md) |
-| What are the package contracts? | [Core README](../packages/adula/README.md), [UI README](../packages/ui/README.md), [Creator README](../packages/create-adula-app/README.md) |
+| What are the package contracts? | [Core README](../packages/adula/README.md), [UI README](../packages/ui/README.md), [Creator README](../packages/create-adulajs/README.md) |
 | Why was a design chosen? | [Architecture decisions](decisions/) |
 | What changed? | [Changelog](../CHANGELOG.md) |
 

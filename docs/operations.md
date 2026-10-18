@@ -26,10 +26,10 @@ before building; never remove application volumes to fix a full build cache.
 ## First deployment and upgrades
 
 `make setup` builds, migrates, starts and waits for health on an empty database. Then sign
-up the first account in the browser and run, with `ADULA_ADMIN_EMAIL` set to it:
+up the first account in the browser and run, passing that account's email:
 
 ```sh
-docker compose -f docker-compose.prod.yml run --rm web node ace.js adula:install
+docker compose -f docker-compose.prod.yml run --rm -e ADULA_ADMIN_EMAIL=you@example.com web node ace.js adula:install
 ```
 
 Take one backup and one restore test (below). From then on `make doctor` passes, and

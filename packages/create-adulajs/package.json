@@ -32,9 +32,9 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/adulash/adulajs.git",
-    "directory": "packages/create-adula-app"
+    "directory": "packages/create-adulajs"
   },
-  "homepage": "https://github.com/adulash/adulajs/tree/main/packages/create-adula-app#readme",
+  "homepage": "https://github.com/adulash/adulajs/tree/main/packages/create-adulajs#readme",
   "bugs": {
     "url": "https://github.com/adulash/adulajs/issues"
   },

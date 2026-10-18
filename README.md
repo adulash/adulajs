@@ -168,7 +168,7 @@ AdulaJS composes proven open-source tools instead of reinventing them:
 |---|---|
 | [`adula`](packages/adula) | The core: resource engine, CASL/SQL authorization, organizational scope, services, additive migrations and Ace commands |
 | [`@adula/ui`](packages/ui) | Arabic RTL shadcn/ui registry: 25 primitives and nine resource components copied into your project |
-| [`create-adulajs`](packages/create-adula-app) | Creates a complete system in one command (`npm create adulajs`), and upgrades 1.x systems |
+| [`create-adulajs`](packages/create-adulajs) | Creates a complete system in one command (`npm create adulajs`), and upgrades 1.x systems |
 
 The backend updates as a package. Copied UI, pages, domain modules and branding belong to
 your system.
@@ -177,7 +177,7 @@ your system.
 
 The 1.0 scope was accepted by the owner after staged acceptance; published versions are
 recorded in [releases](docs/releases.md). Every change runs, in CI, a genuine
-upgrade from the previously published version, an independent consumer built from the
+upgrade from the published 1.2.0, an independent consumer built from the
 official AdonisJS starter, and the creator from an empty directory through a real
 administrator login in a browser.
 

@@ -6,7 +6,7 @@ history (last present in commit `f5ae844`, under `docs/evidence/`). How a releas
 in [releasing](releasing.md).
 
 Dates are the npm publication times (UTC). All three packages of a version are published
-together by the `Release npm packages` workflow (`release.yml`) with npm provenance.
+together by the `Release npm packages` workflow (`release.yml`) with npm provenance, except where noted.
 Packages: 0.2.0 and 1.x as `@adula/kit`, `@adula/ui`, `@adula/create-app`; 2.x as `adula`,
 `@adula/ui`, `create-adula-app` (renamed `create-adulajs` after 2.1.0).
 
@@ -30,4 +30,4 @@ redirects the old links.
 
 ## Retired exercises
 
-`tests/feasibility-exercise` (the 2026-09-25 timed exercise of building customers without the framework) and `tests/agent-exercise` (the phase 5 support-module exercise) were removed in this branch; both were last present at commit `f5ae844`.
+`tests/feasibility-exercise` (the 2026-09-25 timed exercise of building customers without the framework) and `tests/agent-exercise` (the phase 5 support-module exercise) were removed after 2.1.0; both were last present at commit `f5ae844`.

@@ -1,6 +1,6 @@
 # adula
 
-Resource framework for AdonisJS 7 and PostgreSQL 17, version 2.1.0 (AdulaJS since 2.0.0, ADR 039; 1.0 scope accepted by the owner, ADR 028). Node 24 or later is required. MIT licensed. The public API in `api/adula-api.json` follows semantic versioning.
+Resource framework for AdonisJS 7 and PostgreSQL 17, version 2.1.0 (AdulaJS since 2.0.0, ADR 039). Node 24 or later is required. MIT licensed. The public API in `api/adula-api.json` follows semantic versioning.
 
 ## Install into a consumer
 

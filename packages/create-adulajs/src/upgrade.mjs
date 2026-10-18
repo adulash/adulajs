@@ -63,8 +63,9 @@ export function rewriteManifest(pkg, version, local = {}) {
       deps.adula = local.adula ?? `^${version}`
     }
     if (deps['@adula/ui']) deps['@adula/ui'] = local['@adula/ui'] ?? `^${version}`
-    if (deps[LEGACY_CREATOR]) {
-      delete deps[LEGACY_CREATOR]
+    for (const creator of [LEGACY_CREATOR, 'create-adula-app']) {
+      if (!deps[creator]) continue
+      delete deps[creator]
       deps['create-adulajs'] = `^${version}`
     }
     next[kind] = Object.fromEntries(Object.entries(deps).sort(([a], [b]) => a.localeCompare(b)))
@@ -119,7 +120,7 @@ export async function upgradeApplication(root, { version, packages, force = fals
   const pkg = JSON.parse(await readFile(manifestPath, 'utf8'))
   const deps = { ...pkg.dependencies, ...pkg.devDependencies }
   if (!deps[LEGACY_CORE] && !deps.adula)
-    throw new Error(`${root} is not an AdulaJS application: neither adula nor ${LEGACY_CORE} is a dependency`)
+    throw new Error(`${root} is not an AdulaJS system: neither adula nor ${LEGACY_CORE} is a dependency`)
   if (!deps[LEGACY_CORE]) return []
   if (!force && gitIsDirty(root))
     throw new Error('Commit or stash your changes first, or pass --force')

@@ -11,9 +11,9 @@ import {
   createDatabases,
   npmEntry,
   pingRedis,
-} from '../packages/create-adula-app/src/system.mjs'
-import { dockerBackend } from '../packages/create-adula-app/src/docker-runtime.mjs'
-import { holdDockerSession } from '../packages/create-adula-app/src/docker-session.mjs'
+} from '../packages/create-adulajs/src/system.mjs'
+import { dockerBackend } from '../packages/create-adulajs/src/docker-runtime.mjs'
+import { holdDockerSession } from '../packages/create-adulajs/src/docker-session.mjs'
 import { packageNames, tarballName } from './check-release.mjs'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
@@ -109,7 +109,7 @@ await writeFile(
   })
 )
 const version = JSON.parse(
-  await readFile(join(root, 'packages/create-adula-app/package.json'), 'utf8')
+  await readFile(join(root, 'packages/create-adulajs/package.json'), 'utf8')
 ).version
 const target = join(work, `created-app-${Date.now()}`)
 const npm = await npmEntry()
@@ -220,7 +220,7 @@ try {
   assert.match(await readFile(join(target, 'inertia/components/ui/dialog.tsx'), 'utf8'), /Dialog/)
   assert(
     !JSON.stringify(
-      JSON.parse(await readFile(join(root, 'packages/create-adula-app/build/template.json'), 'utf8'))
+      JSON.parse(await readFile(join(root, 'packages/create-adulajs/build/template.json'), 'utf8'))
         .files
     ).includes('#tests/fixtures')
   )
@@ -274,7 +274,7 @@ try {
     'refuse-overwrite',
     process.execPath,
     [
-      join(root, 'packages/create-adula-app/build/cli.mjs'),
+      join(root, 'packages/create-adulajs/build/cli.mjs'),
       target,
       '--company',
       'Changed',

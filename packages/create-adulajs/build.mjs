@@ -152,7 +152,7 @@ for (const [path, text] of Object.entries(files)) {
 const app = JSON.parse(await readFile(join(reference, 'package.json'), 'utf8'))
 const own = JSON.parse(await readFile(join(here, 'package.json'), 'utf8'))
 const workspace = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'))
-app.name = 'adula-app'
+app.name = 'adula-system'
 app.version = '0.1.0'
 app.packageManager = workspace.packageManager
 app.devDependencies.pnpm = workspace.packageManager.split('@')[1]

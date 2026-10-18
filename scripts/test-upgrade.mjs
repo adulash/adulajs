@@ -245,7 +245,7 @@ try {
       'creator-upgrade',
       process.execPath,
       [
-        join(repo, 'packages/create-adula-app/build/cli.mjs'),
+        join(repo, 'packages/create-adulajs/build/cli.mjs'),
         'upgrade',
         target,
         '--packages',

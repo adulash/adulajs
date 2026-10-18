@@ -16,7 +16,7 @@ Arabic is the base language of the interface.
 |---|---|---|
 | `packages/adula` | `adula` | Resource framework, services, migrations, Ace commands, ESLint rules, agent skills |
 | `packages/ui` | `@adula/ui` | Copy-in shadcn/ui registry of 42 components, theme and fonts |
-| `packages/create-adula-app` | `create-adulajs` | Creator (`npm create adulajs my-system`) and 1.x upgrade |
+| `packages/create-adulajs` | `create-adulajs` | Creator (`npm create adulajs my-system`) and 1.x upgrade |
 
 All three share one version and are published together from a `v<version>` tag
 (see [releasing](releasing.md) and the [release table](releases.md)).
@@ -56,10 +56,11 @@ All three share one version and are published together from a `v<version>` tag
 
 ## Reference application (`apps/reference`)
 
-The AdonisJS 7 + Inertia/React host the creator copies into new systems: authentication
-(password recovery, sessions, optional Google/GitHub sign-in), administration screens,
-workspace with module groups, generic resource pages with record dialogs, production
-Dockerfile, Compose files, Caddy and backup scripts. The educational customers/orders/tasks
+The AdonisJS 7 + Inertia/React host whose application code the creator copies into new
+systems: authentication (password recovery, sessions, optional Google/GitHub sign-in),
+administration screens, workspace with module groups and generic resource pages with record
+dialogs. Its production Dockerfile, Compose files, Caddy and deploy scripts stay in
+`apps/reference` ([operations](operations.md)). The educational customers/orders/tasks
 modules exist only as test fixtures under `apps/reference/tests/fixtures` (ADR 017).
 
 ## Consumers under `tests/`
@@ -86,7 +87,7 @@ Japa and `node:test` run more cases than declarations where a helper registers t
 | Reference browser (`apps/reference/tests/browser`, Playwright) | 10 | 35 |
 | Reference helpers and opt-in S3 acceptance | 2 | 8 |
 | UI (`packages/ui/tests`) | 2 | 7 |
-| Creator (`packages/create-adula-app/tests`) | 7 | 45 |
+| Creator (`packages/create-adulajs/tests`) | 7 | 45 |
 | Release (`tests/release`) | 6 | 16 |
 | Medical consumer (`tests/medical-consumer`) | 1 | 3 |
 

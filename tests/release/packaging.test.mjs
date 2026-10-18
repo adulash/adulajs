@@ -20,7 +20,7 @@ test('refuses private files and archives missing executable exports', () => {
 })
 
 test('every published manifest matches its expected name and the shared version', async () => {
-  for (const [index, directory] of ['adula', 'ui', 'create-adula-app'].entries()) {
+  for (const [index, directory] of ['adula', 'ui', 'create-adulajs'].entries()) {
     const pkg = JSON.parse(await readFile(new URL(`../../packages/${directory}/package.json`, import.meta.url), 'utf8'))
     validateManifest(pkg, packageNames[index], core.version)
   }

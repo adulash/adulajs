@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const repository = 'git+https://github.com/adulash/adulajs.git'
 export const packageNames = ['adula', '@adula/ui', 'create-adulajs']
-export const packageDirectories = ['adula', 'ui', 'create-adula-app']
+export const packageDirectories = ['adula', 'ui', 'create-adulajs']
 /** The archive name pnpm pack writes for a package: @adula/ui -> adula-ui-<version>.tgz. */
 export const tarballName = (name, version) => `${name.replace(/^@/, '').replace('/', '-')}-${version}.tgz`
 export function validateManifest(pkg, name, version) {

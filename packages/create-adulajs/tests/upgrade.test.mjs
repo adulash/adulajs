@@ -52,6 +52,8 @@ test('manifest moves the core and creator to their 2.0 names', () => {
   )
   assert.deepEqual(pkg.dependencies, { '@adula/ui': '^2.0.0', 'adula': '^2.0.0' })
   assert.deepEqual(pkg.devDependencies, { 'create-adulajs': '^2.0.0' })
+  const renamed = rewriteManifest({ dependencies: { adula: '2.1.0' }, devDependencies: { 'create-adula-app': '2.1.0' } }, '2.2.0')
+  assert.deepEqual(renamed.devDependencies, { 'create-adulajs': '^2.2.0' })
 })
 
 test('upgrade rewrites a 1.x application and renames its routes preload', async () => {
@@ -150,7 +152,7 @@ test('a project that never used AdulaJS is rejected', async () => {
   const root = await mkdtemp(join(tmpdir(), 'adula-upgrade-'))
   try {
     await writeFile(join(root, 'package.json'), '{"dependencies":{}}')
-    await assert.rejects(upgradeApplication(root, { version: '2.0.0' }), /not an AdulaJS application/)
+    await assert.rejects(upgradeApplication(root, { version: '2.0.0' }), /not an AdulaJS system/)
   } finally {
     await rm(root, { recursive: true, force: true })
   }
