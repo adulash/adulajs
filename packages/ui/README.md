@@ -6,7 +6,17 @@ Arabic RTL shadcn registry for project-owned React components. This package ship
 
 The 25 primitives are based on the official shadcn new-york-v4 registry. See LICENSE.shadcn.md and UPSTREAM.json for attribution and source hashes. Adaptations include logical spacing, Arabic labels, RTL keyboard direction, Arabic calendar defaults, RTL notifications and switch movement. Visual acceptance of the application remains a separate check.
 
-Build with `pnpm --filter @adula/ui build`. Refreshing upstream sources is an explicit maintenance task: run scripts/sync-ui-registry.mjs, review changes, run scripts/prepare-ui-registry.mjs to recheck dependency metadata and adapt sources, then build and visually test.
+Build with `pnpm --filter @adula/ui build`. `registry/ui` is the single source of copied UI in this repository: `scripts/ui-registry.mjs` maintains it with one subcommand per step.
+
+| Command | Effect |
+|---|---|
+| `node scripts/ui-registry.mjs sync` | Fetches the upstream new-york-v4 primitives, `UPSTREAM.json` and the shadcn license (network; explicit maintenance). |
+| `node scripts/ui-registry.mjs prepare` | Adapts sources for Arabic RTL and refreshes the pinned versions in `dependencies.json` and `registry.json` (npm). `--sources-only` skips npm. |
+| `node scripts/ui-registry.mjs register` | Registers the AdulaJS resource components in `registry.json`. |
+| `node scripts/ui-registry.mjs build` | Writes `build/` (what `pnpm --filter @adula/ui build` runs). |
+| `node scripts/ui-registry.mjs reference` | Regenerates the reference application's `inertia/components/ui` and `ui.lock.json`. Both are untracked; the root `build`, `dev`, `typecheck` and `test` scripts run it first. Never edit the generated copy; change `registry/ui` instead. |
+
+Refreshing upstream sources: run `sync`, review the changes, run `prepare`, then build and visually test. `prepare` is idempotent. Its last step is the direction transform that `shadcn add` itself applies when `components.json` sets `"rtl": true`, so the stored file is what an application installs, byte for byte. Two rules keep it a fixed point of that transform. First, every horizontal translate is stored as an explicit `ltr:`/`rtl:` pair, because shadcn appends a second `rtl:` class to a plain one on every install. The pairing covers only the `translate-x-*` family, with any variants. Any other class the transform keeps appending to, such as `space-x-*` (it re-adds `rtl:space-x-reverse`), fails the drift gate and needs a reviewed source edit. Second, no file keeps a `"use client"` directive. Applications use `"rsc": false`, and Inertia does not use it. shadcn 4.21.0 strips the directive inconsistently: its global regular expression keeps `lastIndex` between files, so only every other file in a multi-file install loses it. `pnpm --filter @adula/ui test` fails when a registry file is not prepared, when installing it would change it, or when the generated reference copy differs from the registry.
 
 Required host tooling: Node 24, React 19, shadcn 4.21.0, Tailwind CSS 4.3.3 and @tailwindcss/vite 4.3.3. AdulaJS installer supports the official AdonisJS React starter layout. The registry is unpublished until explicitly authorized.
 
@@ -16,7 +26,7 @@ Components merge `className` with `cn` (shadcn's clsx + tailwind-merge replaceme
 
 ## Resource components
 
-Nine AdulaJS components sit on top of the primitives and are registered by `scripts/register-resource-ui.mjs`. They consume the `ResourceDescription`, `ResourceList`, `ResourceEditor`, `ResourceShow`, `ResourceChildren`, `ResourceLookups` and `ResourceActivity` contracts exported by `adula`; the copied files are project-owned like every other registry item.
+Nine AdulaJS components sit on top of the primitives and are registered by `node scripts/ui-registry.mjs register`. They consume the `ResourceDescription`, `ResourceList`, `ResourceEditor`, `ResourceShow`, `ResourceChildren`, `ResourceLookups` and `ResourceActivity` contracts exported by `adula`; the copied files are project-owned like every other registry item.
 
 | Component | Role |
 |---|---|

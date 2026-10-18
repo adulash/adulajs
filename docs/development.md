@@ -8,6 +8,8 @@ pnpm --filter adula build
 pnpm --filter @adula/ui build
 ```
 
+The reference application's `inertia/components/ui` and `ui.lock.json` are generated from `packages/ui/registry` and not tracked. On a fresh clone, run `pnpm build` or `node scripts/ui-registry.mjs reference` before filtered reference commands (`pnpm --filter @adula/reference …`) and `pnpm lint`. The root `build`, `dev`, `typecheck` and `test` scripts regenerate them.
+
 Copy `apps/reference/.env.example` into local `.env` and `.env.test` files. Generate separate APP_KEY values with `node ace generate:key`, set database/Redis connections, and use `DRIVE_DISK=local` unless a real S3 disk is configured. Tests require a dedicated database ending in `_test`; set `TEST_DATABASE_URL` for core tests. Never commit credentials.
 
 On the original Windows workstation, `pwsh -File scripts/local-postgres.ps1` and `node scripts/setup-local.mjs` provision the isolated loopback PostgreSQL profile on port 55432. Run Redis separately with `wsl -d Ubuntu --exec sh scripts/local-redis.sh` (port 16379), then run:
