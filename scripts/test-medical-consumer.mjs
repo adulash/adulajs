@@ -10,6 +10,7 @@ import { setTimeout as delay } from 'node:timers/promises'
 import { childEnvironment } from '../packages/create-adulajs/src/system.mjs'
 import { resources } from '../tests/medical-consumer/resources.mjs'
 import { installMedicalModule } from '../tests/medical-consumer/install.mjs'
+import { run } from './lib/run.mjs'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
 const work = join(root, '.work')
@@ -42,16 +43,8 @@ assert(profile.database.endsWith('_test'))
 const reference = process.env.TEST_DATABASE_URL ? process.env : parseEnv(await readFile(join(root, 'apps/reference/.env.test'), 'utf8'))
 const hash = async (path) => createHash('sha256').update(await readFile(path)).digest('hex')
 async function step(name, executable, argv, { cwd = target, env = environment, expected = 0 } = {}) {
-  const file = await open(join(directory, `${name}.log`), 'w')
-  let code
-  try {
-    code = await new Promise((done, reject) => {
-      const child = spawn(executable, argv, { cwd, env, windowsHide: true, stdio: ['ignore', file.fd, file.fd] })
-      child.once('error', reject)
-      child.once('exit', (status, signal) => signal ? reject(new Error(`${name} stopped by ${signal}`)) : done(status))
-    })
-  } finally { await file.close() }
-  assert([expected].flat().includes(code), `${name} failed (exit ${code}); private log: ${join(directory, `${name}.log`)}`)
+  // Private logs may contain credentials: never echo their tail to the console.
+  const { code } = await run(executable, argv, { cwd, env, log: join(directory, `${name}.log`), expect: expected, label: `Medical step ${name}`, echo: false })
   state.checks.push({ name, exitCode: code, at: new Date().toISOString() })
   await save()
   console.log(`${code === 0 ? 'PASS' : 'THRESHOLD FAILURE'} ${name}`)

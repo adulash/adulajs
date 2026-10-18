@@ -4,6 +4,7 @@ import { readFile, writeFile, mkdir, access } from 'node:fs/promises'
 import { dirname, join, resolve, relative, isAbsolute } from 'node:path'
 import { spawn } from 'node:child_process'
 import { digest } from '../src/commands/agent_assets.js'
+import { ensureAdulaCssEntry } from './ui_css.js'
 
 type Item = {
   name: string
@@ -212,11 +213,8 @@ export default class Ui extends BaseCommand {
     // One CSS entry fixes layer ordering in development and production bundlers.
     const adulaCssPath = join(root, 'inertia/css/adula.css')
     const adulaCss = await readFile(adulaCssPath, 'utf8')
-    if (!adulaCss.includes('@import "./app.css"'))
-      await writeFile(
-        adulaCssPath,
-        `@layer theme, base, legacy, components, utilities;\n@import "./app.css";\n${adulaCss}`
-      )
+    const entryCss = ensureAdulaCssEntry(adulaCss)
+    if (entryCss !== adulaCss) await writeFile(adulaCssPath, entryCss)
     entry.getImportDeclaration('./css/app.css')?.remove()
     if (!entry.getImportDeclaration('./css/adula.css'))
       entry.addImportDeclaration({ moduleSpecifier: './css/adula.css' })

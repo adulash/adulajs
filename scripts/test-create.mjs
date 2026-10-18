@@ -15,6 +15,7 @@ import {
 import { dockerBackend } from '../packages/create-adulajs/src/docker-runtime.mjs'
 import { holdDockerSession } from '../packages/create-adulajs/src/docker-session.mjs'
 import { packageNames, tarballName } from './check-release.mjs'
+import { nonZero, run } from './lib/run.mjs'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
 const work = join(root, '.work')
@@ -31,28 +32,14 @@ assert(
 )
 await mkdir(work, { recursive: true })
 async function step(name, command, args, cwd = root, env = process.env, failure = false) {
-  const path = join(work, `create-${name}.log`)
-  const log = await open(path, 'w')
-  let code
-  try {
-    code = await new Promise((done, reject) => {
-      const child = spawn(command, args, {
-        cwd,
-        env,
-        stdio: ['ignore', log.fd, log.fd],
-        shell: false,
-        windowsHide: true,
-      })
-      child.once('error', reject)
-      child.once('exit', (code) => done(code))
-    })
-  } finally {
-    await log.close()
-  }
-  if (failure ? code === 0 : code !== 0) {
-    console.error((await readFile(path, 'utf8')).split(/\r?\n/).slice(-65).join('\n'))
-    throw new Error(`Creator check failed: ${name} (exit ${code}, ${path})`)
-  }
+  await run(command, args, {
+    cwd,
+    env,
+    log: join(work, `create-${name}.log`),
+    expect: failure ? nonZero : 0,
+    label: `Creator check ${name}`,
+    tail: 65,
+  })
   console.log(`PASS ${name}`)
 }
 for (const name of packageNames) {

@@ -54,17 +54,9 @@ for (const path of [
 ]) {
   files[path] = (await readFile(join(reference, path), 'utf8')).replaceAll('\r\n', '\n')
 }
-for (const name of [
-  'adula_worker',
-  'adula_outbox',
-  'adula_runtime_health',
-  'adula_restore_reconcile',
-  'backup_verify',
-  'backup_create',
-  'backup_verify_snapshot',
-  'backup_restore_files',
-  'backup_restore_test',
-]) {
+// The outbox, runtime health, upload pruning, restore reconciliation and backup commands
+// ship in the adula package (`adula/commands`); only the application-wired worker is copied.
+for (const name of ['adula_worker']) {
   files[`commands/${name}.ts`] = await readFile(join(reference, `commands/${name}.ts`), 'utf8')
 }
 // The starter needs UserSchema while migration:run boots. Lucid replaces it with

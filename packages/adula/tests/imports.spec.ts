@@ -1,24 +1,10 @@
 import { test } from '@japa/runner'
-import { ImportBatches, AdulaError, ResourceService, importCell } from '../index.js'
-import type { Actor } from '../index.js'
+import { ImportBatches, ResourceService, importCell } from '../index.js'
 import { admin, db, reader, registry, setup } from './helpers.js'
+import { failure } from './helpers/failure.js'
+import { addUserProfileColumns, viewer as aViewer } from './helpers/actors.js'
 
-async function failure(run: () => Promise<unknown>): Promise<AdulaError> {
-  try {
-    await run()
-  } catch (error) {
-    if (error instanceof AdulaError) return error
-    throw error
-  }
-  throw new Error('Expected an AdulaError')
-}
-
-const viewer: Actor = {
-  id: 2,
-  orgPaths: ['1.2'],
-  permissionLevel: 0,
-  rules: [{ subject: 'orders', action: 'view' }],
-}
+const viewer = aViewer({ id: 2 })
 
 test.group('CSV import batches', (group) => {
   const service = () => new ResourceService(db, registry)
@@ -28,9 +14,7 @@ test.group('CSV import batches', (group) => {
     })
   group.setup(async () => {
     await setup()
-    await db.raw(
-      'ALTER TABLE users ADD COLUMN full_name varchar, ADD COLUMN disabled_at timestamptz'
-    )
+    await addUserProfileColumns()
   })
   group.each.setup(async () => {
     await db('import_batches').del()

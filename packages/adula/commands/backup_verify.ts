@@ -1,15 +1,16 @@
 import { BaseCommand } from '@adonisjs/core/ace'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
+import { applicationEnv } from './backup_services.js'
 
 export default class BackupVerify extends BaseCommand {
   static commandName = 'backup:verify'
   static description = 'Verify recent database, uploads and checksum objects in offsite storage'
   static options = { startApp: true }
   async run() {
-    const { verifyBackup } = await import('adula')
+    const { verifyBackup } = await import('../src/services/backup.js')
     const { default: db } = await import('@adonisjs/lucid/services/db')
-    const { default: env } = await import('#start/env')
+    const env = await applicationEnv(this.app)
     const prefix = env.get('BACKUP_S3_PREFIX') ?? 'adula'
     const status = await verifyBackup(
       db.connection().getWriteClient(),
@@ -56,8 +57,10 @@ export default class BackupVerify extends BaseCommand {
       Date.now(),
       prefix
     )
-    const { Settings } = await import('adula')
-    const { backupFingerprint } = await import('#services/initial_setup')
+    const { Settings } = await import('../src/services/settings.js')
+    const { backupFingerprint } = (await this.app.import('#services/initial_setup')) as {
+      backupFingerprint: () => string
+    }
     await new Settings(db.connection().getWriteClient()).set('setup.backup_check', {
       fingerprint: backupFingerprint(),
       at: status.checkedAt,

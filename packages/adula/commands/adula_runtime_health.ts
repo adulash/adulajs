@@ -7,7 +7,7 @@ export default class AdulaRuntimeHealth extends BaseCommand {
   @flags.string({ default: 'worker' }) declare service: string
   async run() {
     if (!['worker', 'scheduler'].includes(this.service)) throw new Error('Unknown service')
-    const { Settings } = await import('adula')
+    const { Settings } = await import('../src/services/settings.js')
     const { default: db } = await import('@adonisjs/lucid/services/db')
     const last = await new Settings(db.connection().getWriteClient()).get<string>(
       `${this.service}.heartbeat`

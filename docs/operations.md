@@ -48,6 +48,16 @@ host's cron. A staging copy uses the same files under its own Compose project na
 volumes and `BACKUP_S3_PREFIX`. Stop with `stop`, restart with `up -d`; use
 `down --volumes` only to discard that environment's data.
 
+## Operational commands
+
+The `adula` package ships the operational Ace commands (registered through
+`adula/commands` in `adonisrc.ts`): `adula:outbox`, `adula:runtime:health`,
+`adula:uploads:prune`, `adula:restore:reconcile`, `backup:create`, `backup:verify`,
+`backup:verify-snapshot`, `backup:restore-files` and `backup:restore-test`. They use the
+system's own `#start/env`, `#start/modules` and `app/services` (`events`, `upload_pruning`,
+`backup_snapshot`, `backup_publish`, `initial_setup`), so keep those files. `adula:worker`
+lives in the system's `commands/` because it wires the system's own services.
+
 ## Backups
 
 The `backup` service runs `deploy/backup.sh` daily. It calls `backup:create`, which writes

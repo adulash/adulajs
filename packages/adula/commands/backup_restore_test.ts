@@ -5,6 +5,8 @@ import { mkdtemp, readdir, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { promisify } from 'node:util'
+import type { ResourceRegistry } from '../src/resource/registry.js'
+import { applicationEnv, backupSnapshotService } from './backup_services.js'
 
 const run = promisify(execFile)
 const SNAPSHOT = /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}Z$/
@@ -57,12 +59,14 @@ export default class BackupRestoreTest extends BaseCommand {
 
   async run() {
     const { default: db } = await import('@adonisjs/lucid/services/db')
-    const { default: env } = await import('#start/env')
-    const { Settings } = await import('adula')
-    const { isRelativeDiskPath } = await import('adula')
-    const { registry } = await import('#start/modules')
+    const env = await applicationEnv(this.app)
+    const { Settings } = await import('../src/services/settings.js')
+    const { isRelativeDiskPath } = await import('../src/attachments/attachment_service.js')
+    const { registry } = (await this.app.import('#start/modules')) as {
+      registry: ResourceRegistry
+    }
     const { verifySnapshot, extractSnapshot, verifyAttachments, restoreAttachments } =
-      await import('#services/backup_snapshot')
+      await backupSnapshotService(this.app)
     const live = db.connection().getWriteClient()
     const settings = new Settings(live)
     const startedAt = new Date()

@@ -2,7 +2,6 @@ import { createServer, type IncomingMessage } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { test } from '@japa/runner'
 import {
-  AdulaError,
   ResourceService,
   Webhooks,
   WEBHOOK_MAX_ATTEMPTS,
@@ -15,16 +14,8 @@ import {
 } from '../index.js'
 import type { DomainEvent, HttpPoster, SecretBox, WebhookOptions } from '../index.js'
 import { admin, db, registry, setup } from './helpers.js'
-
-async function failure(run: () => Promise<unknown>): Promise<AdulaError> {
-  try {
-    await run()
-  } catch (error) {
-    if (error instanceof AdulaError) return error
-    throw error
-  }
-  throw new Error('Expected an AdulaError')
-}
+import { failure } from './helpers/failure.js'
+import { addUserProfileColumns } from './helpers/actors.js'
 
 /** A reversible test box; production passes the framework's authenticated encryption. */
 const box: SecretBox = {
@@ -40,9 +31,7 @@ const fetchPoster: HttpPoster = async (url, init) => {
 test.group('Outgoing webhooks', (group) => {
   group.setup(async () => {
     await setup()
-    await db.raw(
-      'ALTER TABLE users ADD COLUMN full_name varchar, ADD COLUMN disabled_at timestamptz'
-    )
+    await addUserProfileColumns()
   })
   group.each.setup(async () => {
     await db('webhook_deliveries').del()

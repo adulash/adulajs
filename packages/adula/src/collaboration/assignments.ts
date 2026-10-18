@@ -1,9 +1,9 @@
 import type { Knex } from 'knex'
 import type { Actor } from '../auth/ability.js'
 import type { ResourceService } from '../admin/resource_service.js'
-import type { ActorLoader } from './record_collaboration.js'
 import { AdulaError } from '../admin/errors.js'
 import { notifyWithTemplate } from '../core/message_templates.js'
+import { canView, resourceLabel, type ActorLoader } from './shared.js'
 
 export type AssignmentStatus = 'open' | 'done' | 'cancelled'
 export type Assignment = {
@@ -287,38 +287,8 @@ export class Assignments {
         throw new AdulaError(409, 'E_ASSIGNMENT_CLOSED', 'المهمة مغلقة بالفعل')
       if (!note && this.closeNote(row) === 'required')
         throw new AdulaError(422, 'E_ASSIGNMENT_NOTE', 'اكتب ملاحظة الإغلاق قبل إغلاق المهمة')
-      await trx('assignments')
-        .where('id', id)
-        .update({
-          status: outcome,
-          completed_at: trx.fn.now(),
-          completed_by: actor.id,
-          close_reason: note || null,
-        })
       // A managed task closed by hand leaves the note in the record's history.
-      if (row.managed)
-        await trx('activities').insert({
-          resource: row.resource,
-          record_id: row.record_id,
-          actor_id: actor.id,
-          action: 'assignment_closed',
-          changes: JSON.stringify({
-            fields: [],
-            assignmentId: id,
-            outcome,
-            reason: note,
-          }),
-        })
-      const notify = outcome === 'done' ? row.assigned_by : row.assignee_id
-      if (notify && notify !== actor.id)
-        await notifyWithTemplate(
-          trx,
-          notify,
-          outcome === 'done' ? 'assignment.done' : 'assignment.cancelled',
-          { title: row.title, resource: this.label(row.resource), id: row.record_id },
-          undefined,
-          { resource: String(row.resource), recordId: Number(row.record_id) }
-        )
+      await this.finish(trx, row, actor.id, outcome, note, false)
     })
   }
 
@@ -353,40 +323,62 @@ export class Assignments {
         .whereNull('workflow_run_id')
         .forUpdate()
         .orderBy('id')
-      for (const row of rows) {
-        await trx('assignments').where('id', row.id).update({
-          status: outcome,
-          completed_at: trx.fn.now(),
-          completed_by: options.actorId,
-          close_reason: reason,
-        })
-        await trx('activities').insert({
-          resource,
-          record_id: recordId,
-          actor_id: options.actorId,
-          action: 'assignment_closed',
-          changes: JSON.stringify({
-            fields: [],
-            system: true,
-            assignmentId: Number(row.id),
-            outcome,
-            ...(reason ? { reason } : {}),
-          }),
-        })
-        const notify = outcome === 'done' ? row.assigned_by : row.assignee_id
-        if (notify && notify !== options.actorId)
-          await notifyWithTemplate(
-            trx,
-            notify,
-            outcome === 'done' ? 'assignment.done' : 'assignment.cancelled',
-            { title: row.title, resource: this.label(row.resource), id: row.record_id },
-            undefined,
-            { resource: String(row.resource), recordId: Number(row.record_id) }
-          )
-      }
+      for (const row of rows) await this.finish(trx, row, options.actorId, outcome, reason, true)
       return rows.length
     }
     return options.trx ? run(options.trx) : this.db.transaction(run)
+  }
+
+  /**
+   * Closes one locked open assignment row for complete() (by hand) and close() (by
+   * module code, `system`): records the outcome, writes the record's activity entry
+   * when the task is managed or closed by the system, and notifies the other party —
+   * the assigner when done, the assignee when cancelled — unless that is the closer.
+   */
+  private async finish(
+    trx: Knex.Transaction,
+    row: Record<string, any>,
+    actorId: number,
+    outcome: 'done' | 'cancelled',
+    reason: string | null,
+    system: boolean
+  ) {
+    await trx('assignments')
+      .where('id', row.id)
+      .update({
+        status: outcome,
+        completed_at: trx.fn.now(),
+        completed_by: actorId,
+        close_reason: reason || null,
+      })
+    if (system || row.managed)
+      await trx('activities').insert({
+        resource: row.resource,
+        record_id: row.record_id,
+        actor_id: actorId,
+        action: 'assignment_closed',
+        changes: JSON.stringify(
+          system
+            ? {
+                fields: [],
+                system: true,
+                assignmentId: Number(row.id),
+                outcome,
+                ...(reason ? { reason } : {}),
+              }
+            : { fields: [], assignmentId: Number(row.id), outcome, reason: reason ?? '' }
+        ),
+      })
+    const notify = outcome === 'done' ? row.assigned_by : row.assignee_id
+    if (notify && notify !== actorId)
+      await notifyWithTemplate(
+        trx,
+        notify,
+        outcome === 'done' ? 'assignment.done' : 'assignment.cancelled',
+        { title: row.title, resource: this.label(row.resource), id: row.record_id },
+        undefined,
+        { resource: String(row.resource), recordId: Number(row.record_id) }
+      )
   }
 
   private query(db: Knex = this.db) {
@@ -457,16 +449,10 @@ export class Assignments {
   }
 
   private label(name: string) {
-    try {
-      return this.resources.label(name)
-    } catch {
-      return name
-    }
+    return resourceLabel(this.resources, name)
   }
 
-  private async canView(name: string, id: number, userId: number) {
-    const user = await this.db('users').where('id', userId).first('disabled_at')
-    if (!user || user.disabled_at) return false
-    return this.resources.permits(name, id, await this.actors.load(userId))
+  private canView(name: string, id: number, userId: number) {
+    return canView(this.db, this.resources, this.actors, name, id, userId)
   }
 }

@@ -14,6 +14,7 @@ import {
   resolveInstallAdministrator,
 } from '../index.js'
 import { db, registry, setup } from './helpers.js'
+import { seedActor } from './helpers/actors.js'
 
 test.group('Independent installation contracts', () => {
   test('agent updates preserve project rules and detect malformed boundaries before writing', async ({
@@ -115,9 +116,7 @@ test.group('Independent installation contracts', () => {
 })
 
 test.group('First administrator installation', (group) => {
-  group.each.setup(async () => {
-    await setup()
-  })
+  group.each.setup(setup)
 
   test('install creates the first administrator, reuses it, and refuses a second unknown address', async ({
     assert,
@@ -128,10 +127,8 @@ test.group('First administrator installation', (group) => {
     const create = (email: string) => async () => {
       creations++
       // The helper seeds ids 1 and 2 explicitly, so the sequence has not advanced.
-      const [row] = await db('users')
-        .insert({ id: 10 + creations, email })
-        .returning('id')
-      return Number(row.id)
+      const user = await seedActor({ id: 10 + creations }, { email })
+      return user.id
     }
     const first = await resolveInstallAdministrator(
       db,

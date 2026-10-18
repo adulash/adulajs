@@ -6,6 +6,7 @@ import type { JsonValue, RecordData } from '../resource/types.js'
 import type { DomainEvent, Listener } from '../events/outbox.js'
 import type { HttpPoster } from '../integrations/webhooks.js'
 import type { Assignments } from '../collaboration/assignments.js'
+import { canView, resourceLabel, type ActorLoader } from '../collaboration/shared.js'
 import { AdulaError } from '../admin/errors.js'
 import { fromRow } from '../admin/contracts.js'
 import { recordMutation } from '../events/record_mutation.js'
@@ -92,7 +93,7 @@ export class WorkflowEngine {
     private db: Knex,
     private registry: ResourceRegistry,
     private resources: ResourceService,
-    private actors: { load(id: number): Promise<Actor> },
+    private actors: ActorLoader,
     private assignments: Assignments,
     definitions: readonly WorkflowDefinition[],
     private options: WorkflowOptions = {}
@@ -134,16 +135,13 @@ export class WorkflowEngine {
   listeners(): Listener[] {
     return this.registry.all().flatMap((resource) => {
       if (!resource.submittable) return []
-      const module = this.registry.owner(resource.name)
       return [
         {
-          name: `adula.workflows.start.${resource.name}`,
-          event: `${module}.${resource.name}.submitted`,
+          ...workflowKey(this.registry, resource.name, 'start'),
           handle: (event: DomainEvent, trx: Knex.Transaction) => this.start(trx, event),
         },
         {
-          name: `adula.workflows.cancel.${resource.name}`,
-          event: `${module}.${resource.name}.cancelled`,
+          ...workflowKey(this.registry, resource.name, 'cancel'),
           handle: (event: DomainEvent, trx: Knex.Transaction) =>
             this.cancelRuns(
               trx,
@@ -598,14 +596,10 @@ export class WorkflowEngine {
     const titles = actor
       ? await this.resources.titles(row.resource, [Number(row.record_id)], actor)
       : undefined
-    let resourceLabel = String(row.resource)
-    try {
-      resourceLabel = this.resources.label(row.resource)
-    } catch {}
     return {
       id: String(row.id),
       resource: String(row.resource),
-      resourceLabel,
+      resourceLabel: resourceLabel(this.resources, String(row.resource)),
       recordId: Number(row.record_id),
       recordTitle: titles?.get(Number(row.record_id)) ?? null,
       definition: String(row.definition),
@@ -821,10 +815,8 @@ export class WorkflowEngine {
     return byName ? Number(byName.id) : null
   }
 
-  private async canView(resource: string, id: number, userId: number) {
-    const user = await this.db('users').where('id', userId).first('disabled_at')
-    if (!user || user.disabled_at) return false
-    return this.resources.permits(resource, Number(id), await this.actors.load(userId))
+  private canView(resource: string, id: number, userId: number) {
+    return canView(this.db, this.resources, this.actors, resource, id, userId)
   }
 
   private async log(
@@ -849,6 +841,14 @@ export class WorkflowEngine {
   }
 }
 
+/** The listener name and domain event that start or cancel a resource's workflow. */
+function workflowKey(registry: ResourceRegistry, resource: string, kind: 'start' | 'cancel') {
+  return {
+    name: `adula.workflows.${kind}.${resource}`,
+    event: `${registry.owner(resource)}.${resource}.${kind === 'start' ? 'submitted' : 'cancelled'}`,
+  }
+}
+
 /**
  * Listeners resolved per call, so hosts can build the engine lazily (for example
  * per request) while the listener list is fixed at boot from the registry.
@@ -859,16 +859,17 @@ export function workflowListeners(
 ): Listener[] {
   return registry.all().flatMap((resource) => {
     if (!resource.submittable) return []
-    const module = registry.owner(resource.name)
-    return (['start', 'cancel'] as const).map((kind) => ({
-      name: `adula.workflows.${kind}.${resource.name}`,
-      event: `${module}.${resource.name}.${kind === 'start' ? 'submitted' : 'cancelled'}`,
-      handle: (event: DomainEvent, trx: Knex.Transaction) => {
-        const listener = engine()
-          .listeners()
-          .find((entry) => entry.name === `adula.workflows.${kind}.${resource.name}`)
-        return listener ? listener.handle(event, trx) : Promise.resolve()
-      },
-    }))
+    return (['start', 'cancel'] as const).map((kind) => {
+      const key = workflowKey(registry, resource.name, kind)
+      return {
+        ...key,
+        handle: (event: DomainEvent, trx: Knex.Transaction) => {
+          const listener = engine()
+            .listeners()
+            .find((entry) => entry.name === key.name)
+          return listener ? listener.handle(event, trx) : Promise.resolve()
+        },
+      }
+    })
   })
 }

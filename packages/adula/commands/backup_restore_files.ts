@@ -2,6 +2,7 @@ import { BaseCommand, flags } from '@adonisjs/core/ace'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { backupSnapshotService } from './backup_services.js'
 
 export default class BackupRestoreFiles extends BaseCommand {
   static commandName = 'backup:restore-files'
@@ -21,7 +22,7 @@ export default class BackupRestoreFiles extends BaseCommand {
       throw new Error('Use --apply after restoring the database with application traffic stopped')
     const { default: db } = await import('@adonisjs/lucid/services/db')
     const { verifySnapshot, extractSnapshot, verifyAttachments, restoreAttachments } =
-      await import('#services/backup_snapshot')
+      await backupSnapshotService(this.app)
     const snapshot = resolve(this.snapshot)
     const files = await verifySnapshot(snapshot)
     if (!files) throw new Error('Legacy snapshots must use the local-files restore script')
