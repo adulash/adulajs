@@ -9,7 +9,8 @@ import PasswordResetNotification from '#mails/password_reset_notification'
 import { forgotPasswordValidator, resetPasswordValidator } from '#validators/user'
 import { logAuthActivity, requestContext } from '#services/auth_activity'
 import { revokeUserSessions } from '#services/sessions'
-import { loginAccountLimiter } from '#start/limiter'
+import { revokeUserTokens } from '#services/access_tokens'
+import { loginAccountKey, loginAccountLimiter, loginLockoutLimiter } from '#start/limiter'
 
 /** Recovery links expire after one hour and can be used once. */
 const TOKEN_TTL_MS = 60 * 60 * 1000
@@ -101,12 +102,16 @@ export default class PasswordResetController {
     user.emailVerifiedAt ??= DateTime.now()
     await user.save()
     await revokeUserSessions(user.id, user.id)
+    // Whoever knew the old password may have minted API tokens; recovery ends them too.
+    const tokensRevoked = await revokeUserTokens(user.id)
     // Proven ownership lifts a lockout caused by someone else's failed guesses.
-    await loginAccountLimiter.delete(`login_account:${user.email}`)
+    // Lockouts are per address; the owner usually recovers from the device they sign in on.
+    await loginAccountLimiter.delete(loginAccountKey(user.email, ctx.request.ip()))
+    await loginLockoutLimiter.delete(loginAccountKey(user.email, ctx.request.ip()))
     await logAuthActivity({
       userId: user.id,
       action: 'password_reset',
-      changes: requestContext(ctx),
+      changes: { ...requestContext(ctx), tokensRevoked },
     })
     session.flash('success', 'تم تغيير كلمة المرور. سجّل الدخول بكلمة المرور الجديدة.')
     return response.redirect().toRoute('session.create')

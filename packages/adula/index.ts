@@ -66,9 +66,25 @@ export type {
   ActorSource,
 } from './src/integrations/imports.js'
 export { openApiDocument } from './src/integrations/openapi.js'
-export { renderPrintHtml, htmlToPdf } from './src/integrations/print.js'
+export {
+  renderPrintHtml,
+  htmlToPdf,
+  imageDataUri,
+  PRINT_LOGO_LIMIT,
+} from './src/integrations/print.js'
 export type { PrintIdentity, PrintInput } from './src/integrations/print.js'
 export { Webhooks, signWebhook, WEBHOOK_MAX_ATTEMPTS } from './src/integrations/webhooks.js'
+export {
+  createOutboundPoster,
+  isBlockedAddress,
+  outboundErrorCategory,
+} from './src/integrations/outbound.js'
+export type {
+  OutboundOptions,
+  OutboundRequest,
+  OutboundTarget,
+  OutboundErrorCategory,
+} from './src/integrations/outbound.js'
 export {
   InboundWebhooks,
   inboundEventName,
@@ -235,6 +251,11 @@ export type {
 } from './src/core/health.js'
 export { MailDeliveryTest, MAIL_TEST_KEY, type MailTestState } from './src/core/mail_test.js'
 export { InitialSetup, type SetupCheck } from './src/core/setup.js'
+export {
+  administratorExists,
+  grantInstallAdministrator,
+  resolveInstallAdministrator,
+} from './src/core/administrators.js'
 export { ADULA_VERSION } from './src/version.js'
 export {
   capabilityCatalog,

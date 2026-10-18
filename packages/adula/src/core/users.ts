@@ -2,6 +2,7 @@ import type { Knex } from 'knex'
 import { AdulaError } from '../admin/errors.js'
 import { logActivity, pageLimit } from './activity.js'
 import { administrationGuard } from './administration_guard.js'
+import { escapeLike } from './like.js'
 
 export type UserRoleAssignment = {
   id: number
@@ -22,7 +23,6 @@ export type UserSummary = {
 export type UserPage = { data: UserSummary[]; nextCursor: number | null }
 
 const RESOURCE = 'core.users'
-const escapeLike = (value: string) => value.replace(/[\\%_]/g, '\\$&')
 
 /** Host applications own the users table; AdulaJS expects id, email, full_name and disabled_at. */
 export class UsersAdmin {

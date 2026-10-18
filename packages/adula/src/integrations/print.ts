@@ -1,7 +1,30 @@
 import type { ResourceDescription } from '../admin/presentation.js'
 import type { JsonValue, SerializedRecord } from '../resource/types.js'
 
+/**
+ * `logoUrl` must be a base64 image data URI (see imageDataUri). Any other URL is
+ * dropped: the PDF renderer would fetch it from inside the deployment network.
+ */
 export type PrintIdentity = { name: string; logoUrl?: string | null }
+
+const IMAGE_TYPES: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
+}
+const DATA_IMAGE = /^data:image\/(png|jpeg|gif|webp|svg\+xml);base64,[A-Za-z0-9+/]+={0,2}$/
+/** Largest logo inlined into printed documents. */
+export const PRINT_LOGO_LIMIT = 512 * 1024
+
+/** Inlines a logo file as a data URI for printing; null for unknown types or oversize files. */
+export function imageDataUri(bytes: Uint8Array, fileName: string): string | null {
+  const type = IMAGE_TYPES[fileName.split('.').pop()?.toLowerCase() ?? '']
+  if (!type || !bytes.byteLength || bytes.byteLength > PRINT_LOGO_LIMIT) return null
+  return `data:${type};base64,${Buffer.from(bytes).toString('base64')}`
+}
 export type PrintInput = {
   identity: PrintIdentity
   resource: ResourceDescription
@@ -97,13 +120,17 @@ export function renderPrintHtml(input: PrintInput) {
         .join('')}</tbody></table></section>`
     })
     .join('')
-  const logo = input.identity.logoUrl
-    ? `<img class="logo" src="${escape(input.identity.logoUrl)}" alt="">`
-    : ''
+  // Only inline images: the PDF renderer must never fetch a URL (SSRF from its network).
+  const logoUrl = input.identity.logoUrl
+  const logo =
+    logoUrl && logoUrl.length <= PRINT_LOGO_LIMIT * 2 && DATA_IMAGE.test(logoUrl)
+      ? `<img class="logo" src="${escape(logoUrl)}" alt="">`
+      : ''
   return `<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:">
 <title>${escape(input.resource.label)} #${escape(String(input.record.id))}</title>
 <style>
 @page { size: A4; margin: 18mm 16mm; }

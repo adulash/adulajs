@@ -7,7 +7,9 @@ import mail from '@adonisjs/mail/services/main'
 import { SMTPTransport } from '@adonisjs/mail/transports/smtp'
 import limiter from '@adonisjs/limiter/services/main'
 import env from '#start/env'
-import { LOGIN_ADDRESS_LIMIT, loginAccountLimiter } from '#start/limiter'
+import { LOGIN_ADDRESS_LIMIT, loginAccountKey, loginAccountLimiter } from '#start/limiter'
+import { SIGNUP_ACCEPTED } from '#controllers/new_account_controller'
+import { configureSignup } from '../helpers/signup.js'
 import User from '#models/user'
 import PasswordResetNotification from '#mails/password_reset_notification'
 import { linkOrCreateSocialUser, socialProviders } from '#services/social_accounts'
@@ -33,6 +35,8 @@ test.group('Authentication lifecycle', (group) => {
   // The in-process limiter store is shared by the suite; each test starts clean.
   group.each.setup(async () => {
     await limiter.clear(['memory'])
+    // Earlier suites create administrators; these tests exercise an explicitly open signup.
+    return configureSignup(true)
   })
 
   test('login records the session and activity; a failed login is logged for known users', async ({
@@ -645,6 +649,7 @@ test.group('Authentication lifecycle', (group) => {
         })
     const created = await signup(`${local}@Example.Test`)
     created.assertStatus(302)
+    created.assertHeader('location', '/login')
     const [row] = await knex()('users').whereRaw('lower(email) = ?', [
       `${local}@example.test`.toLowerCase(),
     ])
@@ -653,7 +658,10 @@ test.group('Authentication lifecycle', (group) => {
 
     await limiter.clear(['memory'])
     const duplicate = await signup(`${local.toUpperCase()}@EXAMPLE.TEST`)
-    duplicate.assertStatus(422)
+    // A taken address gets the same answer as a new one; nothing is created or changed.
+    duplicate.assertStatus(302)
+    duplicate.assertHeader('location', '/login')
+    duplicate.assertFlashMessage('success', SIGNUP_ACCEPTED)
     assert.lengthOf(
       await knex()('users').whereRaw('lower(email) = ?', [`${local}@example.test`.toLowerCase()]),
       1
@@ -693,21 +701,26 @@ test.group('Authentication lifecycle', (group) => {
       .redirects(0)
       .header('Accept', 'application/json')
       .form({ fullName: 'منتحل', email, password: PASSWORD, passwordConfirmation: PASSWORD })
-    response.assertStatus(422)
+    // Same answer as a new signup, so the form does not reveal the invitation.
+    response.assertStatus(302)
+    response.assertHeader('location', '/login')
+    response.assertFlashMessage('success', SIGNUP_ACCEPTED)
     assert.lengthOf(await knex()('users').where({ email }), 0)
   })
 
-  test('failed logins lock an account from any address until recovery proves ownership', async ({
+  test('failed logins lock an account from one address until recovery proves ownership', async ({
     client,
     assert,
   }) => {
     const { mails } = mail.fake()
     try {
       const user = await makeUser('lockout')
-      // Ten failures recorded from elsewhere (the per-address limiter would stop one client first).
-      for (let index = 0; index < 10; index++)
+      // The app trusts X-Forwarded-For from loopback (AdonisJS default), so tests choose the address.
+      const ip = '198.51.100.7'
+      // Failures recorded for this client's address (the per-minute limiter would stop it first).
+      for (let index = 0; index < 5; index++)
         await loginAccountLimiter
-          .penalize(`login_account:${user.email}`, async () => {
+          .penalize(loginAccountKey(user.email, ip), async () => {
             throw new Error('wrong password')
           })
           .catch(() => {})
@@ -716,6 +729,7 @@ test.group('Authentication lifecycle', (group) => {
         .withCsrfToken()
         .redirects(0)
         .header('Accept', 'application/json')
+        .header('X-Forwarded-For', ip)
         .form({ email: user.email, password: PASSWORD })
       locked.assertStatus(401)
       assert.include(locked.body().errors[0].message, 'تجاوزت محاولات الدخول الفاشلة')
@@ -731,12 +745,14 @@ test.group('Authentication lifecycle', (group) => {
         .post(`/password/reset/${token}`)
         .withCsrfToken()
         .redirects(0)
+        .header('X-Forwarded-For', ip)
         .form({ password: 'recovered-password-1', passwordConfirmation: 'recovered-password-1' })
       reset.assertHeader('location', '/login')
       const unlocked = await client
         .post('/login')
         .withCsrfToken()
         .redirects(0)
+        .header('X-Forwarded-For', ip)
         .form({ email: user.email, password: 'recovered-password-1' })
       unlocked.assertHeader('location', '/')
     } finally {

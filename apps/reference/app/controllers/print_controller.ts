@@ -1,6 +1,15 @@
+import { readFile } from 'node:fs/promises'
+import { relative, resolve, isAbsolute } from 'node:path'
 import type { HttpContext } from '@adonisjs/core/http'
+import app from '@adonisjs/core/services/app'
 import env from '#start/env'
-import { AdulaError, htmlToPdf, renderPrintHtml, type ResourceDescription } from 'adula'
+import {
+  AdulaError,
+  htmlToPdf,
+  imageDataUri,
+  renderPrintHtml,
+  type ResourceDescription,
+} from 'adula'
 import { adula, requestActor } from '#services/adula'
 import { identity } from '#services/initial_setup'
 import { positiveId } from '#controllers/admin/support'
@@ -41,7 +50,7 @@ export default class PrintController {
     const html = renderPrintHtml({
       identity: {
         name: brand.company,
-        logoUrl: brand.logo ? new URL(brand.logo, env.get('APP_URL')).toString() : null,
+        logoUrl: await printableLogo(brand.logo),
       },
       resource,
       record: shown.data,
@@ -65,5 +74,22 @@ export default class PrintController {
       .header('Content-Type', 'application/pdf')
       .header('Content-Disposition', `inline; filename="${name}-${id}.pdf"`)
       .send(pdf)
+  }
+}
+
+/**
+ * Inlines the project logo from public/ as a data URI. Remote or unknown logos are
+ * left out so the PDF renderer never fetches a URL from inside the deployment.
+ */
+async function printableLogo(logo: string | null) {
+  if (!logo || /^[a-z][a-z0-9+.-]*:/i.test(logo) || logo.startsWith('//')) return null
+  const root = app.publicPath()
+  const file = resolve(root, `.${new URL(logo, 'http://logo.invalid').pathname}`)
+  const inside = relative(root, file)
+  if (!inside || inside.startsWith('..') || isAbsolute(inside)) return null
+  try {
+    return imageDataUri(await readFile(file), file)
+  } catch {
+    return null
   }
 }

@@ -5,9 +5,9 @@ import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
 
-type Props = { socialProviders: { name: string; label: string }[] }
+type Props = { socialProviders: { name: string; label: string }[]; signupEnabled: boolean }
 
-export default function Login({ socialProviders }: Props) {
+export default function Login({ socialProviders, signupEnabled }: Props) {
   return (
     <>
       <Head title="تسجيل الدخول" />
@@ -84,12 +84,14 @@ export default function Login({ socialProviders }: Props) {
               </div>
             )}
 
-            <p className="text-center text-sm text-muted-foreground">
-              ليس لديك حساب؟{' '}
-              <Link route="new_account.create" className="font-medium text-primary">
-                إنشاء حساب
-              </Link>
-            </p>
+            {signupEnabled && (
+              <p className="text-center text-sm text-muted-foreground">
+                ليس لديك حساب؟{' '}
+                <Link route="new_account.create" className="font-medium text-primary">
+                  إنشاء حساب
+                </Link>
+              </p>
+            )}
           </CardContent>
         </Card>
       </div>

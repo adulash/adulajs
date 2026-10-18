@@ -5,7 +5,10 @@ import db from '@adonisjs/lucid/services/db'
 import limiter from '@adonisjs/limiter/services/main'
 import hash from '@adonisjs/core/services/hash'
 import type { SessionData } from '@adonisjs/session/types'
+import mail from '@adonisjs/mail/services/main'
+import { grantUpload } from 'adula'
 import User from '#models/user'
+import { adula } from '#services/adula'
 
 /**
  * Adversarial checks for administrator impersonation over real HTTP and
@@ -20,6 +23,12 @@ const COOKIE = 'adonis-session'
 const IMPERSONATOR_KEY = 'impersonator_id'
 
 type Method = 'get' | 'post' | 'patch' | 'put' | 'delete'
+type SendOptions = {
+  body?: Record<string, unknown>
+  csrf?: boolean
+  /** Multipart upload: form fields plus one text file named "file". */
+  upload?: { fields: Record<string, string>; content: Buffer; filename: string }
+}
 type Rule = { subject: string; action: string }
 
 class Browser {
@@ -28,16 +37,17 @@ class Browser {
   constructor(private client: ApiClient) {}
 
   /** Sends a request with this browser's cookie, then keeps whatever the server set. */
-  async send(
-    method: Method,
-    url: string,
-    options: { body?: Record<string, unknown>; csrf?: boolean } = {}
-  ): Promise<ApiResponse> {
+  async send(method: Method, url: string, options: SendOptions = {}): Promise<ApiResponse> {
     const request = this.client[method](url).header('Accept', 'application/json').redirects(0)
     if (options.csrf !== false) request.withCsrfToken()
     request.sessionClient.sessionId = this.id as ReturnType<typeof randomUUID>
     if (Object.keys(this.values).length) request.withSession(this.values)
     if (options.body) request.json(options.body as never)
+    if (options.upload)
+      request.fields(options.upload.fields).file('file', options.upload.content, {
+        filename: options.upload.filename,
+        contentType: 'text/plain',
+      })
     const response = await request
     const cookie = response.cookie(COOKIE)
     // Unmatched routes skip the session middleware; a browser then keeps its cookie.
@@ -51,12 +61,7 @@ class Browser {
   }
 
   /** Sends a request and asserts its status. */
-  async expect(
-    method: Method,
-    url: string,
-    status: number,
-    options: { body?: Record<string, unknown>; csrf?: boolean } = {}
-  ) {
+  async expect(method: Method, url: string, status: number, options: SendOptions = {}) {
     const response = await this.send(method, url, options)
     response.assertStatus(status)
     return response
@@ -362,6 +367,86 @@ test.group('Impersonation security', (group) => {
       .whereRaw(`payload->>'resource' = 'customers'`)
       .whereRaw(`(payload->>'id')::int = ?`, [created.body().data.id])
     assert.equal(event.payload.impersonatorId, admin.id)
+  })
+
+  test('uploads, saved views and invitations while impersonating record the administrator', async ({
+    client,
+    assert,
+  }) => {
+    const admin = await makeUser('admin', ADMIN)
+    const target = await makeUser('target', [
+      { subject: 'orders', action: 'manage' },
+      { subject: 'core.users', action: 'invite' },
+    ])
+    await knex()('user_org_units').insert({ user_id: target.id, org_unit_id: orgUnitId })
+    const browser = new Browser(client)
+    await browser.login(admin)
+    await browser.expect('post', `/admin/users/${target.id}/impersonate`, 200)
+    const content = Buffer.from(`ملف الانتحال ${randomUUID()}`)
+
+    const plain = await browser.expect('post', '/attachments', 201, {
+      upload: { fields: { resource: 'orders', field: 'contract' }, content, filename: 'عقد.txt' },
+    })
+    const stored = await knex()('attachments').where('id', plain.body().data.id).first()
+    assert.equal(stored.uploaded_by, target.id)
+    assert.equal(stored.data.impersonatedBy, admin.id)
+
+    const order = await browser.expect('post', '/resources/orders', 201, {
+      body: { orgUnitId, notes: `طلب الانتحال ${randomUUID()}` },
+    })
+    const orderId = order.body().data.id as number
+    const grant = await grantUpload(knex(), adula().registry, {
+      resource: 'orders',
+      recordId: orderId,
+      field: 'contract',
+      userId: target.id,
+      actorId: admin.id,
+    })
+    await browser.expect('post', '/attachments', 201, {
+      upload: { fields: { grant: grant.token }, content, filename: 'دليل.txt' },
+    })
+    const [granted] = await knex()('activities').where({
+      resource: 'orders',
+      record_id: orderId,
+      action: 'upload_via_grant',
+    })
+    assert.equal(granted.actor_id, target.id)
+    assert.equal(granted.changes.impersonatedBy, admin.id)
+
+    const view = await browser.expect('post', '/resources/orders/views', 200, {
+      body: { name: `عرض ${randomUUID().slice(0, 8)}`, query: {} },
+    })
+    const viewId = view.body().data.id as number
+    await browser.expect('delete', `/resources/orders/views/${viewId}`, 200)
+    const views = await knex()('activities')
+      .where({ resource: 'core.saved_views', record_id: viewId })
+      .orderBy('id')
+    assert.deepEqual(
+      views.map((row) => row.action),
+      ['saved_view_saved', 'saved_view_removed']
+    )
+    for (const row of views) {
+      assert.equal(row.actor_id, target.id)
+      assert.equal(row.changes.impersonatedBy, admin.id)
+    }
+
+    const { mails } = mail.fake()
+    try {
+      const invited = await browser.expect('post', '/users/invite', 200, {
+        body: { fullName: 'مدعو الانتحال', email: `imp-invite-${randomUUID()}@example.test` },
+      })
+      mails.assertSentCount(1)
+      const entries = await knex()('activities')
+        .where({ resource: 'core.user_invitations', record_id: invited.body().data.id })
+        .whereIn('action', ['invitation_created', 'invitation_sent'])
+      assert.lengthOf(entries, 2)
+      for (const row of entries) {
+        assert.equal(row.actor_id, target.id)
+        assert.equal(row.changes.impersonatedBy, admin.id)
+      }
+    } finally {
+      mail.restore()
+    }
   })
 
   test('self-service account changes while impersonating record the administrator', async ({

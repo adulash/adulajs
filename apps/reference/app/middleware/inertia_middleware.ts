@@ -6,6 +6,7 @@ import { adula } from '#services/adula'
 import { sharedAdminProps } from '#middleware/admin_middleware'
 import { uiPreferences } from 'adula'
 import db from '@adonisjs/lucid/services/db'
+import { signupEnabled } from '#services/signup'
 
 export default class InertiaMiddleware extends BaseInertiaMiddleware {
   async share(ctx: HttpContext) {
@@ -30,6 +31,8 @@ export default class InertiaMiddleware extends BaseInertiaMiddleware {
       navigation: ctx.inertia.always(
         auth?.user ? adula().resources.navigation(await adula().actors.load(auth.user.id)) : []
       ),
+      // Guests see the signup link only while the signup routes answer.
+      signupEnabled: ctx.inertia.always(auth?.user ? false : await signupEnabled()),
       ...(await sharedAdminProps(ctx)),
     }
   }

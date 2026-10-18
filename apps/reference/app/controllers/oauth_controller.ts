@@ -6,10 +6,15 @@ import { recordSession } from '#services/sessions'
 import { Settings } from 'adula'
 import db from '@adonisjs/lucid/services/db'
 import { oauthFingerprint } from '#services/initial_setup'
+import { signupEnabled } from '#services/signup'
 
 /** Unknown or unconfigured providers behave like a missing route. */
 const notFound = () =>
   new Exception('الصفحة غير موجودة', { status: 404, code: 'E_ROUTE_NOT_FOUND' })
+
+/** Generic refusal while signup is closed; it does not say whether the address is registered. */
+export const OAUTH_UNAVAILABLE =
+  'تعذّر تسجيل الدخول عبر المزوّد. إن كان لديك حساب فسجّل الدخول بكلمة المرور أو تواصل مع مدير النظام.'
 
 export default class OauthController {
   async redirect({ params, ally }: HttpContext) {
@@ -34,12 +39,19 @@ export default class OauthController {
     const profile = await driver.user()
     if (!profile.email || profile.emailVerificationState !== 'verified')
       return fail('يتطلب الدخول بريداً إلكترونياً موثقاً لدى المزوّد.')
-    const resolved = await linkOrCreateSocialUser({
-      provider,
-      providerId: String(profile.id),
-      email: profile.email,
-      name: profile.name || profile.nickName || null,
-    })
+    // Closed signup still lets existing accounts sign in; it only stops creating new ones.
+    const open = await signupEnabled()
+    const resolved = await linkOrCreateSocialUser(
+      {
+        provider,
+        providerId: String(profile.id),
+        email: profile.email,
+        name: profile.name || profile.nickName || null,
+      },
+      { allowCreate: open }
+    )
+    // With signup closed, unknown and unproven addresses get one answer that reveals neither.
+    if (resolved.closed || (!open && resolved.unverified)) return fail(OAUTH_UNAVAILABLE)
     if (resolved.unverified)
       return fail(
         'يوجد حساب بهذا البريد لم يُثبت امتلاكه بعد. سجّل الدخول بكلمة المرور، أو استعد كلمة المرور من رابط البريد ثم أعد المحاولة.'

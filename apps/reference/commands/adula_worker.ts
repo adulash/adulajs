@@ -22,10 +22,8 @@ export default class AdulaWorker extends BaseCommand {
           await deliverNotificationEmails()
           await adula().workflows.tick()
           await adula().imports.process()
-          await adula().webhooks.deliver(async (url, init) => {
-            const response = await fetch(url, { method: 'POST', redirect: 'manual', ...init })
-            return { status: response.status }
-          })
+          // The built-in guarded client connects only to the validated, pinned address.
+          await adula().webhooks.deliver()
           await new Settings(db.connection().getWriteClient()).set(
             'worker.heartbeat',
             new Date().toISOString()

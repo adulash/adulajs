@@ -1,6 +1,7 @@
 import env from '#start/env'
 import app from '@adonisjs/core/services/app'
 import { defineConfig } from '@adonisjs/core/http'
+import { compileTrustedProxies } from '#services/trusted_proxies'
 
 /**
  * The app URL can be used in various places where you want to create absolute
@@ -8,6 +9,12 @@ import { defineConfig } from '@adonisjs/core/http'
  * use absolute URLs.
  */
 export const appUrl = env.get('APP_URL')
+
+/**
+ * Hops whose X-Forwarded-For decides request.ip(), which keys login lockouts and
+ * address throttles. Behind Caddy set TRUSTED_PROXIES to its network.
+ */
+export const trustedProxy = compileTrustedProxies(env.get('TRUSTED_PROXIES'))
 
 /**
  * The configuration settings used by the HTTP server
@@ -18,6 +25,8 @@ export const http = defineConfig({
    * Useful to correlate logs and debug a request flow.
    */
   generateRequestId: true,
+
+  trustProxy: trustedProxy,
 
   /**
    * Allow HTTP method spoofing via the "_method" form/query parameter.

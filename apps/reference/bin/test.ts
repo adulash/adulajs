@@ -11,6 +11,8 @@
 */
 
 process.env.NODE_ENV = 'test'
+// Webhook tests deliver to local servers; production keeps private targets refused.
+process.env.WEBHOOKS_ALLOW_PRIVATE ??= 'true'
 
 import 'reflect-metadata'
 import { Ignitor, prettyPrintError } from '@adonisjs/core'

@@ -4,6 +4,7 @@ import type { Resource } from '../resource/types.js'
 import { buildAbility, type Actor, type AdulaAbility } from '../auth/ability.js'
 import { AdulaError } from '../admin/errors.js'
 import { canQueryField } from '../admin/resource_service.js'
+import { logActivity } from './activity.js'
 
 export type SavedViewQuery = {
   search?: string
@@ -23,6 +24,7 @@ const NAME_LIMIT = 60
 const VIEW_LIMIT = 50
 /** Shared views are visible to every viewer of a resource; cap them per resource. */
 const SHARED_LIMIT = 100
+const ACTIVITY_RESOURCE = 'core.saved_views'
 
 /**
  * A saved view is stored user input that later drives a list query, so every key
@@ -113,6 +115,11 @@ export class SavedViews {
     const [row] = existing
       ? await this.db('saved_views').where('id', existing.id).update(values).returning('*')
       : await this.db('saved_views').insert(values).returning('*')
+    await this.auditImpersonation(actor, Number(row.id), 'saved_view_saved', {
+      resource: resource.name,
+      name: label,
+      shared,
+    })
     return { id: Number(row.id), name: label, query, shared, own: true }
   }
 
@@ -122,6 +129,28 @@ export class SavedViews {
       .where({ id, resource: resource.name, user_id: actor.id })
       .del()
     if (!removed) throw new AdulaError(404, 'E_VIEW_NOT_FOUND', 'العرض المحفوظ غير موجود')
+    await this.auditImpersonation(actor, id, 'saved_view_removed', { resource: resource.name })
+  }
+
+  /**
+   * Saved views are personal preferences and are not audited for their owner; a change
+   * made by an administrator impersonating the owner is recorded with both identities.
+   */
+  private async auditImpersonation(
+    actor: Actor,
+    viewId: number,
+    action: string,
+    changes: Record<string, unknown>
+  ) {
+    if (!actor.impersonatorId) return
+    await logActivity(this.db, {
+      resource: ACTIVITY_RESOURCE,
+      recordId: viewId,
+      actorId: actor.id,
+      impersonatorId: actor.impersonatorId,
+      action,
+      changes,
+    })
   }
 
   private authorize(name: string, actor: Actor): { resource: Resource; ability: AdulaAbility } {

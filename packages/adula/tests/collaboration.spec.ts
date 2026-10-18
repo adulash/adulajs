@@ -113,6 +113,27 @@ test.group('Record collaboration', (group) => {
     )
   })
 
+  test('mention search cannot enumerate e-mail addresses or use LIKE wildcards', async ({
+    assert,
+  }) => {
+    const ids = async (term: string) => {
+      const candidates = await collaboration().mentionCandidates('orders', orderId, admin, term)
+      return candidates.map((user) => user.id)
+    }
+    // A prefix of the viewer's address no longer reveals that the address exists.
+    assert.deepEqual(await ids('viewer'), [])
+    assert.deepEqual(await ids('viewer@example'), [])
+    // The full address, in any case, finds the user it names.
+    assert.deepEqual(await ids('Viewer@Example.TEST'), [4])
+    // Wildcards match literally instead of every name or address.
+    assert.deepEqual(await ids('%'), [])
+    assert.deepEqual(await ids('_'), [])
+    assert.deepEqual(await ids('%@example.test'), [])
+    assert.deepEqual(await ids('\\'), [])
+    // Names still match by substring.
+    assert.deepEqual(await ids('المشاهدة'), [4])
+  })
+
   test('mention candidates are found beyond the first page of a large directory', async ({
     assert,
   }) => {

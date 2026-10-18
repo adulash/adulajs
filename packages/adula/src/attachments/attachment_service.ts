@@ -39,6 +39,8 @@ export type UploadInput = {
   extname: string
   data: Record<string, unknown>
   uploadedBy: number
+  /** The administrator impersonating uploadedBy, recorded with the upload and its activity. */
+  impersonatorId?: number | null
   orgUnitId?: number | null
   resource?: string | null
   field?: string | null
@@ -223,6 +225,12 @@ export async function registerUpload(db: Knex, input: UploadInput): Promise<Atta
     throw new AdulaError(422, 'E_ATTACHMENT_INPUT', 'Attachment data must be an object')
   if (!isAttachmentId(input.uploadedBy))
     throw new AdulaError(422, 'E_ATTACHMENT_INPUT', 'Invalid uploader')
+  if (
+    input.impersonatorId !== undefined &&
+    input.impersonatorId !== null &&
+    !isAttachmentId(input.impersonatorId)
+  )
+    throw new AdulaError(422, 'E_ATTACHMENT_INPUT', 'Invalid impersonator')
   if (input.orgUnitId !== undefined && input.orgUnitId !== null && !isAttachmentId(input.orgUnitId))
     throw new AdulaError(422, 'E_ATTACHMENT_INPUT', 'Invalid organization unit')
   for (const key of ['resource', 'field'] as const) {
@@ -247,7 +255,9 @@ export async function registerUpload(db: Knex, input: UploadInput): Promise<Atta
   // Only a redeemed grant may mark an upload as granted.
   const data: Record<string, unknown> = { ...input.data }
   delete data.uploadGrant
+  delete data.impersonatedBy
   if (grant) data.uploadGrant = { id: grant.id, recordId: grant.recordId }
+  if (input.impersonatorId) data.impersonatedBy = input.impersonatorId
   const [row] = await db('attachments')
     .insert({
       disk: input.disk,
@@ -269,6 +279,7 @@ export async function registerUpload(db: Knex, input: UploadInput): Promise<Atta
       resource: grant.resource,
       recordId: grant.recordId,
       actorId: input.uploadedBy,
+      impersonatorId: input.impersonatorId,
       action: 'upload_via_grant',
       changes: { field: grant.field, attachmentId: Number(row.id), grantId: grant.id },
     })

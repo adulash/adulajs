@@ -3,6 +3,7 @@ import { AdulaError, OrgUnitsAdmin, RolesAdmin, UsersAdmin, logActivity } from '
 import User from '#models/user'
 import { adula } from '#services/adula'
 import { endSession, recordSession, revokeUserSessions } from '#services/sessions'
+import { listUserTokens, revokeUserTokens } from '#services/access_tokens'
 import { isAdministrator } from '#middleware/admin_middleware'
 import {
   activeImpersonation,
@@ -31,7 +32,9 @@ export default class UsersController {
     const user = await service().get(positiveId(ctx.params.id))
     const roles = await new RolesAdmin(knex(), adula().registry).list()
     const orgUnits = await new OrgUnitsAdmin(knex(), adula().registry).tree()
-    const props = { user, roles, orgUnits }
+    // Metadata only: token secrets are hashed and never leave the server.
+    const tokens = await listUserTokens(await User.findOrFail(user.id))
+    const props = { user, roles, orgUnits, tokens }
     if (wantsJson(ctx)) return props
     return ctx.inertia.render('admin/users/show', props)
   }
@@ -116,16 +119,39 @@ export default class UsersController {
         const count = await revokeUserSessions(id, admin, {
           except: id === admin ? ctx.session.sessionId : undefined,
         })
+        // Revoking access also ends the user's API tokens, which outlive any session.
+        const tokens = await revokeUserTokens(id)
         await logActivity(knex(), {
           resource: RESOURCE,
           recordId: id,
           actorId: admin,
           action: 'revoke_sessions',
+          changes: { count, tokens },
+        })
+        return { count, tokens }
+      },
+      'تم إنهاء جلسات المستخدم ورموز الوصول'
+    )
+  }
+
+  async revokeTokens(ctx: HttpContext) {
+    const id = positiveId(ctx.params.id)
+    const admin = actorId(ctx)
+    return mutate(
+      ctx,
+      async () => {
+        await service().get(id)
+        const count = await revokeUserTokens(id)
+        await logActivity(knex(), {
+          resource: RESOURCE,
+          recordId: id,
+          actorId: admin,
+          action: 'revoke_tokens',
           changes: { count },
         })
         return { count }
       },
-      'تم إنهاء جلسات المستخدم'
+      'تم إلغاء رموز الوصول'
     )
   }
 

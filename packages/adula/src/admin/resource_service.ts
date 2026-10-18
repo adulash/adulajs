@@ -3,6 +3,7 @@ import type { Knex } from 'knex'
 import type { ResourceRegistry } from '../resource/registry.js'
 import type {
   Action,
+  Field,
   JsonValue,
   RecordData,
   Resource,
@@ -31,6 +32,7 @@ import { sequence } from '../services/settings.js'
 import { recordMutation, type FieldChange } from '../events/record_mutation.js'
 import { formatTitle, titleFields } from './record_title.js'
 import { fieldValue } from '../resource/values.js'
+import { escapeLike } from '../core/like.js'
 import {
   claimAttachment,
   isAttachmentId,
@@ -68,6 +70,39 @@ export type AggregateRow = {
   sum?: Record<string, string | null>
 }
 const AGGREGATE_GROUP_LIMIT = 1000
+
+/**
+ * Coerces a query-string or API filter/cursor value to the field's stored representation,
+ * so a mismatch is rejected before PostgreSQL raises an invalid-input error.
+ */
+function queryValue(field: Field, value: unknown): unknown {
+  if (value === null) return null
+  let candidate: unknown = value
+  switch (field.type) {
+    case 'integer':
+    case 'belongsTo':
+    case 'user':
+    case 'attachment':
+      if (typeof value === 'string' && /^-?\d{1,10}$/.test(value)) candidate = Number(value)
+      break
+    case 'boolean':
+      if (value === 'true') candidate = true
+      else if (value === 'false') candidate = false
+      break
+    case 'string':
+    case 'text':
+    case 'lookup':
+      if (typeof value === 'number' || typeof value === 'boolean') candidate = String(value)
+      break
+    case 'money':
+    case 'date':
+    case 'datetime':
+      break
+    default:
+      throw new Error('Field cannot be compared')
+  }
+  return fieldValue(field, candidate)
+}
 
 export type ListOptions = {
   limit?: number
@@ -110,8 +145,13 @@ export function canQueryField(
 
 /** Options of ResourceService.systemSave. */
 export type SystemSaveOptions = {
-  /** The user recorded as the author: created/updated by, activity and events. */
-  actorId: number
+  /**
+   * The user recorded as the author: created/updated by, activity and events. null is an
+   * unattributed update by the system itself (for example a workflow whose triggering
+   * event named no user): it runs the validator, hooks and lock, keeps updated_by, and
+   * writes no activity entry or domain event because there is no author. Creates need one.
+   */
+  actorId: number | null
   /** Write inside the module's transaction. */
   trx?: Knex.Transaction
   /** Why module code wrote the record; stored with the activity entry. */
@@ -125,6 +165,11 @@ export type SystemSaveOptions = {
    * unscoped resources.
    */
   chooser?: Actor
+  /**
+   * Also write a submitted document (docStatus 1), as workflow update steps do. Drafts
+   * are always writable; cancelled documents stay locked.
+   */
+  submitted?: boolean
 }
 
 export class ResourceService {
@@ -400,7 +445,14 @@ export class ResourceService {
         throw new AdulaError(422, 'E_FILTER', 'Unsupported filter')
       if (value !== null && !['string', 'number', 'boolean'].includes(typeof value))
         throw new AdulaError(422, 'E_FILTER', 'Invalid filter value')
-      query.where(`r.${resource.fields[key].column ?? columnName(key)}`, value as string)
+      let typed: unknown
+      try {
+        typed = queryValue(resource.fields[key], value)
+      } catch {
+        throw new AdulaError(422, 'E_FILTER', `Invalid filter value: ${key}`)
+      }
+      if (typed === null) query.whereNull(`r.${resource.fields[key].column ?? columnName(key)}`)
+      else query.where(`r.${resource.fields[key].column ?? columnName(key)}`, typed as string)
     }
     if (options.tag !== undefined && options.tag !== null && options.tag !== '') {
       if (typeof options.tag !== 'string' || options.tag.length > 60)
@@ -436,17 +488,32 @@ export class ResourceService {
     if (options.cursor) {
       let cursor: { id: number; value: unknown; sort: string; direction: string }
       try {
+        if (typeof options.cursor !== 'string') throw new Error('Cursor must be a string')
         cursor = JSON.parse(Buffer.from(options.cursor, 'base64url').toString())
       } catch {
         throw new AdulaError(422, 'E_CURSOR', 'Invalid cursor')
       }
       if (
+        !cursor ||
+        typeof cursor !== 'object' ||
+        Array.isArray(cursor) ||
         cursor.sort !== sort ||
         cursor.direction !== direction ||
         !Number.isSafeInteger(cursor.id) ||
+        cursor.id < 1 ||
+        cursor.id > 2147483647 ||
+        cursor.value === undefined ||
         (cursor.value !== null && !['number', 'string', 'boolean'].includes(typeof cursor.value))
       )
         throw new AdulaError(422, 'E_CURSOR', 'Invalid cursor')
+      // The sort key must have the sort field's type, or PostgreSQL rejects the comparison.
+      try {
+        if (sort === 'id') {
+          if (cursor.value !== cursor.id) throw new Error('Cursor id mismatch')
+        } else cursor.value = fieldValue(resource.fields[sort], cursor.value)
+      } catch {
+        throw new AdulaError(422, 'E_CURSOR', 'Invalid cursor')
+      }
       query.where((q) => {
         if (cursor.value === null)
           q.whereNull(sortColumn).andWhere('r.id', direction === 'asc' ? '>' : '<', cursor.id)
@@ -552,7 +619,14 @@ export class ResourceService {
         throw new AdulaError(422, 'E_FILTER', 'Unsupported filter')
       if (value !== null && !['string', 'number', 'boolean'].includes(typeof value))
         throw new AdulaError(422, 'E_FILTER', 'Invalid filter value')
-      query.where(column(key), value as string)
+      let typed: unknown
+      try {
+        typed = queryValue(resource.fields[key], value)
+      } catch {
+        throw new AdulaError(422, 'E_FILTER', `Invalid filter value: ${key}`)
+      }
+      if (typed === null) query.whereNull(column(key))
+      else query.where(column(key), typed as string)
     }
     if (options.where !== undefined && options.where !== null) {
       if (typeof options.where !== 'object' || Array.isArray(options.where))
@@ -821,8 +895,7 @@ export class ResourceService {
       .orderBy('u.id')
       .limit(51)
       .select('u.id', 'u.full_name')
-    if (options.search)
-      query.whereILike('u.full_name', `%${options.search.replace(/[\\%_]/g, '\\$&')}%`)
+    if (options.search) query.whereILike('u.full_name', `%${escapeLike(options.search)}%`)
     const rows = await query
     return {
       data: rows.slice(0, 50).map((row) => ({
@@ -1256,13 +1329,28 @@ export class ResourceService {
     id: number | undefined,
     options: SystemSaveOptions
   ): Promise<RecordData> {
-    if (!Number.isSafeInteger(options.actorId) || options.actorId <= 0)
+    const unattributed = options.actorId === null
+    if (unattributed) {
+      if (id === undefined)
+        throw new AdulaError(422, 'E_ACTOR', 'systemSave requires the author user id to create')
+      const resource = this.registry.get(name)
+      // Attachments are claimed for their uploader; without one nothing can be claimed.
+      if (Object.keys(values).some((key) => resource.fields[key]?.type === 'attachment'))
+        throw new AdulaError(422, 'E_ACTOR', 'Attachment writes require the author user id')
+    } else if (!Number.isSafeInteger(options.actorId) || Number(options.actorId) <= 0)
       throw new AdulaError(422, 'E_ACTOR', 'systemSave requires the author user id')
-    const actor: Actor = { id: options.actorId, orgPaths: [], permissionLevel: 0, rules: [] }
+    const actor: Actor = {
+      id: unattributed ? 0 : Number(options.actorId),
+      orgPaths: [],
+      permissionLevel: 0,
+      rules: [],
+    }
     return this.persist(name, actor, values, id, options.trx, undefined, {
       reason: options.reason,
       version: options.version,
       chooser: options.chooser,
+      submitted: options.submitted,
+      unattributed,
     })
   }
 
@@ -1305,8 +1393,14 @@ export class ResourceService {
     input: RecordData,
     id?: number,
     transaction?: Knex.Transaction,
-    parentWrite?: { name: string; id: number; action: 'create' | 'update' },
-    system?: { reason?: string; version?: number; chooser?: Actor }
+    parentWrite?: { name: string; id: number; action: 'create' | 'update' | 'amend' },
+    system?: {
+      reason?: string
+      version?: number
+      chooser?: Actor
+      submitted?: boolean
+      unattributed?: boolean
+    }
   ): Promise<SerializedRecord> {
     const resource = this.registry.get(name)
     const action = id === undefined ? 'create' : 'update'
@@ -1329,7 +1423,11 @@ export class ResourceService {
         check(resource, action, existing)
         if (!system || system.version !== undefined)
           this.requireVersion(resource, existing, system ? system.version : input.version)
-        if (resource.submittable && existing.docStatus !== 0)
+        if (
+          resource.submittable &&
+          existing.docStatus !== 0 &&
+          !(system?.submitted && existing.docStatus === 1)
+        )
           throw new AdulaError(409, 'E_DOCUMENT_LOCKED', 'Only draft documents can be edited')
       }
       if (system) {
@@ -1349,7 +1447,7 @@ export class ResourceService {
         ...existing,
         ...validated,
         createdBy: existing.createdBy ?? actor.id,
-        updatedBy: actor.id,
+        updatedBy: system?.unattributed ? existing.updatedBy : actor.id,
       }
       if (resource.submittable) candidate.docStatus = existing.docStatus ?? 0
       this.normalizeValues(resource, candidate)
@@ -1503,7 +1601,8 @@ export class ResourceService {
             )
         }
       }
-      const values: RecordData = { updated_by: actor.id, updated_at: trx.fn.now() }
+      const values: RecordData = { updated_at: trx.fn.now() }
+      if (!system?.unattributed) values.updated_by = actor.id
       if (id === undefined) values.created_by = actor.id
       if (resource.scoped) values.org_unit_id = candidate.orgUnitId
       if (resource.version) values.version = id === undefined ? 1 : Number(existing.version) + 1
@@ -1612,7 +1711,8 @@ export class ResourceService {
           if (JSON.stringify(before) !== JSON.stringify(after))
             changes.push({ field: key, before, after })
         }
-      await this.audit(trx, resource, actor, action, saved, Object.keys(form), changes, system)
+      if (!system?.unattributed)
+        await this.audit(trx, resource, actor, action, saved, Object.keys(form), changes, system)
       await resource.hooks?.afterSave?.(saved, context)
       if (system) return (await this.hydrateOne(trx, resource, saved)) as SerializedRecord
       return serialize(resource, await this.hydrateOne(trx, resource, saved), ability, actor)
@@ -1634,7 +1734,7 @@ export class ResourceService {
     actor: Actor,
     candidate: RecordData,
     existing: RecordData = {},
-    parentWrite?: { name: string; id: number; action: 'create' | 'update' },
+    parentWrite?: { name: string; id: number; action: 'create' | 'update' | 'amend' },
     system = false
   ) {
     for (const parent of this.registry.all()) {
@@ -1656,7 +1756,10 @@ export class ResourceService {
             ? parentWrite.action
             : 'update'
         let record: RecordData
-        if (system) record = await this.findAny(trx, parent, Number(parentId), true)
+        // amend() authorized the cancelled source; its new draft is checked for state and
+        // scope below, and each copied line by the child's own create rules.
+        if (system || action === 'amend')
+          record = await this.findAny(trx, parent, Number(parentId), true)
         else {
           const ability = this.authorizeAction(parent, actor, action)
           record = await this.find(trx, parent, actor, ability, Number(parentId), true)
@@ -1758,42 +1861,51 @@ export class ResourceService {
       }
       const [row] = await trx(name).insert(values).returning('*')
       const saved: RecordData = { ...fromRow(row, resource), orgPath: source.orgPath }
-      for (const field of Object.values(resource.fields)) {
+      for (const [lineKey, field] of Object.entries(resource.fields)) {
         if (field.type !== 'hasMany' || !field.inline) continue
         const child = this.registry.get(field.resource)
         const foreign = child.fields[field.foreignKey].column ?? columnName(field.foreignKey)
         const lines = await trx(child.name).where(foreign, id).whereNull('deleted_at').orderBy('id')
+        if (!lines.length) continue
+        if (
+          !ability.can('amend', subject(name, source), lineKey) ||
+          actor.permissionLevel <
+            Math.max(field.permissionLevel ?? 0, resource.hidden?.includes(lineKey) ? 1 : 0)
+        )
+          throw new AdulaError(403, 'E_FIELD_FORBIDDEN', 'ليس لديك صلاحية تعديل البنود')
+        // Copies are new child records: they go through persist(), so the actor needs
+        // create on the child resource and its field rules, validator and hooks apply.
+        const childAbility = this.authorizeAction(child, actor, 'create')
         for (const line of lines) {
-          const copy: RecordData = {
-            created_by: actor.id,
-            updated_by: actor.id,
-            [foreign]: row.id,
-          }
-          if (child.scoped) copy.org_unit_id = line.org_unit_id
-          if (child.version) copy.version = 1
-          for (const [key, childField] of Object.entries(child.fields)) {
-            const column = childField.column ?? columnName(key)
+          const stored = fromRow(line, child)
+          const data: RecordData = {}
+          for (const key of child.form) {
+            const childField = child.fields[key]
             if (
               key === field.foreignKey ||
+              !(key in stored) ||
               childField.type === 'hasMany' ||
               childField.type === 'attachment' ||
-              !(column in line)
+              childField.sequence ||
+              // Values the actor could not have entered are not carried into the copy.
+              !childAbility.can('create', child.name, key) ||
+              actor.permissionLevel <
+                Math.max(childField.permissionLevel ?? 0, child.hidden?.includes(key) ? 1 : 0)
             )
               continue
-            copy[column] = childField.sequence
-              ? await sequence(trx, childField.sequence)
-              : childField.type === 'json'
-                ? JSON.stringify(line[column])
-                : line[column]
+            data[key] = stored[key]
           }
-          const [inserted] = await trx(child.name).insert(copy).returning('id')
-          await this.audit(
-            trx,
-            child,
+          await this.persist(
+            child.name,
             actor,
-            'create',
-            { id: inserted.id },
-            Object.keys(child.fields)
+            {
+              ...data,
+              [field.foreignKey]: row.id,
+              ...(child.scoped && !child.scope ? { orgUnitId: saved.orgUnitId } : {}),
+            },
+            undefined,
+            trx,
+            { name, id: Number(row.id), action: 'amend' }
           )
         }
       }

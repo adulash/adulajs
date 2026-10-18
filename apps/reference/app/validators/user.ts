@@ -34,7 +34,8 @@ acceptInvitationValidator.messagesProvider = invitationMessages
  */
 export const signupValidator = vine.create({
   fullName: vine.string().nullable(),
-  email: email().unique({ table: 'users', column: 'email' }),
+  // No uniqueness rule: a taken address gets the same answer as a new one (the controller decides).
+  email: email(),
   password: password().confirmed({
     confirmationField: 'passwordConfirmation',
   }),
