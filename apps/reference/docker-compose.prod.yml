@@ -1,4 +1,69 @@
 # Local integration is verified; staging/restore acceptance is still required.
+#
+# Each service receives only the variables it needs, interpolated from the
+# deployment's .env (the Compose project environment file next to this file),
+# instead of the whole file through env_file. `NAME: ${NAME:?...}` fails fast
+# when a value AdonisJS requires at boot is missing; a bare `NAME:` passes the
+# value through only when it is set. Every Node service, including the backup,
+# boots the application (start/env.ts is validated even for ace commands), so
+# each receives every variable start/env.ts requires; only optional features
+# (mail, OAuth, PDF, limiter tuning) are confined to the application services.
+x-runtime-environment: &runtime-environment
+  NODE_ENV: production
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  # Required by start/env.ts and encryption at boot.
+  APP_KEY: ${APP_KEY:?APP_KEY is required}
+  APP_URL: ${APP_URL:?APP_URL is required}
+  SESSION_DRIVER: database
+  DB_HOST: postgres
+  DB_PORT: 5432
+  DB_USER: ${DB_USER:?DB_USER is required}
+  DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+  DB_DATABASE: ${DB_DATABASE:?DB_DATABASE is required}
+  DB_POOL_MAX:
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+  REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+  # Attachment disk: the backup reads and the restore writes every disk.
+  DRIVE_DISK: ${DRIVE_DISK:-local}
+  AWS_ACCESS_KEY_ID:
+  AWS_SECRET_ACCESS_KEY:
+  AWS_REGION:
+  AWS_ENDPOINT:
+  S3_BUCKET:
+  # Offsite backups: start/env.ts requires these in production; the scheduler verifies them.
+  BACKUP_S3_ENDPOINT:
+  BACKUP_S3_BUCKET:
+  BACKUP_S3_PREFIX:
+  BACKUP_S3_REGION:
+  BACKUP_S3_ACCESS_KEY_ID:
+  BACKUP_S3_SECRET_ACCESS_KEY:
+x-application-environment: &application-environment
+  <<: *runtime-environment
+  HOST: 0.0.0.0
+  GOTENBERG_URL:
+  LOGIN_ADDRESS_LIMIT:
+  SIGNUP_ENABLED:
+  # request.ip() comes from Caddy's X-Forwarded-For only when the direct peer is on the
+  # Compose network (uniquelocal). web publishes no host port, so only Caddy reaches it.
+  TRUSTED_PROXIES: ${TRUSTED_PROXIES:-loopback,uniquelocal}
+  WEBHOOKS_ALLOW_PRIVATE:
+  LIMITER_STORE:
+  MAIL_MAILER:
+  MAIL_FROM_NAME:
+  MAIL_FROM_ADDRESS:
+  SMTP_HOST:
+  SMTP_PORT:
+  SMTP_SECURE:
+  SMTP_REQUIRE_TLS:
+  SMTP_USERNAME:
+  SMTP_PASSWORD:
+  GITHUB_CLIENT_ID:
+  GITHUB_CLIENT_SECRET:
+  GOOGLE_CLIENT_ID:
+  GOOGLE_CLIENT_SECRET:
+  # One-off `run --rm web node ace.js adula:install` reads it.
+  ADULA_ADMIN_EMAIL:
 services:
   caddy:
     image: caddy:2-alpine
@@ -17,15 +82,7 @@ services:
       context: ../..
       dockerfile: apps/reference/Dockerfile
     restart: unless-stopped
-    env_file: .env
-    environment:
-      NODE_ENV: production
-      HOST: 0.0.0.0
-      DB_HOST: postgres
-      DB_PORT: 5432
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      SESSION_DRIVER: database
+    environment: *application-environment
     volumes: [uploads:/app/apps/reference/storage/uploads]
     depends_on:
       postgres: { condition: service_healthy }
@@ -57,9 +114,9 @@ services:
     restart: unless-stopped
     command: postgres -c shared_preload_libraries=pg_stat_statements
     environment:
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_DATABASE}
+      POSTGRES_USER: ${DB_USER:?DB_USER is required}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      POSTGRES_DB: ${DB_DATABASE:?DB_DATABASE is required}
     volumes: [pgdata:/var/lib/postgresql/data]
     healthcheck:
       test: [CMD-SHELL, 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
@@ -69,25 +126,39 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: redis-server --appendonly yes
+    # Production Redis requires AUTH; the password is read from the container
+    # environment so it is not re-tokenized by Compose.
+    command: [sh, -c, 'exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"']
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
     volumes: [redisdata:/data]
     healthcheck:
-      test: [CMD, redis-cli, ping]
+      test: [CMD-SHELL, 'redis-cli ping | grep -q PONG']
       interval: 10s
       timeout: 5s
       retries: 5
-  backup:
+  # One-shot: the only root step. It gives the node user the backups volume
+  # (including snapshots written by earlier root-run backups) and exits.
+  backup-permissions:
     image: adula-reference:${APP_VERSION:?APP_VERSION is required}
     user: root
+    restart: 'no'
+    command: [chown, -R, 'node:node', /backups]
+    healthcheck: { disable: true }
+    volumes: [backups:/backups]
+  backup:
+    image: adula-reference:${APP_VERSION:?APP_VERSION is required}
+    user: node
     restart: unless-stopped
-    env_file: .env
-    environment: { DB_HOST: postgres, DB_PORT: 5432, REDIS_HOST: redis, REDIS_PORT: 6379, NODE_ENV: production }
+    environment: *runtime-environment
     command: sh deploy/backup.sh
     healthcheck: { disable: true }
     volumes:
       - backups:/backups
       - uploads:/app/apps/reference/storage/uploads:ro
     depends_on:
+      backup-permissions: { condition: service_completed_successfully }
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
 volumes:

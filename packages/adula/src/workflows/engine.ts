@@ -8,8 +8,7 @@ import type { HttpPoster } from '../integrations/webhooks.js'
 import type { Assignments } from '../collaboration/assignments.js'
 import { AdulaError } from '../admin/errors.js'
 import { fromRow } from '../admin/contracts.js'
-import { columnName } from '../resource/define_resource.js'
-import { recordMutation, type FieldChange } from '../events/record_mutation.js'
+import { recordMutation } from '../events/record_mutation.js'
 import { notifyWithTemplate } from '../core/message_templates.js'
 import {
   nextStep,
@@ -731,7 +730,11 @@ export class WorkflowEngine {
     }
   }
 
-  /** Workflow writes are system writes attributed to the submitter, with history. */
+  /**
+   * Workflow writes are system writes attributed to the submitter, with history. They go
+   * through systemSave, so the resource validator, hooks, relation checks and the
+   * optimistic lock apply; a rejected write fails the step like any other step error.
+   */
   private async updateRecord(
     trx: Knex.Transaction,
     run: Record<string, any>,
@@ -739,8 +742,6 @@ export class WorkflowEngine {
     values: RecordData
   ) {
     const resource = this.registry.get(run.resource)
-    const update: RecordData = { updated_at: trx.fn.now() }
-    const changes: FieldChange[] = []
     for (const [key, value] of Object.entries(values)) {
       const field = resource.fields[key]
       if (!field || ['hasMany', 'attachment'].includes(field.type) || field.sequence)
@@ -751,24 +752,15 @@ export class WorkflowEngine {
           .first()
         if (!valid) throw new StepFailure(`Invalid lookup value for ${key}`)
       }
-      update[field.column ?? columnName(key)] =
-        field.type === 'json' ? JSON.stringify(value) : value
-      if (JSON.stringify(record[key] ?? null) !== JSON.stringify(value ?? null))
-        changes.push({ field: key, before: record[key] ?? null, after: value ?? null })
     }
-    if (resource.version) update.version = Number(record.version) + 1
-    if (run.started_by) update.updated_by = run.started_by
-    await trx(resource.name).where('id', run.record_id).update(update)
-    if (run.started_by)
-      await recordMutation(trx, {
-        module: this.registry.owner(resource.name),
-        resource: resource.name,
-        id: run.record_id,
-        actorId: Number(run.started_by),
-        action: 'update',
-        fields: Object.keys(values),
-        changes,
-      })
+    // A run started by an event without a user is an unattributed system update.
+    await this.resources.systemSave(resource.name, values, Number(run.record_id), {
+      actorId: run.started_by ? Number(run.started_by) : null,
+      trx,
+      reason: `workflow:${run.definition}`,
+      version: resource.version ? Number(record.version) : undefined,
+      submitted: true,
+    })
   }
 
   private async cancelDocument(

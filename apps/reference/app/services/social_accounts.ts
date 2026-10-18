@@ -52,14 +52,17 @@ export type SocialProfile = {
  * user with the same verified e-mail is linked, otherwise a user is created with
  * an unguessable password. An existing account whose e-mail ownership was never
  * proven is not linked: otherwise whoever self-registered the address first
- * would receive the provider identity (account pre-hijacking). Runs in one
- * transaction against PostgreSQL.
+ * would receive the provider identity (account pre-hijacking). With `allowCreate`
+ * false (signup closed) an unknown address creates nothing and returns `closed`.
+ * Runs in one transaction against PostgreSQL.
  */
 export async function linkOrCreateSocialUser(
-  profile: SocialProfile
+  profile: SocialProfile,
+  { allowCreate = true }: { allowCreate?: boolean } = {}
 ): Promise<
-  | { user: User; created: boolean; linked: boolean; unverified?: never }
-  | { user?: never; created?: never; linked?: never; unverified: true }
+  | { user: User; created: boolean; linked: boolean; unverified?: never; closed?: never }
+  | { user?: never; created?: never; linked?: never; unverified: true; closed?: never }
+  | { user?: never; created?: never; linked?: never; unverified?: never; closed: true }
 > {
   return await db.transaction(async (trx) => {
     const link = await trx
@@ -76,6 +79,7 @@ export async function linkOrCreateSocialUser(
       .first()
     let created = false
     if (user && !user.emailVerifiedAt) return { unverified: true as const }
+    if (!user && !allowCreate) return { closed: true as const }
     if (!user) {
       user = await User.create(
         {

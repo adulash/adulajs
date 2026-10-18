@@ -4,7 +4,7 @@ import attachmentManager from '@jrmc/adonis-attachment/services/main'
 import drive from '@adonisjs/drive/services/main'
 import db from '@adonisjs/lucid/services/db'
 import env from '#start/env'
-import { adula } from '#services/adula'
+import { adula, requestActor } from '#services/adula'
 import {
   AdulaError,
   PENDING_UPLOAD_LIMIT,
@@ -31,9 +31,10 @@ function contentDisposition(name: string) {
 }
 
 export default class AttachmentsController {
-  async store({ auth, request, response }: HttpContext) {
+  async store(ctx: HttpContext) {
+    const { request, response } = ctx
     const runtime = adula()
-    const actor = await runtime.actors.load(auth.getUserOrFail().id)
+    const actor = await requestActor(ctx)
     const knex = db.connection().getWriteClient()
     // A grant issued by module code for one record replaces the resource-wide role rule.
     const grantToken = request.input('grant')
@@ -109,6 +110,7 @@ export default class AttachmentsController {
         extname: safeExtname,
         data: { ...attachment.toObject(), path },
         uploadedBy: actor.id,
+        impersonatorId: actor.impersonatorId,
         resource: resource.name,
         field: fieldName,
         grant,
@@ -128,9 +130,10 @@ export default class AttachmentsController {
     }
   }
 
-  async show({ auth, params, response }: HttpContext) {
+  async show(ctx: HttpContext) {
+    const { params, response } = ctx
     const runtime = adula()
-    const actor = await runtime.actors.load(auth.getUserOrFail().id)
+    const actor = await requestActor(ctx)
     const id = Number(params.id)
     const row = await findAttachment(
       db.connection().getWriteClient(),

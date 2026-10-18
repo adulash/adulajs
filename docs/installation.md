@@ -50,12 +50,14 @@ node ace migration:run
 
 Configuration registers providers/commands and migration discovery, and copies application-owned service/controller/routes and the HTTP test helper without overwriting customizations. It configures the Japa plugins for generated tests.
 
-Create the intended administrator through your application's signup flow. Set `ADULA_ADMIN_EMAIL` to that existing account in your environment, then run:
+Set `ADULA_ADMIN_EMAIL` to the intended administrator's address (or pass `--admin-email`), then run:
 
 ```sh
-node ace adula:install
+node ace adula:install --admin-name="مدير النظام"
 node ace adula:doctor
 ```
+
+When that account does not exist and the application has no administrator yet, `adula:install` creates it with a random password printed once on the terminal (it is never written to a file); sign in and change it. If the account already exists while no administrator does (for example someone self-registered that address), installation treats it as untrusted: it replaces the password with a new one printed once, ends the account's sessions, API tokens, unused recovery links and pending invitations, and records the event. Pass `--keep-password` only for an account you created yourself. Once any administrator exists, an unknown address is refused instead of creating another privileged account. Signup is not the bootstrap path: with `SIGNUP_ENABLED` unset, self-signup is open only until the first administrator exists and then answers 404; set `SIGNUP_ENABLED=true` to keep it open or `false` to close it from the start. Signup answers a new, registered or invited address identically and never signs the visitor in. Behind a reverse proxy, set `TRUSTED_PROXIES` (comma-separated `loopback`, `linklocal`, `uniquelocal`, addresses or CIDRs) to the proxy's network so login lockouts and throttles see real client addresses; unset trusts loopback only.
 
 Installation bootstraps core administrator authorization, synchronizes managed AGENTS rules/skills, and installs the UI registry when `@adula/ui` is present. Customized components are protected. It does not supply all reference-app authentication/admin screens or automatically wire every optional adapter; consuming applications own that integration.
 

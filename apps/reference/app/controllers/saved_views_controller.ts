@@ -1,6 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import { AdulaError, type Actor as AdulaActor } from 'adula'
-import { adula } from '#services/adula'
+import { adula, requestActor } from '#services/adula'
 
 /** Saved views are per-actor list presets; AdulaJS validates every query key. */
 export default class SavedViewsController {
@@ -26,7 +26,7 @@ export default class SavedViewsController {
 
   async #run(ctx: HttpContext, action: (actor: AdulaActor, resource: string) => Promise<unknown>) {
     try {
-      const actor = await adula().actors.load(ctx.auth.getUserOrFail().id)
+      const actor = await requestActor(ctx)
       return await action(actor, ctx.params.resource)
     } catch (error) {
       if (error instanceof AdulaError)

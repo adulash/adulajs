@@ -1,29 +1,17 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import { AdulaError } from 'adula'
-import type { AccessToken } from '@adonisjs/auth/access_tokens'
 import User from '#models/user'
 import { positiveId, wantsJson } from '#controllers/admin/support'
 import { activeImpersonation } from '#services/impersonation'
+import { listUserTokens, presentToken as present } from '#services/access_tokens'
 
 const ACCESS = { read: ['read'], write: ['read', 'write'] } as const
-
-function present(token: AccessToken) {
-  return {
-    id: Number(token.identifier),
-    name: token.name,
-    access: token.abilities.includes('write') ? ('write' as const) : ('read' as const),
-    lastUsedAt: token.lastUsedAt ? new Date(token.lastUsedAt).toISOString() : null,
-    expiresAt: token.expiresAt ? new Date(token.expiresAt).toISOString() : null,
-    createdAt: new Date(token.createdAt).toISOString(),
-  }
-}
 
 /** Users manage their own personal API tokens; secrets are shown once. */
 export default class ApiTokensController {
   async index(ctx: HttpContext) {
     const user = ctx.auth.getUserOrFail()
-    const all = await User.accessTokens.all(user)
-    const tokens = all.map(present)
+    const tokens = await listUserTokens(user)
     if (wantsJson(ctx)) return { data: tokens }
     return ctx.inertia.render('account/tokens', { tokens })
   }

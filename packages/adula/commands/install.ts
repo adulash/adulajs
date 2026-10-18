@@ -1,6 +1,10 @@
-import { BaseCommand } from '@adonisjs/core/ace'
+import { BaseCommand, flags } from '@adonisjs/core/ace'
+import { randomBytes } from 'node:crypto'
 import { readFile, writeFile, access } from 'node:fs/promises'
-import { Settings } from '../src/services/settings.js'
+import {
+  grantInstallAdministrator,
+  resolveInstallAdministrator,
+} from '../src/core/administrators.js'
 import { seedModules } from '../src/core/module_seed.js'
 import type { ResourceRegistry } from '../src/resource/registry.js'
 import { syncAgentAssets } from '../src/commands/agent_assets.js'
@@ -8,67 +12,82 @@ import { GAPS_TEMPLATE } from '../src/commands/gap_report.js'
 import { ADULA_VERSION } from '../src/version.js'
 import { fileURLToPath } from 'node:url'
 
+/**
+ * Installs the core organization, administrator role and managed agent instructions.
+ * Creating or re-securing the first administrator requires the application's `#models/user`
+ * Lucid model (with `email`, `fullName` and a hashed `password`); it is loaded only then.
+ */
 export default class Install extends BaseCommand {
   static commandName = 'adula:install'
   static description =
-    'Install core organization, administrator role and managed agent instructions after migrations'
+    'Install core organization, administrator role (creating the first administrator when missing) and managed agent instructions after migrations'
   static options = { startApp: true }
+  @flags.string({ description: 'Administrator e-mail (defaults to ADULA_ADMIN_EMAIL)' })
+  declare adminEmail?: string
+  @flags.string({ description: 'Full name used when the first administrator is created' })
+  declare adminName?: string
+  @flags.boolean({
+    description:
+      'Keep the password of an existing account promoted as the first administrator (only when you created it yourself)',
+  })
+  declare keepPassword?: boolean
   async run() {
     const { default: db } = await import('@adonisjs/lucid/services/db')
     const knex = db.connection().getWriteClient()
-    const email = process.env.ADULA_ADMIN_EMAIL
+    const email = (this.adminEmail ?? process.env.ADULA_ADMIN_EMAIL)?.trim().toLowerCase()
     if (!email)
       throw new Error(
-        'Set ADULA_ADMIN_EMAIL to an existing user email. Create the user through the official auth flow first.'
+        'Set ADULA_ADMIN_EMAIL (or pass --admin-email) to the administrator e-mail address.'
       )
-    const user = await knex('users').where({ email }).first('id')
-    if (!user)
-      throw new Error(
-        'Administrator user does not exist. Create it using the official signup flow first.'
-      )
-    await knex.transaction(async (trx) => {
-      await trx.raw('SELECT pg_advisory_xact_lock(717011)')
-      let root = await trx('org_units').whereNull('parent_id').first()
-      if (!root) {
-        const [created] = await trx('org_units')
-          .insert({ name: 'الجهة', type: 'root', path: 'root' })
-          .returning('*')
-        await trx('org_units')
-          .where('id', created.id)
-          .update({ path: String(created.id) })
-        root = created
+    let password: string | undefined
+    const userModel = async () => {
+      try {
+        const module = await this.app.import('#models/user')
+        return module.default
+      } catch (error) {
+        throw new Error(
+          "adula:install creates the first administrator through the application's #models/user model; it was not found",
+          { cause: error }
+        )
       }
-      let role = await trx('roles').where('name', 'administrator').first()
-      if (!role) {
-        const [created] = await trx('roles')
-          .insert({ name: 'administrator', key: 'administrator', permission_level: 1 })
-          .returning('*')
-        role = created
-      } else if (!role.key && !(await trx('roles').where('key', 'administrator').first()))
-        await trx('roles').where('id', role.id).update({ key: 'administrator' })
-      // Repair a missing bootstrap grant even when the role already exists.
-      // The transaction lock makes repeated/concurrent installation idempotent.
-      if (
-        !(await trx('role_rules')
-          .where({ role_id: role.id, subject: 'all', action: 'manage', inverted: false })
-          .whereNull('conditions')
-          .whereNull('fields')
-          .first())
+    }
+    const user = await resolveInstallAdministrator(
+      knex,
+      email,
+      async () => {
+        // The first administrator is created here so self-signup is never the bootstrap path.
+        password = randomBytes(18).toString('base64url')
+        const User = await userModel()
+        const created = await User.create({
+          email,
+          fullName: this.adminName?.trim() || 'مدير النظام',
+          password,
+        })
+        return Number(created.id)
+      },
+      {
+        // Anyone may have self-registered this address before the first administrator existed.
+        rotatePassword: this.keepPassword
+          ? undefined
+          : async (id: number) => {
+              password = randomBytes(18).toString('base64url')
+              const User = await userModel()
+              const account = await User.findOrFail(id)
+              account.password = password
+              await account.save()
+            },
+      }
+    )
+    await grantInstallAdministrator(knex, user.id, ADULA_VERSION)
+    // Shown once on the terminal and never written to a file; change it after signing in.
+    if (user.created && password)
+      this.logger.warning(
+        `First administrator ${email} created. One-time password (change it after signing in): ${password}`
       )
-        await trx('role_rules').insert({ role_id: role.id, subject: 'all', action: 'manage' })
-      if (
-        !(await trx('user_roles')
-          .where({ user_id: user.id, role_id: role.id })
-          .whereNull('org_unit_id')
-          .first())
+    if (user.rotated && password)
+      this.logger.warning(
+        `Existing account ${email} promoted to first administrator: its password was replaced and ${user.rotated.sessions} session(s), ${user.rotated.tokens} API token(s), ${user.rotated.resetTokens} recovery link(s) and ${user.rotated.invitations} invitation(s) were ended. One-time password (change it after signing in): ${password}. Pass --keep-password only for an account you created yourself.`
       )
-        await trx('user_roles').insert({ user_id: user.id, role_id: role.id })
-      await trx('user_org_units')
-        .insert({ user_id: user.id, org_unit_id: root.id })
-        .onConflict(['user_id', 'org_unit_id'])
-        .ignore()
-      await new Settings(trx).set('adula.version', ADULA_VERSION)
-    })
     // Module lookups and default roles: added when missing, never overwritten.
     let registry: ResourceRegistry | undefined
     try {

@@ -1,5 +1,53 @@
 # Changelog
 
+## Unreleased
+
+### Security hardening
+
+Minor release (semver minor, not a patch): the public interfaces `ActivityEntry`,
+`UploadInput` and `HttpPoster` gain optional members, and new exports are added. Operators
+must review the new environment variables before upgrading a production deployment.
+
+* Signup: new `SIGNUP_ENABLED`. When unset, self-signup is open only until the first
+  administrator exists, then `/signup` returns 404; `true`/`false` is obeyed. Signup
+  answers new, registered and invited addresses identically and no longer signs the
+  visitor in. OAuth sign-in creates no new users while signup is closed.
+* `adula:install` can create the first administrator (`--admin-email`, `--admin-name`;
+  the generated password is printed once). If the address already belongs to an account
+  and no administrator exists yet, install rotates its password (printed once) and
+  removes its sessions, API tokens, unused password-reset links and pending invitations,
+  defeating pre-registration takeover. Pass `--keep-password` when you created that
+  account yourself; `create-adula-app` setup and `adula:seed` do. Creating or re-securing
+  the first administrator requires the application's `#models/user` Lucid model; without
+  it `adula:install` stops with an explicit error.
+* API tokens are revoked on password reset, password change and administrator session
+  revocation. Administrators can list a user's tokens (metadata only) and revoke all of
+  them from the user page.
+* Login lockout is scoped to (e-mail, client address) with escalating blocks of 1, 2,
+  4 … up to 60 minutes after 5 failures, and records a `login_locked` activity. A
+  stranger's failures no longer lock the owner out from another address.
+* New `TRUSTED_PROXIES` (proxy-addr names, addresses or CIDRs). Unset trusts loopback
+  only; `docker-compose.prod.yml` sets `loopback,uniquelocal` for the Caddy hop, and
+  Caddy now replaces any client `X-Forwarded-For`. `/health` is throttled per client
+  (60/min), except the proxy's own probe.
+* Outbound webhooks and workflow HTTP steps: every IANA special-purpose IPv4/IPv6 range
+  (including mapped, NAT64 and 6to4 forms) is blocked, DNS is resolved once and the
+  connection pinned to the validated address, and redirects are not followed. Private
+  or plain-HTTP targets now require `WEBHOOKS_ALLOW_PRIVATE=true` in every environment
+  (previously allowed outside production). `last_error` stores only a category (`dns`,
+  `connect`, `tls`, `timeout`, `blocked-target`, `http-status:NNN`).
+* Printing: the logo is embedded only from a local `public/` image (≤ 512 KiB); remote
+  logo URLs are no longer printed, and print HTML carries a restrictive CSP.
+* Production Compose: Redis requires `REDIS_PASSWORD` (`--requirepass`; startup fails
+  when empty), the backup service runs as `node`, and each service receives only the
+  variables it needs instead of the whole `.env`.
+* Resources: mismatched filter values return 422 `E_FILTER` and forged cursors 422
+  `E_CURSOR` instead of 500; `amend()` requires `create` on inline child resources and
+  validates copied lines; workflow `update` steps run the resource validator, hooks and
+  optimistic lock. The mention picker no longer matches e-mail prefixes (exact address
+  only). Uploads, saved views and invitations made while impersonating record the
+  impersonator.
+
 ## 2.1.0 — 2026-10-17
 
 Minor release: new defaults for the copied interface and a refreshed README. No API or

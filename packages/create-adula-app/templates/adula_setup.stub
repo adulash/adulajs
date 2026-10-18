@@ -23,7 +23,8 @@ export default class Setup extends BaseCommand {
       await User.create({ email, password, fullName: 'مدير النظام' })
     }
     process.env.ADULA_ADMIN_EMAIL = email
-    const installed = await this.kernel.exec('adula:install', [])
+    // Setup created or verified this account from tmp/dev-admin.txt, so install must not rotate it.
+    const installed = await this.kernel.exec('adula:install', ['--keep-password'])
     if (installed.exitCode) throw new Error('AdulaJS installation failed')
     const identity = JSON.parse(await readFile(this.app.makePath('company-identity.json'), 'utf8'))
     await db.from('org_units').whereNull('parent_id').update({ name: identity.company })

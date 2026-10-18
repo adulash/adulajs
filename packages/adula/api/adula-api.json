@@ -14,7 +14,7 @@
     },
     "ActivityEntry": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ resource: string; recordId: number; actorId: number; action: string; changes?: Record<string, unknown> | undefined; }"
+      "type": "{ resource: string; recordId: number; actorId: number; action: string; changes?: Record<string, unknown> | undefined; impersonatorId?: number | null | undefined; }"
     },
     "ActivityFilters": {
       "kind": "TypeAliasDeclaration",
@@ -48,9 +48,25 @@
       "kind": "ClassDeclaration",
       "type": "typeof ActorStore"
     },
+    "administratorExists": {
+      "kind": "FunctionDeclaration",
+      "type": "(knex: Knex<any, any[]> | Transaction<any, any[]>) => Promise<boolean>"
+    },
     "AdonisJobs": {
       "kind": "ClassDeclaration",
       "type": "typeof AdonisJobs"
+    },
+    "ADULA_VERSION": {
+      "kind": "VariableDeclaration",
+      "type": "string"
+    },
+    "AdulaAbility": {
+      "kind": "TypeAliasDeclaration",
+      "type": "Ability<[string, any], Conditions>"
+    },
+    "AdulaError": {
+      "kind": "ClassDeclaration",
+      "type": "typeof AdulaError"
     },
     "AggregateOptions": {
       "kind": "TypeAliasDeclaration",
@@ -220,6 +236,10 @@
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>) => Promise<void>"
     },
+    "createOutboundPoster": {
+      "kind": "FunctionDeclaration",
+      "type": "(options?: OutboundOptions | undefined) => (value: string, init: OutboundRequest) => Promise<{ status: number; }>"
+    },
     "createResourceController": {
       "kind": "FunctionDeclaration",
       "type": "(resolveRuntime: (ctx: HttpContext) => Promise<ResourceRuntime>, renderList?: ((ctx: HttpContext, resource: Resource, result: { data: SerializedRecord[]; permissions: { [k: string]: Partial<Record<Action, boolean>>; }; meta: { limit: number; estimatedTotal: number | undefined; nextCursor: string | null; }; related: Record<string, SerializedRecord[]>; }) => unknown) | undefined, renderForm?: ((ctx: HttpContext, resource: Resource, editor: { mode: string; name: string; label: string; recordLabel: string | null; fields: ({ label: Label; column?: string | undefined; required?: boolean | undefined; unique?: boolean | undefined; sortable?: boolean | undefined; searchable?: boolean | undefined; filterable?: boolean | undefined; permissionLevel?: number | undefined; sequence?: string | undefined; type: \"string\" | \"boolean\" | \"text\" | \"integer\" | \"money\" | \"date\" | \"datetime\" | \"json\"; key: string; } | { label: Label; column?: string | undefined; required?: boolean | undefined; unique?: boolean | undefined; sortable?: boolean | undefined; searchable?: boolean | undefined; filterable?: boolean | undefined; permissionLevel?: number | undefined; sequence?: string | undefined; type: \"attachment\"; accept?: string[] | \"any\" | undefined; maxSize?: string | undefined; key: string; } | { label: Label; column?: string | undefined; required?: boolean | undefined; unique?: boolean | undefined; sortable?: boolean | undefined; searchable?: boolean | undefined; filterable?: boolean | undefined; permissionLevel?: number | undefined; sequence?: string | undefined; type: \"belongsTo\"; resource: string; key: string; } | { label: Label; column?: string | undefined; required?: boolean | undefined; unique?: boolean | undefined; sortable?: boolean | undefined; searchable?: boolean | undefined; filterable?: boolean | undefined; permissionLevel?: number | undefined; sequence?: string | undefined; type: \"user\"; key: string; } | { label: Label; column?: string | undefined; required?: boolean | undefined; unique?: boolean | undefined; sortable?: boolean | undefined; searchable?: boolean | undefined; filterable?: boolean | undefined; permissionLevel?: number | undefined; sequence?: string | undefined; type: \"hasMany\"; resource: string; foreignKey: string; inline?: boolean | undefined; key: string; } | { label: Label; column?: string | undefined; required?: boolean | undefined; unique?: boolean | undefined; sortable?: boolean | undefined; searchable?: boolean | undefined; filterable?: boolean | undefined; permissionLevel?: number | undefined; sequence?: string | undefined; type: \"lookup\"; group: string; key: string; })[]; defaults: SerializedRecord; inline: Record<string, { rows: SerializedRecord[]; hasMore: boolean; canCreate: boolean; permissions: Record<string, { update: boolean; delete: boolean; }>; fields: ResourceField[]; createFields: string[]; updateFields: Record<string, string[]>; }>; options: Record<string, { value: string; label: string; }[]>; relationSearch: Record<string, boolean>; orgUnits: { value: string; label: string; }[]; scoped: boolean; scopeFrom: string | null; record: SerializedRecord | null; }) => unknown) | undefined, renderShow?: ((ctx: HttpContext, resource: Resource, result: { data: SerializedRecord; permissions: Partial<Record<Action, boolean>>; related: Record<string, SerializedRecord[]>; }) => unknown) | undefined) => new () => ResourceController"
@@ -316,6 +336,10 @@
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>, id: number) => Promise<boolean>"
     },
+    "grantInstallAdministrator": {
+      "kind": "FunctionDeclaration",
+      "type": "(knex: Knex<any, any[]>, userId: number, version: string) => Promise<void>"
+    },
     "grantUpload": {
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>, registry: Pick<ResourceRegistry, \"all\" | \"get\">, input: UploadGrantInput) => Promise<UploadGrant>"
@@ -342,7 +366,11 @@
     },
     "HttpPoster": {
       "kind": "TypeAliasDeclaration",
-      "type": "(url: string, init: { headers: Record<string, string>; body: string; signal: AbortSignal; }) => Promise<{ status: number; }>"
+      "type": "(url: string, init: OutboundRequest) => Promise<{ status: number; }>"
+    },
+    "imageDataUri": {
+      "kind": "FunctionDeclaration",
+      "type": "(bytes: Uint8Array<ArrayBufferLike>, fileName: string) => string | null"
     },
     "IMPORT_ROW_LIMIT": {
       "kind": "VariableDeclaration",
@@ -420,6 +448,10 @@
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>, now?: number | undefined) => Promise<boolean>"
     },
+    "isBlockedAddress": {
+      "kind": "FunctionDeclaration",
+      "type": "(address: string) => boolean"
+    },
     "isProtectedSetting": {
       "kind": "FunctionDeclaration",
       "type": "(key: string) => boolean"
@@ -435,18 +467,6 @@
     "JsonValue": {
       "kind": "TypeAliasDeclaration",
       "type": "string | number | boolean | JsonValue[] | { [key: string]: JsonValue; } | null"
-    },
-    "ADULA_VERSION": {
-      "kind": "VariableDeclaration",
-      "type": "string"
-    },
-    "AdulaAbility": {
-      "kind": "TypeAliasDeclaration",
-      "type": "Ability<[string, any], Conditions>"
-    },
-    "AdulaError": {
-      "kind": "ClassDeclaration",
-      "type": "typeof AdulaError"
     },
     "Label": {
       "kind": "TypeAliasDeclaration",
@@ -576,6 +596,26 @@
       "kind": "ClassDeclaration",
       "type": "typeof OrgUnitsAdmin"
     },
+    "outboundErrorCategory": {
+      "kind": "FunctionDeclaration",
+      "type": "(error: unknown) => OutboundErrorCategory"
+    },
+    "OutboundErrorCategory": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"dns\" | \"connect\" | \"tls\" | \"timeout\" | \"blocked-target\" | \"secret\" | `http-status:${number}`"
+    },
+    "OutboundOptions": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ allowPrivateTargets?: boolean | undefined; resolve?: ((host: string) => Promise<string[]>) | undefined; }"
+    },
+    "OutboundRequest": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ headers: Record<string, string>; body: string; signal: AbortSignal; target?: OutboundTarget | undefined; }"
+    },
+    "OutboundTarget": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ address: string; family: 4 | 6; }"
+    },
     "packedResourceRules": {
       "kind": "FunctionDeclaration",
       "type": "(resource: Resource, actor: Actor) => PackRule<SubjectRawRule<string, any, Conditions>>[]"
@@ -591,6 +631,10 @@
     "pendingUploadCount": {
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>, userId: number) => Promise<number>"
+    },
+    "PRINT_LOGO_LIMIT": {
+      "kind": "VariableDeclaration",
+      "type": "number"
     },
     "PrintIdentity": {
       "kind": "TypeAliasDeclaration",
@@ -675,6 +719,10 @@
     "resolveActorConditions": {
       "kind": "FunctionDeclaration",
       "type": "(conditions: Conditions | undefined, actorId: number, accepts?: ((field: string) => boolean) | undefined) => Conditions | undefined"
+    },
+    "resolveInstallAdministrator": {
+      "kind": "FunctionDeclaration",
+      "type": "(knex: Knex<any, any[]>, email: string, create: () => Promise<number>, options?: { rotatePassword?: ((userId: number) => Promise<void>) | undefined; } | undefined) => Promise<{ id: number; created: boolean; rotated?: InstallAccountRotation | undefined; }>"
     },
     "Resource": {
       "kind": "TypeAliasDeclaration",
@@ -898,7 +946,7 @@
     },
     "UploadInput": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ disk: string; path: string; name: string; originalName: string; size: number; mimeType: string; extname: string; data: Record<string, unknown>; uploadedBy: number; orgUnitId?: number | null | undefined; resource?: string | null | undefined; field?: string | null | undefined; grant?: { id: number; resource: string; recordId: number; field: string; orgUnitId: number | null; } | null | undefined; }"
+      "type": "{ disk: string; path: string; name: string; originalName: string; size: number; mimeType: string; extname: string; data: Record<string, unknown>; uploadedBy: number; impersonatorId?: number | null | undefined; orgUnitId?: number | null | undefined; resource?: string | null | undefined; field?: string | null | undefined; grant?: { id: number; resource: string; recordId: number; field: string; orgUnitId: number | null; } | null | undefined; }"
     },
     "UserInvitations": {
       "kind": "ClassDeclaration",
@@ -1014,6 +1062,10 @@
       "kind": "TypeAliasDeclaration",
       "type": "{ id: number; orgPaths: string[]; permissionLevel: number; rules: Rule[]; impersonatorId?: number | undefined; }"
     },
+    "AdulaAbility": {
+      "kind": "TypeAliasDeclaration",
+      "type": "Ability<[string, any], Conditions>"
+    },
     "buildAbility": {
       "kind": "FunctionDeclaration",
       "type": "(rules: readonly Rule[], schemas?: readonly Pick<Resource, \"fields\" | \"name\">[] | undefined) => AdulaAbility"
@@ -1029,10 +1081,6 @@
     "inOrgScope": {
       "kind": "FunctionDeclaration",
       "type": "(path: unknown, paths: readonly string[]) => boolean"
-    },
-    "AdulaAbility": {
-      "kind": "TypeAliasDeclaration",
-      "type": "Ability<[string, any], Conditions>"
     },
     "Rule": {
       "kind": "TypeAliasDeclaration",

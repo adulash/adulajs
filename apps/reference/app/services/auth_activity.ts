@@ -6,6 +6,7 @@ import { activeImpersonation } from '#services/impersonation'
 export type AuthAction =
   | 'login'
   | 'login_failed'
+  | 'login_locked'
   | 'logout'
   | 'password_reset_requested'
   | 'password_reset_delivery_failed'

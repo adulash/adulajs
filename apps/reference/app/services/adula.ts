@@ -9,8 +9,9 @@ import {
   ImportBatches,
   InboundWebhooks,
   WorkflowEngine,
+  createOutboundPoster,
 } from 'adula'
-import app from '@adonisjs/core/services/app'
+import env from '#start/env'
 import encryption from '@adonisjs/core/services/encryption'
 import { registry } from '#start/modules'
 import cache from '@adonisjs/cache/services/main'
@@ -45,12 +46,7 @@ export function adula() {
       actors,
       assignments,
       registry.workflows(),
-      {
-        post: async (url, init) => {
-          const response = await fetch(url, { method: 'POST', redirect: 'manual', ...init })
-          return { status: response.status }
-        },
-      }
+      { post: createOutboundPoster(outboundPolicy()) }
     ),
     imports: new ImportBatches(knex, registry, resources, actors),
     inbound: new InboundWebhooks(knex, {
@@ -64,10 +60,14 @@ export function adula() {
         seal: (value) => encryption.encrypt(value),
         open: (value) => encryption.decrypt<string>(value),
       },
-      // Private and plain-HTTP targets are only reachable outside production.
-      { allowPrivateTargets: !app.inProduction }
+      outboundPolicy()
     ),
   }
+}
+
+/** Private and plain-HTTP targets are reachable only with WEBHOOKS_ALLOW_PRIVATE=true. */
+function outboundPolicy() {
+  return { allowPrivateTargets: env.get('WEBHOOKS_ALLOW_PRIVATE') === true }
 }
 
 /** The signed-in actor; while impersonating, it also names the acting administrator. */

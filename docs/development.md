@@ -17,7 +17,7 @@ pnpm --filter @adula/reference exec node ace migration:run
 pnpm dev
 ```
 
-Open `http://127.0.0.1:3333`, create an account, set `ADULA_ADMIN_EMAIL` and run `pnpm --filter @adula/reference exec node ace adula:install`. Local `adula:seed` can create an administrator with random credentials saved to ignored `tmp/dev-admin.txt`; normal mode creates no educational business records. Signup itself grants no roles or organizational access.
+Set `ADULA_ADMIN_EMAIL` and run `pnpm --filter @adula/reference exec node ace adula:install`; when that account does not exist and no administrator does, it is created and its one-time password is printed on the terminal. If you registered that account yourself first, its password is replaced (printed once) and its sessions and tokens end unless you pass `--keep-password`. Open `http://127.0.0.1:3333` and sign in. With `SIGNUP_ENABLED` unset, self-signup closes (404) once an administrator exists; set it to `true` to keep it open locally. Local `adula:seed` can create an administrator with random credentials saved to ignored `tmp/dev-admin.txt`; normal mode creates no educational business records. Signup itself grants no roles or organizational access.
 
 Run the worker with `pnpm --filter @adula/reference exec node ace adula:worker` and exactly one scheduler with `pnpm --filter @adula/reference exec node ace scheduler:run`.
 

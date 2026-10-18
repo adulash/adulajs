@@ -16,6 +16,7 @@ import { Settings } from 'adula'
 import redis from '@adonisjs/redis/services/main'
 import {
   apiThrottle,
+  healthThrottle,
   inboundThrottle,
   inboundAddressThrottle,
   loginAddressThrottle,
@@ -82,28 +83,30 @@ router
   .post('/webhooks/in/:source', [InboundWebhooksController, 'receive'])
   .use([inboundAddressThrottle, inboundThrottle])
 
-router.get('/health', async ({ response }) => {
-  try {
-    await db.rawQuery('SELECT 1')
-    await Promise.race([
-      redis.ping(),
-      new Promise((_, reject) => {
-        const timer = setTimeout(() => reject(new Error('Redis unavailable')), 2000)
-        timer.unref()
-      }),
-    ])
-    const lastOffsite = await new Settings(db.connection().getWriteClient()).get<string>(
-      'backup.lastOffsite'
-    )
-    // Public probe: status only. Backup times and dependencies are on the admin jobs screen.
-    return {
-      status:
-        lastOffsite && Date.now() - Date.parse(lastOffsite) < 48 * 3600000 ? 'ok' : 'degraded',
+router
+  .get('/health', async ({ response }) => {
+    try {
+      await db.rawQuery('SELECT 1')
+      await Promise.race([
+        redis.ping(),
+        new Promise((_, reject) => {
+          const timer = setTimeout(() => reject(new Error('Redis unavailable')), 2000)
+          timer.unref()
+        }),
+      ])
+      const lastOffsite = await new Settings(db.connection().getWriteClient()).get<string>(
+        'backup.lastOffsite'
+      )
+      // Public probe: status only. Backup times and dependencies are on the admin jobs screen.
+      return {
+        status:
+          lastOffsite && Date.now() - Date.parse(lastOffsite) < 48 * 3600000 ? 'ok' : 'degraded',
+      }
+    } catch {
+      return response.serviceUnavailable({ status: 'unhealthy' })
     }
-  } catch {
-    return response.serviceUnavailable({ status: 'unhealthy' })
-  }
-})
+  })
+  .use(healthThrottle)
 
 router
   .group(() => {
@@ -239,6 +242,7 @@ router
     router.post('users/:id/disable', [AdminUsersController, 'disable'])
     router.post('users/:id/enable', [AdminUsersController, 'enable'])
     router.post('users/:id/revoke-sessions', [AdminUsersController, 'revokeSessions'])
+    router.post('users/:id/revoke-tokens', [AdminUsersController, 'revokeTokens'])
     router.post('users/:id/impersonate', [AdminUsersController, 'impersonate'])
     router.get('roles', [AdminRolesController, 'index'])
     router.post('roles', [AdminRolesController, 'store'])

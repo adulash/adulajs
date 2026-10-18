@@ -12,6 +12,8 @@
 import env from '#start/env'
 import limiter from '@adonisjs/limiter/services/main'
 import type { HttpContext } from '@adonisjs/core/http'
+import { trustedProxy } from '#config/app'
+import { isDirectProxyRequest } from '#services/trusted_proxies'
 
 const message = 'محاولات كثيرة في وقت قصير. انتظر دقيقة ثم حاول مجدداً.'
 const withMessage = (error: { setMessage(value: string): unknown }) => {
@@ -46,14 +48,36 @@ export const loginAddressThrottle = limiter.define('login_address', (ctx) =>
 )
 
 /**
- * Login: failed attempts per account from any address. Only failures count and a
- * success clears the counter; the controller applies it with `penalize`.
+ * Login: failed attempts per account and address. Only failures count and a success
+ * clears the counter; the controller applies it with `penalize`. Keying by address
+ * too means a stranger's guesses cannot lock the owner out from their own device.
  */
 export const loginAccountLimiter = limiter.use({
-  requests: 10,
+  requests: 5,
   duration: '15 minutes',
-  blockDuration: '15 minutes',
+  blockDuration: '1 minute',
 })
+/** Lockouts of one account and address within a day; each one doubles the wait. */
+export const loginLockoutLimiter = limiter.use({ requests: 1000, duration: '24 hours' })
+/** Waits after consecutive lockouts: 1, 2, 4 … minutes, capped at one hour. */
+export const LOCKOUT_MAX_MINUTES = 60
+export const lockoutMinutes = (lockouts: number) =>
+  Math.min(2 ** Math.max(lockouts - 1, 0), LOCKOUT_MAX_MINUTES)
+export const loginAccountKey = (email: string, ip: string) => `login_account:${email}:${ip}`
+
+/** Public health probe: 60 per minute per address, ample for orchestrators polling it. */
+export const HEALTH_LIMIT = 60
+export const healthThrottle = limiter.define('health', (ctx) =>
+  // The reverse proxy's own probe (trusted peer, nothing forwarded) is never starved
+  // by clients; relayed requests always carry X-Forwarded-For and are throttled.
+  isDirectProxyRequest(ctx.request.request, trustedProxy)
+    ? limiter.noLimit()
+    : limiter
+        .allowRequests(HEALTH_LIMIT)
+        .every('1 minute')
+        .usingKey(ctx.request.ip())
+        .limitExceeded(withMessage)
+)
 
 /** Password change: 5 attempts per minute per signed-in user. */
 export const passwordChangeThrottle = limiter.define('password_change', (ctx) =>

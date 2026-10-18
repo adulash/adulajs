@@ -7,6 +7,7 @@ import type { DomainEvent, Listener } from '../events/outbox.js'
 import { jsonValue } from '../admin/contracts.js'
 import { AdulaError } from '../admin/errors.js'
 import { notifyWithTemplate } from '../core/message_templates.js'
+import { escapeLike } from '../core/like.js'
 
 export type ActorLoader = { load(id: number): Promise<Actor> }
 
@@ -354,9 +355,13 @@ export class RecordCollaboration {
         .offset(offset)
         .limit(page)
         .select('id', 'full_name')
+      // Names match by substring; e-mail only by exact (case-insensitive) equality so
+      // the picker cannot be used to enumerate addresses prefix by prefix.
       if (term)
         query.where((where) =>
-          where.whereILike('full_name', `%${term}%`).orWhereILike('email', `${term}%`)
+          where
+            .whereILike('full_name', `%${escapeLike(term)}%`)
+            .orWhereRaw('lower(email) = lower(?)', [term])
         )
       const users = await query
       for (const user of users) {

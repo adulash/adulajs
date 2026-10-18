@@ -2,6 +2,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import { changePasswordValidator, profileValidator } from '#validators/user'
 import { logAuthActivity, requestContext } from '#services/auth_activity'
 import { revokeUserSessions } from '#services/sessions'
+import { revokeUserTokens } from '#services/access_tokens'
 import { acting } from '#services/impersonation'
 
 export default class ProfileController {
@@ -38,13 +39,15 @@ export default class ProfileController {
     user.password = password
     await user.save()
     await revokeUserSessions(user.id, acting(ctx), { except: session.sessionId })
+    // API tokens were minted under the old password; they end with it.
+    const tokensRevoked = await revokeUserTokens(user.id)
     await logAuthActivity({
       userId: user.id,
       actorId: acting(ctx),
       action: 'password_changed',
-      changes: requestContext(ctx),
+      changes: { ...requestContext(ctx), tokensRevoked },
     })
-    session.flash('success', 'تم تغيير كلمة المرور وإنهاء الجلسات الأخرى.')
+    session.flash('success', 'تم تغيير كلمة المرور وإنهاء الجلسات الأخرى ورموز الوصول.')
     return response.redirect().toRoute('profile.show')
   }
 }

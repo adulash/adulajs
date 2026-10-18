@@ -1,7 +1,7 @@
 import { useState, type FormEvent, type ReactElement } from 'react'
 import { Head, router } from '@inertiajs/react'
 import { Link } from '@adonisjs/inertia/react'
-import { ArrowRight, KeyRound, UserCog, UserMinus, UserCheck, X } from 'lucide-react'
+import { ArrowRight, Ban, KeyRound, UserCog, UserMinus, UserCheck, X } from 'lucide-react'
 import type { OrgUnitNode, RoleSummary, UserSummary } from 'adula'
 import Workspace from '~/layouts/workspace'
 import { AdminHeader, useDateTimeFormatter } from '~/components/admin-nav'
@@ -20,14 +20,28 @@ import {
   TableRow,
 } from '~/components/ui/table'
 
-type Props = { user: UserSummary; roles: RoleSummary[]; orgUnits: OrgUnitNode[] }
+/** Token metadata from the server; the secret is never sent. */
+type TokenSummary = {
+  id: number
+  name: string | null
+  access: 'read' | 'write'
+  createdAt: string
+  lastUsedAt: string | null
+  expiresAt: string | null
+}
+type Props = {
+  user: UserSummary
+  roles: RoleSummary[]
+  orgUnits: OrgUnitNode[]
+  tokens: TokenSummary[]
+}
 /** Indents nested units in a flat list so the hierarchy stays readable. */
 const unitOption = (unit: OrgUnitNode) => ({
   value: String(unit.id),
   label: `${'· '.repeat(unit.depth - 1)}${unit.name}`,
 })
 
-export default function UserShow({ user, roles, orgUnits }: Props) {
+export default function UserShow({ user, roles, orgUnits, tokens }: Props) {
   const formatDateTime = useDateTimeFormatter()
   const { confirm, confirmation } = useConfirmAction()
   const [roleId, setRoleId] = useState(roles[0] ? String(roles[0].id) : '')
@@ -86,7 +100,7 @@ export default function UserShow({ user, roles, orgUnits }: Props) {
           onClick={() =>
             confirm({
               title: 'إنهاء جميع الجلسات؟',
-              description: 'سيُطلب من هذا المستخدم تسجيل الدخول مجددًا.',
+              description: 'سيُطلب من هذا المستخدم تسجيل الدخول مجددًا، وتُلغى رموز الوصول الخاصة به.',
               destructive: true,
               action: () => post(`${base}/revoke-sessions`),
             })
@@ -244,6 +258,66 @@ export default function UserShow({ user, roles, orgUnits }: Props) {
           </CardContent>
         </Card>
       </div>
+      <Card className="mt-6">
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <CardTitle>رموز الوصول البرمجي</CardTitle>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={tokens.length === 0}
+            onClick={() =>
+              confirm({
+                title: 'إلغاء جميع رموز الوصول؟',
+                description: `ستتوقف ${tokens.length} من الرموز عن العمل فورًا، ولا يمكن التراجع.`,
+                destructive: true,
+                action: () => post(`${base}/revoke-tokens`),
+              })
+            }
+          >
+            <Ban size={16} />
+            إلغاء جميع الرموز
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>الاسم</TableHead>
+                <TableHead>الصلاحية</TableHead>
+                <TableHead>أُنشئ</TableHead>
+                <TableHead>آخر استخدام</TableHead>
+                <TableHead>ينتهي</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {tokens.map((token) => (
+                <TableRow key={token.id}>
+                  <TableCell>{token.name ?? 'بلا اسم'}</TableCell>
+                  <TableCell>
+                    <Badge variant={token.access === 'write' ? 'default' : 'secondary'}>
+                      {token.access === 'write' ? 'قراءة وكتابة' : 'قراءة فقط'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="tabular-nums">{formatDateTime(token.createdAt)}</TableCell>
+                  <TableCell className="tabular-nums text-muted-foreground">
+                    {token.lastUsedAt ? formatDateTime(token.lastUsedAt) : 'لم يُستخدم'}
+                  </TableCell>
+                  <TableCell className="tabular-nums text-muted-foreground">
+                    {token.expiresAt ? formatDateTime(token.expiresAt) : 'بلا انتهاء'}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {tokens.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                    لا رموز وصول لهذا المستخدم.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
       {confirmation}
     </>
   )

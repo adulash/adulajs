@@ -8,6 +8,8 @@ export type ActivityEntry = {
   actorId: number
   action: string
   changes?: Record<string, unknown>
+  /** The administrator acting as actorId through impersonation; stored as impersonatedBy. */
+  impersonatorId?: number | null
 }
 export type ActivityFilters = {
   resource?: string
@@ -37,12 +39,18 @@ export function pageLimit(limit: unknown, fallback = 50) {
 }
 
 export async function logActivity(db: Knex, entry: ActivityEntry) {
+  // Only the trusted impersonatorId may mark an entry as impersonated.
+  const changes = { ...entry.changes }
+  delete changes.impersonatedBy
   await db('activities').insert({
     resource: entry.resource,
     record_id: entry.recordId,
     actor_id: entry.actorId,
     action: entry.action,
-    changes: JSON.stringify(entry.changes ?? {}),
+    changes: JSON.stringify({
+      ...changes,
+      ...(entry.impersonatorId ? { impersonatedBy: entry.impersonatorId } : {}),
+    }),
   })
 }
 
