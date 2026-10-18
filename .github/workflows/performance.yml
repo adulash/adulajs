@@ -76,7 +76,7 @@ jobs:
       - run: pnpm --filter @adula/reference exec playwright install --with-deps chromium --only-shell
       - run: pnpm build
       - run: pnpm test:consumer
-      - run: pnpm --filter create-adula-app pack --pack-destination "$GITHUB_WORKSPACE/.work"
+      - run: pnpm --filter create-adulajs pack --pack-destination "$GITHUB_WORKSPACE/.work"
       - run: pnpm check:release --artifacts=.work
       - name: Medical consumer with the k6 workload
         run: pnpm test:medical

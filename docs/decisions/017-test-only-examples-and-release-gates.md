@@ -1,5 +1,7 @@
 # ADR 017 — Test-only examples and evidence-gated releases
 
+Release-gate paragraphs superseded by ADR 040; the test-only examples rule stands.
+
 Date: 2026-09-19. Status: accepted for implementation; release acceptance pending.
 
 The owner reserved `@adula`, requested documentation consolidation, release preparation and a local commit, selected complete 1.0 scope, and instructed removal of customers/orders/tasks from this checkout while preserving tests.

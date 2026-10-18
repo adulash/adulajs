@@ -2,17 +2,17 @@
 
 After signing in, open **الإعداد الأولي** to review identity and test notifications, mail receipt, storage and runtime services. See [initial setup](initial-setup.md).
 
-Version **1.0.0** is the accepted 1.0 release on `latest` (ADR 028). Earlier `0.2.0-alpha.*` versions remain on the `alpha` tag.
+Released versions are listed in [releases](releases.md); every release is on npm's `latest` tag.
 
-## New application: one command
+## New system: one command
 
-The standalone initializer is:
+One deployment per company is a system (نظام); each business module inside it is an application (تطبيق). Create a system with:
 
 ```sh
-npx create-adula-app@latest my-app
+npm create adulajs my-system
 ```
 
-`npm create adula-app@latest my-app` runs the same package through npm's [initializer convention](https://docs.npmjs.com/cli/v11/commands/npm-init/). It does not require an existing AdonisJS application. Node.js 24+ and npm are host prerequisites. The default requires installed/running Docker with Compose; it runs PostgreSQL 17 and Redis 7 in isolated local containers with persistent volumes and loopback ports. Alternatively pass `--services existing --connection /path/to/local.json`; see [creator options](../packages/create-adula-app/README.md).
+`npx create-adulajs@latest my-system` runs the same package directly; `npm create adulajs` uses npm's [initializer convention](https://docs.npmjs.com/cli/v11/commands/npm-init/). It does not require an existing AdonisJS application. Node.js 24+ and npm are host prerequisites. The default requires installed/running Docker with Compose; it runs PostgreSQL 17 and Redis 7 in isolated local containers with persistent volumes and loopback ports. Alternatively pass `--services existing --connection /path/to/local.json`; see [creator options](../packages/create-adulajs/README.md).
 
 The wizard requests company identity and administrator email, downloads pnpm and dependencies, creates fresh development and `_test` databases, applies migrations, installs the managed skills and project-owned shadcn UI, initializes the administrator, checks doctor/types and builds assets. Credentials go to ignored `tmp/dev-admin.txt`; company identity goes to project-owned `docs/design-identity.md`. No educational modules are included. Existing files and database names are protected from replacement. On Unix these secret files are created readable only by you (mode 0600); Windows ignores that mode, so keep the project inside your own user profile, whose default permissions exclude other users.
 
@@ -21,10 +21,10 @@ Terminal instructions are English; the application stays Arabic. Interactive ter
 For local archive testing, first run `pnpm test:create` in this repository to produce the three verified archives. Then invoke the creator using their actual absolute paths:
 
 ```sh
-npm exec --yes --package=/path/to/create-adula-app-2.0.0.tgz -- create-adula-app my-app --packages /path/to/archives
+npm exec --yes --package=/path/to/create-adulajs-<version>.tgz -- create-adulajs my-system --packages /path/to/archives
 ```
 
-Run `npm run dev` inside the created application; it starts the HTTP server and the event worker. In production the worker and scheduler are separate runtime processes described in its README. The creator installs application dependencies and local services; Node/Docker installation, real SMTP, OAuth, S3, off-site backup and production hosting remain explicit host/service configuration.
+Run `npm run dev` inside the created system; it starts the HTTP server and the event worker. In production the worker and scheduler are separate runtime processes described in its README. The creator installs application dependencies and local services; Node/Docker installation, real SMTP, OAuth, S3, off-site backup and production hosting remain explicit host/service configuration.
 
 ## Prerequisites for an existing application
 
@@ -77,4 +77,4 @@ UI work uses `.agents/skills/adula-frontend-design/SKILL.md`, local shadcn compo
 
 ## Meaning of one-command installation
 
-`npx create-adula-app@latest my-app` creates and initializes a complete application from an empty folder after the creator is published. `node ace adula:install` initializes AdulaJS inside an existing AdonisJS application. The plan's `make deploy` deploys an application; it is not an npm installer.
+`npm create adulajs my-system` creates and initializes a complete system from an empty folder. `node ace adula:install` initializes AdulaJS inside an existing AdonisJS application. The plan's `make deploy` deploys an application; it is not an npm installer.

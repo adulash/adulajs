@@ -11,9 +11,9 @@ import {
   createDatabases,
   npmEntry,
   pingRedis,
-} from '../packages/create-adula-app/src/system.mjs'
-import { dockerBackend } from '../packages/create-adula-app/src/docker-runtime.mjs'
-import { holdDockerSession } from '../packages/create-adula-app/src/docker-session.mjs'
+} from '../packages/create-adulajs/src/system.mjs'
+import { dockerBackend } from '../packages/create-adulajs/src/docker-runtime.mjs'
+import { holdDockerSession } from '../packages/create-adulajs/src/docker-session.mjs'
 import { packageNames, tarballName } from './check-release.mjs'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
@@ -109,7 +109,7 @@ await writeFile(
   })
 )
 const version = JSON.parse(
-  await readFile(join(root, 'packages/create-adula-app/package.json'), 'utf8')
+  await readFile(join(root, 'packages/create-adulajs/package.json'), 'utf8')
 ).version
 const target = join(work, `created-app-${Date.now()}`)
 const npm = await npmEntry()
@@ -148,9 +148,9 @@ try {
       npm,
       'exec',
       '--yes',
-      `--package=${join(work, tarballName('create-adula-app', version))}`,
+      `--package=${join(work, tarballName('create-adulajs', version))}`,
       '--',
-      'create-adula-app',
+      'create-adulajs',
       target,
       '--company',
       'شركة الاختبار',
@@ -170,7 +170,7 @@ try {
   )
   await writeFile(join(work, 'create-latest.json'), JSON.stringify({ root: target }, null, 2))
   const installationOutput = await readFile(join(work, 'create-from-zero.log'), 'utf8')
-  assert.match(installationOutput, /OK \[6\/6\] Typecheck and build the application/)
+  assert.match(installationOutput, /OK \[6\/6\] Typecheck and build the system/)
   assert.match(installationOutput, /Administrator credentials: tmp\/dev-admin.txt/)
   assert(
     !installationOutput.includes('\u001b'),
@@ -220,7 +220,7 @@ try {
   assert.match(await readFile(join(target, 'inertia/components/ui/dialog.tsx'), 'utf8'), /Dialog/)
   assert(
     !JSON.stringify(
-      JSON.parse(await readFile(join(root, 'packages/create-adula-app/build/template.json'), 'utf8'))
+      JSON.parse(await readFile(join(root, 'packages/create-adulajs/build/template.json'), 'utf8'))
         .files
     ).includes('#tests/fixtures')
   )
@@ -274,7 +274,7 @@ try {
     'refuse-overwrite',
     process.execPath,
     [
-      join(root, 'packages/create-adula-app/build/cli.mjs'),
+      join(root, 'packages/create-adulajs/build/cli.mjs'),
       target,
       '--company',
       'Changed',

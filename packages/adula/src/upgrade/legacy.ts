@@ -1,8 +1,8 @@
 /**
  * Names used by 1.x releases, published as `@adula/kit`. They exist only so that
  * `adula:upgrade` and migration 016 can find and rename what 1.x installed; nothing
- * else may read or write them. This file is the single allow-listed place for the
- * retired name in the core package (`pnpm check:naming`).
+ * else may read or write them. This file is the only place for the retired name in
+ * the core package; review is the only guard now (ADR 040).
  */
 const RETIRED = 'kit'
 

@@ -1,10 +1,10 @@
 # adula
 
-Resource framework for AdonisJS 7 and PostgreSQL 17, version 2.1.0 (AdulaJS since 2.0.0, ADR 039; 1.0 scope accepted by the owner, ADR 028). Node 24 or later is required. MIT licensed. The public API in `api/adula-api.json` follows semantic versioning.
+Resource framework for AdonisJS 7 and PostgreSQL 17, version 2.1.0 (AdulaJS since 2.0.0, ADR 039). Node 24 or later is required. MIT licensed. The public API in `api/adula-api.json` follows semantic versioning.
 
 ## Install into a consumer
 
-Follow the canonical [installation guide](https://github.com/adulash/adulajs/blob/main/docs/installation.md). For a new application, the separate `create-adula-app` initializer installs the AdonisJS host and application screens from an empty directory. For an existing official AdonisJS 7 React/PostgreSQL application, install the core/UI archives and documented UI prerequisites, configure AdulaJS, migrate and create the intended administrator before `node ace adula:install`. The Ace command completes initialization inside that host. No educational customers/orders/tasks modules are installed by either path.
+Follow the canonical [installation guide](https://github.com/adulash/adulajs/blob/main/docs/installation.md). For a new system, the separate `create-adulajs` initializer (`npm create adulajs my-system`) installs the AdonisJS host and system screens from an empty directory. For an existing official AdonisJS 7 React/PostgreSQL application, install the core/UI archives and documented UI prerequisites, configure AdulaJS, migrate and create the intended administrator before `node ace adula:install`. The Ace command completes initialization inside that host. No educational customers/orders/tasks modules are installed by either path.
 
 The managed rules require the bundled `.agents/skills/adula-frontend-design/SKILL.md` for UI work. It is tailored to business workflows, asks for missing company identity at project kickoff, and uses project-owned shadcn components with modal forms and record details by default. User-requested presentation exceptions remain supported. Company identity belongs in `docs/design-identity.md`, which installation never overwrites. Doctor verifies the design skill along with the idea-review skill.
 
@@ -28,14 +28,14 @@ Doctor measures the deployment's `storage/uploads` directory and warns above 5 d
 
 ## Current limitations
 
-Phases 3 and 4 (collaboration, assignments, templates and realtime notifications,
-CSV import, printing, webhooks, API tokens/OpenAPI, amend-by-copy and versioned
-XState workflows) are implemented with PostgreSQL tests; see the
+Collaboration, assignments, templates and realtime notifications, CSV import, printing,
+webhooks, API tokens/OpenAPI, amend-by-copy and versioned XState workflows are implemented
+with PostgreSQL tests; see the
 [business features guide](https://github.com/adulash/adulajs/blob/main/docs/business-features.md).
 
-- Two-factor authentication is not included; it is planned for 2.0 (ADR 027).
-- Impersonation was reviewed by automated adversarial and black-box tests only; its
-  human security review is deferred to 2.0 (ADR 027).
-- XLSX import is not available (GAP-006); CSV is.
+- Two-factor authentication is not included yet.
+- Impersonation was reviewed by automated adversarial and black-box tests only, not by
+  a human security review.
+- XLSX import is not available; CSV is.
 
-See [implementation status](https://github.com/adulash/adulajs/blob/main/docs/implementation-status.md), [gaps](https://github.com/adulash/adulajs/blob/main/GAPS.md) and [1.0 acceptance](https://github.com/adulash/adulajs/blob/main/docs/acceptance-1.0.md).
+See [implementation status](https://github.com/adulash/adulajs/blob/main/docs/implementation-status.md) and [gaps](https://github.com/adulash/adulajs/blob/main/GAPS.md).

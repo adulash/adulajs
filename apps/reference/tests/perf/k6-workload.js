@@ -1,5 +1,5 @@
 // Explicit independent-consumer fixture; no normal-runtime educational modules.
-// See docs/release-acceptance-runbook.md. This measures list/save, not cached Ability.
+// Run by .github/workflows/performance.yml. This measures list/save, not cached Ability.
 import http from 'k6/http'
 import execution from 'k6/execution'
 import { check, sleep } from 'k6'

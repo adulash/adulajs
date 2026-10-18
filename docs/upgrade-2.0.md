@@ -2,11 +2,14 @@
 
 AdulaJS 2.0 is the 1.x framework under its new name ([ADR 039](decisions/039-rename-to-adulajs.md)).
 It adds no features: packages, identifiers and a few file and database names change.
+New systems start with `npm create adulajs my-system`; this guide is only for systems
+created with 1.x. The 2.0.0 creator was published as `create-adula-app`; the creator is
+now `create-adulajs`.
 
 | 1.x | 2.0 |
 |---|---|
 | `@adula/kit` | `adula` |
-| `@adula/create-app` | `create-adula-app` |
+| `@adula/create-app` | `create-adulajs` |
 | `@adula/ui` | `@adula/ui` (unchanged) |
 | `KitError`, `KitAbility`, `KitActor` | `AdulaError`, `AdulaAbility`, `AdulaActor` |
 | `KIT_VERSION`, `withKitDatabase` | `ADULA_VERSION`, `withAdulaDatabase` |
@@ -27,7 +30,7 @@ It adds no features: packages, identifiers and a few file and database names cha
 1. Rewrite the application for the new package names and install them:
 
    ```sh
-   npx create-adula-app@latest upgrade
+   npx create-adulajs@latest upgrade
    ```
 
    This updates `package.json`, every import of `@adula/kit`, the identifiers in the table,

@@ -5,3 +5,12 @@ updates:
     directory: /
     schedule:
       interval: weekly
+  # One weekly pull request for the pnpm workspace, grouped so a release batch is reviewed once.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]

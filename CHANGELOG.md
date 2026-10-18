@@ -74,6 +74,27 @@ must review the new environment variables before upgrading a production deployme
   and `pnpm --filter @adula/ui test` fails when a registry file would change on install or
   on another `prepare` run.
 
+* Creator: the package is renamed `create-adulajs` (bin `create-adulajs`); new systems
+  start with `npm create adulajs my-system` or `npx create-adulajs@latest my-system`.
+  `create-adula-app` gets no further versions. The creator's wording calls the created
+  project a system (نظام) and the business modules inside it applications (تطبيقات).
+* Releases (ADR 040): a `v<version>` tag on `main` triggers `release.yml`, which re-runs
+  CI on that commit and publishes the CI-built archives on `latest` with provenance after
+  the owner approves the `npm` environment. Removed: `docs/release-readiness.json`, the
+  readiness guard in `check-release.mjs`, `pnpm release:status`, `pnpm check:naming`, the
+  alpha/next channels, the signed bootstrap scripts, `docs/evidence/` (now
+  [docs/releases.md](docs/releases.md)), the acceptance runbook, release packet and other
+  1.0 acceptance documents. `check-release.mjs` keeps the manifest, archive-content and
+  `SHA256SUMS` checks.
+* CI: push builds only `main` (branches run through their pull request), superseded runs
+  are cancelled, the job has a 60-minute limit. Dependabot proposes grouped weekly npm
+  updates.
+* Docs: `docs/implementation-status.md` is a short current-state page; `GAPS.md` lists only
+  open capability gaps; operational instructions move to `docs/operations.md`.
+* Removed dead code: `tests/feasibility-exercise`, `tests/agent-exercise`, the orphaned
+  `resources/index` page of the reference application, `scripts/readme-hero.mjs` (the
+  banner SVG stays) and `packages/adula/bench/list_save.ts`.
+
 ## 2.1.0 — 2026-10-17
 
 Minor release: new defaults for the copied interface and a refreshed README. No API or

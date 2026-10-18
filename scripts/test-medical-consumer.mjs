@@ -7,7 +7,7 @@ import { dirname, join, resolve, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseEnv } from 'node:util'
 import { setTimeout as delay } from 'node:timers/promises'
-import { childEnvironment } from '../packages/create-adula-app/src/system.mjs'
+import { childEnvironment } from '../packages/create-adulajs/src/system.mjs'
 import { resources } from '../tests/medical-consumer/resources.mjs'
 import { installMedicalModule } from '../tests/medical-consumer/install.mjs'
 
@@ -71,7 +71,7 @@ await stage('create', async () => {
     postgres: { host: profile.host, port: profile.port, user: profile.user, password: profile.password },
     redis: { host: reference.REDIS_HOST, port: Number(reference.REDIS_PORT), ...(reference.REDIS_PASSWORD ? { password: reference.REDIS_PASSWORD } : {}) },
   }), { mode: 0o600 })
-  await step('create', process.execPath, [join(root, 'packages/create-adula-app/build/cli.mjs'), target,
+  await step('create', process.execPath, [join(root, 'packages/create-adulajs/build/cli.mjs'), target,
     '--company', 'شريحة الأصول الطبية التجريبية', '--admin-email', 'owner@example.test',
     '--services', 'existing', '--connection', join(directory, 'services.json'),
     '--database', `adula_medical_${stamp}_test`, '--packages', work, '--yes'], { cwd: root })
