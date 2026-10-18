@@ -1,16 +1,7 @@
 import { test } from '@japa/runner'
-import { AdulaError, SavedViews } from '../index.js'
+import { SavedViews } from '../index.js'
 import { admin, db, reader, registry, setup } from './helpers.js'
-
-async function failure(run: () => Promise<unknown>): Promise<AdulaError> {
-  try {
-    await run()
-  } catch (error) {
-    if (error instanceof AdulaError) return error
-    throw error
-  }
-  throw new Error('Expected an AdulaError')
-}
+import { failure } from './helpers/failure.js'
 
 test.group('Saved views', (group) => {
   group.setup(setup)

@@ -92,14 +92,22 @@ test('the generated consumer includes the complete operational recovery command 
   const template = JSON.parse(
     await readFile(new URL('../build/template.json', import.meta.url), 'utf8')
   )
+  // The recovery commands ship in the adula package and resolve these application services.
+  const registered = await readFile(
+    new URL('../../adula/commands/main.ts', import.meta.url),
+    'utf8'
+  )
   for (const name of [
     'backup_create',
     'backup_verify_snapshot',
     'backup_restore_files',
     'backup_restore_test',
-  ])
-    assert.ok(template.files[`commands/${name}.ts`], `Missing operational command ${name}`)
-  for (const name of ['backup_snapshot', 'backup_publish'])
+  ]) {
+    assert.match(registered, new RegExp(`from './${name}.js'`), `Unregistered command ${name}`)
+    assert.equal(template.files[`commands/${name}.ts`], undefined, `Duplicate command ${name}`)
+  }
+  assert.ok(template.files['commands/adula_worker.ts'], 'Missing worker command')
+  for (const name of ['backup_snapshot', 'backup_publish', 'initial_setup', 'events'])
     assert.ok(template.files[`app/services/${name}.ts`], `Missing snapshot service ${name}`)
 })
 

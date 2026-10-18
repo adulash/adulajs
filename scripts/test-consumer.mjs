@@ -1,9 +1,7 @@
 import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { createHash, randomUUID } from 'node:crypto'
 import {
-  open,
   appendFile,
   mkdir,
   readFile,
@@ -12,8 +10,9 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises'
-import { basename, isAbsolute, join, relative, resolve } from 'node:path'
+import { isAbsolute, join, relative, resolve } from 'node:path'
 import { prepareConsumer, repo, work } from './prepare-consumer.mjs'
+import { nonZero, pnpmCommand, run } from './lib/run.mjs'
 
 const args = process.argv.slice(2).filter((arg) => arg !== '--')
 assert(
@@ -24,41 +23,17 @@ assert(Number(process.versions.node.split('.')[0]) >= 24, 'Node.js 24 or newer i
 const reuse = args.includes('--reuse')
 await mkdir(work, { recursive: true })
 
-// pnpm supplies its executable when invoking package scripts. Running its JS entry with
-// the current Node executable avoids cmd.exe quoting and .cmd spawning on Windows.
-const pnpmEntry = process.env.npm_execpath
-assert(
-  pnpmEntry && basename(pnpmEntry).includes('pnpm'),
-  'Run this harness through pnpm test:consumer'
-)
-const pnpm = /\.(?:c?js|mjs)$/.test(pnpmEntry) ? [process.execPath, pnpmEntry] : [pnpmEntry]
+const pnpm = pnpmCommand('Run this harness through pnpm test:consumer')
 
 async function step(name, command, argv, { cwd = repo, env = process.env, failure = false } = {}) {
-  const logPath = join(work, `consumer-${name}.log`)
-  const log = await open(logPath, 'w')
-  let code
-  try {
-    code = await new Promise((done, reject) => {
-      const child = spawn(command, argv, {
-        cwd,
-        env,
-        stdio: ['ignore', log.fd, log.fd],
-        shell: false,
-        windowsHide: true,
-      })
-      child.once('error', reject)
-      child.once('exit', (status, signal) =>
-        signal ? reject(new Error(`${name} stopped by ${signal}`)) : done(status)
-      )
-    })
-  } finally {
-    await log.close()
-  }
-  const output = await readFile(logPath, 'utf8')
-  if (failure ? code === 0 : code !== 0) {
-    console.error(output.split(/\r?\n/).slice(-55).join('\n'))
-    throw new Error(`Consumer step failed: ${name} (exit ${code}; ${logPath})`)
-  }
+  const { output } = await run(command, argv, {
+    cwd,
+    env,
+    log: join(work, `consumer-${name}.log`),
+    expect: failure ? nonZero : 0,
+    label: `Consumer step ${name}`,
+    tail: 55,
+  })
   console.log(`PASS ${name}`)
   return output
 }

@@ -11,8 +11,13 @@ export default class AdulaRestoreReconcile extends BaseCommand {
       throw new Error(
         'Stop web, worker and scheduler first; then pass --force after restoring the database'
       )
-    const { default: queue } = await import('@nemoventures/adonis-jobs/services/main')
-    const { default: cache } = await import('@adonisjs/cache/services/main')
+    // The queue and cache services are application dependencies, resolved from the application.
+    const { default: queue } = (await this.app.import(
+      '@nemoventures/adonis-jobs/services/main'
+    )) as { default: { clear(queues: string[]): Promise<unknown> } }
+    const { default: cache } = (await this.app.import('@adonisjs/cache/services/main')) as {
+      default: { clear(): Promise<unknown> }
+    }
     const { default: db } = await import('@adonisjs/lucid/services/db')
     // This queue contains only deliveries whose authoritative records live in outbox.
     await queue.clear(['events'])

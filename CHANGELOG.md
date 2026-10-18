@@ -96,6 +96,21 @@ must review the new environment variables before upgrading a production deployme
 * Removed dead code: `tests/feasibility-exercise`, `tests/agent-exercise`, the orphaned
   `resources/index` page of the reference application, `scripts/readme-hero.mjs` (the
   banner SVG stays) and `packages/adula/bench/list_save.ts`.
+* Operational commands ship in the `adula` package (`adula/commands`): `adula:outbox`,
+  `adula:runtime:health`, `adula:uploads:prune`, `adula:restore:reconcile`,
+  `backup:create`, `backup:restore-files`, `backup:restore-test`, `backup:verify` and
+  `backup:verify-snapshot`, with unchanged names, flags and behaviour. They still use the
+  system's own `#start/env`, `#start/modules` and `#services/*` (`events`,
+  `upload_pruning`, `backup_snapshot`, `backup_publish`, `initial_setup`), and resolve
+  `@aws-sdk/client-s3`, `@adonisjs/cache` and `@nemoventures/adonis-jobs` from the system.
+  New systems no longer receive copies under `commands/`, and now also get
+  `adula:uploads:prune`, which the creator had not copied. In an existing system the
+  packaged command runs even when a local copy with the same name remains under
+  `commands/` (only `node ace list` shows the local copy); delete those copies.
+  `adula:worker` and `adula:seed` stay in the application.
+* `adula:ui` recognizes the `inertia/css/adula.css` entry whatever its quotes and
+  spacing (prettier writes `@import './app.css';`), so re-running it no longer prepends
+  the `@layer` and `@import` lines again; a missing `@layer` line is restored on its own.
 
 ## 2.1.0 — 2026-10-17
 

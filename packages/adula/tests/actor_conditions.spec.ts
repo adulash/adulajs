@@ -2,7 +2,6 @@ import { test } from '@japa/runner'
 import {
   ACTOR_ID,
   ActorStore,
-  AdulaError,
   ResourceRegistry,
   ResourceService,
   RolesAdmin,
@@ -11,16 +10,8 @@ import {
   resolveActorConditions,
 } from '../index.js'
 import { db, order, registry, setup } from './helpers.js'
-
-async function failure(run: () => Promise<unknown>): Promise<AdulaError> {
-  try {
-    await run()
-  } catch (error) {
-    if (error instanceof AdulaError) return error
-    throw error
-  }
-  throw new Error('Expected an AdulaError')
-}
+import { failure } from './helpers/failure.js'
+import { addUserProfileColumns, seedActor } from './helpers/actors.js'
 
 test.group('Current-actor conditions ($actor.id)', (group) => {
   const roles = new RolesAdmin(db, registry)
@@ -29,9 +20,7 @@ test.group('Current-actor conditions ($actor.id)', (group) => {
   group.setup(async () => {
     await setup()
     // Host applications own users; the reference migration adds these two columns.
-    await db.raw(
-      'ALTER TABLE users ADD COLUMN full_name varchar, ADD COLUMN disabled_at timestamptz'
-    )
+    await addUserProfileColumns()
     const role = await roles.create(1, { name: 'محرر طلباته' })
     roleId = role.id
     // Everyone in the unit reads orders; each user edits only the orders they created.
@@ -42,7 +31,7 @@ test.group('Current-actor conditions ($actor.id)', (group) => {
       action: 'update',
       conditions: { createdBy: ACTOR_ID },
     })
-    await db('users').insert({ id: 3, email: 'colleague@example.test' })
+    await seedActor({ id: 3 }, { email: 'colleague@example.test' })
     await db('user_roles').insert([
       { user_id: 2, role_id: roleId },
       { user_id: 3, role_id: roleId },

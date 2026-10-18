@@ -1,32 +1,18 @@
 import { test } from '@japa/runner'
-import { AdulaError, RecordCollaboration, ResourceService } from '../index.js'
-import type { Actor } from '../index.js'
+import { RecordCollaboration, ResourceService } from '../index.js'
 import { admin, db, reader, registry, setup } from './helpers.js'
-
-async function failure(run: () => Promise<unknown>): Promise<AdulaError> {
-  try {
-    await run()
-  } catch (error) {
-    if (error instanceof AdulaError) return error
-    throw error
-  }
-  throw new Error('Expected an AdulaError')
-}
+import { failure } from './helpers/failure.js'
+import {
+  addUserProfileColumns,
+  outsider as anOutsider,
+  seedActor,
+  viewer as aViewer,
+} from './helpers/actors.js'
 
 /** A user in a sibling organization: can use orders, but not records of unit 1.2. */
-const outsider: Actor = {
-  id: 3,
-  orgPaths: ['1.3'],
-  permissionLevel: 0,
-  rules: [{ subject: 'orders', action: ['view', 'update'] }],
-}
+const outsider = anOutsider()
 /** Can read orders in 1.2 but not update them, and never the total field. */
-const viewer: Actor = {
-  id: 4,
-  orgPaths: ['1.2'],
-  permissionLevel: 0,
-  rules: [{ subject: 'orders', action: 'view' }],
-}
+const viewer = aViewer()
 const actors = new Map([admin, reader, outsider, viewer].map((actor) => [actor.id, actor]))
 
 test.group('Record collaboration', (group) => {
@@ -37,16 +23,19 @@ test.group('Record collaboration', (group) => {
 
   group.setup(async () => {
     await setup()
-    await db.raw(
-      'ALTER TABLE users ADD COLUMN full_name varchar, ADD COLUMN disabled_at timestamptz'
+    await addUserProfileColumns()
+    await seedActor(admin, { fullName: 'مدير النظام' })
+    await seedActor(reader, { fullName: 'سارة القارئة' })
+    await seedActor(outsider, { email: 'outsider@example.test', fullName: 'خالد الخارجي' })
+    await seedActor(viewer, { email: 'viewer@example.test', fullName: 'منى المشاهدة' })
+    await seedActor(
+      { id: 5 },
+      {
+        email: 'disabled@example.test',
+        fullName: 'معطل',
+        disabled: true,
+      }
     )
-    await db('users').where('id', 1).update({ full_name: 'مدير النظام' })
-    await db('users').where('id', 2).update({ full_name: 'سارة القارئة' })
-    await db('users').insert([
-      { id: 3, email: 'outsider@example.test', full_name: 'خالد الخارجي' },
-      { id: 4, email: 'viewer@example.test', full_name: 'منى المشاهدة' },
-      { id: 5, email: 'disabled@example.test', full_name: 'معطل', disabled_at: db.fn.now() },
-    ])
     const saved = await service().save('orders', admin, {
       notes: 'طلب للتعاون',
       total: 1500,

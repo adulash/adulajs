@@ -2,7 +2,23 @@ import { BaseCommand, flags } from '@adonisjs/core/ace'
 import { resolve, join, basename } from 'node:path'
 import { createReadStream } from 'node:fs'
 import { stat, writeFile } from 'node:fs/promises'
-import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from '@aws-sdk/client-s3'
+import { applicationEnv, backupSnapshotService, type SnapshotTransport } from './backup_services.js'
+
+type S3Command = new (input: Record<string, unknown>) => unknown
+/**
+ * The subset of `@aws-sdk/client-s3` this command uses. The SDK is an application
+ * dependency (the reference and generated systems declare it), resolved through the
+ * application's importer only when offsite storage is configured.
+ */
+type S3Sdk = {
+  S3Client: new (config: Record<string, unknown>) => {
+    send(command: unknown): Promise<{ Body?: unknown }>
+    destroy(): void
+  }
+  PutObjectCommand: S3Command
+  GetObjectCommand: S3Command
+  HeadObjectCommand: S3Command
+}
 
 export default class BackupCreate extends BaseCommand {
   static commandName = 'backup:create'
@@ -18,17 +34,22 @@ export default class BackupCreate extends BaseCommand {
   declare prefix: string
 
   async run() {
-    const { default: env } = await import('#start/env')
+    const env = await applicationEnv(this.app)
     const { default: db } = await import('@adonisjs/lucid/services/db')
-    const { Settings } = await import('adula')
-    const { createSnapshot } = await import('#services/backup_snapshot')
-    const { publishSnapshot } = await import('#services/backup_publish')
+    const { Settings } = await import('../src/services/settings.js')
+    const { createSnapshot } = await backupSnapshotService(this.app)
+    const { publishSnapshot } = (await this.app.import('#services/backup_publish')) as {
+      publishSnapshot(directory: string, transport: SnapshotTransport): Promise<void>
+    }
     const directory = resolve(this.snapshot)
     const bucket = env.get('BACKUP_S3_BUCKET')
     const prefix =
       this.prefix ?? `${env.get('BACKUP_S3_PREFIX') ?? 'adula'}/${basename(directory)}/`
     if (!/^adula\/[a-zA-Z0-9/_-]+\/$/.test(prefix) || prefix.includes('//'))
       throw new Error('Invalid offsite prefix')
+    const { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } = bucket
+      ? ((await this.app.import('@aws-sdk/client-s3')) as S3Sdk)
+      : ({} as S3Sdk)
     const client = bucket
       ? new S3Client({
           region: env.get('BACKUP_S3_REGION'),

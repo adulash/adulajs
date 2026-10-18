@@ -2,6 +2,7 @@ import { BaseCommand, flags } from '@adonisjs/core/ace'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
+import { applicationEnv, backupSnapshotService } from './backup_services.js'
 
 export default class BackupVerifySnapshot extends BaseCommand {
   static commandName = 'backup:verify-snapshot'
@@ -11,9 +12,10 @@ export default class BackupVerifySnapshot extends BaseCommand {
   declare snapshot: string
 
   async run() {
-    const { verifySnapshot, extractSnapshot, verifyAttachments } =
-      await import('#services/backup_snapshot')
-    const { default: env } = await import('#start/env')
+    const { verifySnapshot, extractSnapshot, verifyAttachments } = await backupSnapshotService(
+      this.app
+    )
+    const env = await applicationEnv(this.app)
     const directory = resolve(this.snapshot)
     const files = await verifySnapshot(directory)
     if (!files && env.get('DRIVE_DISK') !== 'local')

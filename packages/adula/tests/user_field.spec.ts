@@ -2,7 +2,6 @@ import { test } from '@japa/runner'
 import { BaseModel } from '@adonisjs/lucid/orm'
 import {
   ACTOR_ID,
-  AdulaError,
   ResourceRegistry,
   ResourceService,
   RolesAdmin,
@@ -16,6 +15,8 @@ import {
 } from '../index.js'
 import type { Actor, RecordData } from '../index.js'
 import { db, setup } from './helpers.js'
+import { failure } from './helpers/failure.js'
+import { addUserProfileColumns, seedActor } from './helpers/actors.js'
 
 const ticket = defineResource({
   name: 'tickets',
@@ -75,31 +76,17 @@ const agent: Actor = {
   rules: [{ subject: 'tickets', action: 'manage' }],
 }
 
-async function failure(run: () => Promise<unknown>): Promise<AdulaError> {
-  try {
-    await run()
-  } catch (error) {
-    if (error instanceof AdulaError) return error
-    throw error
-  }
-  throw new Error('Expected an AdulaError')
-}
-
 test.group('User fields', (group) => {
   const service = () => new ResourceService(db, registry)
   group.setup(async () => {
     await setup()
-    await db.raw(
-      'ALTER TABLE users ADD COLUMN full_name varchar, ADD COLUMN disabled_at timestamptz'
-    )
-    await db('users').where('id', 1).update({ full_name: 'مدير النظام' })
-    await db('users').where('id', 2).update({ full_name: 'سارة الوكيلة' })
-    await db('users').insert([
-      { id: 3, email: 'sibling@example.test', full_name: 'خالد من الوحدة ب' },
-      { id: 4, email: 'root@example.test', full_name: 'منى من الجذر' },
-      { id: 5, email: 'disabled@example.test', full_name: 'معطل', disabled_at: db.fn.now() },
-      { id: 6, email: 'child@example.test', full_name: 'علي من الوحدة الفرعية' },
-    ])
+    await addUserProfileColumns()
+    await seedActor({ id: 1 }, { fullName: 'مدير النظام' })
+    await seedActor(agent, { fullName: 'سارة الوكيلة' })
+    await seedActor({ id: 3 }, { email: 'sibling@example.test', fullName: 'خالد من الوحدة ب' })
+    await seedActor({ id: 4 }, { email: 'root@example.test', fullName: 'منى من الجذر' })
+    await seedActor({ id: 5 }, { email: 'disabled@example.test', fullName: 'معطل', disabled: true })
+    await seedActor({ id: 6 }, { email: 'child@example.test', fullName: 'علي من الوحدة الفرعية' })
     await db('user_org_units').insert([
       { user_id: 1, org_unit_id: 1 },
       { user_id: 2, org_unit_id: 2 },

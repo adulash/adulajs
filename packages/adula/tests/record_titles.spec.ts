@@ -8,7 +8,8 @@ import {
   defineResource,
 } from '../index.js'
 import type { Actor, RecordData } from '../index.js'
-import { db, setup, admin, reader, customer, order, line } from './helpers.js'
+import { db, setup, admin, customer, order, line } from './helpers.js'
+import { ace, addUserProfileColumns } from './helpers/actors.js'
 
 // A ticket declares its title: its code and its status label, never the raw lookup key.
 const ticket = defineResource({
@@ -47,15 +48,13 @@ const registry = new ResourceRegistry().register([
   },
 ])
 const service = new ResourceService(db, registry)
-const staff: Actor = { ...reader, rules: [{ subject: 'all', action: 'manage' }] }
+const staff = ace()
 
 test.group('Record titles (#47, #32)', (group) => {
   group.setup(async () => {
     await setup()
     await createResourceTable(db, ticket)
-    await db.raw(
-      'ALTER TABLE users ADD COLUMN full_name varchar, ADD COLUMN disabled_at timestamptz'
-    )
+    await addUserProfileColumns()
   })
 
   test('definitions accept only readable, displayable title fields', ({ assert }) => {

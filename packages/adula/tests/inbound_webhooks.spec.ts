@@ -1,8 +1,9 @@
 import { createHmac } from 'node:crypto'
 import { test } from '@japa/runner'
-import { InboundWebhooks, AdulaError, consumeEvent, inboundEventName } from '../index.js'
+import { InboundWebhooks, consumeEvent, inboundEventName } from '../index.js'
 import type { DomainEvent, SecretBox } from '../index.js'
 import { db, setup } from './helpers.js'
+import { failure } from './helpers/failure.js'
 
 const secrets: SecretBox = {
   seal: (value) => `sealed:${Buffer.from(value).toString('base64')}`,
@@ -20,16 +21,6 @@ async function code(run: () => Promise<unknown>) {
   const error = await failure(run)
   return error.code
 }
-async function failure(run: () => Promise<unknown>): Promise<AdulaError> {
-  try {
-    await run()
-  } catch (error) {
-    if (error instanceof AdulaError) return error
-    throw error
-  }
-  throw new Error('Expected an AdulaError')
-}
-
 test.group('Signed inbound webhooks', (group) => {
   const inbound = new InboundWebhooks(db, secrets)
   let sourceId = 0

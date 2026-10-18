@@ -1,7 +1,6 @@
 import { test } from '@japa/runner'
 import {
   ActivityAdmin,
-  AdulaError,
   NotificationsAdmin,
   OrgUnitsAdmin,
   RolesAdmin,
@@ -16,16 +15,9 @@ import {
   runtimeHealth,
 } from '../index.js'
 import { db, setup, registry } from './helpers.js'
+import { failure } from './helpers/failure.js'
+import { addUserProfileColumns } from './helpers/actors.js'
 
-async function failure(run: () => Promise<unknown>): Promise<AdulaError> {
-  try {
-    await run()
-  } catch (error) {
-    if (error instanceof AdulaError) return error
-    throw error
-  }
-  throw new Error('Expected an AdulaError')
-}
 async function code(run: () => Promise<unknown>) {
   const error = await failure(run)
   return error.code
@@ -46,9 +38,7 @@ test.group('Core administration services', (group) => {
   group.setup(async () => {
     await setup()
     // Host applications own users; the reference migration adds these two columns.
-    await db.raw(
-      'ALTER TABLE users ADD COLUMN full_name varchar, ADD COLUMN disabled_at timestamptz'
-    )
+    await addUserProfileColumns()
     await db('users').where('id', 1).update({ full_name: 'مدير النظام' })
     // The fixture inserts explicit org unit ids; new units must continue after them.
     await db.raw(
