@@ -18,6 +18,10 @@ import cache from '@adonisjs/cache/services/main'
 import type { Actor } from 'adula'
 import type { HttpContext } from '@adonisjs/core/http'
 import { activeImpersonation } from '#services/impersonation'
+import { HttpChannelSettings } from 'adula'
+import { SyncJobs } from 'adula'
+import logger from '@adonisjs/core/services/logger'
+import { syncJobDefinitions } from '#start/sync_jobs'
 
 export { IMPERSONATOR_KEY } from '#services/impersonation'
 
@@ -49,10 +53,27 @@ export function adula() {
       { post: createOutboundPoster(outboundPolicy()) }
     ),
     imports: new ImportBatches(knex, registry, resources, actors),
+    // Declared in start/sync_jobs.ts; the scheduler queues them and the worker runs them.
+    syncJobs: new SyncJobs(knex, resources, syncJobDefinitions, {
+      logger: {
+        info: (message, data) => logger.info(data ?? {}, message),
+        warn: (message, data) => logger.warn(data ?? {}, message),
+        error: (message, data) => logger.error(data ?? {}, message),
+      },
+    }),
     inbound: new InboundWebhooks(knex, {
       seal: (value) => encryption.encrypt(value),
       open: (value) => encryption.decrypt<string>(value),
     }),
+    // The SMS/WhatsApp provider; its signing secret is sealed like webhook secrets.
+    channelSettings: new HttpChannelSettings(
+      knex,
+      {
+        seal: (value) => encryption.encrypt(value),
+        open: (value) => encryption.decrypt<string>(value),
+      },
+      outboundPolicy()
+    ),
     webhooks: new Webhooks(
       knex,
       registry,

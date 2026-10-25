@@ -2,6 +2,58 @@
 
 ## Unreleased
 
+### Integration surface
+
+Minor: new exports only (`pnpm check:api` reports additions). It adds three additive
+migrations: `1770000000041_import_modes`, `1770000000042_sync_jobs` and
+`1770000000043_notification_channels`. See docs/integration.md and ADR 043.
+
+* **Generated API client.**
+  * `apiClientSource` and `apiClientDeclarations` turn the OpenAPI document into one
+    self-contained typed TypeScript client (`createAdulaClient`, `AdulaApiError`). It needs
+    no package.
+  * The client is served per token at `GET /api/v1/client.ts` and `GET /api/v1/client.d.ts`.
+  * New command `node ace adula:client [--as-user] [--url] [--output]` writes it under `clients/`.
+  * The OpenAPI document gains `operationId`s, list `filters[field]`, sort enums,
+    `estimate`, aggregate `filters`/`count`, the amend path, the imports endpoints and an
+    `ImportBatch` schema.
+  * Actor-filtered documents now leave out fields the caller can never read or write.
+* **Imports.**
+  * Format adapters (`ImportAdapter`, `csvImportAdapter`, `importFile`, the `adapters`
+    option and `registerAdapter`) are the registration point for XLSX. No XLSX parser is
+    bundled.
+  * Per-resource CSV header templates in Arabic.
+  * Dry-run validation with a per-row report (status `validated`).
+  * `upsert` mode by a `unique` field (needs the update permission).
+  * Bearer API routes under `/api/v1`: imports list, show, create (JSON or multipart),
+    start and template.
+  * Type note: `ImportBatches` methods now return `ImportBatchRecord`, whose `status` adds
+    `'validated'`. Code that assigns their result to the older `ImportBatch` type (kept
+    unchanged and deprecated) must switch to `ImportBatchRecord`. `pnpm check:api`
+    compares exported names and does not report this.
+  * Upsert keeps a record's stored value when its cell is empty; creates treat an empty
+    cell as no value.
+* **Sync jobs.**
+  * `defineSyncJob` and `SyncJobs` define and run them. The scheduler queues runs and the
+    worker runs them; run history is kept in `sync_job_runs`, with error categories and
+    stale-run recovery.
+  * The admin jobs page has a «مهام المزامنة» section with «تشغيل الآن» and history.
+    Routes: `POST /admin/jobs/sync/:name/run` and `GET /admin/jobs/sync/:name/runs`.
+* **Notification channels.**
+  * The `NotificationChannel` interface has in-app and e-mail implementations, and
+    `NotificationChannels` dispatches to them.
+  * Per-user channel preferences are set on the profile (`PUT /account/notification-channels`).
+  * `httpNotificationChannel` is a signed, vendor-neutral SMS/WhatsApp HTTP provider sent
+    through the guarded outbound client.
+  * The provider is configured under admin settings, with the secret sealed in
+    `channels.http` and shown once. Routes: `PUT /admin/settings/channels`,
+    `POST /admin/settings/channels/rotate` and `POST /admin/settings/channels/test`.
+  * `notifyWithTemplate` keeps its signature. It now skips e-mail for users who turned it
+    off, and queues opt-in channel deliveries in the same transaction.
+  * New `isSealedSetting`: `channels.*` settings are read-only in the generic settings editor.
+* The reference worker now delivers notifications through the channel dispatcher and runs
+  sync jobs in a lane of their own.
+
 ### Optional languages
 
 Minor: Arabic stays the base language and every other language is an optional layer

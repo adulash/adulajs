@@ -1,7 +1,8 @@
 import type { ReactElement, ReactNode } from 'react'
 import { Head, router } from '@inertiajs/react'
 import { RotateCcw } from 'lucide-react'
-import type { QueueSnapshot, RuntimeHealth } from 'adula'
+import type { QueueSnapshot, RuntimeHealth, SyncJobSummary } from 'adula'
+import { SyncJobsSection } from '~/components/sync-jobs'
 import Workspace from '~/layouts/workspace'
 import { AdminHeader, formatAge, useDateTimeFormatter } from '~/components/admin-nav'
 import { Button } from '~/components/ui/button'
@@ -16,7 +17,7 @@ import {
   TableRow,
 } from '~/components/ui/table'
 
-type Props = { health: RuntimeHealth; queues: QueueSnapshot[] }
+type Props = { health: RuntimeHealth; queues: QueueSnapshot[]; syncJobs: SyncJobSummary[] }
 
 function Stat({
   title,
@@ -41,7 +42,7 @@ const Health = ({ healthy, ok, bad }: { healthy: boolean; ok: string; bad: strin
   <Badge variant={healthy ? 'default' : 'destructive'}>{healthy ? ok : bad}</Badge>
 )
 
-export default function JobsIndex({ health, queues }: Props) {
+export default function JobsIndex({ health, queues, syncJobs }: Props) {
   const formatDateTime = useDateTimeFormatter()
   const counts: [keyof QueueSnapshot['counts'], string][] = [
     ['waiting', 'بانتظار'],
@@ -92,6 +93,7 @@ export default function JobsIndex({ health, queues }: Props) {
           آخر اختبار استعادة: {formatDateTime(health.backup.lastRestoreTest)}
         </Stat>
       </div>
+      <SyncJobsSection jobs={syncJobs} />
       {queues.map((queue) => (
         <section
           key={queue.name}

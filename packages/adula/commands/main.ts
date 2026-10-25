@@ -19,6 +19,7 @@ import BackupRestoreTest from './backup_restore_test.js'
 import BackupVerify from './backup_verify.js'
 import BackupVerifySnapshot from './backup_verify_snapshot.js'
 import App from './app.js'
+import Client from './client.js'
 const commands = [
   Resource,
   ResourceSnapshot,
@@ -41,6 +42,7 @@ const commands = [
   BackupVerify,
   BackupVerifySnapshot,
   App,
+  Client,
 ]
 export async function getMetaData() {
   return commands.map((command) => {

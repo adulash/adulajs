@@ -10,6 +10,10 @@ import {
   AuthenticationSettings,
   type AuthenticationSettingsProps,
 } from '~/components/authentication-settings'
+import {
+  MessagingChannelSettings,
+  type MessagingChannelProps,
+} from '~/components/messaging-channel-settings'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
 import { useConfirmAction } from '~/components/ui/confirm-action'
 import { Button } from '~/components/ui/button'
@@ -40,6 +44,7 @@ type Props = {
   scope: SettingScope
   scopeId: string
   authentication: AuthenticationSettingsProps
+  messagingChannel: MessagingChannelProps
 } & MailTestProps
 type Draft = { id: number | null; key: string; value: string }
 const SCOPES: [SettingScope, string][] = [
@@ -64,6 +69,7 @@ export default function SettingsIndex({
   mailTest,
   mailRecipient,
   authentication,
+  messagingChannel,
 }: Props) {
   const preferences = useUiPreferences()
   const { confirm, confirmation } = useConfirmAction()
@@ -100,6 +106,7 @@ export default function SettingsIndex({
       <UiSettings key={JSON.stringify(preferences)} initial={preferences} />
       <AuthenticationSettings authentication={authentication} />
       <MailTest mailTest={mailTest} mailRecipient={mailRecipient} />
+      <MessagingChannelSettings channel={messagingChannel} />
       <h2 className="mb-4 text-lg font-semibold">إعدادات متقدمة</h2>
       <div className="mb-6 flex flex-wrap items-center gap-4">
         <Tabs value={scope} onValueChange={(value) => visit(value as SettingScope, '')}>

@@ -27,8 +27,27 @@ const RESOURCE = 'core.settings'
 
 export function isProtectedSetting(key: string) {
   return (
-    PROTECTED_SETTING_KEYS.includes(key) || key.startsWith('backup.') || key.startsWith('setup.')
+    PROTECTED_SETTING_KEYS.includes(key) ||
+    key.startsWith('backup.') ||
+    key.startsWith('setup.') ||
+    isSealedSetting(key)
   )
+}
+
+/**
+ * Settings that hold a sealed secret (`channels.*`, written by their own section). The
+ * settings screen lists them read-only and never returns the sealed value.
+ */
+export function isSealedSetting(key: string) {
+  return key.startsWith('channels.')
+}
+
+function presentValue(key: string, value: JsonValue): JsonValue {
+  if (!isSealedSetting(key) || !value || typeof value !== 'object' || Array.isArray(value))
+    return value
+  const rest = { ...(value as Record<string, JsonValue>) }
+  delete rest.secret
+  return rest
 }
 
 export function parseSettingValue(text: string): unknown {
@@ -59,7 +78,7 @@ function toRow(row: Record<string, unknown>): SettingRow {
     key: String(row.key),
     scope: row.scope as SettingScope,
     scopeId: String(row.scope_id),
-    value: row.value as JsonValue,
+    value: presentValue(String(row.key), row.value as JsonValue),
     readOnly: isProtectedSetting(String(row.key)),
   }
 }

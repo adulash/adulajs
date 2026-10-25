@@ -14,10 +14,24 @@ import {
   ConnectedAccountsCard,
   type ConnectionsProps,
 } from '~/components/account/connected-accounts-card'
+import {
+  NotificationChannelsCard,
+  type NotificationChannelsProps,
+} from '~/components/account/notification-channels-card'
 
-type Props = { twoFactor: TwoFactorProps; connections: ConnectionsProps; csrfToken: string }
+type Props = {
+  twoFactor: TwoFactorProps
+  connections: ConnectionsProps
+  csrfToken: string
+  notificationChannels: NotificationChannelsProps
+}
 
-export default function Profile({ twoFactor, connections, csrfToken }: Props) {
+export default function Profile({
+  twoFactor,
+  connections,
+  csrfToken,
+  notificationChannels,
+}: Props) {
   const { props, flash } = usePage<{ user?: { fullName: string | null; email: string } }>()
   const user = props.user
   return (
@@ -161,6 +175,11 @@ export default function Profile({ twoFactor, connections, csrfToken }: Props) {
         </Card>
       </div>
       <LanguageSetting />
+
+      <h2 className="mt-10 mb-4 text-lg font-semibold">الإشعارات</h2>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <NotificationChannelsCard channels={notificationChannels} />
+      </div>
 
       <h2 className="mt-10 mb-4 text-lg font-semibold">الأمان وطرق الدخول</h2>
       <div className="grid gap-6 lg:grid-cols-2">

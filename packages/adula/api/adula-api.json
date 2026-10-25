@@ -80,6 +80,22 @@
       "kind": "VariableDeclaration",
       "type": "Label"
     },
+    "apiClientDeclarations": {
+      "kind": "FunctionDeclaration",
+      "type": "(document: ApiClientDocument) => string"
+    },
+    "ApiClientDocument": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ info?: { title?: string | undefined; version?: string | undefined; } | undefined; servers?: { url: string; }[] | undefined; paths: Record<string, Record<string, unknown>>; components?: { schemas?: Record<string, Schema> | undefined; } | undefined; }"
+    },
+    "ApiClientOptions": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ baseUrl?: string | undefined; }"
+    },
+    "apiClientSource": {
+      "kind": "FunctionDeclaration",
+      "type": "(document: ApiClientDocument, options?: ApiClientOptions | undefined) => string"
+    },
     "arabicMessages": {
       "kind": "VariableDeclaration",
       "type": "Readonly<Record<string, string>>"
@@ -180,6 +196,50 @@
       "kind": "ClassDeclaration",
       "type": "typeof CatalogMessagesProvider"
     },
+    "CHANNEL_KIND_LABELS": {
+      "kind": "VariableDeclaration",
+      "type": "Record<string, ChannelLabel>"
+    },
+    "CHANNEL_MAX_ATTEMPTS": {
+      "kind": "VariableDeclaration",
+      "type": "number"
+    },
+    "ChannelContext": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ deliveryId: string; attempt: number; signal: AbortSignal; }"
+    },
+    "ChannelDelivery": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"always\" | \"template\" | \"opt-in\""
+    },
+    "ChannelDeliveryError": {
+      "kind": "ClassDeclaration",
+      "type": "typeof ChannelDeliveryError"
+    },
+    "ChannelDispatchResult": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ sent: number; failed: number; skipped: number; }"
+    },
+    "ChannelLabel": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ ar: string; en?: string | undefined; }"
+    },
+    "ChannelMessage": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ id: number; subject: string; text: string; target: NotificationTarget | null; }"
+    },
+    "ChannelPreference": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ key: string; label: ChannelLabel; delivery: ChannelDelivery; enabled: boolean; address: string | null; locked: boolean; }"
+    },
+    "ChannelPreferenceInput": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ key: unknown; enabled: unknown; address?: unknown; }"
+    },
+    "ChannelRecipient": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ userId: number; email: string; name: string | null; address: string | null; }"
+    },
     "claimAttachment": {
       "kind": "FunctionDeclaration",
       "type": "(trx: Transaction<any, any[]>, input: ClaimInput) => Promise<AttachmentRecord>"
@@ -232,6 +292,10 @@
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>) => Promise<void>"
     },
+    "createImportModesSchema": {
+      "kind": "FunctionDeclaration",
+      "type": "(db: Knex<any, any[]>) => Promise<void>"
+    },
     "createImportsSchema": {
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>) => Promise<void>"
@@ -245,6 +309,10 @@
       "type": "(db: Knex<any, any[]>) => Promise<void>"
     },
     "createMessagingSchema": {
+      "kind": "FunctionDeclaration",
+      "type": "(db: Knex<any, any[]>) => Promise<void>"
+    },
+    "createNotificationChannelsSchema": {
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>) => Promise<void>"
     },
@@ -272,6 +340,10 @@
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>) => Promise<void>"
     },
+    "createSyncJobsSchema": {
+      "kind": "FunctionDeclaration",
+      "type": "(db: Knex<any, any[]>) => Promise<void>"
+    },
     "createTwoFactorSchema": {
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>) => Promise<void>"
@@ -287,6 +359,10 @@
     "createWorkflowSchema": {
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>) => Promise<void>"
+    },
+    "csvImportAdapter": {
+      "kind": "VariableDeclaration",
+      "type": "ImportAdapter"
     },
     "currentLanguage": {
       "kind": "FunctionDeclaration",
@@ -311,6 +387,10 @@
     "defineResource": {
       "kind": "FunctionDeclaration",
       "type": "<const F extends Record<string, Field>>(input: ResourceInput<F>) => Omit<Resource, \"fields\" | \"list\" | \"form\" | \"show\" | \"hidden\" | \"serialize\" | \"title\"> & { fields: F; list: readonly (keyof F & string)[]; form: readonly (keyof F & string)[]; show: readonly (keyof F & string)[]; hidden?: readonly (keyof F & string)[] | undefined; serialize?: readonly (keyof F & string)[] | undefined; title?: readonly (keyof F & string)[] | undefined; } & Resource"
+    },
+    "defineSyncJob": {
+      "kind": "FunctionDeclaration",
+      "type": "(input: SyncJobInput) => SyncJobDefinition"
     },
     "defineWorkflow": {
       "kind": "FunctionDeclaration",
@@ -400,6 +480,38 @@
       "kind": "FunctionDeclaration",
       "type": "(html: string, options: { gotenbergUrl: string; timeoutMs?: number | undefined; fetch?: { (input: RequestInfo | URL, init?: RequestInit | undefined): Promise<Response>; (input: string | Request | URL, init?: RequestInit | undefined): Promise<Response>; } | undefined; }) => Promise<Buffer<ArrayBuffer>>"
     },
+    "HTTP_CHANNEL_KINDS": {
+      "kind": "VariableDeclaration",
+      "type": "readonly [\"sms\", \"whatsapp\"]"
+    },
+    "HTTP_CHANNEL_SETTING_KEY": {
+      "kind": "VariableDeclaration",
+      "type": "\"channels.http\""
+    },
+    "HttpChannelConfig": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ enabled: boolean; kind: \"sms\" | \"whatsapp\"; url: string; hasSecret: boolean; updatedAt: string | null; }"
+    },
+    "HttpChannelInput": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ enabled: unknown; kind: unknown; url: unknown; }"
+    },
+    "HttpChannelKind": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"sms\" | \"whatsapp\""
+    },
+    "HttpChannelOptions": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ key: string; label?: ChannelLabel | undefined; url: string; secret: string | null; post?: HttpPoster | undefined; link?: ((target: NotificationTarget) => string | null) | undefined; timeoutMs?: number | undefined; }"
+    },
+    "HttpChannelSettings": {
+      "kind": "ClassDeclaration",
+      "type": "typeof HttpChannelSettings"
+    },
+    "httpNotificationChannel": {
+      "kind": "FunctionDeclaration",
+      "type": "(options: HttpChannelOptions) => NotificationChannel"
+    },
     "HttpPoster": {
       "kind": "TypeAliasDeclaration",
       "type": "(url: string, init: OutboundRequest) => Promise<{ status: number; }>"
@@ -412,6 +524,10 @@
       "kind": "VariableDeclaration",
       "type": "5000"
     },
+    "ImportAdapter": {
+      "kind": "InterfaceDeclaration",
+      "type": "ImportAdapter"
+    },
     "ImportBatch": {
       "kind": "TypeAliasDeclaration",
       "type": "{ id: number; resource: string; resourceLabel: string; fileName: string; status: ImportStatus; headers: string[]; mapping: Record<string, string>; sample: string[][]; total: number; processed: number; created: number; failed: number; errors: { row: number; message: string; }[]; createdAt: string; finishedAt: string | null; targets: ImportTarget[]; }"
@@ -420,17 +536,69 @@
       "kind": "ClassDeclaration",
       "type": "typeof ImportBatches"
     },
+    "ImportBatchesOptions": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ adapters?: ImportAdapter[] | undefined; }"
+    },
+    "ImportBatchRecord": {
+      "kind": "TypeAliasDeclaration",
+      "type": "Omit<ImportBatch, \"status\" | \"targets\"> & { status: ImportBatchStatus; mode: ImportMode; matchField: string | null; dryRun: boolean; updated: number; report: ImportReportRow[]; targets: ImportTargetField[]; }"
+    },
+    "ImportBatchStatus": {
+      "kind": "TypeAliasDeclaration",
+      "type": "ImportStatus | \"validated\""
+    },
     "importCell": {
       "kind": "FunctionDeclaration",
       "type": "(field: Field, raw: string, lookups: Map<string, string>) => unknown"
+    },
+    "ImportCreateInput": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ fileName: unknown; content: unknown; format?: unknown; encoding?: unknown; mimeType?: unknown; mode?: unknown; matchField?: unknown; dryRun?: unknown; }"
+    },
+    "importFile": {
+      "kind": "FunctionDeclaration",
+      "type": "(fileName: string, bytes: Uint8Array<ArrayBufferLike>, mimeType?: string | undefined) => ImportFile"
+    },
+    "ImportFile": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ fileName: string; mimeType?: string | undefined; bytes: Uint8Array<ArrayBufferLike>; readonly text: string; }"
+    },
+    "ImportMode": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"create\" | \"upsert\""
+    },
+    "ImportReportRow": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ row: number; ok: boolean; action?: \"create\" | \"update\" | undefined; message?: string | undefined; }"
+    },
+    "ImportStartOptions": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ mode?: unknown; matchField?: unknown; dryRun?: unknown; }"
     },
     "ImportStatus": {
       "kind": "TypeAliasDeclaration",
       "type": "\"running\" | \"failed\" | \"mapping\" | \"queued\" | \"done\""
     },
+    "ImportTable": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ headers: string[]; rows: string[][]; }"
+    },
     "ImportTarget": {
       "kind": "TypeAliasDeclaration",
       "type": "{ key: string; label: string; type: string; required: boolean; }"
+    },
+    "ImportTargetField": {
+      "kind": "TypeAliasDeclaration",
+      "type": "ImportTarget & { unique: boolean; }"
+    },
+    "IN_APP_CHANNEL": {
+      "kind": "VariableDeclaration",
+      "type": "\"in_app\""
+    },
+    "inAppChannel": {
+      "kind": "FunctionDeclaration",
+      "type": "() => NotificationChannel"
     },
     "INBOUND_BODY_LIMIT": {
       "kind": "VariableDeclaration",
@@ -499,6 +667,10 @@
     "isRelativeDiskPath": {
       "kind": "FunctionDeclaration",
       "type": "(path: unknown) => path is string"
+    },
+    "isSealedSetting": {
+      "kind": "FunctionDeclaration",
+      "type": "(key: string) => boolean"
     },
     "Jobs": {
       "kind": "InterfaceDeclaration",
@@ -576,9 +748,17 @@
       "kind": "TypeAliasDeclaration",
       "type": "{ id: number; group: string; key: string; labelAr: string; labelEn: string; sort: number; active: boolean; usage: number | null; declared: boolean; }"
     },
+    "MAIL_CHANNEL": {
+      "kind": "VariableDeclaration",
+      "type": "\"mail\""
+    },
     "MAIL_TEST_KEY": {
       "kind": "VariableDeclaration",
       "type": "\"mail.delivery_test\""
+    },
+    "mailChannel": {
+      "kind": "FunctionDeclaration",
+      "type": "(send: MailSender) => NotificationChannel"
     },
     "MailDeliveryTest": {
       "kind": "ClassDeclaration",
@@ -660,6 +840,14 @@
       "kind": "TypeAliasDeclaration",
       "type": "{ id: number; title: string; body: string; readAt: string | null; createdAt: string; target: { resource: string; recordId: number; href: string; } | null; }"
     },
+    "NotificationChannel": {
+      "kind": "InterfaceDeclaration",
+      "type": "NotificationChannel"
+    },
+    "NotificationChannels": {
+      "kind": "ClassDeclaration",
+      "type": "typeof NotificationChannels"
+    },
     "NotificationPage": {
       "kind": "TypeAliasDeclaration",
       "type": "{ data: Notification[]; nextCursor: string | null; unread: number; }"
@@ -731,6 +919,10 @@
     "pendingUploadCount": {
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>, userId: number) => Promise<number>"
+    },
+    "phoneAddress": {
+      "kind": "FunctionDeclaration",
+      "type": "(value: unknown) => string"
     },
     "PRINT_LOGO_LIMIT": {
       "kind": "VariableDeclaration",
@@ -1039,6 +1231,70 @@
     "summarizeAttachment": {
       "kind": "FunctionDeclaration",
       "type": "(row: Record<string, unknown>) => AttachmentSummary"
+    },
+    "SYNC_DEFAULT_TIMEOUT_MS": {
+      "kind": "VariableDeclaration",
+      "type": "number"
+    },
+    "syncErrorCategory": {
+      "kind": "FunctionDeclaration",
+      "type": "(error: unknown) => SyncErrorCategory"
+    },
+    "SyncErrorCategory": {
+      "kind": "TypeAliasDeclaration",
+      "type": "OutboundErrorCategory | \"handler\" | \"validation\" | \"authorization\" | \"conflict\""
+    },
+    "SyncJobContext": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ jobName: string; runId: number; trigger: SyncTrigger; requestedBy: number | null; lastSuccessAt: Date | null; signal: AbortSignal; logger: SyncLogger; systemSave(resource: string, values: RecordData, options?: SyncSaveOptions | undefined): Promise<RecordData>; }"
+    },
+    "SyncJobDefinition": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ name: string; label: { ar: string; en?: string | undefined; }; cron: string; timeoutMs: number; handler: (ctx: SyncJobContext) => Promise<void | SyncStats>; }"
+    },
+    "SyncJobError": {
+      "kind": "ClassDeclaration",
+      "type": "typeof SyncJobError"
+    },
+    "SyncJobInput": {
+      "kind": "TypeAliasDeclaration",
+      "type": "Omit<SyncJobDefinition, \"timeoutMs\"> & { timeoutMs?: number | undefined; }"
+    },
+    "SyncJobs": {
+      "kind": "ClassDeclaration",
+      "type": "typeof SyncJobs"
+    },
+    "SyncJobsOptions": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ logger?: SyncLogger | undefined; staleMarginMs?: number | undefined; }"
+    },
+    "SyncJobSummary": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ name: string; label: { ar: string; en?: string | undefined; }; cron: string; timeoutMs: number; busy: boolean; lastRun: SyncRun | null; lastSuccessAt: string | null; lastErrorCategory: SyncErrorCategory | null; nextRunAt: string | null; }"
+    },
+    "SyncLogger": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ info(message: string, data?: Record<string, unknown> | undefined): void; warn(message: string, data?: Record<string, unknown> | undefined): void; error(message: string, data?: Record<string, unknown> | undefined): void; }"
+    },
+    "SyncRun": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ id: number; job: string; trigger: SyncTrigger; status: SyncRunStatus; requestedBy: number | null; queuedAt: string; startedAt: string | null; finishedAt: string | null; durationMs: number | null; errorCategory: SyncErrorCategory | null; errorMessage: string | null; stats: SyncStats; }"
+    },
+    "SyncRunStatus": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"running\" | \"failed\" | \"queued\" | \"succeeded\""
+    },
+    "SyncSaveOptions": {
+      "kind": "TypeAliasDeclaration",
+      "type": "Omit<SystemSaveOptions, \"actorId\"> & { id?: number | undefined; actorId?: number | null | undefined; }"
+    },
+    "SyncStats": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ [x: string]: number; }"
+    },
+    "SyncTrigger": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"schedule\" | \"manual\""
     },
     "TemplateDefinition": {
       "kind": "TypeAliasDeclaration",

@@ -88,6 +88,7 @@ export const SERVICES: Record<string, string[]> = {
     'signWebhook',
     'InboundWebhooks',
     'openApiDocument',
+    'apiClientSource',
     'ImportBatches',
     'renderPrintHtml',
     'htmlToPdf',
@@ -116,6 +117,7 @@ export const EXTENSION_POINTS = [
   'Module workflows (Module.workflows) with versioned definitions',
   'Message templates edited per deployment',
   'Outgoing webhooks and the bearer-token /api/v1 API',
+  'Typed API client of the bearer-token API: GET /api/v1/client.ts per token, or node ace adula:client into clients/<system>/',
   'Signed inbound webhooks raising inbound.<source>.<event> through the outbox',
 ]
 export const OUTSIDE_ADULAJS = [
