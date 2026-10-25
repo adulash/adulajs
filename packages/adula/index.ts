@@ -119,7 +119,7 @@ export type {
 } from './src/integrations/imports.js'
 export { csvImportAdapter, importFile } from './src/integrations/import_adapters.js'
 export type { ImportAdapter, ImportFile, ImportTable } from './src/integrations/import_adapters.js'
-export { createImportModesSchema } from './src/database/schema.js'
+export { createImportModesSchema, createImportLeasesSchema } from './src/database/schema.js'
 export { openApiDocument } from './src/integrations/openapi.js'
 export { apiClientSource, apiClientDeclarations } from './src/integrations/api_client.js'
 export type { ApiClientDocument, ApiClientOptions } from './src/integrations/api_client.js'
@@ -352,7 +352,10 @@ export type {
   SyncStats,
   SyncLogger,
 } from './src/integrations/sync_jobs.js'
-export { createNotificationChannelsSchema } from './src/database/schema.js'
+export {
+  createNotificationChannelsSchema,
+  createChannelConfirmationsSchema,
+} from './src/database/schema.js'
 export {
   NotificationChannels,
   HttpChannelSettings,

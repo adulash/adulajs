@@ -36,7 +36,12 @@ export type SyncJobContext = {
   requestedBy: number | null
   /** When this job last finished successfully, for incremental pulls. */
   lastSuccessAt: Date | null
-  /** Aborted when the run exceeds its timeout; pass it to outbound requests. */
+  /**
+   * Aborted when the run exceeds its timeout. Handlers must honour it: pass it to fetch
+   * and outbound calls and stop working once it aborts. After the abort systemSave and
+   * logger refuse; a handler still unsettled at timeout + stale margin is abandoned (the
+   * run fails as timeout) and the job's next run waits until it settles in this process.
+   */
   signal: AbortSignal
   logger: SyncLogger
   /**
@@ -77,7 +82,10 @@ export type SyncJobSummary = {
   label: { ar: string; en?: string }
   cron: string
   timeoutMs: number
-  /** A queued or running run exists; "run now" is refused until it finishes. */
+  /**
+   * A queued or running run exists ("run now" is refused until it finishes), or an
+   * abandoned handler of the job is still alive in this process.
+   */
   busy: boolean
   lastRun: SyncRun | null
   lastSuccessAt: string | null
@@ -109,7 +117,18 @@ const STALE_MARGIN_MS = 60_000
 const MESSAGE_LIMIT = 500
 const NAME = /^sync:[a-z0-9]+(?:-[a-z0-9]+)*$/
 
-/** Declares a background synchronization job; the scheduler queues it and the worker runs it. */
+/**
+ * Handlers abandoned at the stale limit that have not settled yet, per job name. Kept per
+ * process (the application builds a new SyncJobs per adula() call), so one worker never
+ * starts a job's next run while its previous handler is still alive.
+ */
+const abandonedHandlers = new Map<string, number>()
+
+/**
+ * Declares a background synchronization job; the scheduler queues it and the worker runs it.
+ * The handler must honour ctx.signal: pass it to fetch and outbound calls and stop work
+ * when it aborts at timeoutMs. See SyncJobContext.signal for what happens otherwise.
+ */
 export function defineSyncJob(input: SyncJobInput): SyncJobDefinition {
   if (typeof input.name !== 'string' || input.name.length > 100 || !NAME.test(input.name))
     throw new Error(`Sync job name "${input.name}" must look like sync:kebab-case`)
@@ -290,7 +309,8 @@ export class SyncJobs {
   /** Runs the oldest queued run of a defined job; null when nothing is queued. */
   async runNext(): Promise<SyncRun | null> {
     await this.recoverStale()
-    const names = [...this.definitions.keys()]
+    // A job whose abandoned handler is still alive here is not claimed until it settles.
+    const names = [...this.definitions.keys()].filter((name) => !abandonedHandlers.has(name))
     if (!names.length) return null
     const claimed = await this.db.transaction(async (trx) => {
       const row = await trx('sync_job_runs')
@@ -370,6 +390,16 @@ export class SyncJobs {
       )
     const outcome = await Promise.race([settled, abandoned])
     for (const timer of timers) clearTimeout(timer)
+    if ('abandoned' in outcome) {
+      const job = definition.name
+      abandonedHandlers.set(job, (abandonedHandlers.get(job) ?? 0) + 1)
+      base.warn('Sync job handler ignored its abort; the job is held until it settles', tag)
+      void settled.then(() => {
+        const left = (abandonedHandlers.get(job) ?? 1) - 1
+        if (left > 0) abandonedHandlers.set(job, left)
+        else abandonedHandlers.delete(job)
+      })
+    }
     let update: Record<string, unknown>
     if ('abandoned' in outcome || controller.signal.aborted) {
       update = {
@@ -457,7 +487,8 @@ export class SyncJobs {
         label: definition.label,
         cron: definition.cron,
         timeoutMs: definition.timeoutMs,
-        busy: busy.some((row) => row.job === definition.name),
+        busy:
+          abandonedHandlers.has(definition.name) || busy.some((row) => row.job === definition.name),
         lastRun: last ? this.serialize(last) : null,
         lastSuccessAt: iso(successes.find((row) => row.job === definition.name)?.at),
         lastErrorCategory: done?.status === 'failed' ? done.error_category : null,

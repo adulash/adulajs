@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import Papa from 'papaparse'
 import type { Knex } from 'knex'
 import { subject } from '@casl/ability'
@@ -159,6 +160,10 @@ export function importCell(field: Field, raw: string, lookups: Map<string, strin
       return value
   }
 }
+
+/** How long a claimed batch stays reserved for one worker; renewed after every row. */
+const LEASE_SECONDS = 300
+const leaseExpiry = (db: Knex) => db.raw(`now() + interval '${LEASE_SECONDS} seconds'`)
 
 /** Raised inside a dry-run transaction so it always rolls back. */
 class DryRunRollback extends Error {}
@@ -394,8 +399,11 @@ export class ImportBatches {
         : row.status === 'validated'
           ? false
           : Boolean(row.dry_run)
-    await this.db('import_batches')
-      .where('id', row.id)
+    // Conditional on the state read above: of two concurrent starts only one queues the
+    // batch, and a batch a worker already claimed is never reset to row 0.
+    const queued = await this.db('import_batches')
+      .where({ id: row.id, status: row.status })
+      .whereIn('status', ['mapping', 'validated'])
       .update({
         mapping: JSON.stringify(clean),
         mode,
@@ -410,19 +418,30 @@ export class ImportBatches {
         report: JSON.stringify([]),
         started_at: null,
         finished_at: null,
+        lease_id: null,
+        lease_expires_at: null,
       })
+    if (!queued) throw new AdulaError(409, 'E_IMPORT_STATE', 'بدأت معالجة هذه الدفعة بالفعل')
     return this.show(row.id, actor)
   }
 
   /**
    * Worker step: claims one queued or running batch and imports (or, for a dry run,
-   * validates) up to `chunk` rows. Import progress is committed per row, so a crash resumes
-   * after the last one; a dry run records its progress and report once per chunk.
+   * validates) up to `chunk` rows. The claim is a lease (lease_id, lease_expires_at, renewed
+   * after every row): concurrent workers never share a batch, and an expired lease is taken
+   * over, resuming after the last committed row. Import progress is committed per row in
+   * the row's own transaction; a dry run records its progress and report once per chunk.
+   * Returns null when no batch is free, or when this worker's lease was taken over (it then
+   * writes nothing further).
    */
   async process(chunk = 200) {
+    const lease = randomUUID()
     const batch = await this.db.transaction(async (trx) => {
+      // A batch is free when no worker holds an unexpired lease on it; an expired lease
+      // (a crashed or stalled worker) is taken over and processing resumes after its last row.
       const row = await trx('import_batches')
         .whereIn('status', ['queued', 'running'])
+        .where((free) => free.whereNull('lease_id').orWhere('lease_expires_at', '<', trx.fn.now()))
         .orderBy('id')
         .forUpdate()
         .skipLocked()
@@ -430,10 +449,18 @@ export class ImportBatches {
       if (!row) return null
       await trx('import_batches')
         .where('id', row.id)
-        .update({ status: 'running', started_at: row.started_at ?? trx.fn.now() })
+        .update({
+          status: 'running',
+          started_at: row.started_at ?? trx.fn.now(),
+          lease_id: lease,
+          lease_expires_at: leaseExpiry(trx),
+        })
       return row
     })
     if (!batch) return null
+    // Every later write names this lease; one that affects no row means another worker
+    // took the batch over, and this worker stops without writing anything else.
+    const owned = (db: Knex) => db('import_batches').where({ id: batch.id, lease_id: lease })
     const actor = await this.actors.load(Number(batch.user_id))
     const resource = this.registry.get(batch.resource)
     const lookupGroups = new Map<string, Map<string, string>>()
@@ -461,102 +488,141 @@ export class ImportBatches {
       updated: number
       failed: number
     }
-    const errors = [...(batch.errors as { row: number; message: string }[])]
+    let errors = [...(batch.errors as { row: number; message: string }[])]
     const report = [...((batch.report ?? []) as ImportReportRow[])]
     const end = Math.min(rows.length, processed + chunk)
     for (let index = processed; index < end; index++) {
       const cells = rows[index]
-      const input: RecordData = {}
-      try {
-        for (const [column, key] of Object.entries(mapping)) {
-          const raw = cells[Number(column)] ?? ''
-          if (key === 'orgUnitId') {
-            input.orgUnitId = raw.trim() === '' ? null : Number(raw.trim())
-            continue
+      // One row: convert, then save (in a savepoint of `trx` for a real import).
+      const importRow = async (trx?: Knex.Transaction): Promise<ImportReportRow> => {
+        const input: RecordData = {}
+        try {
+          for (const [column, key] of Object.entries(mapping)) {
+            const raw = cells[Number(column)] ?? ''
+            if (key === 'orgUnitId') {
+              input.orgUnitId = raw.trim() === '' ? null : Number(raw.trim())
+              continue
+            }
+            try {
+              input[key] = importCell(resource.fields[key], raw, lookupGroups.get(key) ?? new Map())
+            } catch (error) {
+              throw new Error(`${resource.fields[key].label.ar}: ${(error as Error).message}`)
+            }
           }
-          try {
-            input[key] = importCell(resource.fields[key], raw, lookupGroups.get(key) ?? new Map())
-          } catch (error) {
-            throw new Error(`${resource.fields[key].label.ar}: ${(error as Error).message}`)
-          }
+          const duplicate = earlier?.duplicates.get(index)
+          if (duplicate) throw new Error(duplicate)
+          let action = await this.saveRow(resource, actor, input, matchField, dryRun, trx)
+          // A repeated match value updates the record the earlier row of the file created.
+          if (earlier?.repeats.has(index)) action = 'update'
+          return { row: index + 2, ok: true, action }
+        } catch (error) {
+          return { row: index + 2, ok: false, message: rowMessage(error) }
         }
-        const duplicate = earlier?.duplicates.get(index)
-        if (duplicate) throw new Error(duplicate)
-        let action = await this.saveRow(resource, actor, input, matchField, dryRun)
-        // A repeated match value updates the record the earlier row of the file created.
-        if (earlier?.repeats.has(index)) action = 'update'
-        if (action === 'create') created++
-        else updated++
-        if (dryRun) report.push({ row: index + 2, ok: true, action })
-      } catch (error) {
-        failed++
-        const message = rowMessage(error)
-        if (errors.length < ERROR_LIMIT) errors.push({ row: index + 2, message })
-        if (dryRun) report.push({ row: index + 2, ok: false, message })
       }
-      processed = index + 1
-      // A real import commits progress per row, so a crash never imports a row twice.
-      // A dry run saves nothing: its progress and report are written once per chunk, and
-      // a crash only validates the rest of that chunk again.
-      if (!dryRun)
-        await this.db('import_batches')
-          .where('id', batch.id)
-          .update({ processed, created, updated, failed, errors: JSON.stringify(errors) })
-    }
-    if (dryRun)
-      await this.db('import_batches')
-        .where('id', batch.id)
-        .update({
-          processed,
-          created,
-          updated,
-          failed,
-          errors: JSON.stringify(errors),
-          report: JSON.stringify(report),
+      const count = (outcome: ImportReportRow) => {
+        const next = { created, updated, failed, errors }
+        if (!outcome.ok) {
+          next.failed++
+          if (errors.length < ERROR_LIMIT)
+            next.errors = [...errors, { row: outcome.row, message: outcome.message ?? '' }]
+        } else if (outcome.action === 'create') next.created++
+        else next.updated++
+        return next
+      }
+      let next: ReturnType<typeof count> | null
+      if (dryRun) {
+        const outcome = await importRow()
+        next = count(outcome)
+        report.push(outcome)
+        // A dry run saves nothing: only the lease is renewed per row; progress and the
+        // report are written once per chunk, and a crash only validates that chunk again.
+        if (!(await owned(this.db).update({ lease_expires_at: leaseExpiry(this.db) }))) return null
+      } else {
+        // A real import saves the row and its progress in one transaction that first locks
+        // the batch under this lease at this row, so every row is imported exactly once
+        // even when an expired lease was taken over by another worker meanwhile.
+        next = await this.db.transaction(async (trx) => {
+          if (!(await owned(trx).where('processed', index).forUpdate().first('id'))) return null
+          const counts = count(await importRow(trx))
+          await owned(trx).update({
+            processed: index + 1,
+            created: counts.created,
+            updated: counts.updated,
+            failed: counts.failed,
+            errors: JSON.stringify(counts.errors),
+            lease_expires_at: leaseExpiry(trx),
+          })
+          return counts
         })
-    if (processed >= rows.length) {
-      if (dryRun)
+        if (!next) return null
+      }
+      ;({ created, updated, failed, errors } = next)
+      processed = index + 1
+    }
+    const finished = processed >= rows.length
+    if (dryRun) {
+      const written = await owned(this.db).update({
+        processed,
+        created,
+        updated,
+        failed,
+        errors: JSON.stringify(errors),
+        report: JSON.stringify(report),
         // The rows stay for the real import; a dry run sends no notification.
-        await this.db('import_batches')
-          .where('id', batch.id)
-          .update({ status: 'validated', finished_at: this.db.fn.now() })
-      else
-        await this.db.transaction(async (trx) => {
-          await trx('import_batches')
-            .where('id', batch.id)
-            // Row data is only needed while importing; the log keeps counts and errors.
-            .update({ status: 'done', finished_at: trx.fn.now(), rows: JSON.stringify([]) })
+        ...(finished ? { status: 'validated', finished_at: this.db.fn.now() } : {}),
+        lease_id: null,
+        lease_expires_at: null,
+      })
+      if (!written) return null
+    } else if (finished) {
+      const written = await this.db.transaction(async (trx) => {
+        const count = await owned(trx)
+          // Row data is only needed while importing; the log keeps counts and errors.
+          .update({
+            status: 'done',
+            finished_at: trx.fn.now(),
+            rows: JSON.stringify([]),
+            lease_id: null,
+            lease_expires_at: null,
+          })
+        if (count)
           await notifyWithTemplate(trx, Number(batch.user_id), 'import.finished', {
             resource: resource.label.ar,
             created: created + updated,
             failed,
           })
-        })
-    }
+        return count
+      })
+      if (!written) return null
+    } else if (!(await owned(this.db).update({ lease_id: null, lease_expires_at: null })))
+      // The chunk is done; release the batch so the next tick (any worker) continues it.
+      return null
     return { id: Number(batch.id), processed, created, updated, failed }
   }
 
   /**
    * Saves one row through ResourceService. Upsert first looks for the live record with
    * the same match value; ResourceService then authorizes the update against the actor's
-   * scope and rules and checks the record's current `version`. A dry run does the same
-   * inside a transaction that is always rolled back.
+   * scope and rules and checks the record's current `version`. A real import runs in a
+   * savepoint of `trx` (the caller's progress transaction); a dry run does the same inside
+   * a transaction that is always rolled back.
    */
   private async saveRow(
     resource: Resource,
     actor: Actor,
     input: RecordData,
     matchField: string | null,
-    dryRun: boolean
+    dryRun: boolean,
+    trx?: Knex.Transaction
   ): Promise<'create' | 'update'> {
-    const work = async (trx: Knex.Transaction) => {
+    const work = async (scope: Knex.Transaction) => {
       let id: number | undefined
       if (matchField) {
         const field = resource.fields[matchField]
         const value = input[matchField]
         if (value === null || value === undefined)
           throw new Error(`${field.label.ar}: قيمة المطابقة مطلوبة`)
-        const found = await trx(resource.name)
+        const found = await scope(resource.name)
           .whereNull('deleted_at')
           .where(field.column ?? columnName(matchField), value as string)
           .first(['id', ...(resource.version ? ['version'] : [])])
@@ -567,14 +633,14 @@ export class ImportBatches {
           for (const key of Object.keys(input)) if (input[key] === null) delete input[key]
         }
       }
-      await this.resources.save(resource.name, actor, input, id, trx)
+      await this.resources.save(resource.name, actor, input, id, scope)
       return id === undefined ? ('create' as const) : ('update' as const)
     }
-    if (!dryRun) return this.db.transaction(work)
+    if (!dryRun) return (trx ?? this.db).transaction(work)
     let action: 'create' | 'update' = 'create'
     try {
-      await this.db.transaction(async (trx) => {
-        action = await work(trx)
+      await this.db.transaction(async (scope) => {
+        action = await work(scope)
         throw new DryRunRollback()
       })
     } catch (error) {

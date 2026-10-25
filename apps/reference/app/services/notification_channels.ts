@@ -10,19 +10,22 @@ import { recordLink, sendNotificationMail } from '#services/notification_mail'
  */
 export async function notificationChannels() {
   // A broken provider setting must not stop e-mail: log it and run without the provider.
+  // Only a successful read names retired kinds, so a failed read drops no queued message.
   let provider = null
+  let retired: string[] = []
   try {
-    provider = await adula().channelSettings.channel({ link: recordLink })
+    ;({ channel: provider, retired } = await adula().channelSettings.resolve({ link: recordLink }))
   } catch (error) {
     logger.error(
       { err: error instanceof Error ? error.message : String(error) },
       'notification provider channel unavailable'
     )
   }
-  return new NotificationChannels(db.connection().getWriteClient(), [
-    mailChannel(sendNotificationMail),
-    ...(provider ? [provider] : []),
-  ])
+  return new NotificationChannels(
+    db.connection().getWriteClient(),
+    [mailChannel(sendNotificationMail), ...(provider ? [provider] : [])],
+    { retired }
+  )
 }
 
 /** The worker step: e-mail (notifications.mail_state) and the provider channel's deliveries. */

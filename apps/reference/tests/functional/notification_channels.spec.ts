@@ -5,6 +5,7 @@ import type { ApiRequest } from '@japa/api-client'
 import db from '@adonisjs/lucid/services/db'
 import encryption from '@adonisjs/core/services/encryption'
 import mail from '@adonisjs/mail/services/main'
+import limiter from '@adonisjs/limiter/services/main'
 import {
   HTTP_CHANNEL_SETTING_KEY,
   HttpChannelSettings,
@@ -58,11 +59,20 @@ test.group('Notification channels', (group) => {
   const subscriber = async (phone: string, mailOn: boolean) => {
     const actor = await seedActor([{ subject: 'orders', action: 'view' }], { level: 0 })
     await knex()('user_notification_channels').insert([
-      { user_id: actor.user.id, channel: 'sms', enabled: true, address: phone },
+      {
+        user_id: actor.user.id,
+        channel: 'sms',
+        enabled: true,
+        address: phone,
+        confirmed_at: knex().fn.now(),
+      },
       { user_id: actor.user.id, channel: 'mail', enabled: mailOn, address: null },
     ])
     return actor
   }
+  group.each.setup(async () => {
+    await limiter.clear(['memory'])
+  })
   group.setup(async () => {
     admin = await seedActor([{ subject: 'all', action: 'manage' }], { fullName: 'مدير القنوات' })
     member = await seedActor([{ subject: 'orders', action: 'view' }], { level: 0 })
@@ -174,27 +184,28 @@ test.group('Notification channels', (group) => {
     ).json({ channels: [{ key: 'in_app', enabled: false }] })
     locked.assertStatus(422)
 
+    // A number is never stored without its confirmation code.
+    const unconfirmed = await asJson(
+      client.put('/account/notification-channels').loginAs(user.user)
+    ).json({ channels: [{ key: 'sms', enabled: true, address: '+966 50 000 0001' }] })
+    unconfirmed.assertStatus(422)
+    assert.equal(unconfirmed.body().error.code, 'E_CHANNEL_CONFIRM')
+
     // A user id in the body is ignored: the signed-in user is the only subject.
     const saved = await asJson(
       client.put('/account/notification-channels').loginAs(user.user)
-    ).json({
-      userId: other.user.id,
-      channels: [
-        { key: 'mail', enabled: false },
-        { key: 'sms', enabled: true, address: '+966 50 000 0001' },
-      ],
-    })
+    ).json({ userId: other.user.id, channels: [{ key: 'mail', enabled: false }] })
     saved.assertStatus(200)
     assert.deepInclude(
-      saved.body().data.find((row: { key: string }) => row.key === 'sms'),
-      { enabled: true, address: '+966500000001' }
+      saved.body().data.find((row: { key: string }) => row.key === 'mail'),
+      { enabled: false }
     )
     const rows = await knex()('user_notification_channels').whereIn('user_id', [
       user.user.id,
       other.user.id,
     ])
     assert.isTrue(rows.every((row) => row.user_id === user.user.id))
-    assert.lengthOf(rows, 2)
+    assert.lengthOf(rows, 1)
     // The change is logged with the acting user, never with the phone number.
     const logged = await knex()('activities')
       .where({
@@ -204,8 +215,7 @@ test.group('Notification channels', (group) => {
       })
       .first()
     assert.equal(logged.actor_id, user.user.id)
-    assert.deepInclude(logged.changes.channels, { key: 'sms', enabled: true })
-    assert.notInclude(JSON.stringify(logged.changes), '966500000001')
+    assert.deepInclude(logged.changes.channels, { key: 'mail', enabled: false })
 
     const anonymous = await client
       .put('/account/notification-channels')
@@ -228,6 +238,21 @@ test.group('Notification channels', (group) => {
     ).json({ channels: [{ key: 'sms', enabled: true, address: '+966599999999' }] })
     response.assertStatus(403)
     assert.equal(response.body().error.code, 'E_IMPERSONATING')
+    const before = provider.received.length
+    for (const [path, body] of [
+      ['/account/notification-channels/sms/code', { address: '+966599999999' }],
+      ['/account/notification-channels/sms/confirm', { code: '123456' }],
+    ] as const) {
+      const refused = await asJson(
+        client
+          .post(path)
+          .loginAs(target.user)
+          .withSession({ impersonator_id: { adminId: admin.user.id, targetId: target.user.id } })
+      ).json(body)
+      refused.assertStatus(403)
+      assert.equal(refused.body().error.code, 'E_IMPERSONATING')
+    }
+    assert.equal(provider.received.length, before)
     const row = await knex()('user_notification_channels')
       .where({ user_id: target.user.id, channel: 'sms' })
       .first()
@@ -309,12 +334,12 @@ test.group('Notification channels', (group) => {
     }
   })
 
-  test('e-mail keeps flowing when the provider lookup fails', async ({ assert }) => {
+  test('e-mail keeps flowing and SMS waits when the provider lookup fails', async ({ assert }) => {
     await configureProvider()
-    const reader = await seedActor([{ subject: 'orders', action: 'view' }], { level: 0 })
-    const original = HttpChannelSettings.prototype.channel
+    const reader = await subscriber('+966500000041', true)
+    const original = HttpChannelSettings.prototype.resolve
     const { messages } = mail.fake()
-    HttpChannelSettings.prototype.channel = async () => {
+    HttpChannelSettings.prototype.resolve = async () => {
       throw new Error('broken provider setting')
     }
     try {
@@ -323,9 +348,108 @@ test.group('Notification channels', (group) => {
       const row = await knex()('notifications').where('user_id', reader.user.id).first()
       assert.equal(row.mail_state, 'sent')
       messages.assertSentCount({ to: reader.user.email }, 1)
+      // A failed read proves nothing about the provider: the SMS stays queued.
+      const waiting = await knex()('notification_deliveries')
+        .where('notification_id', row.id)
+        .first()
+      assert.equal(waiting.state, 'pending')
+      assert.isNull(waiting.error_category)
+
+      HttpChannelSettings.prototype.resolve = original
+      await deliverNotificationChannels()
+      const sent = await knex()('notification_deliveries').where('id', waiting.id).first()
+      assert.equal(sent.state, 'sent')
+      assert.lengthOf(
+        provider.received.filter((request) => JSON.parse(request.body).id === waiting.id),
+        1
+      )
     } finally {
-      HttpChannelSettings.prototype.channel = original
+      HttpChannelSettings.prototype.resolve = original
       mail.restore()
     }
+  })
+
+  test('a new number is enabled by the code sent to it, and codes are throttled', async ({
+    client,
+    assert,
+  }) => {
+    await configureProvider()
+    const user = await seedActor([{ subject: 'orders', action: 'view' }], { level: 0 })
+    const before = provider.received.length
+    const requested = await asJson(
+      client.post('/account/notification-channels/sms/code').loginAs(user.user)
+    ).json({ address: '+966 50 000 0051' })
+    requested.assertStatus(200)
+    assert.isString(requested.body().data.expiresAt)
+    const [message] = provider.received.slice(before)
+    const body = JSON.parse(message.body)
+    assert.equal(body.to, '+966500000051')
+    const code = /: (\d{6})\./.exec(body.text)![1]
+    // Not enabled until confirmed, and the code itself is not stored.
+    assert.lengthOf(await knex()('user_notification_channels').where('user_id', user.user.id), 0)
+    const stored = await knex()('notification_channel_confirmations')
+      .where('user_id', user.user.id)
+      .first()
+    assert.notInclude(Object.values(stored).map(String), code)
+
+    // A second code within a minute is refused by the channel; the route allows three per
+    // fifteen minutes, then the limiter answers 429 itself.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const early = await asJson(
+        client.post('/account/notification-channels/sms/code').loginAs(user.user)
+      ).json({ address: '+966500000052' })
+      early.assertStatus(429)
+      assert.equal(early.body().error.code, 'E_CHANNEL_CODE_WAIT')
+    }
+    const limited = await asJson(
+      client.post('/account/notification-channels/sms/code').loginAs(user.user)
+    ).json({ address: '+966500000052' })
+    limited.assertStatus(429)
+    assert.notEqual(limited.body().error?.code, 'E_CHANNEL_CODE_WAIT')
+    assert.lengthOf(provider.received.slice(before), 1)
+    const wrong = await asJson(
+      client.post('/account/notification-channels/sms/confirm').loginAs(user.user)
+    ).json({ code: code === '000000' ? '111111' : '000000' })
+    wrong.assertStatus(422)
+    assert.equal(wrong.body().error.code, 'E_CHANNEL_CODE')
+    const confirmed = await asJson(
+      client.post('/account/notification-channels/sms/confirm').loginAs(user.user)
+    ).json({ code })
+    confirmed.assertStatus(200)
+    assert.deepInclude(
+      confirmed.body().data.find((row: { key: string }) => row.key === 'sms'),
+      { enabled: true, address: '+966500000051' }
+    )
+    const logged = await knex()('activities')
+      .where({ record_id: user.user.id, action: 'notification_channel_confirmed' })
+      .first()
+    assert.equal(logged.actor_id, user.user.id)
+    assert.equal(logged.changes.channel, 'sms')
+    assert.notInclude(JSON.stringify(logged.changes), '966500000051')
+
+    // «حذف الرقم» removes the confirmed number and turns the channel off.
+    const removed = await asJson(
+      client.put('/account/notification-channels').loginAs(user.user)
+    ).json({ channels: [{ key: 'sms', enabled: false, address: '' }] })
+    removed.assertStatus(200)
+    const row = await knex()('user_notification_channels')
+      .where({ user_id: user.user.id, channel: 'sms' })
+      .first()
+    assert.deepInclude(row, { enabled: false, address: null, confirmed_at: null })
+  })
+
+  test('provider test messages are throttled', async ({ client, assert }) => {
+    await configureProvider()
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const tested = await asJson(
+        client.post('/admin/settings/channels/test').loginAs(admin.user)
+      ).json({ to: '+966500000099' })
+      tested.assertStatus(200)
+    }
+    const limited = await asJson(
+      client.post('/admin/settings/channels/test').loginAs(admin.user)
+    ).json({ to: '+966500000099' })
+    limited.assertStatus(429)
+    assert.isString(JSON.stringify(limited.body()))
   })
 })

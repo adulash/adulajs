@@ -151,6 +151,33 @@ export const twoFactorThrottle = limiter.define('two_factor', (ctx) =>
   limiter.allowRequests(10).every('1 minute').usingKey(ctx.request.ip()).limitExceeded(withMessage)
 )
 
+/** Phone confirmation codes cost a message each: 3 per 15 minutes per signed-in user. */
+export const channelCodeThrottle = limiter.define('channel_code', (ctx) =>
+  limiter
+    .allowRequests(3)
+    .every('15 minutes')
+    .usingKey(`user:${ctx.auth.user?.id ?? ctx.request.ip()}`)
+    .limitExceeded(withMessage)
+)
+
+/** Confirming a code and saving channel choices: 10 per 15 minutes per signed-in user. */
+export const channelChangeThrottle = limiter.define('channel_change', (ctx) =>
+  limiter
+    .allowRequests(10)
+    .every('15 minutes')
+    .usingKey(`user:${ctx.auth.user?.id ?? ctx.request.ip()}`)
+    .limitExceeded(withMessage)
+)
+
+/** Provider test messages from the settings screen: 5 per 15 minutes per administrator. */
+export const channelTestThrottle = limiter.define('channel_test', (ctx) =>
+  limiter
+    .allowRequests(5)
+    .every('15 minutes')
+    .usingKey(`user:${ctx.auth.user?.id ?? ctx.request.ip()}`)
+    .limitExceeded(withMessage)
+)
+
 /** Disabling 2FA and regenerating recovery codes: 5 per 15 minutes per signed-in user. */
 export const twoFactorManageThrottle = limiter.define('two_factor_manage', (ctx) =>
   limiter

@@ -22,9 +22,9 @@ import {
   createResourceTable,
 } from '../index.js'
 import type { Actor, RecordData } from '../index.js'
-import { createImportModesSchema } from '../index.js'
+import { createImportModesSchema, createImportLeasesSchema } from '../index.js'
 import { createSyncJobsSchema } from '../index.js'
-import { createNotificationChannelsSchema } from '../index.js'
+import { createNotificationChannelsSchema, createChannelConfirmationsSchema } from '../index.js'
 
 export const customer = defineResource({
   name: 'customers',
@@ -182,8 +182,10 @@ export async function setup() {
   await createInboundWebhooksSchema(db)
   await createTwoFactorSchema(db)
   await createImportModesSchema(db)
+  await createImportLeasesSchema(db)
   await createSyncJobsSchema(db)
   await createNotificationChannelsSchema(db)
+  await createChannelConfirmationsSchema(db)
   await db('org_units').insert([
     { id: 1, name: 'Root', type: 'root', path: '1' },
     { id: 2, parent_id: 1, name: 'A', type: 'unit', path: '1.2' },

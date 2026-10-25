@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from 'node:crypto'
+import { createHash, randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto'
 import type { Knex } from 'knex'
 import { AdulaError } from '../admin/errors.js'
 import { logActivity } from './activity.js'
@@ -96,6 +96,19 @@ const BACKOFF_MINUTES = [1, 5, 30, 120]
 /** Upper bound of one provider call; leases cover every call of a claimed batch. */
 const CALL_TIMEOUT_SECONDS = 15
 const LEASE_MARGIN_SECONDS = 60
+const CODE_MINUTES = 10
+const CODE_ATTEMPTS = 5
+const CODE_WAIT_SECONDS = 60
+const CODE_WINDOW_HOURS = 24
+const CODE_DAILY_LIMIT = 5
+/** Pending deliveries older than this are dropped rather than sent late. */
+const DELIVERY_MAX_AGE_HOURS = 24
+/** Spent confirmation rows (and their numbers) are kept this long after expiry. */
+const CONFIRMATION_RETENTION_DAYS = 1
+
+function codeHash(salt: string, code: string) {
+  return createHash('sha256').update(`${salt}:${code}`).digest('hex')
+}
 export const CHANNEL_MAX_ATTEMPTS = BACKOFF_MINUTES.length + 1
 
 /** The in-app channel: the notifications row itself, listed and read in the bell. */
@@ -206,16 +219,25 @@ export function httpNotificationChannel(options: HttpChannelOptions): Notificati
  */
 export class NotificationChannels {
   private channels = new Map<string, NotificationChannel>()
+  private retired: Set<string>
 
   constructor(
     private db: Knex,
-    channels: NotificationChannel[] = []
+    channels: NotificationChannel[] = [],
+    /**
+     * `retired`: channel keys a successful configuration read proved are off (the
+     * provider is disabled or set to another kind). Their pending deliveries are skipped;
+     * pending rows of any other unregistered channel wait, so a failed read drops nothing.
+     */
+    options: { retired?: string[] } = {}
   ) {
+    this.retired = new Set(options.retired ?? [])
     for (const channel of [inAppChannel(), ...channels]) {
       if (this.channels.has(channel.key) && channel.key !== IN_APP_CHANNEL)
         throw new Error(`Notification channel registered twice: ${channel.key}`)
       this.channels.set(channel.key, channel)
     }
+    for (const key of this.channels.keys()) this.retired.delete(key)
   }
 
   list() {
@@ -232,7 +254,11 @@ export class NotificationChannels {
     const stored = new Map(rows.map((row) => [String(row.channel), row]))
     return [...this.channels.values()].map((channel) => {
       const row = stored.get(channel.key)
-      const address = row?.address ? String(row.address) : null
+      // An opt-in number counts only once confirmed by its one-time code.
+      const address =
+        row?.address && (channel.delivery !== 'opt-in' || row.confirmed_at)
+          ? String(row.address)
+          : null
       return {
         key: channel.key,
         label: channel.label,
@@ -256,9 +282,14 @@ export class NotificationChannels {
     if (!Array.isArray(input) || input.length > 20)
       throw new AdulaError(422, 'E_CHANNEL_INPUT', 'قائمة القنوات غير صالحة')
     const existing = await this.db('user_notification_channels').where('user_id', userId)
+    // Only confirmed numbers count; a row written before confirmations existed has none.
     const stored = new Map(
-      existing.map((row) => [String(row.channel), row.address ? String(row.address) : null])
+      existing.map((row) => [
+        String(row.channel),
+        row.address && row.confirmed_at ? String(row.address) : null,
+      ])
     )
+    const confirmedAt = new Map(existing.map((row) => [String(row.channel), row.confirmed_at]))
     const values = (input as ChannelPreferenceInput[]).map((item) => {
       const key = typeof item?.key === 'string' ? item.key : ''
       const channel = this.channels.get(key)
@@ -270,14 +301,25 @@ export class NotificationChannels {
           throw new AdulaError(422, 'E_CHANNEL_LOCKED', 'الإشعارات داخل التطبيق لا يمكن إيقافها')
         return null
       }
-      // An omitted address keeps the stored number; an empty one removes it.
+      // The stored number is always a confirmed one: an omitted (or equal) address keeps
+      // it, an empty one removes it, and a different number needs confirmCode() first.
       let address: string | null = item.address === undefined ? (stored.get(key) ?? null) : null
       const raw = typeof item.address === 'string' ? item.address.trim() : ''
-      if (channel.address && raw) address = channel.address(raw)
+      if (channel.address && raw) {
+        address = channel.address(raw)
+        if (address !== stored.get(key))
+          throw new AdulaError(422, 'E_CHANNEL_CONFIRM', 'أكّد الرقم الجديد برمز التحقق أولاً')
+      }
       if (!channel.address) address = null
       if (channel.delivery === 'opt-in' && item.enabled && !address)
         throw new AdulaError(422, 'E_CHANNEL_ADDRESS', 'أدخل رقم الهاتف لتفعيل هذه القناة')
-      return { user_id: userId, channel: key, enabled: item.enabled, address }
+      return {
+        user_id: userId,
+        channel: key,
+        enabled: item.enabled,
+        address,
+        confirmed_at: address ? (confirmedAt.get(key) ?? null) : null,
+      }
     })
     const rows = values.filter((value) => value !== null)
     if (new Set(rows.map((row) => row.channel)).size !== rows.length)
@@ -287,14 +329,153 @@ export class NotificationChannels {
         await trx('user_notification_channels')
           .insert(rows.map((row) => ({ ...row, updated_at: trx.fn.now() })))
           .onConflict(['user_id', 'channel'])
-          .merge(['enabled', 'address', 'updated_at'])
+          .merge(['enabled', 'address', 'confirmed_at', 'updated_at'])
       return this.preferences(userId, trx)
     })
   }
 
   /**
-   * Delivers pending work on every registered channel. Pending rows of a channel that
-   * is no longer registered (its provider was turned off) are skipped, never sent later.
+   * Sends a one-time code to `address` through the channel itself. The number is enabled
+   * only by confirmCode(). One code per user and channel at a time, a new one after 60
+   * seconds and at most five in 24 hours; the wait and the cap are enforced by the upsert
+   * itself, so two parallel requests send one code.
+   */
+  async requestCode(userId: number, key: string, address: unknown) {
+    const channel = this.optIn(key)
+    const normalized = channel.address!(address)
+    const user = await this.db('users').where('id', userId).first()
+    if (!user) throw new AdulaError(404, 'E_NOT_FOUND', 'المستخدم غير موجود')
+    const code = String(randomInt(0, 1_000_000)).padStart(6, '0')
+    const salt = randomBytes(16).toString('hex')
+    const window = `interval '${CODE_WINDOW_HOURS} hours'`
+    const result = await this.db.raw(
+      `INSERT INTO notification_channel_confirmations AS c
+         (user_id, channel, address, salt, code_hash, attempts, expires_at, created_at,
+          sent_count, window_started_at)
+       VALUES (?, ?, ?, ?, ?, 0, now() + interval '${CODE_MINUTES} minutes', now(), 1, now())
+       ON CONFLICT (user_id, channel) DO UPDATE SET
+         address = EXCLUDED.address, salt = EXCLUDED.salt, code_hash = EXCLUDED.code_hash,
+         attempts = 0, expires_at = EXCLUDED.expires_at, created_at = now(),
+         sent_count = CASE WHEN c.window_started_at <= now() - ${window} THEN 1
+                           ELSE c.sent_count + 1 END,
+         window_started_at = CASE WHEN c.window_started_at <= now() - ${window} THEN now()
+                                  ELSE c.window_started_at END
+       WHERE c.created_at <= now() - interval '${CODE_WAIT_SECONDS} seconds'
+         AND (c.window_started_at <= now() - ${window} OR c.sent_count < ${CODE_DAILY_LIMIT})
+       RETURNING id, expires_at`,
+      [userId, key, normalized, salt, codeHash(salt, code)]
+    )
+    const [row] = result.rows
+    if (!row) {
+      const current = await this.db('notification_channel_confirmations')
+        .where({ user_id: userId, channel: key })
+        .whereRaw(`window_started_at > now() - ${window}`)
+        .where('sent_count', '>=', CODE_DAILY_LIMIT)
+        .first('id')
+      if (current)
+        throw new AdulaError(
+          429,
+          'E_CHANNEL_CODE_LIMIT',
+          'بلغت الحد اليومي لرموز التحقق؛ حاول غداً'
+        )
+      throw new AdulaError(429, 'E_CHANNEL_CODE_WAIT', 'انتظر دقيقة قبل طلب رمز جديد')
+    }
+    try {
+      await channel.deliver(
+        {
+          id: 0,
+          subject: 'رمز التأكيد',
+          text: `رمز تأكيد رقم هاتفك: ${code}. ينتهي خلال ${CODE_MINUTES} دقائق.`,
+          target: null,
+        },
+        {
+          userId,
+          email: String(user.email ?? ''),
+          name: user.full_name ? String(user.full_name) : null,
+          address: normalized,
+        },
+        {
+          deliveryId: randomUUID(),
+          attempt: 1,
+          signal: AbortSignal.timeout(CALL_TIMEOUT_SECONDS * 1000),
+        }
+      )
+    } catch {
+      // The code never arrived: void it and lift the wait, but it still counts for the day.
+      await this.db('notification_channel_confirmations')
+        .where('id', row.id)
+        .update({
+          attempts: CODE_ATTEMPTS,
+          expires_at: this.db.fn.now(),
+          created_at: this.db.raw(`now() - interval '${CODE_WAIT_SECONDS} seconds'`),
+        })
+      throw new AdulaError(502, 'E_CHANNEL_CODE_SEND', 'تعذر إرسال رمز التحقق؛ حاول بعد قليل')
+    }
+    return { expiresAt: new Date(row.expires_at).toISOString() }
+  }
+
+  /**
+   * Checks the code (five attempts, ten minutes) and enables the channel with its number.
+   * A used or exhausted code is voided, not deleted, so the wait and the daily cap remain.
+   */
+  async confirmCode(userId: number, key: string, code: unknown): Promise<ChannelPreference[]> {
+    this.optIn(key)
+    const text = typeof code === 'string' ? code.trim() : ''
+    const confirmed = await this.db.transaction(async (trx) => {
+      const row = await trx('notification_channel_confirmations')
+        .where({ user_id: userId, channel: key })
+        .where('expires_at', '>', trx.fn.now())
+        .where('attempts', '<', CODE_ATTEMPTS)
+        .forUpdate()
+        .first()
+      if (!row) return null
+      const expected = Buffer.from(String(row.code_hash), 'hex')
+      const actual = Buffer.from(codeHash(String(row.salt), text), 'hex')
+      if (!/^\d{6}$/.test(text) || !timingSafeEqual(expected, actual)) {
+        // The fifth wrong attempt voids the code (attempts reaches the limit).
+        await trx('notification_channel_confirmations').where('id', row.id).increment('attempts', 1)
+        return false
+      }
+      await trx('user_notification_channels')
+        .insert({
+          user_id: userId,
+          channel: key,
+          enabled: true,
+          address: row.address,
+          confirmed_at: trx.fn.now(),
+          updated_at: trx.fn.now(),
+        })
+        .onConflict(['user_id', 'channel'])
+        .merge(['enabled', 'address', 'confirmed_at', 'updated_at'])
+      await trx('notification_channel_confirmations')
+        .where('id', row.id)
+        .update({ attempts: CODE_ATTEMPTS, expires_at: trx.fn.now() })
+      return true
+    })
+    if (confirmed === null)
+      throw new AdulaError(422, 'E_CHANNEL_CODE', 'رمز التحقق منتهٍ أو مستنفد؛ اطلب رمزاً جديداً')
+    if (!confirmed) throw new AdulaError(422, 'E_CHANNEL_CODE', 'رمز التحقق غير صحيح')
+    return this.preferences(userId)
+  }
+
+  /** Deletes spent confirmation rows a day after they expired, with their numbers. */
+  async cleanupConfirmations() {
+    return this.db('notification_channel_confirmations')
+      .whereRaw(`expires_at < now() - interval '${CONFIRMATION_RETENTION_DAYS} days'`)
+      .delete()
+  }
+
+  private optIn(key: string) {
+    const channel = this.channels.get(key)
+    if (!channel || channel.delivery !== 'opt-in' || !channel.address)
+      throw new AdulaError(409, 'E_CHANNEL_UNAVAILABLE', 'هذه القناة غير متاحة الآن')
+    return channel
+  }
+
+  /**
+   * Delivers pending work on every registered channel. Pending rows of a retired channel
+   * (its provider was turned off) are skipped, never sent later; rows of a channel that is
+   * merely unregistered on this tick stay pending.
    * `limit` bounds the claimed notification_deliveries rows, `drainLimit` each own queue
    * (the e-mail worker sends up to 50 per tick, as before).
    */
@@ -311,12 +492,17 @@ export class NotificationChannels {
       result.failed += drained.failed
     }
     const keys = queued.map((channel) => channel.key)
+    // A message that waited a day (an outage, an unregistered channel) is stale: drop it.
     result.skipped += await this.db('notification_deliveries')
       .where('state', 'pending')
-      .modify((query) => {
-        if (keys.length) query.whereNotIn('channel', keys)
-      })
-      .update({ state: 'skipped', error_category: 'channel-unavailable' })
+      .whereRaw(`created_at < now() - interval '${DELIVERY_MAX_AGE_HOURS} hours'`)
+      .update({ state: 'skipped', error_category: 'expired' })
+    await this.cleanupConfirmations()
+    if (this.retired.size)
+      result.skipped += await this.db('notification_deliveries')
+        .where('state', 'pending')
+        .whereIn('channel', [...this.retired])
+        .update({ state: 'skipped', error_category: 'channel-unavailable' })
     if (!keys.length) return result
     const lease = randomUUID()
     const claimed = await this.db.transaction(async (trx) => {
@@ -347,7 +533,8 @@ export class NotificationChannels {
           'u.full_name',
           'u.disabled_at',
           'p.enabled',
-          'p.address'
+          'p.address',
+          'p.confirmed_at'
         )
       // Lease the rows long enough for every call in this batch; the lease id makes each
       // later write conditional, so a worker whose lease was taken over writes nothing.
@@ -379,8 +566,9 @@ export class NotificationChannels {
           ]),
         })
       if (!renewed) continue
-      // The user may have turned the channel off, or been disabled, since it was queued.
-      if (row.disabled_at || !row.enabled || !row.address) {
+      // The user may have turned the channel off, or been disabled, since it was queued;
+      // an unconfirmed number never receives messages.
+      if (row.disabled_at || !row.enabled || !row.address || !row.confirmed_at) {
         await held()
           .where('id', row.id)
           .update({ state: 'skipped', error_category: row.disabled_at ? 'user-disabled' : null })
@@ -473,7 +661,10 @@ export class HttpChannelSettings {
   ) {}
 
   async read(): Promise<HttpChannelConfig | null> {
-    const value = await this.stored()
+    return this.present(await this.stored())
+  }
+
+  private present(value: Record<string, any> | null): HttpChannelConfig | null {
     if (!value) return null
     return {
       enabled: value.enabled === true,
@@ -544,8 +735,30 @@ export class HttpChannelSettings {
   async channel(
     options: { post?: HttpPoster; link?: HttpChannelOptions['link']; force?: boolean } = {}
   ): Promise<NotificationChannel | null> {
+    return this.build(await this.stored(), options)
+  }
+
+  /**
+   * One read for the worker: the active channel (or null) and the HTTP channel kinds this
+   * read proves are off (no provider or disabled: every kind; enabled: the other kinds).
+   * Pass `retired` to NotificationChannels only after this call succeeded.
+   */
+  async resolve(
+    options: { post?: HttpPoster; link?: HttpChannelOptions['link'] } = {}
+  ): Promise<{ channel: NotificationChannel | null; retired: string[] }> {
     const value = await this.stored()
-    const config = await this.read()
+    const channel = this.build(value, options)
+    return {
+      channel,
+      retired: HTTP_CHANNEL_KINDS.filter((kind) => kind !== channel?.key),
+    }
+  }
+
+  private build(
+    value: Record<string, any> | null,
+    options: { post?: HttpPoster; link?: HttpChannelOptions['link']; force?: boolean }
+  ): NotificationChannel | null {
+    const config = this.present(value)
     if (!value || !config || !config.url || (!config.enabled && !options.force)) return null
     let secret: string | null = null
     try {
