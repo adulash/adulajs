@@ -4,9 +4,10 @@
 
 ### Integration surface
 
-Minor: new exports only (`pnpm check:api` reports additions). It adds three additive
-migrations: `1770000000041_import_modes`, `1770000000042_sync_jobs` and
-`1770000000043_notification_channels`. See docs/integration.md and ADR 043.
+Minor: new exports only (`pnpm check:api` reports additions). It adds five additive
+migrations: `1770000000041_import_modes`, `1770000000042_sync_jobs`,
+`1770000000043_notification_channels`, `1770000000044_channel_confirmations` and
+`1770000000045_import_leases`. See docs/integration.md and ADR 043.
 
 * **Generated API client.**
   * `apiClientSource` and `apiClientDeclarations` turn the OpenAPI document into one
@@ -51,6 +52,23 @@ migrations: `1770000000041_import_modes`, `1770000000042_sync_jobs` and
   * `notifyWithTemplate` keeps its signature. It now skips e-mail for users who turned it
     off, and queues opt-in channel deliveries in the same transaction.
   * New `isSealedSetting`: `channels.*` settings are read-only in the generic settings editor.
+  * A phone number is enabled only after a one-time code sent to it is confirmed
+    (`POST /account/notification-channels/:key/code` and `…/confirm`, throttled). This adds
+    the additive migration `1770000000044_channel_confirmations`.
+  * The admin test-message route is throttled.
+  * Queued SMS/WhatsApp messages are dropped only when a successful settings read shows
+    the provider is off; otherwise they wait, at most 24 hours (then skipped as `expired`).
+    Without `{ retired: [...] }`, `NotificationChannels` no longer skips the deliveries of
+    a channel that is merely unregistered. Pass the keys a successful configuration read
+    proved are off (`HttpChannelSettings.resolve()`) to skip them at once as
+    `channel-unavailable`.
+  * Numbers saved before confirmation existed count as unconfirmed and must be confirmed
+    again. Codes are capped at 5 per channel in 24 hours.
+* Imports: workers claim a batch with a lease (additive migration
+  `1770000000045_import_leases`), so two workers never process the same batch. This also
+  fixes a race that already existed on `main`.
+* Sync jobs: handlers must honour `ctx.signal`. Within one worker, a job's next run waits
+  until an abandoned handler of that job settles.
 * The reference worker now delivers notifications through the channel dispatcher and runs
   sync jobs in a lane of their own.
 
