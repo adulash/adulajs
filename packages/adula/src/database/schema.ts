@@ -592,3 +592,94 @@ export async function createTwoFactorSchema(db: Knex) {
     t.index(['user_id'])
   })
 }
+
+/**
+ * Import modes: upsert by a unique field, dry-run validation and its per-row report.
+ * `updated` counts rows an upsert changed; `report` holds the dry run's row outcomes.
+ */
+export async function createImportModesSchema(db: Knex) {
+  await db.schema.alterTable('import_batches', (t) => {
+    t.string('mode', 20).notNullable().defaultTo('create')
+    t.string('match_field', 100)
+    t.boolean('dry_run').notNullable().defaultTo(false)
+    t.integer('updated').notNullable().defaultTo(0)
+    t.jsonb('report').notNullable().defaultTo('[]')
+  })
+}
+
+/**
+ * Background synchronization runs (sync_jobs.ts): one row per queued, running or
+ * finished run. The partial unique index allows one open (queued or running) run per job.
+ */
+export async function createSyncJobsSchema(db: Knex) {
+  await db.schema.createTable('sync_job_runs', (t) => {
+    t.bigIncrements('id')
+    t.string('job', 100).notNullable()
+    t.string('trigger', 20).notNullable()
+    t.string('status', 20).notNullable().defaultTo('queued')
+    t.integer('requested_by').references('id').inTable('users').onDelete('SET NULL')
+    t.timestamp('queued_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+    t.timestamp('started_at', { useTz: true })
+    t.timestamp('finished_at', { useTz: true })
+    t.integer('duration_ms')
+    t.string('error_category', 64)
+    t.string('error_message', 500)
+    t.jsonb('stats').notNullable().defaultTo('{}')
+    t.index(['job', 'id'])
+  })
+  await db.raw(
+    "ALTER TABLE sync_job_runs ADD CONSTRAINT sync_job_runs_trigger_check CHECK (trigger IN ('schedule', 'manual'))"
+  )
+  await db.raw(
+    "ALTER TABLE sync_job_runs ADD CONSTRAINT sync_job_runs_status_check CHECK (status IN ('queued', 'running', 'succeeded', 'failed'))"
+  )
+  await db.raw(
+    "CREATE UNIQUE INDEX sync_job_runs_open_unique ON sync_job_runs (job) WHERE status IN ('queued', 'running')"
+  )
+  await db.raw(
+    "CREATE INDEX sync_job_runs_queued_idx ON sync_job_runs (queued_at, id) WHERE status = 'queued'"
+  )
+}
+
+/**
+ * Notification channels (2.x): per-user channel preferences (e-mail opt-out, the
+ * address of an HTTP provider channel such as SMS or WhatsApp) and the delivery state
+ * of channels other than in-app and e-mail, which keeps its notifications.mail_state.
+ * Only error categories are stored, never provider response bodies.
+ */
+export async function createNotificationChannelsSchema(db: Knex) {
+  await db.schema.createTable('user_notification_channels', (t) => {
+    t.increments('id')
+    t.integer('user_id').notNullable().references('id').inTable('users').onDelete('CASCADE')
+    t.string('channel', 40).notNullable()
+    t.boolean('enabled').notNullable()
+    /** The channel address (a phone number); null for e-mail, which uses users.email. */
+    t.string('address', 40)
+    t.timestamp('updated_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+    t.unique(['user_id', 'channel'])
+  })
+  await db.schema.createTable('notification_deliveries', (t) => {
+    t.uuid('id').primary()
+    t.integer('notification_id')
+      .notNullable()
+      .references('id')
+      .inTable('notifications')
+      .onDelete('CASCADE')
+    t.string('channel', 40).notNullable()
+    t.string('state', 10).notNullable().defaultTo('pending')
+    t.integer('attempts').notNullable().defaultTo(0)
+    t.string('error_category', 40)
+    t.timestamp('next_attempt_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+    t.timestamp('sent_at', { useTz: true })
+    /** The claim that may write this row; a worker whose lease was taken over writes nothing. */
+    t.uuid('lease_id')
+    t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+    t.unique(['notification_id', 'channel'])
+  })
+  await db.raw(
+    "ALTER TABLE notification_deliveries ADD CONSTRAINT notification_deliveries_state_check CHECK (state IN ('pending','sent','failed','skipped'))"
+  )
+  await db.raw(
+    "CREATE INDEX notification_deliveries_pending ON notification_deliveries (next_attempt_at) WHERE state = 'pending'"
+  )
+}

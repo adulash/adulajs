@@ -1,6 +1,7 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import queue from '@nemoventures/adonis-jobs/services/main'
 import { AdulaError, logActivity, runtimeHealth, type QueueSnapshot } from 'adula'
+import { adula } from '#services/adula'
 import { actorId, knex, mutate, wantsJson } from './support.js'
 
 /** BullMQ stays in the application; AdulaJS only defines the snapshot shape. */
@@ -27,9 +28,24 @@ async function snapshot(): Promise<QueueSnapshot> {
   }
 }
 
+/** The :name parameter of the sync routes, such as sync:customers-pull. */
+function syncName(ctx: HttpContext) {
+  let name = String(ctx.params.name)
+  try {
+    name = decodeURIComponent(name)
+  } catch {}
+  if (!/^sync:[a-z0-9-]{1,95}$/.test(name))
+    throw new AdulaError(404, 'E_SYNC_JOB_NOT_FOUND', 'مهمة المزامنة غير موجودة')
+  return name
+}
+
 export default class JobsController {
   async index(ctx: HttpContext) {
-    const props = { health: await runtimeHealth(knex()), queues: [await snapshot()] }
+    const props = {
+      health: await runtimeHealth(knex()),
+      queues: [await snapshot()],
+      syncJobs: await adula().syncJobs.list(),
+    }
     if (wantsJson(ctx)) return props
     return ctx.inertia.render('admin/jobs/index', props)
   }
@@ -57,5 +73,31 @@ export default class JobsController {
       },
       'أعيدت الوظيفة إلى الطابور'
     )
+  }
+
+  /** "Run now": queues a manual run for the worker; 409 while one is queued or running. */
+  async runSync(ctx: HttpContext) {
+    const name = syncName(ctx)
+    return mutate(
+      ctx,
+      async () => {
+        const run = await adula().syncJobs.queue(name, 'manual', actorId(ctx))
+        await logActivity(knex(), {
+          resource: 'core.jobs',
+          recordId: 0,
+          actorId: actorId(ctx),
+          action: 'sync.run',
+          changes: { job: name, runId: run.id },
+        })
+        return run
+      },
+      'أضيفت مهمة المزامنة إلى قائمة التشغيل'
+    )
+  }
+
+  /** Run history of one sync job, newest first, for the history dialog. */
+  async syncRuns(ctx: HttpContext) {
+    const limit = Number(ctx.request.input('limit', 20))
+    return { data: await adula().syncJobs.runs(syncName(ctx), limit) }
   }
 }

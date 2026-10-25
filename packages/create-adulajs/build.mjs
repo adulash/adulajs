@@ -72,6 +72,8 @@ files['start/modules.ts'] =
   `import { ResourceRegistry, type Module } from 'adula'\n// adula:imports\nexport const modules: Module[] = [\n  /* adula:modules */\n]\nexport const registry = new ResourceRegistry().register(modules)\n`
 files['start/listeners.ts'] =
   `import { followerListeners, workflowListeners, type Listener } from 'adula'\nimport { registry } from '#start/modules'\nimport { adula } from '#services/adula'\n\n// Follower notifications for every registered resource; add module listeners below.\nexport const listeners: Listener[] = [\n  ...followerListeners(registry, () => adula().collaboration),\n  ...workflowListeners(registry, () => adula().workflows),\n  {\n    name: 'adula.webhooks',\n    event: '*',\n    handle: (event, trx) => adula().webhooks.listener().handle(event, trx),\n  },\n]\n`
+files['start/sync_jobs.ts'] =
+  `import type { SyncJobDefinition } from 'adula'\n\n/**\n * Background synchronization jobs (defineSyncJob from adula). start/scheduler.ts queues\n * each one on its cron; the worker runs it; administrators see it on /admin/jobs.\n */\nexport const syncJobDefinitions: SyncJobDefinition[] = []\n`
 files['config/database.ts'] = files['config/database.ts']
   .replace('modules, fixtureModuleNames', 'modules')
   .replace(/\$\{fixtureModuleNames\.has\(module.name\).*?\}/, 'app/modules')

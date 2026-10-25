@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import type { Knex } from 'knex'
 import { AdulaError } from '../admin/errors.js'
 import { targetColumns, type NotificationTarget } from '../services/settings.js'
@@ -199,9 +200,15 @@ export class MessageTemplates {
   }
 }
 
+/** The built-in channels: the notification row itself and the mail_state e-mail queue. */
+export const IN_APP_CHANNEL = 'in_app'
+export const MAIL_CHANNEL = 'mail'
+
 /**
- * Inserts a templated notification in the caller's transaction. Templates with
- * mail enabled mark the row for the mail delivery worker (deliverNotificationMail).
+ * Inserts a templated notification in the caller's transaction. A template with mail
+ * (external delivery) enabled marks the row for the mail worker (deliverNotificationMail)
+ * unless the user turned e-mail off, and queues one notification_deliveries row per
+ * other channel the user enabled with an address (see core/notification_channels.ts).
  */
 export async function notifyWithTemplate(
   db: Knex,
@@ -212,14 +219,39 @@ export async function notifyWithTemplate(
   target?: NotificationTarget | null
 ) {
   const message = await templates.render(key, variables, db)
-  await db('notifications').insert({
-    user_id: userId,
-    title: message.subject,
-    body: message.body,
-    template_key: key,
-    mail_state: message.mail ? 'pending' : null,
-    ...targetColumns(target),
-  })
+  const preferences: { channel: string; enabled: boolean; address: string | null }[] = message.mail
+    ? await db('user_notification_channels')
+        .where('user_id', userId)
+        .select('channel', 'enabled', 'address')
+    : []
+  const mailOff = preferences.some((row) => row.channel === MAIL_CHANNEL && !row.enabled)
+  const external = preferences.filter(
+    (row) =>
+      row.enabled && row.address && row.channel !== MAIL_CHANNEL && row.channel !== IN_APP_CHANNEL
+  )
+  const insert = async (trx: Knex) => {
+    const [row] = await trx('notifications')
+      .insert({
+        user_id: userId,
+        title: message.subject,
+        body: message.body,
+        template_key: key,
+        mail_state: message.mail ? (mailOff ? 'skipped' : 'pending') : null,
+        ...targetColumns(target),
+      })
+      .returning('id')
+    if (external.length)
+      await trx('notification_deliveries').insert(
+        external.map((preference) => ({
+          id: randomUUID(),
+          notification_id: row.id,
+          channel: preference.channel,
+        }))
+      )
+  }
+  // The row and its deliveries commit together; a caller's transaction is used as-is.
+  if (!external.length || (db as Knex.Transaction).isTransaction) await insert(db)
+  else await db.transaction(insert)
 }
 
 export type MailSender = (message: {

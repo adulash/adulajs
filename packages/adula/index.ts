@@ -107,7 +107,22 @@ export type {
   ImportTarget,
   ActorSource,
 } from './src/integrations/imports.js'
+export type {
+  ImportBatchRecord,
+  ImportBatchStatus,
+  ImportTargetField,
+  ImportMode,
+  ImportReportRow,
+  ImportBatchesOptions,
+  ImportCreateInput,
+  ImportStartOptions,
+} from './src/integrations/imports.js'
+export { csvImportAdapter, importFile } from './src/integrations/import_adapters.js'
+export type { ImportAdapter, ImportFile, ImportTable } from './src/integrations/import_adapters.js'
+export { createImportModesSchema } from './src/database/schema.js'
 export { openApiDocument } from './src/integrations/openapi.js'
+export { apiClientSource, apiClientDeclarations } from './src/integrations/api_client.js'
+export type { ApiClientDocument, ApiClientOptions } from './src/integrations/api_client.js'
 export {
   renderPrintHtml,
   htmlToPdf,
@@ -315,3 +330,57 @@ export {
   FIELD_TYPES,
   WORKFLOW_STEPS,
 } from './src/commands/capabilities.js'
+export { createSyncJobsSchema } from './src/database/schema.js'
+export {
+  defineSyncJob,
+  SyncJobs,
+  SyncJobError,
+  syncErrorCategory,
+  SYNC_DEFAULT_TIMEOUT_MS,
+} from './src/integrations/sync_jobs.js'
+export type {
+  SyncJobDefinition,
+  SyncJobInput,
+  SyncJobContext,
+  SyncJobSummary,
+  SyncJobsOptions,
+  SyncSaveOptions,
+  SyncRun,
+  SyncRunStatus,
+  SyncTrigger,
+  SyncErrorCategory,
+  SyncStats,
+  SyncLogger,
+} from './src/integrations/sync_jobs.js'
+export { createNotificationChannelsSchema } from './src/database/schema.js'
+export {
+  NotificationChannels,
+  HttpChannelSettings,
+  ChannelDeliveryError,
+  inAppChannel,
+  mailChannel,
+  httpNotificationChannel,
+  phoneAddress,
+  IN_APP_CHANNEL,
+  MAIL_CHANNEL,
+  CHANNEL_MAX_ATTEMPTS,
+  HTTP_CHANNEL_SETTING_KEY,
+  HTTP_CHANNEL_KINDS,
+  CHANNEL_KIND_LABELS,
+} from './src/core/notification_channels.js'
+export type {
+  NotificationChannel,
+  ChannelLabel,
+  ChannelMessage,
+  ChannelRecipient,
+  ChannelContext,
+  ChannelDelivery,
+  ChannelPreference,
+  ChannelPreferenceInput,
+  ChannelDispatchResult,
+  HttpChannelOptions,
+  HttpChannelKind,
+  HttpChannelConfig,
+  HttpChannelInput,
+} from './src/core/notification_channels.js'
+export { isSealedSetting } from './src/core/settings.js'

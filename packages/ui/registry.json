@@ -615,11 +615,14 @@
       "name": "resource-import",
       "type": "registry:ui",
       "registryDependencies": [
+        "badge",
         "button",
         "input",
         "label",
+        "radio-group",
         "dialog",
-        "select"
+        "select",
+        "table"
       ],
       "dependencies": [
         "lucide-react@1.47.0",

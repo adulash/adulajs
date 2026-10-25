@@ -5,12 +5,42 @@ import type { Actor } from '../auth/ability.js'
 import { buildAbility } from '../auth/ability.js'
 import type { ResourceService } from '../admin/resource_service.js'
 import type { ResourceRegistry } from '../resource/registry.js'
-import type { Field, RecordData } from '../resource/types.js'
+import type { Field, RecordData, Resource } from '../resource/types.js'
+import { columnName } from '../resource/define_resource.js'
 import { AdulaError } from '../admin/errors.js'
 import { notifyWithTemplate } from '../core/message_templates.js'
+import { translate } from '../languages/catalog.js'
+import {
+  csvImportAdapter,
+  extensionOf,
+  importFile,
+  type ImportAdapter,
+  type ImportFile,
+} from './import_adapters.js'
 
+/** Batch states before dry runs; kept for compatibility. See ImportBatchStatus. */
 export type ImportStatus = 'mapping' | 'queued' | 'running' | 'done' | 'failed'
+/** Every batch state; 'validated' is a finished dry run waiting for the real import. */
+export type ImportBatchStatus = ImportStatus | 'validated'
+/** 'create' adds every row; 'upsert' updates the live record whose unique `matchField` matches. */
+export type ImportMode = 'create' | 'upsert'
 export type ImportTarget = { key: string; label: string; type: string; required: boolean }
+/** An importable field as ImportBatches returns it. */
+export type ImportTargetField = ImportTarget & {
+  /** Marked `unique` in the definition: usable as an upsert match field. */
+  unique: boolean
+}
+/** One row's outcome in a dry run: what the real import would do, or why it would fail. */
+export type ImportReportRow = {
+  row: number
+  ok: boolean
+  action?: 'create' | 'update'
+  message?: string
+}
+/**
+ * The batch shape before import modes; kept for compatibility.
+ * @deprecated Use ImportBatchRecord, which ImportBatches returns.
+ */
 export type ImportBatch = {
   id: number
   resource: string
@@ -29,19 +59,52 @@ export type ImportBatch = {
   finishedAt: string | null
   targets: ImportTarget[]
 }
+/** An import batch with its mode, dry-run state and per-row report. */
+export type ImportBatchRecord = Omit<ImportBatch, 'status' | 'targets'> & {
+  status: ImportBatchStatus
+  mode: ImportMode
+  matchField: string | null
+  /** The batch is (or was last) processed as a validation run that saves nothing. */
+  dryRun: boolean
+  /** Rows an upsert updated (or, in a dry run, would update). */
+  updated: number
+  /** Per-row dry-run report; empty for list() and for real imports. */
+  report: ImportReportRow[]
+  targets: ImportTargetField[]
+}
 export type ActorSource = { load(id: number): Promise<Actor> }
+export type ImportBatchesOptions = {
+  /** Extra file formats; CSV is always available. See ImportAdapter. */
+  adapters?: ImportAdapter[]
+}
+export type ImportCreateInput = {
+  fileName: unknown
+  /** UTF-8 text, raw bytes, or base64 text when `encoding` is 'base64'. */
+  content: unknown
+  /** An adapter name; detected from the file when omitted. */
+  format?: unknown
+  encoding?: unknown
+  mimeType?: unknown
+  mode?: unknown
+  matchField?: unknown
+  dryRun?: unknown
+}
+export type ImportStartOptions = { mode?: unknown; matchField?: unknown; dryRun?: unknown }
 
 export const IMPORT_ROW_LIMIT = 5000
 const COLUMN_LIMIT = 100
 const ERROR_LIMIT = 200
 const FILE_LIMIT = 5 * 1024 * 1024
 const UNSUPPORTED = new Set(['hasMany', 'attachment', 'json'])
+const MODES = new Set<ImportMode>(['create', 'upsert'])
 
 const normalize = (value: string) =>
   value
     .trim()
     .toLowerCase()
     .replace(/[\s_-]+/g, '')
+/** Template headers mark required columns with `*`; the mark never blocks matching. */
+const headerKey = (value: string) => normalize(value.replace(/\s*\*+\s*$/, ''))
 
 /** Converts one CSV cell to the field's stored representation, or throws a readable error. */
 export function importCell(field: Field, raw: string, lookups: Map<string, string>): unknown {
@@ -97,26 +160,62 @@ export function importCell(field: Field, raw: string, lookups: Map<string, strin
   }
 }
 
+/** Raised inside a dry-run transaction so it always rolls back. */
+class DryRunRollback extends Error {}
+
 /**
- * CSV imports in batches: the upload is parsed and stored, the user maps columns
- * to writable fields, and a worker saves each row through ResourceService with
- * the importing user's current permissions. Row failures never stop the batch.
+ * File imports in batches: the upload is parsed by a format adapter (CSV built in) and
+ * stored, the user maps columns to writable fields, and a worker saves each row through
+ * ResourceService with the importing user's current permissions. Row failures never stop
+ * the batch. A dry run validates every row exactly like the real import inside a
+ * transaction that is rolled back, so nothing (records, activity, outbox events, sequence
+ * numbers, notifications) is kept; the batch then waits as 'validated' for the real run.
+ * Upsert mode updates the live record matched by a unique field and creates the rest.
  */
 export class ImportBatches {
+  private formats: ImportAdapter[] = [csvImportAdapter]
+
   constructor(
     private db: Knex,
     private registry: ResourceRegistry,
     private resources: ResourceService,
-    private actors: ActorSource
-  ) {}
+    private actors: ActorSource,
+    options: ImportBatchesOptions = {}
+  ) {
+    for (const adapter of options.adapters ?? []) this.registerAdapter(adapter)
+  }
 
-  /** Writable, importable fields for this actor. */
-  targets(name: string, actor: Actor): ImportTarget[] {
+  /**
+   * Adds a file format, for example an XLSX adapter. A later adapter with the same
+   * name replaces the earlier one; CSV stays the fallback for text without an extension.
+   */
+  registerAdapter(adapter: ImportAdapter) {
+    if (!/^[a-z0-9][a-z0-9_-]*$/.test(adapter.name) || !adapter.extensions.length)
+      throw new Error('An import adapter needs a lower-case name and at least one extension')
+    this.formats = [...this.formats.filter((item) => item.name !== adapter.name), adapter]
+    return this
+  }
+
+  /** Registered formats, CSV first. */
+  adapters(): readonly ImportAdapter[] {
+    return this.formats
+  }
+
+  /** Every accepted upload extension, for the upload validator and the file picker. */
+  extensions() {
+    return [...new Set(this.formats.flatMap((adapter) => adapter.extensions))]
+  }
+
+  /** Writable, importable fields for this actor; upsert also needs update permission. */
+  targets(name: string, actor: Actor, mode: ImportMode = 'create'): ImportTargetField[] {
     const resource = this.registry.get(name)
     const ability = buildAbility(actor.rules, this.registry.all())
     if (!resource.actions.includes('create') || !ability.can('create', name))
       throw new AdulaError(403, 'E_FORBIDDEN', 'ليس لديك صلاحية الإضافة إلى هذا الكيان')
-    const fields: ImportTarget[] = resource.form
+    const upsert = mode === 'upsert'
+    if (upsert && (!resource.actions.includes('update') || !ability.can('update', name)))
+      throw new AdulaError(403, 'E_FORBIDDEN', 'الإضافة أو التحديث يتطلب صلاحية التعديل أيضاً')
+    const fields: ImportTargetField[] = resource.form
       .filter((key) => {
         const field = resource.fields[key]
         return (
@@ -124,7 +223,8 @@ export class ImportBatches {
           !field.sequence &&
           actor.permissionLevel >=
             Math.max(field.permissionLevel ?? 0, resource.hidden?.includes(key) ? 1 : 0) &&
-          ability.can('create', subject(name, {}), key)
+          ability.can('create', subject(name, {}), key) &&
+          (!upsert || ability.can('update', subject(name, {}), key))
         )
       })
       .map((key) => ({
@@ -132,6 +232,7 @@ export class ImportBatches {
         label: resource.fields[key].label.ar,
         type: resource.fields[key].type,
         required: Boolean(resource.fields[key].required),
+        unique: Boolean(resource.fields[key].unique),
       }))
     // An inherited scope takes the unit from the parent row instead (#45).
     if (resource.scoped && !resource.scope)
@@ -140,24 +241,47 @@ export class ImportBatches {
         label: 'الوحدة التنظيمية (رقم)',
         type: 'integer',
         required: true,
+        unique: false,
       })
     return fields
   }
 
-  async create(name: string, actor: Actor, input: { fileName: unknown; content: unknown }) {
-    const targets = this.targets(name, actor)
+  /**
+   * A CSV header row of the actor's importable fields in Arabic, required ones marked
+   * with `*`, with a UTF-8 byte-order mark so spreadsheet programs show Arabic. The
+   * headers map automatically when the filled template is uploaded.
+   */
+  template(name: string, actor: Actor, mode: ImportMode = 'create') {
+    const targets = this.targets(name, actor, mode)
+    const headers = targets.map((target) => `${target.label}${target.required ? ' *' : ''}`)
+    return {
+      fileName: `${name}-template.csv`,
+      content: `\uFEFF${Papa.unparse([headers])}\n`,
+    }
+  }
+
+  async create(name: string, actor: Actor, input: ImportCreateInput) {
+    const mode = this.mode(input.mode ?? 'create')
+    const targets = this.targets(name, actor, mode)
+    const matchField = input.matchField ? this.matchField(targets, input.matchField) : null
     const fileName =
       typeof input.fileName === 'string' ? input.fileName.slice(0, 200) : 'import.csv'
-    if (typeof input.content !== 'string' || !input.content.trim())
-      throw new AdulaError(422, 'E_IMPORT_FILE', 'الملف فارغ')
-    if (Buffer.byteLength(input.content) > FILE_LIMIT)
+    let bytes: Uint8Array
+    if (typeof input.content === 'string') {
+      if (!input.content.trim()) throw new AdulaError(422, 'E_IMPORT_FILE', 'الملف فارغ')
+      bytes = Buffer.from(input.content, input.encoding === 'base64' ? 'base64' : 'utf8')
+    } else if (input.content instanceof Uint8Array) bytes = input.content
+    else throw new AdulaError(422, 'E_IMPORT_FILE', 'الملف فارغ')
+    if (!bytes.byteLength) throw new AdulaError(422, 'E_IMPORT_FILE', 'الملف فارغ')
+    if (bytes.byteLength > FILE_LIMIT)
       throw new AdulaError(422, 'E_IMPORT_FILE', 'حجم الملف يتجاوز 5 ميغابايت')
-    const parsed = Papa.parse<string[]>(input.content.replace(/^\uFEFF/, ''), {
-      skipEmptyLines: 'greedy',
-    })
-    if (parsed.errors.some((error) => error.type !== 'Delimiter'))
-      throw new AdulaError(422, 'E_IMPORT_FILE', `تعذر قراءة CSV: ${parsed.errors[0].message}`)
-    const [headers = [], ...rows] = parsed.data
+    const file = importFile(
+      fileName,
+      bytes,
+      typeof input.mimeType === 'string' ? input.mimeType : undefined
+    )
+    const adapter = this.adapterFor(file, input.format, typeof input.content === 'string')
+    const { headers, rows } = await adapter.parse(file)
     if (!headers.length || headers.length > COLUMN_LIMIT)
       throw new AdulaError(422, 'E_IMPORT_FILE', 'يجب أن يحتوي الملف صف عناوين (100 عمود كحد أقصى)')
     if (!rows.length || rows.length > IMPORT_ROW_LIMIT)
@@ -165,7 +289,7 @@ export class ImportBatches {
     const mapping: Record<string, string> = {}
     headers.forEach((header, index) => {
       const target = targets.find((field) =>
-        [field.key, field.label].some((alias) => normalize(alias) === normalize(header))
+        [field.key, field.label].some((alias) => normalize(alias) === headerKey(String(header)))
       )
       if (target && !Object.values(mapping).includes(target.key))
         mapping[String(index)] = target.key
@@ -176,9 +300,14 @@ export class ImportBatches {
         user_id: actor.id,
         file_name: fileName,
         status: 'mapping',
-        headers: JSON.stringify(headers),
+        mode,
+        match_field: matchField,
+        dry_run: input.dryRun === true,
+        headers: JSON.stringify(headers.map(String)),
         mapping: JSON.stringify(mapping),
-        rows: JSON.stringify(rows.map((cells) => cells.slice(0, headers.length))),
+        rows: JSON.stringify(
+          rows.map((cells) => cells.slice(0, headers.length).map((cell) => String(cell ?? '')))
+        ),
         total: rows.length,
       })
       .returning('*')
@@ -187,7 +316,7 @@ export class ImportBatches {
 
   async show(id: unknown, actor: Actor) {
     const row = await this.owned(id, actor)
-    return this.present(row, this.safeTargets(row.resource, actor))
+    return this.present(row, this.safeTargets(row.resource, actor, row.mode))
   }
 
   async list(actor: Actor) {
@@ -200,25 +329,34 @@ export class ImportBatches {
         'resource',
         'file_name',
         'status',
+        'mode',
+        'match_field',
+        'dry_run',
         'headers',
         'mapping',
         'total',
         'processed',
         'created',
+        'updated',
         'failed',
         'errors',
         'created_at',
         'finished_at'
       )
-    return rows.map((row) => this.present({ ...row, rows: [] }, []))
+    return rows.map((row) => this.present({ ...row, rows: [], report: [] }, []))
   }
 
-  /** Stores the column mapping and queues the batch for the worker. */
-  async start(id: unknown, actor: Actor, mapping: unknown) {
+  /**
+   * Stores the column mapping and queues the batch for the worker. A batch in 'mapping'
+   * runs as created (dry run or not) unless `dryRun` says otherwise; a 'validated' batch
+   * runs for real by default, so the same batch is imported after its dry run.
+   */
+  async start(id: unknown, actor: Actor, mapping: unknown, options: ImportStartOptions = {}) {
     const row = await this.owned(id, actor)
-    if (row.status !== 'mapping')
+    if (!['mapping', 'validated'].includes(row.status))
       throw new AdulaError(409, 'E_IMPORT_STATE', 'بدأت معالجة هذه الدفعة بالفعل')
-    const targets = this.targets(row.resource, actor)
+    const mode = this.mode(options.mode ?? row.mode ?? 'create')
+    const targets = this.targets(row.resource, actor, mode)
     if (!mapping || typeof mapping !== 'object' || Array.isArray(mapping))
       throw new AdulaError(422, 'E_IMPORT_MAPPING', 'مطابقة الأعمدة غير صالحة')
     const clean: Record<string, string> = {}
@@ -244,15 +382,42 @@ export class ImportBatches {
         'E_IMPORT_MAPPING',
         `حقول مطلوبة بلا عمود: ${missing.map((target) => target.label).join('، ')}`
       )
+    let matchField: string | null = null
+    if (mode === 'upsert') {
+      matchField = this.matchField(targets, options.matchField ?? row.match_field)
+      if (!used.has(matchField))
+        throw new AdulaError(422, 'E_IMPORT_MATCH', 'اربط حقل المطابقة بعمود من الملف')
+    }
+    const dryRun =
+      typeof options.dryRun === 'boolean'
+        ? options.dryRun
+        : row.status === 'validated'
+          ? false
+          : Boolean(row.dry_run)
     await this.db('import_batches')
       .where('id', row.id)
-      .update({ mapping: JSON.stringify(clean), status: 'queued' })
+      .update({
+        mapping: JSON.stringify(clean),
+        mode,
+        match_field: matchField,
+        dry_run: dryRun,
+        status: 'queued',
+        processed: 0,
+        created: 0,
+        updated: 0,
+        failed: 0,
+        errors: JSON.stringify([]),
+        report: JSON.stringify([]),
+        started_at: null,
+        finished_at: null,
+      })
     return this.show(row.id, actor)
   }
 
   /**
-   * Worker step: claims one queued or running batch and imports up to `chunk`
-   * rows. Progress is committed per row, so a crash resumes after the last one.
+   * Worker step: claims one queued or running batch and imports (or, for a dry run,
+   * validates) up to `chunk` rows. Import progress is committed per row, so a crash resumes
+   * after the last one; a dry run records its progress and report once per chunk.
    */
   async process(chunk = 200) {
     const batch = await this.db.transaction(async (trx) => {
@@ -285,12 +450,19 @@ export class ImportBatches {
     }
     const mapping = batch.mapping as Record<string, string>
     const rows = batch.rows as string[][]
-    let { processed, created, failed } = batch as {
+    const dryRun = Boolean(batch.dry_run)
+    const mode: ImportMode = batch.mode === 'upsert' ? 'upsert' : 'create'
+    const matchField = mode === 'upsert' ? (batch.match_field as string) : null
+    // A dry run rolls each row back, so it finds duplicates within the file itself.
+    const earlier = dryRun ? this.earlierDuplicates(resource, mapping, rows, matchField) : null
+    let { processed, created, updated, failed } = batch as {
       processed: number
       created: number
+      updated: number
       failed: number
     }
     const errors = [...(batch.errors as { row: number; message: string }[])]
+    const report = [...((batch.report ?? []) as ImportReportRow[])]
     const end = Math.min(rows.length, processed + chunk)
     for (let index = processed; index < end; index++) {
       const cells = rows[index]
@@ -308,43 +480,178 @@ export class ImportBatches {
             throw new Error(`${resource.fields[key].label.ar}: ${(error as Error).message}`)
           }
         }
-        await this.resources.save(batch.resource, actor, input)
-        created++
+        const duplicate = earlier?.duplicates.get(index)
+        if (duplicate) throw new Error(duplicate)
+        let action = await this.saveRow(resource, actor, input, matchField, dryRun)
+        // A repeated match value updates the record the earlier row of the file created.
+        if (earlier?.repeats.has(index)) action = 'update'
+        if (action === 'create') created++
+        else updated++
+        if (dryRun) report.push({ row: index + 2, ok: true, action })
       } catch (error) {
         failed++
-        if (errors.length < ERROR_LIMIT)
-          errors.push({
-            row: index + 2,
-            message:
-              error instanceof AdulaError || error instanceof Error
-                ? error.message.slice(0, 300)
-                : 'خطأ غير معروف',
-          })
+        const message = rowMessage(error)
+        if (errors.length < ERROR_LIMIT) errors.push({ row: index + 2, message })
+        if (dryRun) report.push({ row: index + 2, ok: false, message })
       }
       processed = index + 1
+      // A real import commits progress per row, so a crash never imports a row twice.
+      // A dry run saves nothing: its progress and report are written once per chunk, and
+      // a crash only validates the rest of that chunk again.
+      if (!dryRun)
+        await this.db('import_batches')
+          .where('id', batch.id)
+          .update({ processed, created, updated, failed, errors: JSON.stringify(errors) })
+    }
+    if (dryRun)
       await this.db('import_batches')
         .where('id', batch.id)
-        .update({ processed, created, failed, errors: JSON.stringify(errors) })
-    }
-    if (processed >= rows.length) {
-      await this.db.transaction(async (trx) => {
-        await trx('import_batches')
-          .where('id', batch.id)
-          // Row data is only needed while importing; the log keeps counts and errors.
-          .update({ status: 'done', finished_at: trx.fn.now(), rows: JSON.stringify([]) })
-        await notifyWithTemplate(trx, Number(batch.user_id), 'import.finished', {
-          resource: resource.label.ar,
+        .update({
+          processed,
           created,
+          updated,
           failed,
+          errors: JSON.stringify(errors),
+          report: JSON.stringify(report),
         })
-      })
+    if (processed >= rows.length) {
+      if (dryRun)
+        // The rows stay for the real import; a dry run sends no notification.
+        await this.db('import_batches')
+          .where('id', batch.id)
+          .update({ status: 'validated', finished_at: this.db.fn.now() })
+      else
+        await this.db.transaction(async (trx) => {
+          await trx('import_batches')
+            .where('id', batch.id)
+            // Row data is only needed while importing; the log keeps counts and errors.
+            .update({ status: 'done', finished_at: trx.fn.now(), rows: JSON.stringify([]) })
+          await notifyWithTemplate(trx, Number(batch.user_id), 'import.finished', {
+            resource: resource.label.ar,
+            created: created + updated,
+            failed,
+          })
+        })
     }
-    return { id: Number(batch.id), processed, created, failed }
+    return { id: Number(batch.id), processed, created, updated, failed }
   }
 
-  private safeTargets(name: string, actor: Actor) {
+  /**
+   * Saves one row through ResourceService. Upsert first looks for the live record with
+   * the same match value; ResourceService then authorizes the update against the actor's
+   * scope and rules and checks the record's current `version`. A dry run does the same
+   * inside a transaction that is always rolled back.
+   */
+  private async saveRow(
+    resource: Resource,
+    actor: Actor,
+    input: RecordData,
+    matchField: string | null,
+    dryRun: boolean
+  ): Promise<'create' | 'update'> {
+    const work = async (trx: Knex.Transaction) => {
+      let id: number | undefined
+      if (matchField) {
+        const field = resource.fields[matchField]
+        const value = input[matchField]
+        if (value === null || value === undefined)
+          throw new Error(`${field.label.ar}: قيمة المطابقة مطلوبة`)
+        const found = await trx(resource.name)
+          .whereNull('deleted_at')
+          .where(field.column ?? columnName(matchField), value as string)
+          .first(['id', ...(resource.version ? ['version'] : [])])
+        if (found) {
+          id = Number(found.id)
+          if (resource.version) input.version = Number(found.version)
+          // An empty cell keeps the stored value of a matched record instead of clearing it.
+          for (const key of Object.keys(input)) if (input[key] === null) delete input[key]
+        }
+      }
+      await this.resources.save(resource.name, actor, input, id, trx)
+      return id === undefined ? ('create' as const) : ('update' as const)
+    }
+    if (!dryRun) return this.db.transaction(work)
+    let action: 'create' | 'update' = 'create'
     try {
-      return this.targets(name, actor)
+      await this.db.transaction(async (trx) => {
+        action = await work(trx)
+        throw new DryRunRollback()
+      })
+    } catch (error) {
+      if (!(error instanceof DryRunRollback)) throw error
+    }
+    return action
+  }
+
+  /**
+   * Rows whose unique value repeats an earlier row of the same file. In upsert mode a
+   * repeated match value is not an error: that row would update the earlier row's record.
+   */
+  private earlierDuplicates(
+    resource: Resource,
+    mapping: Record<string, string>,
+    rows: string[][],
+    matchField: string | null
+  ) {
+    const duplicates = new Map<number, string>()
+    const repeats = new Set<number>()
+    for (const [column, key] of Object.entries(mapping)) {
+      if (!resource.fields[key]?.unique) continue
+      const seen = new Map<string, number>()
+      rows.forEach((cells, index) => {
+        const value = (cells[Number(column)] ?? '').trim()
+        if (!value) return
+        const first = seen.get(value)
+        if (first === undefined) seen.set(value, index)
+        else if (key === matchField) repeats.add(index)
+        else if (!duplicates.has(index))
+          duplicates.set(
+            index,
+            `${resource.fields[key].label.ar}: القيمة مكررة في الملف (الصف ${first + 2})`
+          )
+      })
+    }
+    return { duplicates, repeats }
+  }
+
+  private adapterFor(file: ImportFile, format: unknown, text: boolean) {
+    if (format !== undefined && format !== null && format !== '') {
+      const named = this.formats.find((adapter) => adapter.name === format)
+      if (!named) throw new AdulaError(422, 'E_IMPORT_FORMAT', 'صيغة الملف غير مدعومة')
+      return named
+    }
+    const byExtension = this.formats.filter((adapter) =>
+      adapter.extensions.includes(extensionOf(file.fileName))
+    )
+    const detected =
+      [...byExtension].reverse().find((adapter) => adapter.detect(file)) ??
+      [...this.formats].reverse().find((adapter) => adapter.detect(file))
+    if (detected) return detected
+    // Text without a recognizable name keeps the historical CSV behaviour.
+    if (text && !extensionOf(file.fileName)) return csvImportAdapter
+    throw new AdulaError(422, 'E_IMPORT_FORMAT', 'صيغة الملف غير مدعومة')
+  }
+
+  private mode(value: unknown): ImportMode {
+    if (typeof value !== 'string' || !MODES.has(value as ImportMode))
+      throw new AdulaError(422, 'E_IMPORT_MODE', 'نمط الاستيراد غير صالح')
+    return value as ImportMode
+  }
+
+  private matchField(targets: ImportTargetField[], value: unknown) {
+    const target = targets.find((item) => item.key === value)
+    if (!target || !target.unique)
+      throw new AdulaError(
+        422,
+        'E_IMPORT_MATCH',
+        'حقل المطابقة يجب أن يكون حقلاً فريداً قابلاً للاستيراد'
+      )
+    return target.key
+  }
+
+  private safeTargets(name: string, actor: Actor, mode?: string) {
+    try {
+      return this.targets(name, actor, mode === 'upsert' ? 'upsert' : 'create')
     } catch {
       return []
     }
@@ -359,7 +666,7 @@ export class ImportBatches {
     return row
   }
 
-  private present(row: Record<string, any>, targets: ImportTarget[]): ImportBatch {
+  private present(row: Record<string, any>, targets: ImportTargetField[]): ImportBatchRecord {
     let label = String(row.resource)
     try {
       label = this.registry.get(row.resource).label.ar
@@ -370,17 +677,32 @@ export class ImportBatches {
       resourceLabel: label,
       fileName: String(row.file_name),
       status: row.status,
+      mode: row.mode === 'upsert' ? 'upsert' : 'create',
+      matchField: row.match_field ?? null,
+      dryRun: Boolean(row.dry_run),
       headers: row.headers ?? [],
       mapping: row.mapping ?? {},
       sample: (row.rows ?? []).slice(0, 5),
       total: Number(row.total),
       processed: Number(row.processed ?? 0),
       created: Number(row.created ?? 0),
+      updated: Number(row.updated ?? 0),
       failed: Number(row.failed ?? 0),
       errors: row.errors ?? [],
+      report: row.report ?? [],
       createdAt: new Date(row.created_at).toISOString(),
       finishedAt: row.finished_at ? new Date(row.finished_at).toISOString() : null,
       targets,
     }
   }
+}
+
+/** A row failure as the user reads it; database constraint errors get their Arabic text. */
+function rowMessage(error: unknown) {
+  const code = (error as { code?: string })?.code
+  if (code === '23505') return translate('errors.E_DUPLICATE', 'ar')
+  if (code === '23503') return translate('errors.E_RELATION', 'ar')
+  return error instanceof AdulaError || error instanceof Error
+    ? error.message.slice(0, 300)
+    : 'خطأ غير معروف'
 }

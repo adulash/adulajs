@@ -14,6 +14,7 @@ import {
   publicMailTest,
 } from '#services/mail_delivery_test'
 import { authenticationSettings } from './authentication_settings_controller.js'
+import { adula } from '#services/adula'
 
 function scopeOf(value: unknown): SettingScope {
   const scope = text(value) ?? 'system'
@@ -40,6 +41,7 @@ export default class SettingsController {
       mailTest: publicMailTest(state),
       mailRecipient: user.email,
       authentication: await authenticationSettings(),
+      messagingChannel: await adula().channelSettings.read(),
     })
   }
 
@@ -97,5 +99,29 @@ export default class SettingsController {
       () => new SettingsAdmin(knex()).delete(actorId(ctx), positiveId(ctx.params.id)),
       'تم حذف الإعداد'
     )
+  }
+
+  /**
+   * The SMS/WhatsApp provider section. JSON only: a generated signing secret is
+   * returned in this response once and never again.
+   */
+  async updateChannel(ctx: HttpContext) {
+    const { config, secret } = await adula().channelSettings.save(actorId(ctx), {
+      enabled: ctx.request.input('enabled'),
+      kind: ctx.request.input('kind'),
+      url: ctx.request.input('url'),
+    })
+    return { data: { config, secret } }
+  }
+
+  async rotateChannel(ctx: HttpContext) {
+    const { config, secret } = await adula().channelSettings.rotate(actorId(ctx))
+    return { data: { config, secret } }
+  }
+
+  /** Sends one test message; answers with the failure category, never the provider's body. */
+  async testChannel(ctx: HttpContext) {
+    const error = await adula().channelSettings.test(ctx.request.input('to'))
+    return { data: { sent: error === null, error } }
   }
 }

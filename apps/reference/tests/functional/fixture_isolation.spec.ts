@@ -28,6 +28,8 @@ test.group('Educational fixture isolation', () => {
     const probe = JSON.parse(line!.slice('FIXTURE_PROBE:'.length))
     assert.deepEqual(probe.modules, [])
     assert.deepEqual(probe.resources, [])
+    // Fixture sync jobs (tests/fixtures/sync_jobs.ts) are never scheduled outside tests.
+    assert.deepEqual(probe.syncJobs, [])
     // Framework listeners (webhooks, followers) are not example code; none may be educational.
     assert.deepEqual(
       probe.listeners.filter((name: string) => !name.startsWith('adula.')),

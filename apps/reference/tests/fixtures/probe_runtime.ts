@@ -9,6 +9,7 @@ try {
   const { modules, registry } = await import('#start/modules')
   const { listeners } = await import('#start/listeners')
   const { default: database } = await import('#config/database')
+  const { syncJobDefinitions } = await import('#start/sync_jobs')
   console.log(
     'FIXTURE_PROBE:' +
       JSON.stringify({
@@ -16,6 +17,7 @@ try {
         resources: registry.all().map((resource) => resource.name),
         listeners: listeners.map((listener) => listener.name),
         migrations: database.connections.postgres.migrations?.paths,
+        syncJobs: syncJobDefinitions.map((job) => job.name),
       })
   )
 } finally {
