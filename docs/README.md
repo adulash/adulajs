@@ -13,6 +13,7 @@ AdulaJS builds one **system** (النظام) per company. Each business area ins
 | How do I run and test the source? | [Development](development.md) |
 | How do I use collaboration, webhooks, API tokens, imports, printing and workflows? | [Business features](business-features.md) |
 | How do sign-in, SSO providers and two-factor authentication work? | [Authentication](authentication.md) |
+| How do I connect the system to other software (API client, imports, sync jobs, SMS/WhatsApp, webhooks)? | [Integration](integration.md) |
 | How do I deploy, back up and restore? | [Operations](operations.md) |
 | What exists today, and how much is tested? | [Implementation status](implementation-status.md) |
 | What can AdulaJS not do yet? | [Gaps](../GAPS.md) |

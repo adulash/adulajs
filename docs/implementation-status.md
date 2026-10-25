@@ -38,10 +38,13 @@ All three share one version and are published together from a `v<version>` tag
 * Collaboration: comments with mentions, followers, tags, field history, assignments and
   one "My tasks" page for tasks and approvals.
 * Notifications: message templates editable by administrators, in-app inbox with realtime
-  SSE (one shared stream per browser), e-mail delivery by the worker.
+  SSE (one shared stream per browser), e-mail delivery by the worker, per-user channel
+  preferences and a signed HTTP provider channel for SMS or WhatsApp.
 * Integrations: signed outgoing webhooks with retries, signed inbound webhooks with
-  deduplication, API tokens with `/api/v1` and per-caller OpenAPI, CSV import through the
-  worker, RTL print page with optional Gotenberg PDF, optional MCP tools (`adula/mcp`).
+  deduplication, API tokens with `/api/v1`, per-caller OpenAPI and a generated typed
+  TypeScript client (`/api/v1/client.ts`, `adula:client`), imports through the worker with
+  format adapters (CSV built in), templates, dry run and upsert, scheduled sync jobs with
+  run history, RTL print page with optional Gotenberg PDF, optional MCP tools (`adula/mcp`).
 * Workflows: versioned XState workflows with condition, update, notify, approval,
   decision, delay, http and end steps; row locks, bounded retries, failed-runs screen.
 * Attachments: private storage on Drive disks (filesystem or S3), authorized download,

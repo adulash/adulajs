@@ -25,7 +25,9 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
 
 ## Notifications, printing and files
 
-* Notification channels are in-app and e-mail only (no SMS, WhatsApp or push).
+* Notification channels are in-app, e-mail and one signed HTTP provider for SMS or
+  WhatsApp (a company gateway in front of its vendor); there is no push channel and no
+  bundled vendor integration.
 * One generic print layout serves every resource; there are no custom print templates.
 * An attachment field holds one file; there is no in-page preview of attachments.
 
@@ -40,9 +42,9 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
   entry and the `otpauth://` link only) and no e-mail notice on two-factor changes.
 * SSO covers OAuth/OIDC sign-in through GitHub, Google and Microsoft Entra ID; there is
   no SAML and no SCIM provisioning.
-* No generated, typed API client: the Tuyau registry is used for URLs, but the generic
-  resource endpoints return untyped responses.
-* XLSX import is pending a maintained parser; CSV import works.
+* The generated API client is TypeScript only; other languages use `/api/v1/openapi.json`.
+* XLSX import is pending the owner's approval of a parser; the `ImportAdapter`
+  registration point is ready and CSV import works (docs/integration.md).
 
 ## Language and documentation
 

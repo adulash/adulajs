@@ -35,7 +35,8 @@ create assignments of kind `approval`.
   message template. Defaults live in AdulaJS (`DEFAULT_TEMPLATES`); administrators
   edit wording at `/admin/templates` (placeholders are validated).
 - Templates with mail enabled are e-mailed by the worker
-  (`deliverNotificationMail`, three attempts).
+  (`deliverNotificationMail`, three attempts), and sent to the SMS/WhatsApp provider
+  for users who enabled it ([notification channels](integration.md#notification-channels)).
 - A database trigger NOTIFYs on commit; each web process forwards the signal over
   SSE (`@adonisjs/transmit`, channel `notifications/<userId>`), and the bell
   refreshes without a page reload.
@@ -90,14 +91,18 @@ The delivery log shows every stored delivery and can raise it again.
 Users create read or read-write tokens under their account menu. `/api/v1`
 accepts `Authorization: Bearer <token>` only (no cookies, no CSRF) and exposes the
 same resource operations with the token owner's current permissions.
-`GET /api/v1/openapi.json` describes the resources and actions the caller may use.
+`GET /api/v1/openapi.json` describes the resources and actions the caller may use, and
+`GET /api/v1/client.ts` returns a typed TypeScript client generated from it
+([Integration](integration.md#resource-api-and-the-generated-client)).
 
 ## CSV import
 
 Generic index pages offer "استيراد CSV" to users who may create records. Columns
 are matched to writable fields, the worker saves each row through
 `ResourceService` with the importer's permissions, and `/imports` shows progress
-and row errors. XLSX is not supported yet ([GAPS](../GAPS.md)).
+and row errors. Templates, dry-run checks, upsert by a unique field, the import API and
+format adapters are described in [Integration](integration.md#imports). XLSX is not
+supported yet ([GAPS](../GAPS.md)).
 
 ## Printing
 
