@@ -17,6 +17,7 @@ import {
   GitBranch,
   Hash,
   ListChecks,
+  UserRoundCheck,
   type LucideIcon,
 } from 'lucide-react'
 import { calendarDisplay } from '~/components/ui/calendar_date'
@@ -40,6 +41,7 @@ export const adminGroups: AdminGroup[] = [
       { href: '/admin/roles', label: 'الأدوار والصلاحيات', icon: ShieldCheck },
       { href: '/admin/org-units', label: 'الهيكل التنظيمي', icon: Network },
       { href: '/admin/sessions', label: 'الجلسات', icon: KeyRound },
+      { href: '/admin/delegations', label: 'تفويضات الموافقات', icon: UserRoundCheck },
     ],
   },
   {

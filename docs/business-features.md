@@ -143,4 +143,57 @@ Submitting a document starts the newest version; the run keeps that version.
 Change a workflow by adding a new version; move unfinished runs explicitly with
 `WorkflowEngine.migrateRuns`. The worker advances due runs; approvers decide in
 `/approvals`; failed runs are retried from `/admin/workflows`. HTTP steps send a
-stable `Idempotency-Key` because a crash may repeat the call.
+stable `Idempotency-Key` because a crash may repeat the call. Transitions are resolved
+from the step table itself (ADR 044); `WorkflowDefinition.machine` is deprecated.
+
+### Delegation while out of office
+
+A user delegates their workflow approvals to a colleague for a date range in
+`/account/delegations` («التفويض أثناء الغياب»); administrators manage anyone's in
+`/admin/delegations`. While the delegation is in force:
+
+* new approvals for the user open for the delegate («نيابة عن ...»), provided the
+  delegate can view the record; the user still sees and can decide them;
+* the user's pending approvals appear in the delegate's My tasks and can be decided
+  there;
+* the run's history names who decided and on whose behalf.
+
+Delegation never widens record access (the delegate's own rights still apply), never
+covers manual tasks, and never lets anyone approve a request they submitted. It ends at
+its last date or when revoked; revoking returns the routed approvals to the approver.
+Routing is one hop: if the delegate is away too, the approval stays with its approver.
+Ranges are inclusive UTC dates; in Riyadh (UTC+3), a delegation dated 1 to 3 November
+runs from 03:00 on 1 November to 02:59 on 4 November. One delegation per user at a
+time. Code: `WorkflowDelegations`.
+
+### SLA deadlines and escalation
+
+Approval and decision steps may declare a deadline in hours and what happens when it
+passes:
+
+```ts
+manager: {
+  type: 'approval',
+  label: 'موافقة مدير القسم',
+  assignees: { role: 'department_manager' },
+  sla: {
+    hours: 48,
+    dueSoonHours: 8, // reminder; default a quarter of hours, 0 for none
+    // 'overdue' (default) tells the approvers; 'notify' also tells the target;
+    // 'reassign' moves the approval to the target.
+    escalate: { action: 'notify', to: { manager: 'general_manager' } },
+  },
+  approve: 'director',
+  reject: 'rejected',
+},
+```
+
+`to` is any recipient (`{ role }`, `{ users }`, `'submitter'`, a function) or
+`{ manager: roleKey }`: holders of that role scoped to the approver's organizational
+unit, or to the nearest ancestor unit. Schedule the `sla:` job family
+(`node ace sla:evaluate`, every minute; the reference `start/scheduler.ts` does).
+Each pass sends one reminder per approval and escalates each overdue step once
+(`workflow_escalations`), through the message templates `workflow.sla_due_soon`,
+`workflow.sla_overdue` and `workflow.sla_escalated`. My tasks and the record's
+workflow panel show the state: «في الموعد»، «يقترب الموعد»، «متأخر». SLA hours are
+wall-clock hours (no business calendar).

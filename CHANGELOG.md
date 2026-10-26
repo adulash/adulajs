@@ -2,6 +2,46 @@
 
 ## Unreleased
 
+### Workflow delegation and SLA
+
+Minor (ADR 044). An additive migration `1770000000046_workflow_delegation_sla` adds
+`workflow_delegations`, `workflow_escalations` and six nullable `assignments` columns.
+`pnpm check:api` reports `WorkflowStep`, `WorkflowRun`, `Assignment` and
+`AssignmentOptions` as changed because each gains optional fields; existing code
+compiles unchanged.
+
+* Delegation while out of office: `WorkflowDelegations` (create, revoke, list,
+  candidates) and the reference pages `/account/delegations` and `/admin/delegations`.
+  While a delegation is in force, new approvals open for the delegate on behalf of the
+  approver, and the approver's pending approvals can be decided by the delegate. The
+  run history records who decided on whose behalf (`onBehalfOf`, `onBehalfOfName`).
+  Delegation never widens record access, never lets anyone approve a request they
+  submitted, and ends at expiry or revocation (revoking returns the routed approvals to
+  the approver). The delegate picker searches names of two characters or more, or an
+  exact e-mail address. New message template `workflow.delegated`.
+* SLA on approval and decision steps: `sla: { hours, dueSoonHours?, escalate? }` with
+  escalation `overdue` (default), `notify` or `reassign` to any recipient or to
+  `{ manager: roleKey }` (the approver's manager in the org tree).
+  `WorkflowEngine.evaluateSla()` runs from the new `sla:evaluate` command, which the
+  reference scheduler runs every minute. It sends one reminder per approval and one
+  escalation per overdue step, both recorded in `workflow_escalations`. New templates
+  `workflow.sla_due_soon`, `workflow.sla_overdue` and `workflow.sla_escalated`.
+  `WorkflowRun.sla`, `Assignment.sla` and `Assignment.dueAt` carry the deadline and its
+  state, and My tasks and the record's workflow panel show «في الموعد / يقترب الموعد /
+  متأخر».
+* Workflow transitions are resolved from the step table (`nextStep`) instead of
+  XState. An approval or decision step may now name itself as its next step (it
+  reopens). Any other step naming itself is refused by `defineWorkflow`, and the
+  engine fails such a run. `WorkflowDefinition.machine` is
+  deprecated; it and the `xstate` dependency are removed in the next major version.
+* New exports: `WorkflowDelegations`, `slaState`, `createWorkflowDelegationSlaSchema`
+  and the types `StepSla`, `SlaEscalation`, `EscalationTarget`, `SlaState`,
+  `WorkflowSlaStatus`, `SlaEvaluation`, `WorkflowDelegation`,
+  `WorkflowDelegationInput` and `WorkflowDelegationOptions`.
+* Reference consumer: the orders fixture workflow declares an SLA on its manager step,
+  and `tests/functional/workflow_delegation_sla.spec.ts` covers delegation and SLA end
+  to end.
+
 ### Optional languages
 
 Minor: Arabic stays the base language and every other language is an optional layer

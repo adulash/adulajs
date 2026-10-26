@@ -1,6 +1,13 @@
 import { usePage } from '@inertiajs/react'
 import { Form, Link } from '@adonisjs/inertia/react'
-import { ChevronsUpDown, KeySquare, LogOut, MonitorSmartphone, UserRound } from 'lucide-react'
+import {
+  ChevronsUpDown,
+  KeySquare,
+  LogOut,
+  MonitorSmartphone,
+  UserRound,
+  UserRoundCheck,
+} from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,7 +17,7 @@ import {
   DropdownMenuTrigger,
 } from '~/components/ui/dropdown-menu'
 
-/** The user block at the bottom of the workspace sidebar: profile, sessions, logout. */
+/** The user block at the bottom of the workspace sidebar: profile, sessions, delegation, logout. */
 export function AccountMenu() {
   const { user } = usePage<{ user?: { fullName: string | null; email: string } }>().props
   if (!user) return null
@@ -52,6 +59,12 @@ export function AccountMenu() {
           <Link route="api_tokens.index">
             <KeySquare />
             رموز API
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/account/delegations">
+            <UserRoundCheck />
+            التفويض أثناء الغياب
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />

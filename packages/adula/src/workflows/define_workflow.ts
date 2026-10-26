@@ -1,4 +1,4 @@
-import { createMachine, getNextSnapshot, type AnyStateMachine } from 'xstate'
+import { createMachine, type AnyStateMachine } from 'xstate'
 import type { Knex } from 'knex'
 import type { RecordData } from '../resource/types.js'
 
@@ -18,6 +18,29 @@ export type Recipients =
   | { role: string }
   | { users: number[] }
   | ((context: StepContext) => number[] | Promise<number[]>)
+
+/**
+ * Who receives an SLA escalation: any step recipient, or `{ manager: roleKey }` — the
+ * holders of that role in the approver's organizational unit or, failing that, the
+ * nearest ancestor unit (the approver's line manager in the org tree).
+ */
+export type EscalationTarget = Recipients | { manager: string }
+/** What happens when an approval passes its deadline. */
+export type SlaEscalation =
+  /** Mark the approval overdue and tell its approvers (the default). */
+  | { action: 'overdue' }
+  /** Also tell the target, for example the approver's manager. */
+  | { action: 'notify'; to: EscalationTarget }
+  /** Move the approval to the target; the late approvers' tasks are cancelled. */
+  | { action: 'reassign'; to: EscalationTarget }
+/** A service-level deadline on an approval or decision step (ADR 044). */
+export type StepSla = {
+  /** Hours the approvers have from the moment the step opens. */
+  hours: number
+  /** Remind the approvers this many hours before the deadline; default a quarter of `hours`, 0 for none. */
+  dueSoonHours?: number
+  escalate?: SlaEscalation
+}
 
 /** One decision an approver can take at a decision step (#42). */
 export type DecisionOutcome = {
@@ -55,6 +78,7 @@ export type WorkflowStep =
       label: string
       assignees: Recipients
       dueInDays?: number
+      sla?: StepSla
       approve: string
       reject: string
     }
@@ -68,6 +92,7 @@ export type WorkflowStep =
       label: string
       assignees: Recipients
       dueInDays?: number
+      sla?: StepSla
       outcomes: Record<string, DecisionOutcome>
     }
   | { type: 'delay'; label?: string; ms: number; next: string }
@@ -98,7 +123,14 @@ export type WorkflowInput = {
   /** Failed step attempts before the run stops as failed (default 5). */
   maxAttempts?: number
 }
-export type WorkflowDefinition = WorkflowInput & { machine: AnyStateMachine }
+export type WorkflowDefinition = WorkflowInput & {
+  /**
+   * The compiled XState machine.
+   * @deprecated Transitions are resolved by AdulaJS itself (ADR 044); `machine` and the
+   * xstate dependency are removed in the next major version.
+   */
+  machine: AnyStateMachine
+}
 export type WorkflowEvent =
   | { type: 'EVALUATE'; record: RecordData }
   | { type: 'DONE' }
@@ -128,6 +160,21 @@ function assertIdentifier(kind: 'workflow' | 'step', value: string) {
   )
 }
 
+function assertSla(key: string, sla: StepSla) {
+  if (typeof sla.hours !== 'number' || !Number.isFinite(sla.hours) || sla.hours <= 0)
+    throw new Error(`Step ${key} needs a positive SLA duration in hours`)
+  if (
+    sla.dueSoonHours !== undefined &&
+    (typeof sla.dueSoonHours !== 'number' || sla.dueSoonHours < 0 || sla.dueSoonHours >= sla.hours)
+  )
+    throw new Error(`Step ${key} needs dueSoonHours between 0 and its SLA duration`)
+  const action = sla.escalate?.action ?? 'overdue'
+  if (!['overdue', 'notify', 'reassign'].includes(action))
+    throw new Error(`Step ${key} has an unknown SLA escalation "${action}"`)
+  if (action !== 'overdue' && !(sla.escalate as { to?: unknown }).to)
+    throw new Error(`Step ${key} needs an escalation target for ${action}`)
+}
+
 function targets(step: WorkflowStep) {
   switch (step.type) {
     case 'condition':
@@ -144,8 +191,9 @@ function targets(step: WorkflowStep) {
 }
 
 /**
- * Declares a versioned workflow. Steps compile to an XState machine; the engine
- * performs each step's effect and asks the machine for the next step. Runs keep
+ * Declares a versioned workflow. The engine performs each step's effect and resolves
+ * the next step from the step table (nextStep); the deprecated XState machine is still
+ * compiled for compatibility until the next major version (ADR 044). Runs keep
  * the version they started with, so publishing a new version never changes a
  * running workflow (migrate explicitly with WorkflowEngine.migrateRuns).
  */
@@ -157,11 +205,17 @@ export function defineWorkflow(input: WorkflowInput): WorkflowDefinition {
   const keys = Object.keys(input.steps)
   for (const key of keys) {
     assertIdentifier('step', key)
-    for (const target of targets(input.steps[key]))
-      if (!(target in input.steps)) throw new Error(`Step ${key} points to unknown step ${target}`)
     const step = input.steps[key]
+    for (const target of targets(step)) {
+      if (!(target in input.steps)) throw new Error(`Step ${key} points to unknown step ${target}`)
+      // Only a step that waits for a person may reopen itself; any other step naming
+      // itself would repeat its effect (notifications, HTTP calls) without end.
+      if (target === key && step.type !== 'approval' && step.type !== 'decision')
+        throw new Error(`Step ${key} cannot name itself as its next step`)
+    }
     if (step.type === 'delay' && (!Number.isInteger(step.ms) || step.ms < 0))
       throw new Error(`Step ${key} needs a non-negative integer delay`)
+    if ((step.type === 'approval' || step.type === 'decision') && step.sla) assertSla(key, step.sla)
     if (step.type === 'decision') {
       const outcomes = Object.entries(step.outcomes ?? {})
       if (outcomes.length < 2) throw new Error(`Decision step ${key} needs at least two outcomes`)
@@ -225,13 +279,33 @@ export function defineWorkflow(input: WorkflowInput): WorkflowDefinition {
   return { ...input, machine }
 }
 
-/** The step reached from `current` by `event`, or an error if the step does not accept it. */
+/**
+ * The step reached from `current` by `event`, or an error if the step does not accept
+ * it. Resolved from the step table itself (ADR 044). Unlike the former XState lookup, an
+ * approval or decision step may name itself (for example "ask again"), which reopens it;
+ * defineWorkflow refuses a self-target on any other step.
+ */
 export function nextStep(definition: WorkflowDefinition, current: string, event: WorkflowEvent) {
-  if (!(current in definition.steps))
+  const step = Object.hasOwn(definition.steps, current) ? definition.steps[current] : undefined
+  if (!step)
     throw new Error(`Step ${current} is not part of ${definition.name}@${definition.version}`)
-  const snapshot = definition.machine.resolveState({ value: current, context: {} })
-  const next = getNextSnapshot(definition.machine, snapshot, event)
-  const value = String(next.value)
-  if (value === current) throw new Error(`Step ${current} does not accept ${event.type}`)
-  return value
+  const refuse = () => new Error(`Step ${current} does not accept ${event.type}`)
+  switch (step.type) {
+    case 'condition':
+      if (event.type !== 'EVALUATE') throw refuse()
+      return step.when(event.record) ? step.then : step.else
+    case 'approval':
+      if (event.type === 'APPROVE') return step.approve
+      if (event.type === 'REJECT') return step.reject
+      throw refuse()
+    case 'decision': {
+      if (event.type !== 'DECIDE' || !Object.hasOwn(step.outcomes, event.outcome)) throw refuse()
+      return step.outcomes[event.outcome].next
+    }
+    case 'end':
+      throw refuse()
+    default:
+      if (event.type !== 'DONE') throw refuse()
+      return step.next
+  }
 }

@@ -9,6 +9,7 @@ import {
   ImportBatches,
   InboundWebhooks,
   WorkflowEngine,
+  WorkflowDelegations,
   createOutboundPoster,
 } from 'adula'
 import env from '#start/env'
@@ -48,6 +49,7 @@ export function adula() {
       registry.workflows(),
       { post: createOutboundPoster(outboundPolicy()) }
     ),
+    delegations: new WorkflowDelegations(knex),
     imports: new ImportBatches(knex, registry, resources, actors),
     inbound: new InboundWebhooks(knex, {
       seal: (value) => encryption.encrypt(value),

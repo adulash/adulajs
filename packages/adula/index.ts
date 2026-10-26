@@ -82,6 +82,7 @@ export {
   createUploadGrantsSchema,
   createInboundWebhooksSchema,
   createTwoFactorSchema,
+  createWorkflowDelegationSlaSchema,
 } from './src/database/schema.js'
 export { defineWorkflow, nextStep } from './src/workflows/define_workflow.js'
 export type {
@@ -92,14 +93,26 @@ export type {
   StepContext,
   Recipients,
   DecisionOutcome,
+  StepSla,
+  SlaEscalation,
+  EscalationTarget,
 } from './src/workflows/define_workflow.js'
-export { WorkflowEngine, workflowListeners } from './src/workflows/engine.js'
+export { WorkflowEngine, workflowListeners, slaState } from './src/workflows/engine.js'
 export type {
   WorkflowRun,
   WorkflowRunStatus,
   WorkflowOptions,
   WorkflowDecisionForm,
+  SlaState,
+  WorkflowSlaStatus,
+  SlaEvaluation,
 } from './src/workflows/engine.js'
+export { WorkflowDelegations } from './src/workflows/delegations.js'
+export type {
+  WorkflowDelegation,
+  WorkflowDelegationInput,
+  WorkflowDelegationOptions,
+} from './src/workflows/delegations.js'
 export { ImportBatches, importCell, IMPORT_ROW_LIMIT } from './src/integrations/imports.js'
 export type {
   ImportBatch,

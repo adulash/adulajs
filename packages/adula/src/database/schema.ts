@@ -592,3 +592,64 @@ export async function createTwoFactorSchema(db: Knex) {
     t.index(['user_id'])
   })
 }
+
+/**
+ * Approval delegation and SLA deadlines (ADR 044). A delegation routes a user's new
+ * approvals to a delegate for a date range and lets the delegate act on the user's
+ * pending ones; overlap is refused by WorkflowDelegations under a row lock. Approval
+ * assignments gain a deadline, the delegation they were routed through and the SLA
+ * markers; workflow_escalations records each reminder and escalation once.
+ */
+export async function createWorkflowDelegationSlaSchema(db: Knex) {
+  await db.schema.createTable('workflow_delegations', (t) => {
+    t.increments('id')
+    t.integer('delegator_id').notNullable().references('id').inTable('users').onDelete('RESTRICT')
+    t.integer('delegate_id').notNullable().references('id').inTable('users').onDelete('RESTRICT')
+    t.date('starts_on').notNullable()
+    t.date('ends_on').notNullable()
+    t.string('note', 500)
+    t.integer('created_by').references('id').inTable('users').onDelete('SET NULL')
+    t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+    t.timestamp('revoked_at', { useTz: true })
+    t.integer('revoked_by').references('id').inTable('users').onDelete('SET NULL')
+    t.index(['delegator_id', 'ends_on'])
+    t.index(['delegate_id', 'ends_on'])
+  })
+  await db.raw(
+    'ALTER TABLE workflow_delegations ADD CONSTRAINT workflow_delegations_distinct CHECK (delegator_id <> delegate_id), ADD CONSTRAINT workflow_delegations_range CHECK (ends_on >= starts_on)'
+  )
+  await db.schema.alterTable('assignments', (t) => {
+    t.integer('on_behalf_of').references('id').inTable('users').onDelete('RESTRICT')
+    t.integer('delegation_id').references('id').inTable('workflow_delegations').onDelete('RESTRICT')
+    t.timestamp('due_at', { useTz: true })
+    t.timestamp('due_soon_at', { useTz: true })
+    t.timestamp('reminded_at', { useTz: true })
+    t.timestamp('escalated_at', { useTz: true })
+  })
+  await db.raw(
+    "CREATE INDEX assignments_sla_due ON assignments (due_at) WHERE status = 'open' AND due_at IS NOT NULL"
+  )
+  // Inboxes and My tasks filter open approvals by the approver they were routed for.
+  await db.raw(
+    "CREATE INDEX assignments_on_behalf_of ON assignments (on_behalf_of) WHERE status = 'open' AND on_behalf_of IS NOT NULL"
+  )
+  await db.raw(
+    'CREATE INDEX assignments_delegation ON assignments (delegation_id) WHERE delegation_id IS NOT NULL'
+  )
+  await db.schema.createTable('workflow_escalations', (t) => {
+    t.bigIncrements('id')
+    t.uuid('run_id').notNullable().references('id').inTable('workflow_runs').onDelete('CASCADE')
+    t.string('step', 100).notNullable()
+    t.bigInteger('assignment_id')
+      .notNullable()
+      .references('id')
+      .inTable('assignments')
+      .onDelete('CASCADE')
+    t.string('level', 20).notNullable()
+    t.string('action', 20).notNullable()
+    t.jsonb('targets').notNullable().defaultTo('[]')
+    t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+    t.unique(['assignment_id', 'level'])
+    t.index(['run_id', 'id'])
+  })
+}
