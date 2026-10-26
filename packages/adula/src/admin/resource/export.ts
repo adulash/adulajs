@@ -208,11 +208,15 @@ function moneyText(minor: string) {
   return `${amount < 0n ? '-' : ''}${abs / 100n}.${String(abs % 100n).padStart(2, '0')}`
 }
 
+/** Text a spreadsheet may evaluate: a leading tab or CR, or = + - @ (also full width) after spaces. */
+const FORMULA_START = /^(?:[\t\r]|\s*[=+\-@\uFF1D\uFF0B\uFF0D\uFF20])/
+
 /**
- * One quoted CSV cell. User text starting with = + - @, a tab or a carriage return is
- * prefixed with an apostrophe so spreadsheets do not evaluate it as a formula.
+ * One quoted CSV cell. User text starting with a tab or a carriage return, or whose first
+ * non-whitespace character is = + - @ or a full-width ＝ ＋ － ＠, is prefixed with an
+ * apostrophe so spreadsheets do not evaluate it as a formula.
  */
 export function csvCell(text: string, guard: boolean) {
-  const safe = guard && /^[=+\-@\t\r]/.test(text) ? `'${text}` : text
+  const safe = guard && FORMULA_START.test(text) ? `'${text}` : text
   return `"${safe.replaceAll('"', '""')}"`
 }

@@ -90,8 +90,11 @@ with display labels (lookup labels, record titles, «نعم/لا»).
   lookup and organization-unit labels of grouped values).
 - A resource-defined bulk action resubmits the stored form values the actor may write,
   with the action's values on top, so validators that require other fields still pass.
-  The row is locked (SELECT … FOR UPDATE) for the read and the save in one transaction,
-  so a concurrent edit is not overwritten. Known limitation: resubmitting stored values
+  The row is first authorized for update (organization scope and conditions), then locked
+  (SELECT … FOR UPDATE) for the read and the save in one transaction, so a concurrent edit
+  is not overwritten and no actor can lock rows outside their reach. A stored value is
+  resent only when the actor may write that field on that record (before and after the
+  action's values); attachments resend their stored id. Known limitation: resubmitting stored values
   fails on a lookup that became inactive or a related record the actor can no longer
   view; a partial-update path would need the write module (owner decision).
 - Row failures carry the error's code and Arabic message; validation errors are
