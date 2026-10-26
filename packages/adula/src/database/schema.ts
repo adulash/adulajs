@@ -683,3 +683,42 @@ export async function createNotificationChannelsSchema(db: Knex) {
     "CREATE INDEX notification_deliveries_pending ON notification_deliveries (next_attempt_at) WHERE state = 'pending'"
   )
 }
+
+/**
+ * Confirmation of a notification channel address (2.x): a one-time code sent to the
+ * number before the channel can be enabled with it. One row per user and channel, the
+ * code stored as SHA-256 over a per-code salt and void after five wrong attempts; the
+ * row also counts codes sent in a 24-hour window. Preferences record when their number
+ * was confirmed; a number without confirmed_at never receives messages.
+ */
+export async function createChannelConfirmationsSchema(db: Knex) {
+  await db.schema.alterTable('user_notification_channels', (t) => {
+    t.timestamp('confirmed_at', { useTz: true })
+  })
+  await db.schema.createTable('notification_channel_confirmations', (t) => {
+    t.increments('id')
+    t.integer('user_id').notNullable().references('id').inTable('users').onDelete('CASCADE')
+    t.string('channel', 40).notNullable()
+    t.string('address', 40).notNullable()
+    t.string('salt', 32).notNullable()
+    t.string('code_hash', 64).notNullable()
+    t.integer('attempts').notNullable().defaultTo(0)
+    t.timestamp('expires_at', { useTz: true }).notNullable()
+    t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+    t.integer('sent_count').notNullable().defaultTo(0)
+    t.timestamp('window_started_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+    t.unique(['user_id', 'channel'])
+    t.index(['expires_at'])
+  })
+}
+
+/**
+ * Import worker leases: a claimed batch belongs to one worker until lease_expires_at;
+ * every progress write names lease_id, so a worker whose lease was taken over writes nothing.
+ */
+export async function createImportLeasesSchema(db: Knex) {
+  await db.schema.alterTable('import_batches', (t) => {
+    t.uuid('lease_id')
+    t.timestamp('lease_expires_at', { useTz: true })
+  })
+}

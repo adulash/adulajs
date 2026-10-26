@@ -51,6 +51,11 @@ The authorized dependency list (adulajs-plan.md) adds no package for any of thes
   * Errors are stored as categories plus a sanitized short message.
   * Cron parsing is a small in-house subset compatible with adonisjs-scheduler, so no
     package is added.
+  * The framework ships no sync job of its own. Its only consumer is the pair of
+    test-only fixture jobs in `apps/reference/tests/fixtures/sync_jobs.ts`
+    (`sync:fixture-customers`, `sync:fixture-failing`). They load only when
+    `testFixturesEnabled` (ADR 017). In development and in systems made by
+    create-adulajs, `start/sync_jobs.ts` is empty until the system adds its own jobs.
 * **Notification channels.** Delivery goes through a `NotificationChannel` interface.
   * In-app and e-mail are implementations. `deliverNotificationMail` keeps its signature
     and its `mail_state` queue.
@@ -63,8 +68,16 @@ The authorized dependency list (adulajs-plan.md) adds no package for any of thes
     * its secret is sealed in `channels.http` like webhook secrets and shown once.
   * The opt-in channel receives the same notifications as e-mail (templates whose mail
     flag is on).
-* **Migrations** 1770000000041 (import modes), 1770000000042 (sync jobs) and
-  1770000000043 (notification channels) are additive.
+* **Migrations** are all additive:
+  * 1770000000041 import modes;
+  * 1770000000042 sync jobs;
+  * 1770000000043 notification channels;
+  * 1770000000044 phone-number confirmation codes;
+  * 1770000000045 import worker leases.
+* **Phone numbers are confirmed.** An opt-in channel is enabled only after the user
+  enters a one-time code sent to the number, and the code and change routes are
+  throttled. This keeps a user from sending the company's paid messages to numbers they
+  do not hold.
 
 ## Consequences
 
@@ -78,3 +91,8 @@ The authorized dependency list (adulajs-plan.md) adds no package for any of thes
   the documented signature. AdulaJS carries no vendor SDK.
 * Scheduled jobs that create records need an author (`actorId`), usually a dedicated
   integration user.
+* A timed-out run is capped at `timeoutMs` plus the stale margin (60 seconds by default),
+  so a handler that never settles cannot block its job for ever. The abort signal is the
+  cancellation contract, and writes and logging are refused after it. Within one worker
+  process, the job's next run is held back until the abandoned handler settles, so runs
+  of one job never overlap in a single worker.

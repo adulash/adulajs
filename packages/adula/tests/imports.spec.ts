@@ -8,7 +8,7 @@ import {
   defineResource,
   importCell,
 } from '../index.js'
-import type { Actor, ImportAdapter, RecordData } from '../index.js'
+import type { Actor, ActorSource, ImportAdapter, RecordData } from '../index.js'
 import { admin, db, reader, registry, setup } from './helpers.js'
 import { failure } from './helpers/failure.js'
 import { addUserProfileColumns, viewer as aViewer } from './helpers/actors.js'
@@ -429,5 +429,159 @@ test.group('Upsert imports by a unique field', (group) => {
     await imports().start(batch.id, creator, batch.mapping)
     const result = await imports().process()
     assert.deepEqual(result, { id: batch.id, processed: 3, created: 1, updated: 0, failed: 2 })
+  })
+})
+
+test.group('Import worker leases', (group) => {
+  const worker = (actors: ActorSource = { load: async () => admin }) =>
+    new ImportBatches(db, registry, new ResourceService(db, registry), actors)
+  const queue = async (prefix: string, total: number) => {
+    const lines = Array.from({ length: total }, (_, index) => `${prefix} ${index}`).join('\n')
+    const batch = await worker().create('customers', admin, {
+      fileName: `${prefix}.csv`,
+      content: `name\n${lines}\n`,
+    })
+    await worker().start(batch.id, admin, batch.mapping)
+    return batch
+  }
+  const imported = async (prefix: string) => {
+    const [row] = await db('customers').whereLike('name', `${prefix} %`).count('* as c')
+    return Number(row.c)
+  }
+  group.setup(async () => {
+    await setup()
+    await addUserProfileColumns()
+  })
+
+  test('two concurrent workers import every row exactly once', async ({ assert }) => {
+    const batch = await queue('متزامن', 30)
+    const first = worker()
+    const second = worker()
+    for (let round = 0; round < 20; round++) {
+      const results = await Promise.all([first.process(4), second.process(4)])
+      if (results.every((result) => result === null)) break
+    }
+    assert.equal(await imported('متزامن'), 30)
+    const done = await worker().show(batch.id, admin)
+    assert.equal(done.status, 'done')
+    assert.equal(done.processed, 30)
+    assert.equal(done.created, 30)
+    const stored = await db('import_batches').where('id', batch.id).first()
+    assert.isNull(stored.lease_id)
+    const [notices] = await db('notifications')
+      .where('user_id', admin.id)
+      .whereLike('body', '%30%')
+      .count('* as c')
+    assert.equal(Number(notices.c), 1)
+  })
+
+  test('a worker whose lease expired and was taken over writes nothing further', async ({
+    assert,
+  }) => {
+    const batch = await queue('مستولى', 5)
+    // The stalled worker claims the batch; before its first row the lease expires and
+    // another worker takes the batch over and finishes it.
+    const takeover = worker()
+    const stalled = worker({
+      load: async () => {
+        await db('import_batches')
+          .where('id', batch.id)
+          .update({ lease_expires_at: db.raw("now() - interval '1 second'") })
+        assert.deepEqual(await takeover.process(100), {
+          id: batch.id,
+          processed: 5,
+          created: 5,
+          updated: 0,
+          failed: 0,
+        })
+        return admin
+      },
+    })
+    assert.isNull(await stalled.process(100))
+    assert.equal(await imported('مستولى'), 5)
+    const done = await worker().show(batch.id, admin)
+    assert.equal(done.status, 'done')
+    assert.equal(done.processed, 5)
+    assert.equal(done.created, 5)
+  })
+
+  test('processing resumes after an expired lease of a crashed worker', async ({ assert }) => {
+    const batch = await queue('مستأنف', 6)
+    const partial = await worker().process(2)
+    assert.equal(partial?.processed, 2)
+    // A worker crashed mid-chunk: its lease stays until it expires.
+    await db('import_batches')
+      .where('id', batch.id)
+      .update({
+        lease_id: '00000000-0000-4000-8000-000000000001',
+        lease_expires_at: db.raw("now() + interval '5 minutes'"),
+      })
+    assert.isNull(await worker().process())
+    await db('import_batches')
+      .where('id', batch.id)
+      .update({ lease_expires_at: db.raw("now() - interval '1 second'") })
+    assert.deepEqual(await worker().process(), {
+      id: batch.id,
+      processed: 6,
+      created: 6,
+      updated: 0,
+      failed: 0,
+    })
+    assert.equal(await imported('مستأنف'), 6)
+  })
+})
+
+test.group('Import start races', (group) => {
+  const imports = () =>
+    new ImportBatches(db, registry, new ResourceService(db, registry), {
+      load: async () => admin,
+    })
+  group.setup(async () => {
+    await setup()
+    await addUserProfileColumns()
+  })
+
+  test('of two concurrent starts of a validated batch exactly one queues it', async ({
+    assert,
+  }) => {
+    const batch = await imports().create('customers', admin, {
+      fileName: 'race.csv',
+      content: 'name\nسباق 1\nسباق 2\nسباق 3\n',
+      dryRun: true,
+    })
+    await imports().start(batch.id, admin, batch.mapping)
+    await imports().process()
+    const validated = await imports().show(batch.id, admin)
+    assert.equal(validated.status, 'validated')
+    const results = await Promise.allSettled([
+      imports().start(batch.id, admin, batch.mapping),
+      imports().start(batch.id, admin, batch.mapping),
+    ])
+    assert.lengthOf(
+      results.filter((result) => result.status === 'fulfilled'),
+      1
+    )
+    const rejected = results.find((result) => result.status === 'rejected')
+    assert.equal((rejected as PromiseRejectedResult).reason.status, 409)
+    assert.equal((rejected as PromiseRejectedResult).reason.code, 'E_IMPORT_STATE')
+    while (await imports().process(1)) {}
+    const [row] = await db('customers').whereLike('name', 'سباق %').count('* as c')
+    assert.equal(Number(row.c), 3)
+  })
+
+  test('a running batch cannot be started again', async ({ assert }) => {
+    const batch = await imports().create('customers', admin, {
+      fileName: 'running.csv',
+      content: 'name\nجار 1\nجار 2\nجار 3\n',
+    })
+    await imports().start(batch.id, admin, batch.mapping)
+    const partial = await imports().process(1)
+    assert.equal(partial?.processed, 1)
+    const refused = await failure(() => imports().start(batch.id, admin, batch.mapping))
+    assert.equal(refused.status, 409)
+    assert.equal(refused.code, 'E_IMPORT_STATE')
+    const stored = await imports().show(batch.id, admin)
+    assert.equal(stored.status, 'running')
+    assert.equal(stored.processed, 1)
   })
 })

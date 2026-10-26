@@ -70,12 +70,7 @@ export default class ProfileController {
    */
   async channels(ctx: HttpContext) {
     const userId = ctx.auth.getUserOrFail().id
-    if (activeImpersonation(ctx))
-      throw new AdulaError(
-        403,
-        'E_IMPERSONATING',
-        'لا يمكن تغيير قنوات الإشعارات أثناء انتحال الهوية'
-      )
+    refuseImpersonation(ctx)
     return mutate(
       ctx,
       async () => {
@@ -99,4 +94,44 @@ export default class ProfileController {
       '/account/profile'
     )
   }
+
+  /** Sends a one-time code to the number the user wants to use for the channel. */
+  async channelCode(ctx: HttpContext) {
+    const userId = ctx.auth.getUserOrFail().id
+    refuseImpersonation(ctx)
+    const channels = await notificationChannels()
+    const sent = await channels.requestCode(
+      userId,
+      String(ctx.params.key),
+      ctx.request.input('address')
+    )
+    return { data: sent }
+  }
+
+  /** Confirms the code and enables the channel with that number; logged without it. */
+  async channelConfirm(ctx: HttpContext) {
+    const userId = ctx.auth.getUserOrFail().id
+    refuseImpersonation(ctx)
+    const key = String(ctx.params.key)
+    const channels = await notificationChannels()
+    const saved = await channels.confirmCode(userId, key, ctx.request.input('code'))
+    await logActivity(db.connection().getWriteClient(), {
+      resource: 'users',
+      recordId: userId,
+      actorId: acting(ctx),
+      action: 'notification_channel_confirmed',
+      changes: { ...requestContext(ctx), channel: key },
+    })
+    return { data: saved }
+  }
+}
+
+/** A phone number outlives the session, so an administrator acting as the user cannot set it. */
+function refuseImpersonation(ctx: HttpContext) {
+  if (activeImpersonation(ctx))
+    throw new AdulaError(
+      403,
+      'E_IMPERSONATING',
+      'لا يمكن تغيير قنوات الإشعارات أثناء انتحال الهوية'
+    )
 }

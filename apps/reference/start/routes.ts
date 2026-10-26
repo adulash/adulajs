@@ -16,6 +16,9 @@ import { Settings } from 'adula'
 import redis from '@adonisjs/redis/services/main'
 import {
   apiThrottle,
+  channelChangeThrottle,
+  channelCodeThrottle,
+  channelTestThrottle,
   healthThrottle,
   inboundThrottle,
   inboundAddressThrottle,
@@ -232,7 +235,15 @@ router
     router.patch('account/profile', [ProfileController, 'update'])
     router.post('account/password', [ProfileController, 'password']).use(passwordChangeThrottle)
     router.put('account/language', [LanguageController, 'update'])
-    router.put('account/notification-channels', [ProfileController, 'channels'])
+    router
+      .put('account/notification-channels', [ProfileController, 'channels'])
+      .use(channelChangeThrottle)
+    router
+      .post('account/notification-channels/:key/code', [ProfileController, 'channelCode'])
+      .use(channelCodeThrottle)
+    router
+      .post('account/notification-channels/:key/confirm', [ProfileController, 'channelConfirm'])
+      .use(channelChangeThrottle)
     router
       .post('account/two-factor/begin', [TwoFactorController, 'begin'])
       .use(passwordChangeThrottle)
@@ -339,7 +350,9 @@ router
     router.put('settings/authentication', [AdminAuthenticationSettingsController, 'update'])
     router.put('settings/channels', [AdminSettingsController, 'updateChannel'])
     router.post('settings/channels/rotate', [AdminSettingsController, 'rotateChannel'])
-    router.post('settings/channels/test', [AdminSettingsController, 'testChannel'])
+    router
+      .post('settings/channels/test', [AdminSettingsController, 'testChannel'])
+      .use(channelTestThrottle)
     router.delete('settings/:id', [AdminSettingsController, 'destroy'])
     router.get('lookups', [AdminLookupsController, 'index'])
     router.post('lookups', [AdminLookupsController, 'store'])

@@ -219,15 +219,25 @@ export async function notifyWithTemplate(
   target?: NotificationTarget | null
 ) {
   const message = await templates.render(key, variables, db)
-  const preferences: { channel: string; enabled: boolean; address: string | null }[] = message.mail
+  const preferences: {
+    channel: string
+    enabled: boolean
+    address: string | null
+    confirmed_at: Date | null
+  }[] = message.mail
     ? await db('user_notification_channels')
         .where('user_id', userId)
-        .select('channel', 'enabled', 'address')
+        .select('channel', 'enabled', 'address', 'confirmed_at')
     : []
   const mailOff = preferences.some((row) => row.channel === MAIL_CHANNEL && !row.enabled)
   const external = preferences.filter(
     (row) =>
-      row.enabled && row.address && row.channel !== MAIL_CHANNEL && row.channel !== IN_APP_CHANNEL
+      row.enabled &&
+      row.address &&
+      // Only a number confirmed by its one-time code receives messages.
+      row.confirmed_at &&
+      row.channel !== MAIL_CHANNEL &&
+      row.channel !== IN_APP_CHANNEL
   )
   const insert = async (trx: Knex) => {
     const [row] = await trx('notifications')

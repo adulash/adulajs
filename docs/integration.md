@@ -228,6 +228,11 @@ export const syncJobDefinitions = [
   run of the same job cannot start in the meantime. A handler that never returns, or a
   run whose worker crashed, is marked failed with the category `timeout` one minute
   after its time limit.
+* Handlers must honour `ctx.signal`: pass it to `fetch` and outbound calls, and stop
+  work when it aborts. A handler that ignores it can still be running after its run
+  failed. The worker does not start that job's next run until the handler has settled.
+  This guard works within one worker process; with several workers, only the refusing
+  `systemSave` protects the data.
 
 ### History and errors
 
@@ -267,14 +272,28 @@ worker then delivers it through each channel the recipient has enabled:
 |---|---|---|---|
 | In the application | `in_app` | always on, cannot be turned off | every notification |
 | E-mail | `mail` | on | templates whose mail flag is on |
-| Text message or WhatsApp | `sms` / `whatsapp` | off until the user enters a phone number | the same notifications as e-mail |
+| Text message or WhatsApp | `sms` / `whatsapp` | off until the user confirms a phone number with a one-time code | the same notifications as e-mail |
 
 * **User preferences.** Each user chooses channels under «قنوات الإشعارات» on the
   profile page (`PUT /account/notification-channels`). Turning a channel off keeps the
   phone number. An administrator who is impersonating the user cannot change these
-  preferences. Every change is logged without the number.
+  preferences or confirm a number. Every change is logged without the number.
+* **Confirming a number.** A new phone number is enabled only after the user enters the
+  6-digit code sent to it (`POST /account/notification-channels/:key/code`, then
+  `…/:key/confirm`). Saving a different number without confirming it is refused.
+  * The code is valid for 10 minutes and allows 5 attempts.
+  * A new code needs a 60-second wait, with at most 5 codes per channel in 24 hours. The
+    code route allows 3 requests per 15 minutes, and preference changes 10 per 15 minutes.
+  * A number entered before confirmation existed must be confirmed again.
+  * «حذف الرقم» removes the number.
+  * The code travels through the same provider request as any message: its `text` is
+    «رمز تأكيد رقم هاتفك: … ينتهي خلال 10 دقائق.» and it has no `link`.
 * **Retries.** E-mail keeps its three attempts. Other channels retry after 1, 5, 30 and
   120 minutes, then give up. Only an error category is stored.
+* **Provider off or unreadable.** When an administrator turns the provider off or
+  switches its kind, waiting messages of the old channel are dropped, never sent later.
+  If the worker cannot read the provider setting, the messages wait and are sent once it
+  can. A message still waiting after 24 hours is dropped as `expired`.
 
 ### Text-message provider
 
@@ -282,7 +301,7 @@ AdulaJS ships no SMS or WhatsApp vendor SDK. It posts each message to a provider
 That URL is usually a small gateway the company runs in front of its vendor.
 
 Configure the provider under «قناة الرسائل النصية» in `/admin/settings`: kind (sms or
-whatsapp), URL, and enabled. «إرسال رسالة تجريبية» sends a test message.
+whatsapp), URL, and enabled. «إرسال رسالة تجريبية» sends a test message (at most 5 per 15 minutes).
 
 The provider secret works like a webhook secret:
 
@@ -330,7 +349,9 @@ A channel implements `NotificationChannel`, defined in `core/notification_channe
 { key, label, delivery: 'always' | 'template' | 'opt-in', address?(value), deliver(message, recipient, ctx), drain? }
 ```
 
-Register it in `app/services/notification_channels.ts`.
+An `opt-in` channel needs `address()` and gets the confirmation-code flow automatically.
+Register it in `app/services/notification_channels.ts`, and pass `retired` keys only
+from a successful configuration read.
 
 ## Webhooks
 

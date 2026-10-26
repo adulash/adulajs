@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net'
 import { test } from '@japa/runner'
 import {
   CHANNEL_MAX_ATTEMPTS,
+  ChannelDeliveryError,
   HTTP_CHANNEL_SETTING_KEY,
   HttpChannelSettings,
   NotificationChannels,
@@ -66,6 +67,14 @@ const send: MailSender = async (message) => {
   mails.push(`${message.to}:${message.subject}`)
 }
 
+/** A number the user already confirmed (confirmCode is covered by its own test). */
+async function confirmed(userId: number, address: string) {
+  await db('user_notification_channels')
+    .insert({ user_id: userId, channel: 'sms', enabled: true, address, confirmed_at: db.fn.now() })
+    .onConflict(['user_id', 'channel'])
+    .merge(['enabled', 'address', 'confirmed_at'])
+}
+
 async function due() {
   await db('notification_deliveries')
     .where('state', 'pending')
@@ -85,6 +94,7 @@ test.group('Notification channels', (group) => {
     await db('notifications').del()
     await db('message_templates').del()
     await db('settings').where('key', HTTP_CHANNEL_SETTING_KEY).del()
+    await db('notification_channel_confirmations').del()
   })
 
   test('preferences default to in-app and e-mail and validate every change', async ({ assert }) => {
@@ -110,6 +120,14 @@ test.group('Notification channels', (group) => {
     assert.equal(unknown.code, 'E_CHANNEL_UNKNOWN')
     assert.lengthOf(await db('user_notification_channels'), 0)
 
+    // A new number is never stored without its confirmation code.
+    const unconfirmed = await failure(
+      channels.update(1, [{ key: 'sms', enabled: true, address: '+966500000001' }])
+    )
+    assert.equal(unconfirmed.code, 'E_CHANNEL_CONFIRM')
+    assert.lengthOf(await db('user_notification_channels'), 0)
+    await confirmed(1, '+966500000001')
+    // The confirmed number, written differently, is the same number.
     const saved = await channels.update(1, [
       { key: 'mail', enabled: false },
       { key: 'sms', enabled: true, address: '+966 50 000 0001' },
@@ -148,10 +166,8 @@ test.group('Notification channels', (group) => {
     assert,
   }) => {
     const channels = new NotificationChannels(db, [mailChannel(send), smsChannel('https://x')])
-    await channels.update(1, [
-      { key: 'mail', enabled: false },
-      { key: 'sms', enabled: true, address: '+966500000001' },
-    ])
+    await channels.update(1, [{ key: 'mail', enabled: false }])
+    await confirmed(1, '+966500000001')
     await notifyWithTemplate(db, 1, 'assignment.created', { title: 'أ', resource: 'ط', id: 1 })
     await notifyWithTemplate(db, 2, 'assignment.created', { title: 'ب', resource: 'ط', id: 2 })
     // Templates without external delivery stay in the application.
@@ -187,7 +203,7 @@ test.group('Notification channels', (group) => {
     const provider = await fakeProvider([200])
     try {
       const channels = new NotificationChannels(db, [mailChannel(send), smsChannel(provider.url)])
-      await channels.update(1, [{ key: 'sms', enabled: true, address: '+966500000001' }])
+      await confirmed(1, '+966500000001')
       await notifyWithTemplate(
         db,
         1,
@@ -234,7 +250,7 @@ test.group('Notification channels', (group) => {
     const provider = await fakeProvider([503, 500, 200])
     try {
       const channels = new NotificationChannels(db, [smsChannel(provider.url)])
-      await channels.update(1, [{ key: 'sms', enabled: true, address: '966500000001' }])
+      await confirmed(1, '+966500000001')
       await notifyWithTemplate(db, 1, 'assignment.created', { title: 'أ' })
       assert.deepEqual(await channels.deliver(), { sent: 0, failed: 1, skipped: 0 })
       let row = await db('notification_deliveries').first()
@@ -286,7 +302,7 @@ test.group('Notification channels', (group) => {
       await notifyWithTemplate(db, 2, 'assignment.created', { title: 'أ' })
       assert.lengthOf(await db('notification_deliveries'), 0)
       // Enabled when queued, turned off before delivery: skipped.
-      await channels.update(1, [{ key: 'sms', enabled: true, address: '+966500000001' }])
+      await confirmed(1, '+966500000001')
       await notifyWithTemplate(db, 1, 'assignment.created', { title: 'ب' })
       await channels.update(1, [{ key: 'sms', enabled: false, address: '+966500000001' }])
       // A disabled user's queued message is skipped too.
@@ -295,6 +311,7 @@ test.group('Notification channels', (group) => {
         channel: 'sms',
         enabled: true,
         address: '+966500000003',
+        confirmed_at: db.fn.now(),
       })
       await notifyWithTemplate(db, 3, 'assignment.created', { title: 'ج' })
       assert.deepEqual(await channels.deliver(), { sent: 0, failed: 0, skipped: 2 })
@@ -304,13 +321,22 @@ test.group('Notification channels', (group) => {
         ['skipped', 'skipped']
       )
 
-      // The provider was turned off (not registered): queued messages are not sent later.
-      await channels.update(1, [{ key: 'sms', enabled: true, address: '+966500000001' }])
+      // Unregistered on this tick but not known to be off (a failed settings read):
+      // the queued message waits.
+      await channels.update(1, [{ key: 'sms', enabled: true }])
       await notifyWithTemplate(db, 1, 'assignment.created', { title: 'د' })
-      const withoutProvider = new NotificationChannels(db, [mailChannel(send)])
+      const unknown = await new NotificationChannels(db, [mailChannel(send)]).deliver()
+      assert.equal(unknown.skipped, 0)
+      let latest = await db('notification_deliveries').orderBy('created_at', 'desc').first()
+      assert.equal(latest.state, 'pending')
+      assert.isNull(latest.error_category)
+      // Retired (a successful read proved the provider is off): skipped, never sent later.
+      const withoutProvider = new NotificationChannels(db, [mailChannel(send)], {
+        retired: ['sms', 'whatsapp'],
+      })
       const result = await withoutProvider.deliver()
       assert.equal(result.skipped, 1)
-      const latest = await db('notification_deliveries').orderBy('created_at', 'desc').first()
+      latest = await db('notification_deliveries').orderBy('created_at', 'desc').first()
       assert.equal(latest.state, 'skipped')
       assert.equal(latest.error_category, 'channel-unavailable')
       await channels.deliver()
@@ -450,6 +476,7 @@ test.group('Notification channels', (group) => {
         channel: 'sms',
         enabled: true,
         address: `+96650000000${userId}`,
+        confirmed_at: db.fn.now(),
       })
     await notifyWithTemplate(db, 1, 'assignment.created', { title: 'أ' })
     await notifyWithTemplate(db, 2, 'assignment.created', { title: 'ب' })
@@ -468,5 +495,234 @@ test.group('Notification channels', (group) => {
     const reclaimed = await db('notification_deliveries').where('id', first[1]).first()
     assert.equal(reclaimed.state, 'pending')
     assert.equal(reclaimed.attempts, 0)
+  })
+
+  test('a new number is enabled only with its one-time code', async ({ assert }) => {
+    const texts: string[] = []
+    const capture: NotificationChannel = {
+      key: 'sms',
+      label: { ar: 'رسالة نصية' },
+      delivery: 'opt-in',
+      address: phoneAddress,
+      async deliver(message, recipient) {
+        texts.push(`${recipient.address}|${message.text}`)
+      },
+    }
+    const channels = new NotificationChannels(db, [capture])
+    const codeOf = () => /: (\d{6})\./.exec(texts.at(-1)!)![1]
+
+    const unavailable = await failure(
+      new NotificationChannels(db, []).requestCode(1, 'sms', '+966500000001')
+    )
+    assert.equal(unavailable.status, 409)
+    const bad = await failure(channels.requestCode(1, 'sms', '05-abc'))
+    assert.equal(bad.code, 'E_CHANNEL_ADDRESS')
+
+    const { expiresAt } = await channels.requestCode(1, 'sms', '+966 50 000 0007')
+    assert.isAbove(new Date(expiresAt).getTime(), Date.now() + 9 * 60_000)
+    assert.match(texts[0], /^\+966500000007\|رمز تأكيد رقم هاتفك: \d{6}\. ينتهي خلال 10 دقائق\.$/)
+    const code = codeOf()
+    const row = await db('notification_channel_confirmations').where('user_id', 1).first()
+    // Only a salted hash is stored; no column holds the code itself.
+    assert.notInclude(Object.values(row).map(String), code)
+    assert.notEqual(row.code_hash, code)
+    assert.lengthOf(row.code_hash, 64)
+    // A second code within 60 seconds is refused.
+    const wait = await failure(channels.requestCode(1, 'sms', '+966500000007'))
+    assert.equal(wait.status, 429)
+    assert.equal(wait.code, 'E_CHANNEL_CODE_WAIT')
+    // Until confirmed, the number cannot be enabled through update().
+    const early = await failure(
+      channels.update(1, [{ key: 'sms', enabled: true, address: '+966500000007' }])
+    )
+    assert.equal(early.code, 'E_CHANNEL_CONFIRM')
+
+    // Five wrong attempts void the code, even the right one afterwards.
+    const wrong = code === '000000' ? '111111' : '000000'
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const refused = await failure(channels.confirmCode(1, 'sms', wrong))
+      assert.equal(refused.code, 'E_CHANNEL_CODE')
+    }
+    // The voided row stays, so the 60-second wait still applies after exhaustion.
+    const spent = await db('notification_channel_confirmations').where('user_id', 1).first()
+    assert.equal(spent.attempts, 5)
+    const waiting = await failure(channels.requestCode(1, 'sms', '+966500000007'))
+    assert.equal(waiting.code, 'E_CHANNEL_CODE_WAIT')
+    const voided = await failure(channels.confirmCode(1, 'sms', code))
+    assert.equal(voided.code, 'E_CHANNEL_CODE')
+
+    // An expired code is refused.
+    await db('notification_channel_confirmations').del()
+    await channels.requestCode(1, 'sms', '+966500000007')
+    await db('notification_channel_confirmations').update({
+      expires_at: db.raw("now() - interval '1 second'"),
+    })
+    const expired = await failure(channels.confirmCode(1, 'sms', codeOf()))
+    assert.equal(expired.code, 'E_CHANNEL_CODE')
+
+    // The right code within ten minutes enables the channel with that number.
+    await db('notification_channel_confirmations').del()
+    await channels.requestCode(1, 'sms', '+966500000007')
+    const enabled = await channels.confirmCode(1, 'sms', codeOf())
+    assert.deepInclude(
+      enabled.find((pref) => pref.key === 'sms'),
+      { enabled: true, address: '+966500000007' }
+    )
+    const used = await db('notification_channel_confirmations').where('user_id', 1).first()
+    assert.equal(used.attempts, 5)
+    const preference = await db('user_notification_channels')
+      .where({ user_id: 1, channel: 'sms' })
+      .first()
+    assert.isNotNull(preference.confirmed_at)
+    // Another user's preferences are untouched.
+    assert.lengthOf(await db('user_notification_channels').where('user_id', 2), 0)
+  })
+
+  test('resolve() names the kinds a successful read proves are off', async ({ assert }) => {
+    const settings = new HttpChannelSettings(db, box, testPolicy)
+    const empty = await settings.resolve()
+    assert.deepEqual(empty.retired, ['sms', 'whatsapp'])
+    await settings.save(1, { enabled: true, kind: 'whatsapp', url: 'http://127.0.0.1:9/x' })
+    const active = await settings.resolve()
+    assert.equal(active.channel?.key, 'whatsapp')
+    assert.deepEqual(active.retired, ['sms'])
+    await settings.save(1, { enabled: false, kind: 'whatsapp', url: 'http://127.0.0.1:9/x' })
+    const off = await settings.resolve()
+    assert.isNull(off.channel)
+    assert.deepEqual(off.retired, ['sms', 'whatsapp'])
+  })
+
+  test('a number stored before confirmations existed neither enables nor receives', async ({
+    assert,
+  }) => {
+    const provider = await fakeProvider([200])
+    try {
+      const channels = new NotificationChannels(db, [smsChannel(provider.url)])
+      // A legacy row: a number, enabled, but never confirmed.
+      await db('user_notification_channels').insert({
+        user_id: 1,
+        channel: 'sms',
+        enabled: true,
+        address: '+966500000061',
+      })
+      const prefs = await channels.preferences(1)
+      assert.deepInclude(
+        prefs.find((pref) => pref.key === 'sms'),
+        { enabled: false, address: null }
+      )
+      const refused = await failure(channels.update(1, [{ key: 'sms', enabled: true }]))
+      assert.equal(refused.code, 'E_CHANNEL_ADDRESS')
+      const same = await failure(
+        channels.update(1, [{ key: 'sms', enabled: true, address: '+966500000061' }])
+      )
+      assert.equal(same.code, 'E_CHANNEL_CONFIRM')
+      // Nothing is queued for it, and a delivery queued anyway is skipped.
+      await notifyWithTemplate(db, 1, 'assignment.created', { title: 'أ' })
+      assert.lengthOf(await db('notification_deliveries'), 0)
+      const [notification] = await db('notifications').where('user_id', 1).select('id')
+      await db('notification_deliveries').insert({
+        id: randomUUID(),
+        notification_id: notification.id,
+        channel: 'sms',
+      })
+      assert.deepEqual(await channels.deliver(), { sent: 0, failed: 0, skipped: 1 })
+      assert.lengthOf(provider.received, 0)
+    } finally {
+      await provider.close()
+    }
+  })
+
+  test('codes are capped per day, sent once under a race and voided when not delivered', async ({
+    assert,
+  }) => {
+    let sends = 0
+    let failing = false
+    const capture: NotificationChannel = {
+      key: 'sms',
+      label: { ar: 'رسالة نصية' },
+      delivery: 'opt-in',
+      address: phoneAddress,
+      async deliver() {
+        if (failing) throw new ChannelDeliveryError('http-status:500')
+        sends++
+      },
+    }
+    const channels = new NotificationChannels(db, [capture])
+    // Two parallel requests: the upsert lets exactly one through.
+    const results = await Promise.allSettled([
+      channels.requestCode(1, 'sms', '+966500000071'),
+      channels.requestCode(1, 'sms', '+966500000071'),
+    ])
+    assert.equal(results.filter((result) => result.status === 'fulfilled').length, 1)
+    assert.equal(sends, 1)
+
+    // A code the provider refused is voided and lifts the wait, but counts for the day.
+    const lift = () =>
+      db('notification_channel_confirmations')
+        .where('user_id', 1)
+        .update({ created_at: db.raw("now() - interval '61 seconds'") })
+    await lift()
+    failing = true
+    const refused = await failure(channels.requestCode(1, 'sms', '+966500000071'))
+    assert.equal(refused.code, 'E_CHANNEL_CODE_SEND')
+    const voided = await db('notification_channel_confirmations').where('user_id', 1).first()
+    assert.equal(voided.attempts, 5)
+    assert.equal(voided.sent_count, 2)
+    failing = false
+    await channels.requestCode(1, 'sms', '+966500000071')
+    assert.equal(sends, 2)
+
+    // Five codes in 24 hours, then the daily cap answers until the window has passed.
+    await lift()
+    await channels.requestCode(1, 'sms', '+966500000071')
+    await lift()
+    await channels.requestCode(1, 'sms', '+966500000071')
+    await lift()
+    const capped = await failure(channels.requestCode(1, 'sms', '+966500000071'))
+    assert.equal(capped.status, 429)
+    assert.equal(capped.code, 'E_CHANNEL_CODE_LIMIT')
+    assert.equal(sends, 4)
+    await db('notification_channel_confirmations')
+      .where('user_id', 1)
+      .update({ window_started_at: db.raw("now() - interval '25 hours'") })
+    await channels.requestCode(1, 'sms', '+966500000071')
+    assert.equal(sends, 5)
+    const row = await db('notification_channel_confirmations').where('user_id', 1).first()
+    assert.equal(row.sent_count, 1)
+  })
+
+  test('stale deliveries expire and spent confirmations are deleted', async ({ assert }) => {
+    await confirmed(1, '+966500000081')
+    await notifyWithTemplate(db, 1, 'assignment.created', { title: 'أ' })
+    await db('notification_deliveries').update({
+      created_at: db.raw("now() - interval '25 hours'"),
+    })
+    // Unregistered and not retired: it would wait, but a day-old message is dropped.
+    const result = await new NotificationChannels(db, [mailChannel(send)]).deliver()
+    assert.equal(result.skipped, 1)
+    const row = await db('notification_deliveries').first()
+    assert.equal(row.state, 'skipped')
+    assert.equal(row.error_category, 'expired')
+
+    await db('notification_channel_confirmations').insert([
+      {
+        user_id: 1,
+        channel: 'sms',
+        address: '+966500000081',
+        salt: 'a'.repeat(32),
+        code_hash: 'b'.repeat(64),
+        expires_at: db.raw("now() - interval '25 hours'"),
+      },
+      {
+        user_id: 2,
+        channel: 'sms',
+        address: '+966500000082',
+        salt: 'a'.repeat(32),
+        code_hash: 'b'.repeat(64),
+        expires_at: db.raw("now() - interval '1 hour'"),
+      },
+    ])
+    await new NotificationChannels(db, [mailChannel(send)]).deliver()
+    assert.deepEqual(await db('notification_channel_confirmations').pluck('user_id'), [2])
   })
 })

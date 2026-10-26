@@ -288,34 +288,67 @@ test.group('Background sync jobs', (group) => {
 
   test('a handler that never settles is abandoned at the stale limit and a late settle is ignored', async ({
     assert,
+    cleanup,
   }) => {
     let release: (() => void) | undefined
+    // Always release, so a failed assertion never leaves the job held for later tests.
+    cleanup(() => release?.())
+    const calls: number[] = []
+    const warnings: { message: string; data?: Record<string, unknown> }[] = []
     const hung = defineSyncJob({
       name: 'sync:hung',
       label: { ar: 'مهمة معلقة' },
       cron: '* * * * *',
       timeoutMs: 50,
-      handler: async () => {
-        await new Promise<void>((resolve) => (release = resolve))
+      // The first run ignores its signal and hangs until released; later runs finish.
+      handler: async (ctx) => {
+        calls.push(ctx.runId)
+        if (calls.length === 1) await new Promise<void>((resolve) => (release = resolve))
         return { late: 1 }
       },
     })
-    const sync = new SyncJobs(db, new ResourceService(db, registry), [hung], {
-      staleMarginMs: 100,
-    })
-    const queued = await sync.queue(hung.name, 'manual', admin.id)
+    const sync = () =>
+      new SyncJobs(db, new ResourceService(db, registry), [hung], {
+        staleMarginMs: 100,
+        logger: {
+          info: () => {},
+          warn: (message, data) => warnings.push({ message, data }),
+          error: () => {},
+        },
+      })
+    const queued = await sync().queue(hung.name, 'manual', admin.id)
     const started = Date.now()
-    const run = await sync.runNext()
+    const run = await sync().runNext()
     assert.isBelow(Date.now() - started, 1500)
     assert.equal(run?.status, 'failed')
     assert.equal(run?.errorCategory, 'timeout')
+    // The abandonment is logged once, with the job and run.
+    const abandonedLogs = warnings.filter((entry) => entry.message.includes('ignored its abort'))
+    assert.lengthOf(abandonedLogs, 1)
+    assert.deepEqual(abandonedLogs[0].data, { job: hung.name, runId: queued.id })
+
+    // The database row is closed, so a new run can be queued, but while the abandoned
+    // handler is alive no instance in this process starts it.
+    const next = await sync().queue(hung.name, 'manual', admin.id)
+    assert.isNull(await sync().runNext())
+    assert.deepEqual(calls, [queued.id])
+    const [summary] = await sync().list()
+    assert.isTrue(summary.busy)
+    const waiting = await db('sync_job_runs').where('id', next.id).first()
+    assert.equal(waiting.status, 'queued')
+
     release?.()
     await sleep(50)
     const stored = await db('sync_job_runs').where('id', queued.id).first()
     assert.equal(stored.status, 'failed')
     assert.deepEqual(stored.stats, {})
-    // The job is free again.
-    await sync.queue(hung.name, 'manual', admin.id)
+    // Once the old handler settled, the queued run runs.
+    const resumed = await sync().runNext()
+    assert.equal(resumed?.id, next.id)
+    assert.equal(resumed?.status, 'succeeded')
+    assert.deepEqual(calls, [queued.id, next.id])
+    const [after] = await sync().list()
+    assert.isFalse(after.busy)
   })
 
   test('a run left running by a crashed worker is recovered as a timeout', async ({ assert }) => {

@@ -284,11 +284,19 @@
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>) => Promise<void>"
     },
+    "createChannelConfirmationsSchema": {
+      "kind": "FunctionDeclaration",
+      "type": "(db: Knex<any, any[]>) => Promise<void>"
+    },
     "createCollaborationSchema": {
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>) => Promise<void>"
     },
     "createCoreSchema": {
+      "kind": "FunctionDeclaration",
+      "type": "(db: Knex<any, any[]>) => Promise<void>"
+    },
+    "createImportLeasesSchema": {
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>) => Promise<void>"
     },
