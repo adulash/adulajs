@@ -6,12 +6,14 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
 
 ## Resource definition
 
-* The resource definition is not the single source of truth: `adula:resource` scaffolds
-  the Vine validator, Lucid model and migration once, and after that each is maintained by
-  hand alongside `defineResource`.
-* 13 field types only. Missing: decimal, percent, phone, e-mail, URL, multi-select,
-  many-to-many, composite unique constraints and declared default values.
-* `customFields: true` creates a `custom_fields` JSONB column that nothing reads or writes.
+* CSV import does not map multi-select or many-to-many fields; role rule conditions and
+  aggregate filters refuse them; inline child rows and related rows are read without their
+  many-to-many links.
+* Inline child rows do not edit many-to-many links: the inline form omits a child's
+  manyToMany fields and an inline payload's values for them are ignored, so the links are
+  kept; edit the child record itself to change them.
+* `adula:resource:migration` never changes a column type and does not update the search
+  vector: those changes need a hand-written expand/contract migration.
 
 ## Lists and data
 
@@ -58,4 +60,4 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
 * Arabic is the base language; other languages are optional (docs/languages.md).
   English is bundled for the framework's own strings; the administration pages,
   record assignments, workflows, collaboration and CSV import are not in the catalog yet.
-* No documentation site and no complete `defineResource` reference.
+* No documentation site.

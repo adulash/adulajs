@@ -1,7 +1,14 @@
 import { subject } from '@casl/ability'
 import type { Knex } from 'knex'
-import type { Action, RecordData, Resource, SerializedRecord } from '../../resource/types.js'
-import { columnName } from '../../resource/define_resource.js'
+import type { Action, Field, RecordData, Resource, SerializedRecord } from '../../resource/types.js'
+import { columnName, joinTable } from '../../resource/define_resource.js'
+import {
+  applyVisibility,
+  missingDefaults,
+  resourceValidator,
+  TEXT_LIKE,
+} from '../../resource/definition.js'
+import { currentLanguage, labelText, translate } from '../../languages/catalog.js'
 import { buildAbility, type Actor } from '../../auth/ability.js'
 import { fromRow, serialize, systemInput, writableInput } from '../contracts.js'
 import {
@@ -77,6 +84,69 @@ type SystemWrite = {
   chooser?: Actor
   submitted?: boolean
   unattributed?: boolean
+}
+
+/** A normalized value as its column binding: JSON columns are bound as JSON text. */
+function storedValue(field: Field, value: unknown) {
+  return (field.type === 'json' || field.type === 'multiSelect') && value !== null
+    ? JSON.stringify(value)
+    : value
+}
+
+/**
+ * Runs a write and turns a unique violation (PostgreSQL 23505) on the resource's table
+ * into 409 E_DUPLICATE naming the fields of the violated index, single or composite.
+ */
+async function uniqueViolations<T>(resource: Resource, write: () => Promise<T>): Promise<T> {
+  try {
+    return await write()
+  } catch (error) {
+    const failure = error as { code?: string; table?: string; detail?: string }
+    if (failure?.code !== '23505' || failure.table !== resource.name) throw error
+    const columns = /^Key \(([^)]*)\)=/.exec(failure.detail ?? '')?.[1]?.split(', ') ?? []
+    const byColumn = new Map(
+      Object.entries(resource.fields).map(([key, field]) => [
+        field.column ?? columnName(key),
+        field,
+      ])
+    )
+    const labels = columns.map((column) =>
+      column === 'org_unit_id'
+        ? translate('ui.form.orgUnit', currentLanguage())
+        : byColumn.get(column)
+          ? labelText(byColumn.get(column)!.label)
+          : column
+    )
+    throw new AdulaError(
+      409,
+      'E_DUPLICATE',
+      labels.length
+        ? translate('errors.E_DUPLICATE.fields', currentLanguage(), { fields: labels.join('، ') })
+        : translate('errors.E_DUPLICATE', currentLanguage())
+    )
+  }
+}
+
+/** Replaces the links of one manyToMany field by difference: removed pairs go, new pairs come. */
+async function syncLinks(
+  trx: Knex.Transaction,
+  resource: Resource,
+  key: string,
+  ownerId: number,
+  before: readonly number[],
+  after: readonly number[]
+) {
+  const field = resource.fields[key]
+  if (field.type !== 'manyToMany') return
+  const join = joinTable(resource.name, key, field)
+  const removed = before.filter((target) => !after.includes(target))
+  const added = after.filter((target) => !before.includes(target))
+  if (removed.length)
+    await trx(join.table).where(join.owner, ownerId).whereIn(join.target, removed).delete()
+  if (added.length)
+    await trx(join.table).insert(
+      added.map((target) => ({ [join.owner]: ownerId, [join.target]: target }))
+    )
 }
 
 /** A module-code write; see ResourceService.systemSave. */
@@ -168,7 +238,13 @@ export async function persist(
   const check = (target: Resource, act: Action, record: RecordData) => {
     if (!system) requireRecord(ability, actor, target, act, record)
   }
-  const validated = system ? {} : await resource.validator.validate(form)
+  const validator = resourceValidator(resource)
+  // Declared defaults fill the keys a create leaves out, before validation (see Field.default).
+  const defaults = id === undefined ? missingDefaults(resource, form) : {}
+  const formDefaults = Object.fromEntries(
+    Object.entries(defaults).filter(([key]) => resource.form.includes(key))
+  )
+  const validated = system ? {} : await validator.validate({ ...formDefaults, ...form })
   const work = async (trx: Knex.Transaction) => {
     const existing = id === undefined ? {} : await load(trx, resource, id, true)
     if (id !== undefined) {
@@ -189,18 +265,20 @@ export async function persist(
         Object.fromEntries(formKeys.filter((key) => key in record).map((key) => [key, record[key]]))
       Object.assign(
         validated,
-        await resource.validator.validate({ ...pick(existing), ...pick(form) }),
+        await validator.validate({ ...pick(existing), ...pick(defaults), ...pick(form) }),
         Object.fromEntries(Object.entries(form).filter(([key]) => !formKeys.includes(key)))
       )
     }
     const candidate: RecordData = {
       ...existing,
+      ...defaults,
       ...validated,
       createdBy: existing.createdBy ?? actor.id,
       updatedBy: system?.unattributed ? existing.updatedBy : actor.id,
     }
     if (resource.submittable) candidate.docStatus = existing.docStatus ?? 0
     normalizeValues(resource, candidate)
+    applyVisibility(resource, candidate)
     const locate = async () => {
       if (!resource.scoped) return
       if (resource.scope) {
@@ -227,7 +305,19 @@ export async function persist(
     const written = new Set(
       system
         ? []
-        : [...Object.keys(form), ...Object.keys(validated).filter((key) => key in resource.fields)]
+        : [
+            ...Object.keys(form),
+            // A declared default is the definition's choice, not the actor's write.
+            ...Object.keys(validated).filter(
+              (key) =>
+                key in resource.fields &&
+                !(
+                  key in defaults &&
+                  !(key in form) &&
+                  JSON.stringify(validated[key]) === JSON.stringify(defaults[key])
+                )
+            ),
+          ]
     )
     for (const key of written) {
       const field = resource.fields[key]
@@ -245,6 +335,17 @@ export async function persist(
     const context = { trx, userId: actor.id, action } as const
     await resource.hooks?.beforeSave?.(candidate, context)
     normalizeValues(resource, candidate)
+    // Hidden fields store null whatever the input or a hook supplied (Field.visibleWhen).
+    // A field the actor may not write keeps its stored value instead: changing the
+    // controlling field must not wipe values (or links) the actor cannot write.
+    const hidden = applyVisibility(resource, candidate, {
+      existing: id === undefined ? undefined : existing,
+      writable: (key) =>
+        Boolean(system) ||
+        (ability.can(action, subject(name, candidate), key) &&
+          ability.can(action, subject(name, existing), key) &&
+          actor.permissionLevel >= fieldLevel(resource, key)),
+    })
     // A hook may change the parent of an inherited scope; the unit follows it.
     if (resource.scope) await locate()
     // A hook may also move the record: later checks use the unit it chose.
@@ -258,13 +359,30 @@ export async function persist(
       if (
         field.required &&
         field.type !== 'hasMany' &&
-        (candidate[key] === null || candidate[key] === undefined)
+        !hidden.has(key) &&
+        (candidate[key] === null ||
+          candidate[key] === undefined ||
+          (['multiSelect', 'manyToMany'].includes(field.type) &&
+            Array.isArray(candidate[key]) &&
+            (candidate[key] as unknown[]).length === 0) ||
+          // Whatever a validator or hook returned, a blank required text is missing.
+          (TEXT_LIKE.includes(field.type) &&
+            typeof candidate[key] === 'string' &&
+            !(candidate[key] as string).trim()))
       )
         throw requiredField(key)
       if (field.type === 'belongsTo' && candidate[key] !== null && candidate[key] !== undefined) {
         const related = registry.get(field.resource)
         const target = await load(trx, related, Number(candidate[key]))
         check(related, 'view', target)
+      }
+      // Every newly linked record must be viewable, like a belongsTo value; links kept
+      // unchanged are not re-checked, so an edit never fails on a record moved out of scope.
+      if (field.type === 'manyToMany' && Array.isArray(candidate[key])) {
+        const related = registry.get(field.resource)
+        const before = new Set(Array.isArray(existing[key]) ? (existing[key] as number[]) : [])
+        for (const target of candidate[key] as number[])
+          if (!before.has(target)) check(related, 'view', await load(trx, related, target))
       }
       // A new user, or a record moved by a user to another unit, needs an eligible user.
       // An unchanged value never blocks other edits, even after the account is disabled.
@@ -353,15 +471,22 @@ export async function persist(
     if (resource.scoped) values.org_unit_id = candidate.orgUnitId
     if (resource.version) values.version = id === undefined ? 1 : Number(existing.version) + 1
     for (const [key, field] of Object.entries(resource.fields)) {
-      if (field.type !== 'hasMany' && key in candidate)
-        values[field.column ?? columnName(key)] =
-          field.type === 'json' ? JSON.stringify(candidate[key]) : candidate[key]
+      if (field.type !== 'hasMany' && field.type !== 'manyToMany' && key in candidate)
+        values[field.column ?? columnName(key)] = storedValue(field, candidate[key])
     }
-    const [row] =
+    const [row] = await uniqueViolations(resource, () =>
       id === undefined
-        ? await trx(name).insert(values).returning('*')
-        : await trx(name).where({ id }).update(values).returning('*')
+        ? trx(name).insert(values).returning('*')
+        : trx(name).where({ id }).update(values).returning('*')
+    )
     const saved: RecordData = { ...fromRow(row, resource), orgPath: candidate.orgPath }
+    for (const [key, field] of Object.entries(resource.fields)) {
+      if (field.type !== 'manyToMany') continue
+      const before = Array.isArray(existing[key]) ? (existing[key] as number[]) : []
+      const after = key in candidate ? ((candidate[key] as number[] | null) ?? []) : before
+      await syncLinks(trx, resource, key, Number(row.id), before, after)
+      saved[key] = after
+    }
     for (const [key, field] of Object.entries(resource.fields)) {
       if (field.type !== 'attachment' || !(key in candidate)) continue
       const next = isAttachmentId(candidate[key]) ? candidate[key] : null
@@ -423,6 +548,10 @@ async function writeInlineRows(
       if (!child || typeof child !== 'object' || Array.isArray(child))
         throw invalidInline('Inline rows must be objects')
       const { id: childId, _delete: remove, ...data } = child
+      // Inline rows are not offered manyToMany fields (editor.ts); a submitted value is
+      // ignored so a row saved without its links never clears them.
+      for (const [childKey, childField] of Object.entries(childResource.fields))
+        if (childField.type === 'manyToMany') delete data[childKey]
       if (remove !== undefined && typeof remove !== 'boolean')
         throw invalidInline('Invalid deletion marker')
       if (childId !== undefined) {
@@ -504,17 +633,24 @@ export async function amend(
     if (resource.version) values.version = 1
     const copied: string[] = []
     for (const [key, field] of Object.entries(resource.fields)) {
-      if (field.type === 'hasMany' || !(key in source)) continue
+      if (field.type === 'hasMany' || field.type === 'manyToMany' || !(key in source)) continue
       const column = field.column ?? columnName(key)
       if (field.sequence) values[column] = await sequence(trx, field.sequence)
       else if (field.type === 'attachment') continue
       else {
-        values[column] = field.type === 'json' ? JSON.stringify(source[key]) : source[key]
+        values[column] = storedValue(field, source[key])
         copied.push(key)
       }
     }
-    const [row] = await trx(name).insert(values).returning('*')
+    const [row] = await uniqueViolations(resource, () => trx(name).insert(values).returning('*'))
     const saved: RecordData = { ...fromRow(row, resource), orgPath: source.orgPath }
+    // The copy links the same records as the cancelled original.
+    for (const [key, field] of Object.entries(resource.fields)) {
+      if (field.type !== 'manyToMany' || !Array.isArray(source[key])) continue
+      await syncLinks(trx, resource, key, Number(row.id), [], source[key] as number[])
+      saved[key] = source[key]
+      copied.push(key)
+    }
     for (const [lineKey, field] of Object.entries(resource.fields)) {
       if (field.type !== 'hasMany' || !field.inline) continue
       const child = ctx.registry.get(field.resource)

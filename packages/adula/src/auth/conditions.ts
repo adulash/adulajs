@@ -93,6 +93,23 @@ export function likePattern(value: string) {
   )
 }
 
+/**
+ * Compares two decimal strings by value (-1, 0, 1), or undefined when either is not a
+ * plain decimal string. Fractions are aligned, so '12.5' equals '12.50'.
+ */
+export function decimalCompare(left: unknown, right: unknown): -1 | 0 | 1 | undefined {
+  const pattern = /^(-?)(\d+)(?:\.(\d+))?$/
+  const a = typeof left === 'string' ? pattern.exec(left) : null
+  const b = typeof right === 'string' ? pattern.exec(right) : null
+  if (!a || !b) return undefined
+  const digits = Math.max(a[3]?.length ?? 0, b[3]?.length ?? 0)
+  const scaled = (match: RegExpExecArray) =>
+    BigInt(`${match[1]}${match[2]}${(match[3] ?? '').padEnd(digits, '0')}`)
+  const x = scaled(a)
+  const y = scaled(b)
+  return x < y ? -1 : x > y ? 1 : 0
+}
+
 // This matcher is used exclusively by CASL. SQL compilation shares the validated AST.
 export function conditionsMatcher(
   conditions: Conditions,
@@ -106,6 +123,8 @@ export function conditionsMatcher(
         field
       ]?.type
       const compare = () => {
+        // Decimals compare by value like PostgreSQL numeric, never as text ('9.5' < '10').
+        if (type === 'decimal' || type === 'percent') return decimalCompare(actual, value)
         if (type === 'money') {
           if (
             typeof actual !== 'string' ||
@@ -132,13 +151,18 @@ export function conditionsMatcher(
             ? 1
             : 0
       }
+      const decimal = type === 'decimal' || type === 'percent'
+      const same = (operand: unknown) =>
+        decimal && actual !== null && operand !== null
+          ? decimalCompare(actual, operand) === 0
+          : actual === operand
       switch (operator) {
         case '$eq':
-          return actual === value
+          return same(value)
         case '$ne':
-          return actual !== value
+          return !same(value)
         case '$in':
-          return (value as Scalar[]).includes(actual as Scalar)
+          return (value as Scalar[]).some(same)
         case '$lt':
           return compare() === -1
         case '$gt':

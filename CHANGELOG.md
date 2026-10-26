@@ -360,6 +360,134 @@ constants and types) and the additive core migration `1770000000020_two_factor`.
   * Disabled accounts are no longer linked.
   * A second identity from the same provider is refused.
 
+### Field types and the definition as the source of truth
+
+Minor: the resource definition is the single description of a resource (ADR 045, see
+[docs/resources.md](docs/resources.md)). Existing definitions compile unchanged (apart from the
+removed `customFields`);
+`pnpm check:api` reports `Field` and `Resource` as changed (new members, `validator` and
+`model` optional). `@vinejs/vine` `^4.0.0` becomes a peer dependency of `adula`; every
+AdonisJS application already has it.
+
+Added:
+
+* Field types `decimal` and `percent` (`numeric(precision, scale)`, defaults 18/2 and 7/2,
+  decimal strings such as `"12.50"`), `email` (trimmed, lower-cased), `phone` (stored as
+  `+?digits`, 7 to 15 digits; spaces, dashes, parentheses and Arabic-Indic digits accepted),
+  `url` (absolute http/https only), `enum` and `multiSelect` (`options: { value, label }[]`;
+  multiSelect is a JSONB array in options order, filtered by "contains") and `manyToMany`
+  (a join table `<owner>_<key>` or `table`, value = ascending linked ids, synced by
+  difference in the record's transaction, every newly linked record must be viewable).
+  New export `joinTable`.
+* Field props: `min`/`max` (length on text types, range on integer, money in minor units,
+  decimal and percent, count on multiSelect), anchored `pattern`, `format` on string
+  (`email`, `url`, `phone`), `precision`/`scale`, `options`, `default` (applied on create
+  when the key is absent, prefilled in the create form, column default for scalars) and
+  `visibleWhen` (a hidden field is not required and is stored as null, on create and update;
+  an update keeps the stored value of a hidden field the actor may not write). `visibleWhen`
+  values must be canonical values of the controlling field (enum and multiSelect values
+  must be options).
+  `defineResource` validates all of them.
+* Resource-level composite `unique: [['orgUnitId', 'code']]`: a partial unique index over
+  live rows that treats NULLs as equal (`NULLS NOT DISTINCT`); `orgUnitId` is allowed on
+  scoped resources. Adding one with `adula:resource:migration` fails while live rows
+  already repeat the combination, null members included.
+* Role rule conditions on decimal and percent fields take canonical decimal strings with
+  exactly `scale` decimals and compare numerically, in CASL and in PostgreSQL alike; ordered
+  rules need `buildAbility(rules, registry.all())`. CSV import reads decimal and percent
+  cells with thousands grouping (`1,234.5`) and the Arabic decimal point (`٫`); `12,5` is
+  refused.
+* `adula:capabilities` (and the shipped `agent/capabilities.md`) lists the new types, field
+  options and the `unique`, `validator` and `model` resource options.
+* Derived validation: `definitionValidator(resource)`, `definitionSchema(resource)` to
+  extend it (`vine.create(vine.object({ ...definitionSchema(r), … }))`),
+  `resourceValidator`, `isVisible`, `applyVisibility`. `fieldValue` enforces every field
+  constraint on every write path (validators, `beforeSave` hooks, `systemSave`): 422
+  `E_FIELD_VALUE`. New catalog messages `validation.phone`, `validation.decimalScale`,
+  `validation.decimalPrecision`, `validation.relation` and `errors.E_DUPLICATE.fields`.
+  Also `FieldValueError`, `canonicalDecimal` and `decimalShape`.
+* Schema from the definition: `resourceSchema`, `fieldColumnType`, `alterResourceTable`,
+  `schemaDrift`, `resourceAddition`, `describeDrift` and their types. `adula:doctor` gains
+  the `resources.schema` check (missing table, columns, unique indexes and join tables;
+  different column types). The create-migration snapshot also records `visibleWhen` and the
+  resolved `precision`/`scale`, so `resources.snapshots` notices changes to them.
+* `node ace adula:resource:migration <name>` writes an additive migration of what the
+  table lacks, embedding only the new pieces; types are never changed automatically.
+* Editor, OpenAPI, aggregates (`sum` over decimal and percent) and the relation options
+  endpoint understand the new types. The fixture module `suppliers` in
+  `apps/reference/tests/fixtures` uses every new type.
+* `@adula/ui`: generated forms, details and lists cover every new type. The
+  `resource-value` item gains `field_values.ts` (pure helpers: decimal parsing and
+  display, multi-value state, visibleWhen, safe links) and `resource-field` depends on
+  `checkbox` and `badge`. Widgets: decimal and percent inputs accept Arabic-Indic digits
+  and `٫`, normalize to the field's scale and show the ٪ suffix (commas only as thousands
+  grouping; `1,5` is refused); email, phone and URL inputs (also for `string` with
+  `format`) are LTR and render as `mailto:`, `tel:` and safe http(s) links with
+  `rel="noopener noreferrer"`; enum is a Select; multiSelect a labelled checkbox group
+  shown as badges; manyToMany a multiple picker over the relation options search, shown
+  as record titles. Create forms are prefilled with declared defaults. visibleWhen hides
+  fields live, in inline rows too, resolves chains to a fixed point and compares values
+  canonically like the server; a hidden field is not submitted. Lists filter enum and
+  multiSelect through a Select and manyToMany through the relation filter, with tabular
+  decimal and percent columns. New catalog keys `ui.field.decimalPlaces`,
+  `ui.field.noDecimalPlaces`, `ui.field.selectedCount`, `ui.field.chooseRecords`,
+  `ui.field.selectedIn`, `ui.field.removeRecord`, `ui.field.required`,
+  `ui.validation.decimal`, `ui.validation.decimalScale` and `ui.value.percent`.
+* ADR 045 (definition as the source of truth) and the field reference in
+  [docs/resources.md](docs/resources.md).
+
+Changed:
+
+* `Resource.validator` and `Resource.model` are optional. Without a validator, writes use
+  the derived one; a declared validator still replaces it. AdulaJS never reads `model`.
+  Type-breaking for code that calls `resource.validator.validate(…)` directly: use
+  `resourceValidator(resource).validate(…)`, which falls back to the derived validator.
+* `adula:resource` and `adula:app` no longer write a validator, Lucid model or factory;
+  `adula:resource --validator` and `--model` opt in.
+* A unique violation, single or composite, stays 409 `E_DUPLICATE` and now names the
+  fields: «هذه القيمة مستخدمة في سجل آخر: <الحقول>».
+* String fields enforce their 255-character column length as a 422 validation error
+  instead of a database error.
+* Constraints apply to stored records too: after adding `max`, `pattern` or another
+  constraint to an existing field, or with the new 255-character limit, an edit of a legacy
+  row whose value violates it fails with 422 until the value is corrected.
+* Inline child rows do not edit many-to-many links: the editor omits a child's manyToMany
+  fields and an inline payload's values for them are ignored, so saving a parent never
+  clears its lines' links.
+* `visibleWhen: { field: null }` on a multiSelect controller matches no selection (null or
+  an empty list), in the server and the generated form alike.
+
+Deprecated:
+
+* `adula:resource:snapshot`: it still rewrites a pending create-migration and prints a
+  notice; use `adula:resource:migration` after the create-migration ran.
+
+### Calendar days in every time zone
+
+Fix: node-postgres read a `DATE` column as a JavaScript `Date` at the server process's
+local midnight, so raw Lucid queries reported the previous day east of UTC (for example
+`2026-09-18` became `2026-09-17T21:00:00.000Z` with `TZ=Asia/Riyadh`). `adula/provider` now
+registers a `DATE` parser on every PostgreSQL connection, so every query, including module
+code and raw Lucid queries, returns the stored `YYYY-MM-DD` text unchanged. This fixes the date
+failures seen when the server process ran at UTC+3. The Hijri date picker opens on the
+viewer's local today rather than the UTC one.
+
+Changed (breaking for code that reads dates directly): module code and raw queries now
+receive `DATE` columns as `'YYYY-MM-DD'` strings instead of JavaScript `Date` objects at
+local midnight, and `date[]` columns as arrays of such strings. Resource values were
+already calendar strings and are unchanged.
+
+### Removed
+
+* The `customFields` resource option. It had no screen, no API and no consumer: it only
+  created a `custom_fields` JSONB column that nothing read or wrote. `defineResource` now
+  refuses a definition that still sets it (true or false) with an error that names the
+  removal, so an upgrade is never silent; delete the option from the definition. No
+  migration drops the column: an existing `custom_fields` column stays in place with its
+  data, and a create-migration generated before the removal still compiles and replays
+  unchanged. `Resource` loses `customFields`, `adula:capabilities` no longer lists it and
+  `adula:doctor` no longer compares it. The option can return later with a real consumer.
+
 ## 2.1.0 — 2026-10-17
 
 Minor release: new defaults for the copied interface and a refreshed README. No API or

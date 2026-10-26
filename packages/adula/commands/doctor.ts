@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import {
   diagnose,
   diagnoseResourceSnapshots,
+  diagnoseResourceSchemas,
   diagnoseOutbox,
   diagnoseWorkflowRoles,
 } from '../src/commands/doctor.js'
@@ -78,6 +79,9 @@ export default class Doctor extends BaseCommand {
           }
         })
       )
+    // Tables of resources whose create-migration is still pending are reported missing.
+    if (registry)
+      findings.push(await diagnoseResourceSchemas(db.connection().getWriteClient(), registry.all()))
     for (const finding of findings)
       this.logger.log(`${finding.status.toUpperCase()} ${finding.check}: ${finding.message}`)
     if (findings.some((finding) => finding.status === 'fail')) this.exitCode = 1

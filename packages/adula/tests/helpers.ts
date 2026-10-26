@@ -119,7 +119,7 @@ export const registry = new ResourceRegistry().register([
   { name: 'customers', label: customer.label, dependsOn: [], resources: [customer] },
   { name: 'orders', label: order.label, dependsOn: ['customers'], resources: [order, line] },
 ])
-const local = process.env.TEST_DATABASE_URL
+export const testConnection = process.env.TEST_DATABASE_URL
   ? process.env.TEST_DATABASE_URL
   : {
       ...JSON.parse(
@@ -130,7 +130,7 @@ const local = process.env.TEST_DATABASE_URL
     }
 export const db = knex({
   client: 'pg',
-  connection: local,
+  connection: testConnection,
   pool: { min: 0, max: 8 },
   searchPath: ['adula_test', 'public'],
 })

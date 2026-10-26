@@ -69,7 +69,7 @@ After publication, replace archives with the **exact published version** of each
 
 ## First domain resource and design
 
-Run `node ace adula:resource inspections --module=inspections`, fill the generated labels, fields, validation and test fixture, then migrate and test. AdulaJS installs no customers/orders/tasks modules; the repository's examples are test-only.
+Run `node ace adula:resource inspections --module=inspections`, fill the generated labels, fields and test fixture (the fields derive validation and columns; see [resource definitions](resources.md)), then migrate and test. AdulaJS installs no customers/orders/tasks modules; the repository's examples are test-only.
 
 At kickoff the design agent requests company name, logo, approved colors, fonts and brand guidelines, reuses supplied information, and records sources in project-owned `docs/design-identity.md`. Pending assets allow independent work with a provisional neutral preview. Installation never overwrites that document.
 

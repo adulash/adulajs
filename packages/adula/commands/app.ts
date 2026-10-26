@@ -44,8 +44,8 @@ export default class App extends BaseCommand {
     this.logger.info(
       [
         'Next steps:',
-        `  1. Fill app/modules/${plan.name}/resources/${plan.name}.ts with the real fields, then run \`node ace adula:resource:snapshot ${plan.name}\` and update the model, validator, factory and contract fixture.`,
-        '  2. node ace migration:run',
+        `  1. node ace migration:run, then fill app/modules/${plan.name}/resources/${plan.name}.ts with the real fields (they derive validation and forms) and update the contract fixture.`,
+        `  2. node ace adula:resource:migration ${plan.name}, then node ace migration:run again (adds the new columns)`,
         `  3. node ace adula:install  (creates the roles ${plan.name}_manager and ${plan.name}_user)`,
         `  4. Assign the roles to people on /admin/users, then run node ace test functional --files=${plan.name} --files=${plan.name}/smoke`,
       ].join('\n')

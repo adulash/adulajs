@@ -33,7 +33,14 @@ export async function planResource(
   root: string,
   name: string,
   module: string,
-  options: { moduleSource?: string; label?: Label } = {}
+  options: {
+    moduleSource?: string
+    label?: Label
+    /** Also write a VineJS validator file; by default the fields are the validator (ADR 045). */
+    validator?: boolean
+    /** Also write a Lucid model and its factory; AdulaJS itself never reads a model. */
+    model?: boolean
+  } = {}
 ): Promise<ResourcePlan> {
   identifier(name)
   identifier(module)
@@ -44,7 +51,13 @@ export async function planResource(
   const ar = quoted(options.label?.ar ?? title)
   const en = quoted(options.label?.en ?? title)
   const relative = `app/modules/${module}`
-  const resourceSource = `import { defineResource } from 'adula'\nimport Model from '#modules/${module}/models/${name}'\nimport { validator } from '#modules/${module}/validators/${name}'\n\nexport default defineResource({\n  name: '${name}', label: { ar: ${ar}, en: ${en} },\n  recordLabel: { ar: ${ar}, en: ${en} }, model: Model, scoped: true,\n  fields: { title: { type: 'string', label: { ar: 'العنوان', en: 'Title' }, required: true, searchable: true } },\n  list: ['title'], form: ['title'], show: ['title'],\n  actions: ['view', 'create', 'update', 'delete'], validator,\n})\n`
+  const imports = [
+    ...(options.model ? [`import Model from '#modules/${module}/models/${name}'`] : []),
+    ...(options.validator
+      ? [`import { validator } from '#modules/${module}/validators/${name}'`]
+      : []),
+  ]
+  const resourceSource = `import { defineResource } from 'adula'\n${imports.map((line) => `${line}\n`).join('')}\n// The fields are the source of truth: validation, columns and forms derive from them.\nexport default defineResource({\n  name: '${name}', label: { ar: ${ar}, en: ${en} },\n  recordLabel: { ar: ${ar}, en: ${en} },${options.model ? ' model: Model,' : ''} scoped: true,\n  fields: { title: { type: 'string', label: { ar: 'العنوان', en: 'Title' }, required: true, searchable: true } },\n  list: ['title'], form: ['title'], show: ['title'],\n  actions: ['view', 'create', 'update', 'delete'],${options.validator ? ' validator,' : ''}\n})\n`
   const migration = {
     name,
     scoped: true,
@@ -65,6 +78,12 @@ export async function planResource(
     [`${relative}/factories/${name}.ts`]: `import factory from '@adonisjs/lucid/factories'\nimport Model from '#modules/${module}/models/${name}'\nexport default factory.define(Model, ({ faker }) => ({ title: faker.lorem.words(3) })).build()\n`,
     [`tests/functional/${name}.spec.ts`]: `import { resourceContract } from '#tests/helpers/resource_contract'\n\n// Extend this fixture whenever the resource form or its validator changes.\nresourceContract('${name}', ({ unique }) => ({\n  input: { title: 'سجل ' + unique },\n  expected: { title: 'سجل ' + unique },\n  update: { title: 'سجل محدث ' + unique },\n  updated: { title: 'سجل محدث ' + unique },\n}))\n`,
   }
+  // Opt-in only: the definition derives the validator, and persistence never reads a model.
+  if (!options.model) {
+    delete files[`${relative}/models/${name}.ts`]
+    delete files[`${relative}/factories/${name}.ts`]
+  }
+  if (!options.validator) delete files[`${relative}/validators/${name}.ts`]
   const modulePath = join(base, 'module.ts')
   let current = options.moduleSource
   if (current === undefined)
@@ -120,8 +139,13 @@ export async function writeResourcePlan(root: string, plan: ResourcePlan) {
   if (plan.modules) await writeFile(plan.modules.path, plan.modules.source)
 }
 
-export async function generateResource(root: string, name: string, module: string) {
-  const plan = await planResource(root, name, module)
+export async function generateResource(
+  root: string,
+  name: string,
+  module: string,
+  options: { validator?: boolean; model?: boolean } = {}
+) {
+  const plan = await planResource(root, name, module, options)
   await writeResourcePlan(root, plan)
   return Object.keys(plan.files)
 }

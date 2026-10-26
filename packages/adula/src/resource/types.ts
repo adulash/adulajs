@@ -14,6 +14,18 @@ export type RecordData = Record<string, unknown>
 export type JsonValue =
   string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
 export type SerializedRecord = Record<string, JsonValue>
+/** One choice of an enum or multiSelect field: the stored value and its display label. */
+export type FieldOption = { value: string; label: Label }
+/**
+ * Length limits and an anchored pattern of a text-like field. `pattern` is a RegExp
+ * source matched against the whole trimmed value (it is wrapped in `^(?:…)$`).
+ */
+export type TextConstraints = { min?: number; max?: number; pattern?: string }
+/**
+ * Numeric limits. Money limits are canonical minor units (integer strings or safe
+ * integers); decimal and percent limits are decimal strings or numbers.
+ */
+export type NumberConstraints = { min?: number | string; max?: number | string }
 export type Field = {
   label: Label
   column?: string
@@ -24,9 +36,51 @@ export type Field = {
   filterable?: boolean
   permissionLevel?: number
   sequence?: string
+  /**
+   * Applied on create when the input omits the key (server side, before validation),
+   * prefilled in the create form, and the column default for scalar types. An array
+   * only for multiSelect. Not allowed on relations, attachments, json or sequences.
+   */
+  default?: Scalar | string[]
+  /**
+   * The field applies only while every named sibling field equals the value (or one of
+   * the listed values; a multiSelect sibling must contain it). While it does not apply
+   * the form hides the field, `required` is not enforced and the server stores null
+   * (an empty list for manyToMany), on create and on update alike, except that an
+   * update keeps the stored value of a field the actor may not write. Values are
+   * canonical values of the sibling (checked by defineResource), for example '12.50'
+   * for a decimal sibling with scale 2.
+   */
+  visibleWhen?: Record<string, Scalar | Scalar[]>
 } & (
+  | ({ type: 'string' } & TextConstraints & {
+        /** Also check the value as an e-mail address, URL or phone number. */
+        format?: 'email' | 'url' | 'phone'
+      })
+  | ({ type: 'text' | 'email' | 'url' | 'phone' } & TextConstraints)
+  | ({ type: 'integer' | 'money' } & NumberConstraints)
+  | ({
+      /** numeric(precision, scale); the wire value is a decimal string with `scale` digits. */
+      type: 'decimal' | 'percent'
+      /** Total significant digits; defaults to 18 (decimal) or 7 (percent). */
+      precision?: number
+      /** Fractional digits; defaults to 2. */
+      scale?: number
+    } & NumberConstraints)
+  | { type: 'boolean' | 'date' | 'datetime' | 'json' }
+  /** One value from `options`, stored as its `value`. */
+  | { type: 'enum'; options: FieldOption[] }
+  /** Distinct values from `options` stored as a JSON array in `options` order; min/max count. */
+  | { type: 'multiSelect'; options: FieldOption[]; min?: number; max?: number }
+  /**
+   * Records of another resource linked through a join table (not a column). The value is
+   * the array of linked ids; the actor must be able to view every record they add.
+   */
   | {
-      type: 'string' | 'text' | 'integer' | 'money' | 'boolean' | 'date' | 'datetime' | 'json'
+      type: 'manyToMany'
+      resource: string
+      /** Join table name; defaults to `<owner table>_<field key in snake_case>`. */
+      table?: string
     }
   | {
       type: 'attachment'
@@ -58,7 +112,11 @@ export type Resource = {
   recordLabel?: Label
   /** Full create-button text when «إضافة <recordLabel>» does not fit (for example «مهمة جديدة»). */
   createLabel?: Label
-  model: LucidModel
+  /**
+   * Optional: AdulaJS persists through Knex and never reads it. Applications that use
+   * Lucid models in their own code may keep declaring it.
+   */
+  model?: LucidModel
   scoped: boolean
   /**
    * The organization unit of a scoped record follows a required belongsTo parent, for
@@ -69,7 +127,6 @@ export type Resource = {
   scope?: { from: string }
   submittable?: boolean
   version?: boolean
-  customFields?: boolean
   fields: Record<string, Field>
   list: readonly string[]
   form: readonly string[]
@@ -83,7 +140,18 @@ export type Resource = {
    */
   title?: readonly string[]
   actions: readonly Action[]
-  validator: { validate(data: unknown): Promise<RecordData> }
+  /**
+   * Field combinations that must be unique among live records (a partial unique index
+   * `WHERE deleted_at IS NULL`), for example `[['customerId', 'code']]`. Every key is a
+   * stored field, or `orgUnitId` on a scoped resource (a code unique per unit).
+   */
+  unique?: readonly (readonly string[])[]
+  /**
+   * Optional: without it, writes are validated by the VineJS validator derived from the
+   * fields (see definitionValidator). A given validator replaces the derived one; field
+   * constraints are enforced again when values are stored, whatever the validator returns.
+   */
+  validator?: { validate(data: unknown): Promise<RecordData> }
   hooks?: {
     beforeSave?: (record: RecordData, context: HookContext) => Promise<void>
     afterSave?: (record: RecordData, context: HookContext) => Promise<void>
@@ -128,9 +196,10 @@ export type Module = {
 }
 export type ResourceInput<F extends Record<string, Field>> = Omit<
   Resource,
-  'fields' | 'list' | 'form' | 'show' | 'hidden' | 'serialize' | 'title'
+  'fields' | 'list' | 'form' | 'show' | 'hidden' | 'serialize' | 'title' | 'unique'
 > & {
   fields: F
+  unique?: readonly (readonly ((keyof F & string) | 'orgUnitId')[])[]
   list: readonly (keyof F & string)[]
   form: readonly (keyof F & string)[]
   show: readonly (keyof F & string)[]

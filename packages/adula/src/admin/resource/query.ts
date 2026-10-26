@@ -21,6 +21,8 @@ import {
   hydrate,
   permissions,
   type ResourceContext,
+  collectionFilter,
+  withLinks,
 } from './shared.js'
 import { preload } from './read.js'
 
@@ -34,7 +36,7 @@ export type AggregateOptions = {
   groupBy?: string[]
   /** Count rows per group (default true). */
   count?: boolean
-  /** Integer or money fields to total per group; money totals are decimal strings. */
+  /** Integer, money, decimal or percent fields to total per group; totals are decimal strings. */
   sum?: string[]
   /** Equality filters, as in list(). */
   filters?: Record<string, unknown>
@@ -81,6 +83,25 @@ function queryValue(field: Field, value: unknown): unknown {
     case 'attachment':
       if (typeof value === 'string' && /^-?\d{1,10}$/.test(value)) candidate = Number(value)
       break
+    // A multiSelect filter is one option it contains; a manyToMany filter one linked id.
+    case 'multiSelect':
+      return (
+        fieldValue({ ...field, min: undefined, max: undefined }, [String(value)]) as string[]
+      )[0]
+    case 'manyToMany':
+      return (
+        fieldValue(field, [
+          typeof value === 'string' && /^\d{1,10}$/.test(value) ? Number(value) : value,
+        ]) as number[]
+      )[0]
+    case 'decimal':
+    case 'percent':
+    case 'enum':
+    case 'email':
+    case 'phone':
+    case 'url':
+      if (typeof value === 'number') candidate = String(value)
+      break
     case 'boolean':
       if (value === 'true') candidate = true
       else if (value === 'false') candidate = false
@@ -97,7 +118,11 @@ function queryValue(field: Field, value: unknown): unknown {
     default:
       throw new Error('Field cannot be compared')
   }
-  return fieldValue(field, candidate)
+  // Length, pattern and range limits describe stored values, not the probes compared with them.
+  return fieldValue(
+    { ...field, min: undefined, max: undefined, pattern: undefined } as Field,
+    candidate
+  )
 }
 
 /** A scalar filter operand: equality, or one value of an operator. */
@@ -116,9 +141,21 @@ export type ListFilterValue =
 
 /** Most values an `in` filter accepts. */
 export const FILTER_IN_LIMIT = 50
-const IN_TYPES = new Set(['string', 'text', 'lookup', 'integer', 'belongsTo', 'user'])
-const RANGE_TYPES = new Set(['integer', 'money', 'date', 'datetime'])
-const TEXT_TYPES = new Set(['string', 'text', 'lookup'])
+const IN_TYPES = new Set([
+  'string',
+  'text',
+  'email',
+  'phone',
+  'url',
+  'enum',
+  'lookup',
+  'integer',
+  'belongsTo',
+  'user',
+])
+const RANGE_TYPES = new Set(['integer', 'money', 'decimal', 'percent', 'date', 'datetime'])
+const TEXT_TYPES = new Set(['string', 'text', 'email', 'phone', 'url', 'enum', 'lookup'])
+const COLLECTION_TYPES = new Set(['multiSelect', 'manyToMany'])
 
 /** A typed filter condition, after validation and coercion of every operand. */
 export type FilterCondition =
@@ -220,6 +257,18 @@ function applyFilters(
     const field = resource.fields[key]
     const condition = filterCondition(key, field, value)
     const column = `r.${field.column ?? columnName(key)}`
+    // multiSelect and manyToMany match one member, or none at all for an empty filter.
+    if (COLLECTION_TYPES.has(field.type)) {
+      if (condition.kind === 'eq') collectionFilter(query, resource, key, condition.value)
+      else if (condition.kind === 'empty' && condition.empty)
+        collectionFilter(query, resource, key, null)
+      else if (condition.kind === 'empty')
+        query.whereNot((present) => {
+          collectionFilter(present, resource, key, null)
+        })
+      else throw invalidFilter(`Unsupported filter operator: ${key}`)
+      continue
+    }
     switch (condition.kind) {
       case 'eq':
         if (condition.value === null) query.whereNull(column)
@@ -366,6 +415,7 @@ export async function list(
   const records: RecordData[] = rows
     .slice(0, limit)
     .map((row: RecordData) => fromRow(row, resource))
+  await withLinks(ctx.db, resource, records)
   const last = records.at(-1)
   if (estimatedTotal !== undefined) {
     estimatedTotal =
@@ -480,7 +530,7 @@ export async function aggregate(
     const field = resource.fields[key]
     return (
       Boolean(field) &&
-      !['hasMany', 'json', 'attachment'].includes(field.type) &&
+      !['hasMany', 'manyToMany', 'json', 'attachment'].includes(field.type) &&
       (!kinds || kinds.includes(field.type)) &&
       canQueryField(resource, actor, ability, key)
     )
@@ -492,7 +542,7 @@ export async function aggregate(
   for (const key of groupBy)
     if (!queryable(key)) throw forbiddenField(`Field cannot be grouped: ${String(key)}`)
   for (const key of sums)
-    if (!queryable(key, ['integer', 'money']))
+    if (!queryable(key, ['integer', 'money', 'decimal', 'percent']))
       throw forbiddenField(`Field cannot be totalled: ${String(key)}`)
   const query = accessibleBy(
     ctx.db(`${name} as r`).whereNull('r.deleted_at'),

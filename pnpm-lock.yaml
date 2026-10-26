@@ -311,6 +311,9 @@ importers:
       '@types/papaparse':
         specifier: 5.5.2
         version: 5.5.2
+      '@vinejs/vine':
+        specifier: 4.4.0
+        version: 4.4.0
       eslint:
         specifier: 10.9.0
         version: 10.9.0(jiti@2.7.0)(supports-color@10.2.2)

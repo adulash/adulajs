@@ -1,5 +1,5 @@
 import type { Module, Resource } from './types.js'
-import { assertLabel, identifier } from './define_resource.js'
+import { assertLabel, identifier, joinTable } from './define_resource.js'
 
 export class ResourceRegistry {
   #resources = new Map<string, Resource>()
@@ -45,6 +45,14 @@ export class ResourceRegistry {
         roleKeys.add(role.key)
       }
     }
+    const tables = new Set(next.all().map((resource) => resource.name))
+    for (const resource of next.all())
+      for (const [key, field] of Object.entries(resource.fields)) {
+        if (field.type !== 'manyToMany') continue
+        const { table } = joinTable(resource.name, key, field)
+        if (tables.has(table)) throw new Error(`Duplicate table name: ${table}`)
+        tables.add(table)
+      }
     for (const resource of next.all()) {
       if (resource.scope) {
         const field = resource.fields[resource.scope.from]
@@ -52,7 +60,8 @@ export class ResourceRegistry {
           throw new Error(`${resource.name}: scope.from must reference a scoped resource`)
       }
       for (const field of Object.values(resource.fields)) {
-        if (field.type !== 'belongsTo' && field.type !== 'hasMany') continue
+        if (field.type !== 'belongsTo' && field.type !== 'hasMany' && field.type !== 'manyToMany')
+          continue
         const target = next.get(field.resource)
         const owner = next.owner(resource.name)
         const targetOwner = next.owner(target.name)

@@ -1,0 +1,152 @@
+import { defineResource } from 'adula'
+
+const options = <const T extends string>(entries: [T, string, string][]) =>
+  entries.map(([value, ar, en]) => ({ value, label: { ar, en } }))
+
+/**
+ * The consumer of the 2.2 field types (ADR 045): e-mail, phone, URL, enum, multiSelect,
+ * decimal, percent and manyToMany, with length/pattern/range constraints, declared
+ * defaults, visibleWhen and a composite unique code per organization unit. It declares
+ * no validator and no model: validation, columns and forms derive from the fields.
+ */
+export default defineResource({
+  name: 'suppliers',
+  label: { ar: 'الموردون', en: 'Suppliers' },
+  recordLabel: { ar: 'مورد', en: 'Supplier' },
+  scoped: true,
+  fields: {
+    code: {
+      type: 'string',
+      required: true,
+      pattern: 'SUP-\\d{4}',
+      filterable: true,
+      sortable: true,
+      label: { ar: 'رمز المورد', en: 'Supplier code' },
+    },
+    name: {
+      type: 'string',
+      required: true,
+      min: 2,
+      max: 120,
+      searchable: true,
+      sortable: true,
+      label: { ar: 'اسم المورد', en: 'Supplier name' },
+    },
+    email: {
+      type: 'email',
+      searchable: true,
+      filterable: true,
+      label: { ar: 'البريد الإلكتروني', en: 'E-mail' },
+    },
+    phone: { type: 'phone', filterable: true, label: { ar: 'الهاتف', en: 'Phone' } },
+    website: { type: 'url', label: { ar: 'الموقع الإلكتروني', en: 'Website' } },
+    kind: {
+      type: 'enum',
+      required: true,
+      default: 'local',
+      filterable: true,
+      sortable: true,
+      options: options([
+        ['local', 'محلي', 'Local'],
+        ['international', 'دولي', 'International'],
+      ]),
+      label: { ar: 'نوع المورد', en: 'Supplier type' },
+    },
+    commercialRegister: {
+      type: 'string',
+      required: true,
+      pattern: '\\d{10}',
+      visibleWhen: { kind: 'local' },
+      label: { ar: 'السجل التجاري', en: 'Commercial register' },
+    },
+    country: {
+      type: 'string',
+      required: true,
+      max: 80,
+      visibleWhen: { kind: 'international' },
+      label: { ar: 'الدولة', en: 'Country' },
+    },
+    creditLimit: {
+      type: 'money',
+      min: '0',
+      label: { ar: 'حد الائتمان', en: 'Credit limit' },
+    },
+    paymentTermsDays: {
+      type: 'integer',
+      min: 0,
+      max: 365,
+      default: 30,
+      label: { ar: 'مدة السداد (يوم)', en: 'Payment terms (days)' },
+    },
+    discountRate: {
+      type: 'percent',
+      min: 0,
+      max: 100,
+      default: '0.00',
+      label: { ar: 'نسبة الخصم', en: 'Discount rate' },
+    },
+    rating: {
+      type: 'decimal',
+      precision: 3,
+      scale: 1,
+      min: 0,
+      max: 5,
+      sortable: true,
+      label: { ar: 'التقييم', en: 'Rating' },
+    },
+    paymentMethods: {
+      type: 'multiSelect',
+      min: 1,
+      default: ['bank'],
+      filterable: true,
+      options: options([
+        ['bank', 'تحويل بنكي', 'Bank transfer'],
+        ['cheque', 'شيك', 'Cheque'],
+        ['cash', 'نقدًا', 'Cash'],
+      ]),
+      label: { ar: 'طرق الدفع', en: 'Payment methods' },
+    },
+    categories: {
+      type: 'manyToMany',
+      resource: 'supply_categories',
+      filterable: true,
+      label: { ar: 'فئات التوريد', en: 'Supply categories' },
+    },
+  },
+  unique: [['orgUnitId', 'code']],
+  list: ['code', 'name', 'kind', 'phone', 'rating', 'paymentMethods', 'categories'],
+  form: [
+    'code',
+    'name',
+    'kind',
+    'commercialRegister',
+    'country',
+    'email',
+    'phone',
+    'website',
+    'creditLimit',
+    'paymentTermsDays',
+    'discountRate',
+    'rating',
+    'paymentMethods',
+    'categories',
+  ],
+  show: [
+    'code',
+    'name',
+    'kind',
+    'commercialRegister',
+    'country',
+    'email',
+    'phone',
+    'website',
+    'creditLimit',
+    'paymentTermsDays',
+    'discountRate',
+    'rating',
+    'paymentMethods',
+    'categories',
+  ],
+  title: ['code', 'name'],
+  actions: ['view', 'create', 'update', 'delete'],
+})

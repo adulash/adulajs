@@ -5,10 +5,18 @@ import { ACTOR_ID } from '../auth/conditions.js'
 
 /** Field kinds accepted by defineResource, with their storage. */
 export const FIELD_TYPES: Record<string, string> = {
-  string: 'varchar',
-  text: 'text',
-  integer: 'integer',
-  money: 'bigint minor units, decimal string in JSON',
+  string: 'varchar(255); min/max length, pattern, format email/url/phone',
+  text: 'text; min/max length, pattern',
+  integer: 'integer; min/max',
+  money: 'bigint minor units, decimal string in JSON; min/max in minor units',
+  decimal: 'numeric(precision 18, scale 2 by default); canonical decimal string ("12.50"); min/max',
+  percent: 'numeric(precision 7, scale 2 by default); 12.5 means 12.5 %; min/max',
+  email: 'varchar(254), trimmed and lower-cased',
+  phone: 'varchar(32), stored as +?digits (7 to 15 digits)',
+  url: 'varchar(2048), absolute http(s) URLs only',
+  enum: 'varchar; one of options [{ value, label }]',
+  multiSelect: 'jsonb array of option values in options order; min/max count; filter contains',
+  manyToMany: 'join table <owner>_<key> (or table), array of target ids; targets must be viewable',
   boolean: 'boolean',
   date: 'date (YYYY-MM-DD)',
   datetime: 'timestamptz',
@@ -28,6 +36,14 @@ export const FIELD_OPTIONS = [
   'permissionLevel',
   'sequence',
   'column',
+  'default (create prefill, server default and column default)',
+  'visibleWhen ({ sibling: value | values }; hidden fields are stored empty and not required)',
+  'min / max (length, numeric limit or count)',
+  'pattern (anchored RegExp source)',
+  'format (string: email, url or phone)',
+  'precision / scale (decimal, percent)',
+  'options (enum, multiSelect)',
+  'resource / table (manyToMany)',
 ]
 export const RESOURCE_OPTIONS = [
   'scoped (required)',
@@ -35,10 +51,11 @@ export const RESOURCE_OPTIONS = [
   'title (fields that name the record in relations, pickers, tasks and approvals)',
   'submittable (docStatus, submit/cancel/amend-by-copy)',
   'version (optimistic locking, default with submittable)',
-  'customFields',
+  'unique (composite combinations of fields, partial over active rows)',
   'list / form / show / serialize / hidden',
   'actions',
   'hooks.beforeSave / hooks.afterSave',
+  'validator / model (optional: without validator a VineJS validator is derived from the fields)',
 ]
 export const CONDITION_OPERATORS = ['$eq', '$ne', '$in', '$lt', '$gt', '$like']
 export const WORKFLOW_STEPS = [

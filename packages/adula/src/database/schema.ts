@@ -1,6 +1,7 @@
 import type { Knex } from 'knex'
-import type { Resource } from '../resource/types.js'
-import { identifier, columnName } from '../resource/define_resource.js'
+import type { Field, Resource, Scalar } from '../resource/types.js'
+import { identifier, columnName, joinTable } from '../resource/define_resource.js'
+import { decimalShape, TEXT_LIMITS } from '../resource/values.js'
 
 export async function createCoreSchema(db: Knex) {
   await db.raw('CREATE EXTENSION IF NOT EXISTS ltree WITH SCHEMA public')
@@ -170,14 +171,288 @@ export async function createSavedViewsSchema(db: Knex) {
   })
 }
 
+/** The definition parts that decide a resource table (what create-migrations embed). */
+export type ResourceTableDefinition = Pick<
+  Resource,
+  'name' | 'scoped' | 'version' | 'submittable' | 'fields'
+> & {
+  unique?: readonly (readonly string[])[]
+}
+/** One column of a resource table; `type` is PostgreSQL's format_type() spelling. */
+export type ResourceColumn = {
+  name: string
+  type: string
+  nullable: boolean
+  /** The column default of a field `default` (scalar types only). */
+  default?: Scalar
+  /** The referenced table of a foreign key. */
+  references?: string
+  /** The field key, or null for a standard column. */
+  field: string | null
+}
+/** A partial unique index (`WHERE deleted_at IS NULL`) over these columns. */
+export type ResourceUniqueIndex = { name: string; columns: string[]; fields: string[] }
+/** The join table of one manyToMany field. */
+export type ResourceJoinTable = {
+  table: string
+  field: string
+  /** Column referencing the owner table. */
+  owner: string
+  /** Column referencing the target table. */
+  target: string
+  resource: string
+}
+/** The table shape a definition expects; see resourceSchema(). */
+export type ResourceSchema = {
+  table: string
+  columns: ResourceColumn[]
+  unique: ResourceUniqueIndex[]
+  joinTables: ResourceJoinTable[]
+  /** Columns of the generated search_vector, in order. */
+  searchable: string[]
+}
+
+/** PostgreSQL limits identifiers to 63 bytes and silently truncates longer index names. */
+const indexName = (name: string) => name.slice(0, 63)
+
+/** The column type of one stored field (format_type() spelling), or null when it has none. */
+export function fieldColumnType(field: Field): string | null {
+  switch (field.type) {
+    case 'hasMany':
+    case 'manyToMany':
+      return null
+    case 'belongsTo':
+    case 'attachment':
+    case 'user':
+    case 'integer':
+      return 'integer'
+    case 'money':
+      return 'bigint'
+    case 'boolean':
+      return 'boolean'
+    case 'date':
+      return 'date'
+    case 'datetime':
+      return 'timestamp with time zone'
+    case 'json':
+    case 'multiSelect':
+      return 'jsonb'
+    case 'text':
+      return 'text'
+    case 'decimal':
+    case 'percent': {
+      const { precision, scale } = decimalShape(field)
+      return `numeric(${precision},${scale})`
+    }
+    default:
+      return `character varying(${TEXT_LIMITS[field.type] ?? 255})`
+  }
+}
+
+/** NOT NULL: required or sequence fields, unless visibleWhen may hide (and clear) them. */
+function notNull(field: Field) {
+  return Boolean(field.sequence || (field.required && field.visibleWhen === undefined))
+}
+
+/** Whether a field `default` becomes the column default (scalars only, not multiSelect). */
+function columnDefault(field: Field): Scalar | undefined {
+  if (field.default === undefined || field.default === null || Array.isArray(field.default))
+    return undefined
+  return field.default as Scalar
+}
+
+/**
+ * The table a definition expects: standard and field columns with their types,
+ * nullability and defaults, the partial unique indexes (single fields and the
+ * resource's composite `unique`) and the join tables of manyToMany fields.
+ * createResourceTable builds it and the `resources.schema` doctor check compares it
+ * with the live database.
+ */
+export function resourceSchema(resource: ResourceTableDefinition): ResourceSchema {
+  const table = identifier(resource.name)
+  const standard = (name: string, type: string, nullable = false, references?: string) => ({
+    name,
+    type,
+    nullable,
+    field: null,
+    ...(references ? { references } : {}),
+  })
+  const columns: ResourceColumn[] = [standard('id', 'integer')]
+  if (resource.scoped) columns.push(standard('org_unit_id', 'integer', false, 'org_units'))
+  columns.push(
+    standard('created_by', 'integer', false, 'users'),
+    standard('updated_by', 'integer', false, 'users'),
+    standard('created_at', 'timestamp with time zone'),
+    standard('updated_at', 'timestamp with time zone'),
+    standard('deleted_at', 'timestamp with time zone', true)
+  )
+  if (resource.version) columns.push(standard('version', 'integer'))
+  if (resource.submittable)
+    columns.push(
+      standard('doc_status', 'smallint'),
+      standard('amended_from_id', 'integer', true, table)
+    )
+  const unique: ResourceUniqueIndex[] = []
+  const joinTables: ResourceJoinTable[] = []
+  const columnOf = (key: string) =>
+    key === 'orgUnitId' ? 'org_unit_id' : (resource.fields[key]?.column ?? columnName(key))
+  for (const [key, field] of Object.entries(resource.fields)) {
+    if (field.type === 'manyToMany') {
+      joinTables.push({ ...joinTable(table, key, field), field: key, resource: field.resource })
+      continue
+    }
+    const type = fieldColumnType(field)
+    if (!type) continue
+    const name = identifier(field.column ?? columnName(key))
+    const fallback = columnDefault(field)
+    columns.push({
+      name,
+      type,
+      nullable: !notNull(field),
+      field: key,
+      ...(fallback === undefined ? {} : { default: fallback }),
+      ...(field.type === 'belongsTo'
+        ? { references: identifier(field.resource) }
+        : field.type === 'attachment'
+          ? { references: 'attachments' }
+          : field.type === 'user'
+            ? { references: 'users' }
+            : {}),
+    })
+    if (field.unique)
+      unique.push({
+        name: indexName(`${table}_${columnName(key)}_active_unique`),
+        columns: [name],
+        fields: [key],
+      })
+  }
+  for (const keys of resource.unique ?? []) {
+    const names = keys.map((key) => identifier(columnOf(key)))
+    unique.push({
+      name: indexName(`${table}_${names.join('_')}_active_unique`),
+      columns: names,
+      fields: [...keys],
+    })
+  }
+  return {
+    table,
+    columns,
+    unique,
+    joinTables,
+    searchable: Object.entries(resource.fields)
+      .filter(([, field]) => field.searchable)
+      .map(([key, field]) => identifier(field.column ?? columnName(key))),
+  }
+}
+
+/** Adds one field column to a table builder, as createResourceTable and alterResourceTable do. */
+function addFieldColumn(
+  t: Knex.CreateTableBuilder | Knex.AlterTableBuilder,
+  key: string,
+  field: Field,
+  options: { alter: boolean }
+) {
+  const name = field.column ?? columnName(key)
+  let column: Knex.ColumnBuilder
+  switch (field.type) {
+    case 'belongsTo':
+      column = t.integer(name)
+      column.references('id').inTable(identifier(field.resource)).onDelete('RESTRICT').index()
+      break
+    case 'attachment':
+      column = t.integer(name)
+      column.references('id').inTable('attachments').onDelete('RESTRICT').index()
+      break
+    case 'user':
+      column = t.integer(name)
+      column.references('id').inTable('users').onDelete('RESTRICT').index()
+      break
+    case 'integer':
+      column = t.integer(name)
+      break
+    case 'money':
+      column = t.bigInteger(name)
+      break
+    case 'decimal':
+    case 'percent': {
+      const { precision, scale } = decimalShape(field)
+      column = t.decimal(name, precision, scale)
+      break
+    }
+    case 'boolean':
+      column = t.boolean(name)
+      break
+    case 'date':
+      column = t.date(name)
+      break
+    case 'datetime':
+      column = t.timestamp(name, { useTz: true })
+      break
+    case 'json':
+    case 'multiSelect':
+      column = t.jsonb(name)
+      break
+    case 'text':
+      column = t.text(name)
+      break
+    case 'email':
+    case 'phone':
+    case 'url':
+    case 'enum':
+      column = t.string(name, TEXT_LIMITS[field.type])
+      break
+    default:
+      column = t.string(name)
+  }
+  const fallback = columnDefault(field)
+  if (fallback !== undefined) column.defaultTo(fallback)
+  // A column added to a table that may hold rows is NOT NULL only when it has a default.
+  if (notNull(field) && (!options.alter || fallback !== undefined)) column.notNullable()
+}
+
+/**
+ * Partial unique indexes over live rows. A composite index treats NULLs as equal (PostgreSQL
+ * 15+ NULLS NOT DISTINCT): ("A", null) twice is a duplicate, since a combination with an
+ * empty member still names one record. A single-field index keeps allowing many NULLs.
+ */
+async function createUniqueIndexes(db: Knex, table: string, indexes: ResourceUniqueIndex[]) {
+  for (const index of indexes)
+    await db.raw(
+      `CREATE UNIQUE INDEX ?? ON ?? (${index.columns.map(() => '??').join(', ')})${
+        index.columns.length > 1 ? ' NULLS NOT DISTINCT' : ''
+      } WHERE deleted_at IS NULL`,
+      [index.name, table, ...index.columns]
+    )
+}
+
+async function createJoinTables(db: Knex, owner: string, joins: ResourceJoinTable[]) {
+  for (const join of joins)
+    await db.schema.createTable(join.table, (t) => {
+      // Owner rows are soft-deleted, so neither side cascades.
+      t.integer(join.owner).notNullable().references('id').inTable(owner).onDelete('RESTRICT')
+      t.integer(join.target)
+        .notNullable()
+        .references('id')
+        .inTable(identifier(join.resource))
+        .onDelete('RESTRICT')
+        .index()
+      t.primary([join.owner, join.target])
+    })
+}
+
 export async function createResourceTable(
   db: Knex,
-  resource: Pick<
-    Resource,
-    'name' | 'scoped' | 'version' | 'submittable' | 'customFields' | 'fields'
-  >
+  resource: ResourceTableDefinition & {
+    /**
+     * @deprecated The `customFields` resource flag was removed. Kept only so create-migrations
+     * generated before the removal still compile and replay unchanged on a new database
+     * (migrations are immutable); new definitions cannot set it (`defineResource` refuses it).
+     */
+    customFields?: boolean
+  }
 ) {
-  const table = identifier(resource.name)
+  const shape = resourceSchema(resource)
+  const table = shape.table
   await db.schema.createTable(table, (t) => {
     t.increments('id')
     if (resource.scoped)
@@ -197,70 +472,68 @@ export async function createResourceTable(
       t.smallint('doc_status').notNullable().defaultTo(0)
       t.integer('amended_from_id').references('id').inTable(table).onDelete('RESTRICT').index()
     }
+    // Legacy replay only: see the customFields note on the parameter.
     if (resource.customFields) t.jsonb('custom_fields').notNullable().defaultTo('{}')
-    for (const [key, field] of Object.entries(resource.fields)) {
-      if (field.type === 'hasMany') continue
-      const name = field.column ?? columnName(key)
-      let column: Knex.ColumnBuilder
-      switch (field.type) {
-        case 'belongsTo':
-          column = t.integer(name)
-          column.references('id').inTable(identifier(field.resource)).onDelete('RESTRICT').index()
-          break
-        case 'attachment':
-          column = t.integer(name)
-          column.references('id').inTable('attachments').onDelete('RESTRICT').index()
-          break
-        case 'user':
-          column = t.integer(name)
-          column.references('id').inTable('users').onDelete('RESTRICT').index()
-          break
-        case 'integer':
-          column = t.integer(name)
-          break
-        case 'money':
-          column = t.bigInteger(name)
-          break
-        case 'boolean':
-          column = t.boolean(name)
-          break
-        case 'date':
-          column = t.date(name)
-          break
-        case 'datetime':
-          column = t.timestamp(name, { useTz: true })
-          break
-        case 'json':
-          column = t.jsonb(name)
-          break
-        case 'text':
-          column = t.text(name)
-          break
-        default:
-          column = t.string(name)
-      }
-      if (field.required || field.sequence) column.notNullable()
-    }
+    for (const [key, field] of Object.entries(resource.fields))
+      if (fieldColumnType(field)) addFieldColumn(t, key, field, { alter: false })
     if (resource.scoped) t.index(['org_unit_id', 'deleted_at'])
   })
-  for (const [key, field] of Object.entries(resource.fields)) {
-    if (field.unique)
-      await db.raw('CREATE UNIQUE INDEX ?? ON ?? (??) WHERE deleted_at IS NULL', [
-        `${table}_${columnName(key)}_active_unique`,
-        table,
-        field.column ?? columnName(key),
-      ])
-  }
-  const searchable = Object.entries(resource.fields).filter(([, f]) => f.searchable)
-  if (searchable.length) {
-    const expression = searchable
-      .map(([key, field]) => `coalesce("${identifier(field.column ?? columnName(key))}", '')`)
+  await createUniqueIndexes(db, table, shape.unique)
+  if (shape.searchable.length) {
+    const expression = shape.searchable
+      .map((column) => `coalesce("${column}", '')`)
       .join(` || ' ' || `)
     await db.raw(
       `ALTER TABLE "${table}" ADD COLUMN search_vector tsvector GENERATED ALWAYS AS (to_tsvector('simple', ${expression})) STORED`
     )
     await db.raw('CREATE INDEX ?? ON ?? USING gin(search_vector)', [`${table}_search_gin`, table])
   }
+  await createJoinTables(db, table, shape.joinTables)
+}
+
+/**
+ * What an additive resource migration adds to an existing table: new field columns
+ * (and the join tables of new manyToMany fields), embedded as definition snapshots, and
+ * partial unique indexes by column name. Generated by `node ace adula:resource:migration`.
+ */
+export type ResourceAddition = {
+  fields?: Record<string, Field>
+  /** Unique indexes over live rows, each a list of column names. */
+  unique?: readonly (readonly string[])[]
+}
+
+/**
+ * Applies a ResourceAddition: adds the columns (NOT NULL only with a default, since
+ * the table may hold rows), creates join tables and unique indexes. It never changes or
+ * drops what exists, so released migrations stay immutable. The generated search_vector
+ * is not changed: making a field searchable needs a hand-written migration.
+ */
+export async function alterResourceTable(db: Knex, name: string, addition: ResourceAddition) {
+  const table = identifier(name)
+  const fields = Object.entries(addition.fields ?? {})
+  const columns = fields.filter(([, field]) => fieldColumnType(field))
+  if (columns.length)
+    await db.schema.alterTable(table, (t) => {
+      for (const [key, field] of columns) addFieldColumn(t, key, field, { alter: true })
+    })
+  await createJoinTables(
+    db,
+    table,
+    fields.flatMap(([key, field]) =>
+      field.type === 'manyToMany'
+        ? [{ ...joinTable(table, key, field), field: key, resource: field.resource }]
+        : []
+    )
+  )
+  await createUniqueIndexes(db, table, [
+    // Added unique fields get the index createResourceTable would have created.
+    ...resourceSchema({ name: table, scoped: false, fields: Object.fromEntries(columns) }).unique,
+    ...(addition.unique ?? []).map((names) => ({
+      name: indexName(`${table}_${names.map(identifier).join('_')}_active_unique`),
+      columns: [...names],
+      fields: [],
+    })),
+  ])
 }
 
 /** Record collaboration (phase 3): comments with mentions, followers, tags and field history. */

@@ -211,8 +211,8 @@ test.group('Arabic-only labels', () => {
       serverUrl: 'http://localhost',
     })
     assert.include(JSON.stringify(document.paths), 'الملاحظات')
-    await assert.rejects(() => notes.validator.validate({ title: 'x' }), /قيمة غير صالحة/)
-    assert.deepEqual(await notes.validator.validate({ body: 'نص' }), { body: 'نص' })
+    await assert.rejects(() => notes.validator!.validate({ title: 'x' }), /قيمة غير صالحة/)
+    assert.deepEqual(await notes.validator!.validate({ body: 'نص' }), { body: 'نص' })
   })
 
   test('Arabic stays required and a named language cannot be empty', ({ assert }) => {

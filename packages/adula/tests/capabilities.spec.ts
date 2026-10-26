@@ -18,6 +18,34 @@ test.group('Capability catalog', () => {
       assert.include(schema, `case '${type}'`, `${type} has no storage mapping`)
   })
 
+  test('every field type and field option of the definition is in the catalog', async ({
+    assert,
+  }) => {
+    const types = await readFile(new URL('../src/resource/types.ts', import.meta.url), 'utf8')
+    const field = types.slice(
+      types.indexOf('export type Field = {'),
+      types.indexOf('export type Resource = {')
+    )
+    const declared = [...field.matchAll(/type: ((?:'[A-Za-z]+'(?: \| )?)+)/g)].flatMap((match) =>
+      [...match[1].matchAll(/'([A-Za-z]+)'/g)].map((name) => name[1])
+    )
+    assert.isAbove(declared.length, 20)
+    for (const type of declared) assert.property(FIELD_TYPES, type, `${type} is not in FIELD_TYPES`)
+    const catalog = capabilityCatalog()
+    for (const option of [
+      'default',
+      'visibleWhen',
+      'min / max',
+      'pattern',
+      'format',
+      'precision / scale',
+      'options',
+      'resource / table',
+    ])
+      assert.include(catalog, option)
+    assert.include(catalog, 'unique (composite combinations')
+  })
+
   test('lists the project registry, its workflows and the commands', ({ assert }) => {
     const catalog = capabilityCatalog({ registry, commands: ['adula:resource — Generate'] })
     assert.include(catalog, '### orders')

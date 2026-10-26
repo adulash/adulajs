@@ -1,4 +1,4 @@
-export { defineResource, columnName } from './src/resource/define_resource.js'
+export { defineResource, columnName, joinTable } from './src/resource/define_resource.js'
 export { configure } from './configure.js'
 export { withAdulaDatabase } from './src/database/configure.js'
 export { createResourceController } from './src/admin/controller.js'
@@ -110,7 +110,28 @@ export {
   createInboundWebhooksSchema,
   createTwoFactorSchema,
   createWorkflowDelegationSlaSchema,
+  resourceSchema,
+  alterResourceTable,
+  fieldColumnType,
 } from './src/database/schema.js'
+export type {
+  ResourceSchema,
+  ResourceColumn,
+  ResourceUniqueIndex,
+  ResourceJoinTable,
+  ResourceAddition,
+  ResourceTableDefinition,
+} from './src/database/schema.js'
+export { schemaDrift, resourceAddition, describeDrift } from './src/database/schema_diff.js'
+export type { SchemaDrift } from './src/database/schema_diff.js'
+export {
+  definitionSchema,
+  definitionValidator,
+  resourceValidator,
+  isVisible,
+  applyVisibility,
+} from './src/resource/definition.js'
+export { FieldValueError, canonicalDecimal, decimalShape } from './src/resource/values.js'
 export { defineWorkflow, nextStep } from './src/workflows/define_workflow.js'
 export type {
   WorkflowDefinition,

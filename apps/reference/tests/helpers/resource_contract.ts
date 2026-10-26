@@ -4,7 +4,7 @@ import app from '@adonisjs/core/services/app'
 import db from '@adonisjs/lucid/services/db'
 import { adula } from '#services/adula'
 import { randomUUID } from 'node:crypto'
-import { attachmentPolicy, columnName } from 'adula'
+import { attachmentPolicy, columnName, joinTable } from 'adula'
 import type { Action, Field, RecordData, Resource, SerializedRecord } from 'adula'
 
 export type FixtureContext = { userId: number; orgUnitId: number; unique: string }
@@ -307,6 +307,17 @@ export function resourceContract(name: string, fixture: ResourceFixture) {
                 )
               }
             }
+          } else if (field.type === 'manyToMany') {
+            // Linked ids live in the join table, ascending (ADR 045).
+            assert.property(expectations, key, `Missing stored ${name}.${key} expectation`)
+            const join = joinTable(name, key, field)
+            const linked = await db
+              .connection()
+              .getWriteClient()(join.table)
+              .where(join.owner, row.id)
+              .orderBy(join.target)
+              .pluck(join.target)
+            assert.deepEqual(linked.map(Number), expectations[key], key)
           } else {
             assert.property(expectations, key, `Missing stored ${name}.${key} expectation`)
             if (exposed.has(key))

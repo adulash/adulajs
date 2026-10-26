@@ -14,7 +14,9 @@ import {
   X,
 } from 'lucide-react'
 import type { CalendarSystem, ResourceEditor, ResourceField as Field } from 'adula'
+import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
+import { Checkbox } from '~/components/ui/checkbox'
 import { Calendar } from '~/components/ui/calendar'
 import { HijriCalendar } from '~/components/ui/hijri-calendar'
 import { calendarInput, calendarIso } from '~/components/ui/calendar_date'
@@ -30,7 +32,12 @@ import {
 } from '~/components/ui/command'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
-import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverTrigger,
+} from '~/components/ui/popover'
 import { Switch } from '~/components/ui/switch'
 import { Textarea } from '~/components/ui/textarea'
 import {
@@ -41,7 +48,17 @@ import {
   SelectValue,
 } from '~/components/ui/select'
 import {
+  decimalScale,
+  hiddenFields,
+  listInput,
+  listValue,
+  orderedSelection,
+  parseDecimal,
+} from '~/components/ui/field_values'
+import {
   CURRENCY_LABEL,
+  PERCENT_LABEL,
+  fieldOptions,
   fileSize,
   moneyDisplay,
   moneyInput,
@@ -130,11 +147,13 @@ export function ResourceField(props: FieldProps) {
   const { label } = useMessages()
   return (
     <div
-      className={`min-w-0 space-y-2 ${['text', 'json'].includes(field.type) ? 'md:col-span-2' : ''}`}
+      className={`min-w-0 space-y-2 ${['text', 'json', 'manyToMany'].includes(field.type) ? 'md:col-span-2' : ''}`}
     >
       {/* The marker stays outside the label so the field's accessible name is the label alone. */}
       <div className="flex items-center gap-1">
-        <Label htmlFor={id}>{label(field.label)}</Label>
+        <Label id={`${id}-label`} htmlFor={id}>
+          {label(field.label)}
+        </Label>
         {field.required && (
           <span className="text-destructive" aria-hidden="true">
             *
@@ -153,7 +172,7 @@ export function ResourceField(props: FieldProps) {
 
 export function FieldControl(props: FieldProps) {
   const { field, id, value, onChange, disabled, error, label } = props
-  const { t } = useMessages()
+  const { t, locale } = useMessages()
   const shared = {
     id,
     disabled,
@@ -166,6 +185,46 @@ export function FieldControl(props: FieldProps) {
     case 'belongsTo':
     case 'user':
       return <RelationCombobox {...props} />
+    case 'manyToMany':
+      return <RelationMultiPicker {...props} />
+    case 'multiSelect':
+      return <MultiSelectControl {...props} />
+    case 'enum':
+      return (
+        <ResourceSelect
+          {...shared}
+          value={value}
+          onChange={onChange}
+          options={props.options ?? fieldOptions(field, locale)}
+        />
+      )
+    case 'decimal':
+    case 'percent':
+      return <DecimalControl {...props} />
+    case 'email':
+    case 'phone':
+    case 'url':
+    case 'string': {
+      // A string with `format` uses the same control as the dedicated type.
+      const kind = field.type === 'string' ? field.format : field.type
+      if (!kind) break
+      return (
+        <Input
+          {...shared}
+          type={kind === 'phone' ? 'tel' : kind}
+          inputMode={kind === 'phone' ? 'tel' : kind}
+          autoComplete={kind === 'url' ? 'url' : kind === 'email' ? 'email' : 'tel'}
+          dir="ltr"
+          spellCheck={false}
+          placeholder={
+            kind === 'url' ? 'https://' : kind === 'email' ? 'name@example.com' : '+966 5x xxx xxxx'
+          }
+          className="h-10 text-start"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      )
+    }
     case 'lookup':
       return (
         <ResourceSelect
@@ -221,17 +280,16 @@ export function FieldControl(props: FieldProps) {
           onChange={(event) => onChange(event.target.value)}
         />
       )
-    default:
-      return (
-        <Input
-          {...shared}
-          type="text"
-          className="h-10"
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-        />
-      )
   }
+  return (
+    <Input
+      {...shared}
+      type="text"
+      className="h-10"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+    />
+  )
 }
 
 function MoneyControl({ id, value, onChange, disabled, error, field, label }: FieldProps) {
@@ -244,7 +302,8 @@ function MoneyControl({ id, value, onChange, disabled, error, field, label }: Fi
   }
   return (
     <div className="space-y-1">
-      <div className="relative">
+      {/* LTR like the input, so the suffix and its padding share one physical side. */}
+      <div className="relative" dir="ltr">
         <Input
           id={id}
           type="text"
@@ -276,6 +335,113 @@ function MoneyControl({ id, value, onChange, disabled, error, field, label }: Fi
           {preview} {t(CURRENCY_LABEL)}
         </p>
       )}
+    </div>
+  )
+}
+
+/**
+ * Decimal and percent entry: Arabic-Indic digits and the Arabic decimal separator are
+ * accepted and normalized to the field's scale on blur; percent shows the ٪ suffix.
+ */
+function DecimalControl({ id, value, onChange, disabled, error, field, label }: FieldProps) {
+  const { t } = useMessages()
+  const scale = decimalScale(field)
+  const percent = field.type === 'percent'
+  const hint = `${id}-hint`
+  return (
+    <div className="space-y-1">
+      {/* LTR like the input, so the suffix and its padding share one physical side. */}
+      <div className="relative" dir="ltr">
+        <Input
+          id={id}
+          type="text"
+          inputMode="decimal"
+          dir="ltr"
+          placeholder={scale ? `0.${'0'.repeat(scale)}` : '0'}
+          className={`h-10 text-end tabular-nums ${percent ? 'pe-9' : ''}`}
+          value={value}
+          disabled={disabled}
+          required={field.required}
+          aria-label={label}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${id}-error ${hint}` : hint}
+          onChange={(event) => onChange(event.target.value)}
+          onBlur={() => {
+            try {
+              if (value) onChange(parseDecimal(value, scale))
+            } catch {
+              // Keep the typed text so the submit error can point at it.
+            }
+          }}
+        />
+        {percent && (
+          <span className="pointer-events-none absolute inset-y-0 end-3 flex items-center text-sm text-muted-foreground">
+            {t(PERCENT_LABEL)}
+          </span>
+        )}
+      </div>
+      <p id={hint} className="text-xs text-muted-foreground">
+        {scale
+          ? t('المنازل العشرية: {scale} على الأكثر', { scale })
+          : t('عدد صحيح بلا منازل عشرية')}
+      </p>
+    </div>
+  )
+}
+
+/** Every option as a checkbox in definition order; the value is stored in that order. */
+function MultiSelectControl({
+  id,
+  value,
+  onChange,
+  disabled,
+  error,
+  field,
+  label,
+  options,
+}: FieldProps) {
+  const { t, label: localized, locale } = useMessages()
+  const choices = options ?? fieldOptions(field, locale)
+  const selected = listValue(value)
+  const toggle = (option: string, checked: boolean) => {
+    const next = checked ? [...selected, option] : selected.filter((entry) => entry !== option)
+    onChange(listInput(orderedSelection(choices, next)))
+  }
+  const described = [error ? `${id}-error` : '', field.required ? `${id}-required` : '']
+    .filter(Boolean)
+    .join(' ')
+  return (
+    <div
+      id={id}
+      role="group"
+      // Named by the visible field label (ResourceField); inline rows pass their own name.
+      aria-labelledby={label ? undefined : `${id}-label`}
+      aria-label={label ?? localized(field.label)}
+      aria-invalid={error ? true : undefined}
+      aria-describedby={described || undefined}
+      className="flex min-h-10 flex-wrap items-center gap-x-5 gap-y-2 rounded-md border px-3 py-2"
+    >
+      {field.required && (
+        <span id={`${id}-required`} className="sr-only">
+          {t('مطلوب')}
+        </span>
+      )}
+      {choices.map((option) => {
+        const optionId = `${id}-${option.value}`
+        return (
+          <div key={option.value} className="flex items-center gap-2">
+            <Checkbox
+              id={optionId}
+              checked={selected.includes(option.value)}
+              disabled={disabled}
+              onCheckedChange={(checked) => toggle(option.value, checked === true)}
+            />
+            <Label htmlFor={optionId} className="font-normal">
+              {option.label}
+            </Label>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -626,7 +792,60 @@ function AttachmentControl({
 }
 
 type OptionPage = { data: Option[]; nextCursor: string | null }
-/** Server-side search through the authorized options route; keyset "more" keeps large relations usable. */
+/**
+ * Server-side search through the authorized options route; keyset "more" keeps large
+ * relations usable. A new search keeps the chosen records so their titles stay known.
+ */
+function useRelationOptions(
+  options: Option[],
+  relation: RelationSource | undefined,
+  chosen: string[]
+) {
+  const { t } = useMessages()
+  const [search, setSearch] = useState('')
+  const [loaded, setLoaded] = useState<Option[]>(options)
+  const [cursor, setCursor] = useState<string | null>(null)
+  const [fetched, setFetched] = useState(false)
+  const [failure, setFailure] = useState('')
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const http = useHttp<Record<string, never>, OptionPage>({})
+  const load = async (more: boolean, term = search) => {
+    if (!relation) return
+    setFailure('')
+    const url = new URL(relation.url, window.location.origin)
+    if (term && relation.searchable) url.searchParams.set('search', term)
+    if (more && cursor) url.searchParams.set('cursor', cursor)
+    try {
+      const page = await http.get(url.pathname + url.search)
+      if (!page) return
+      setFetched(true)
+      setCursor(page.nextCursor)
+      setLoaded((previous) => {
+        const keep = more ? previous : previous.filter((option) => chosen.includes(option.value))
+        return [
+          ...new Map([...keep, ...page.data].map((option) => [option.value, option])).values(),
+        ]
+      })
+    } catch {
+      setFailure(t('تعذر تحميل الخيارات'))
+    }
+  }
+  useEffect(() => () => clearTimeout(timer.current), [])
+  const searchable = Boolean(relation?.searchable)
+  const find = (key: string) =>
+    loaded.find((option) => option.value === key) ?? options.find((option) => option.value === key)
+  const typed = (term: string) => {
+    setSearch(term)
+    if (!searchable) return
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => void load(false, term), 300)
+  }
+  const opened = () => {
+    if (relation && !fetched) void load(false, '')
+  }
+  return { search, typed, loaded, cursor, failure, http, load, find, opened, searchable }
+}
+
 function RelationCombobox({
   id,
   value,
@@ -640,46 +859,16 @@ function RelationCombobox({
 }: FieldProps) {
   const { t, label: localized } = useMessages()
   const [open, setOpen] = useState(false)
-  const [search, setSearch] = useState('')
-  const [loaded, setLoaded] = useState<Option[]>(options)
-  const [cursor, setCursor] = useState<string | null>(null)
-  const [fetched, setFetched] = useState(false)
-  const [failure, setFailure] = useState('')
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  const http = useHttp<Record<string, never>, OptionPage>({})
   const listId = useId()
-  const current =
-    loaded.find((option) => option.value === value) ??
-    options.find((option) => option.value === value)
-  const load = async (more: boolean, term = search) => {
-    if (!relation) return
-    setFailure('')
-    const url = new URL(relation.url, window.location.origin)
-    if (term && relation.searchable) url.searchParams.set('search', term)
-    if (more && cursor) url.searchParams.set('cursor', cursor)
-    try {
-      const page = await http.get(url.pathname + url.search)
-      if (!page) return
-      setFetched(true)
-      setCursor(page.nextCursor)
-      setLoaded((previous) => {
-        const keep = more ? previous : previous.filter((option) => option.value === value)
-        return [
-          ...new Map([...keep, ...page.data].map((option) => [option.value, option])).values(),
-        ]
-      })
-    } catch {
-      setFailure(t('تعذر تحميل الخيارات'))
-    }
-  }
-  useEffect(() => () => clearTimeout(timer.current), [])
-  const searchable = Boolean(relation?.searchable)
+  const { search, typed, loaded, cursor, failure, http, load, find, opened, searchable } =
+    useRelationOptions(options, relation, value ? [value] : [])
+  const current = find(value)
   return (
     <Popover
       open={open}
       onOpenChange={(next) => {
         setOpen(next)
-        if (next && relation && !fetched) void load(false, '')
+        if (next) opened()
       }}
     >
       <PopoverTrigger asChild>
@@ -715,12 +904,7 @@ function RelationCombobox({
             }
             aria-label={t('البحث في {field}', { field: label ?? localized(field.label) })}
             value={search}
-            onValueChange={(term) => {
-              setSearch(term)
-              if (!searchable) return
-              clearTimeout(timer.current)
-              timer.current = setTimeout(() => void load(false, term), 300)
-            }}
+            onValueChange={typed}
           />
           <CommandList id={listId}>
             <CommandEmpty>
@@ -750,6 +934,151 @@ function RelationCombobox({
                   }}
                 >
                   <Check className={option.value === value ? 'opacity-100' : 'opacity-0'} />
+                  {option.label}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+            {cursor && (
+              <div className="border-t p-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full"
+                  disabled={http.processing}
+                  onClick={() => void load(true)}
+                >
+                  {http.processing ? t('جارٍ التحميل...') : t('المزيد')}
+                </Button>
+              </div>
+            )}
+            {failure && (
+              <p role="alert" className="p-2 text-xs text-destructive">
+                {failure}
+              </p>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/**
+ * manyToMany: the same authorized options search as belongsTo, choosing several records.
+ * Chosen records show as removable badges; the list stays open while picking.
+ */
+function RelationMultiPicker({
+  id,
+  value,
+  onChange,
+  disabled,
+  error,
+  field,
+  label,
+  options = [],
+  relation,
+}: FieldProps) {
+  const { t, label: localized } = useMessages()
+  const [open, setOpen] = useState(false)
+  const listId = useId()
+  const selected = listValue(value)
+  const { search, typed, loaded, cursor, failure, http, load, find, opened, searchable } =
+    useRelationOptions(options, relation, selected)
+  const name = label ?? localized(field.label)
+  const toggle = (key: string) =>
+    onChange(
+      listInput(
+        selected.includes(key) ? selected.filter((entry) => entry !== key) : [...selected, key]
+      )
+    )
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (next) opened()
+      }}
+    >
+      {/* The list anchors below the chosen badges, so it never covers them. */}
+      <PopoverAnchor asChild>
+        <div className="space-y-2">
+          <PopoverTrigger asChild>
+            <Button
+              id={id}
+              type="button"
+              role="combobox"
+              variant="outline"
+              aria-expanded={open}
+              aria-controls={listId}
+              aria-label={label}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? `${id}-error` : undefined}
+              disabled={disabled}
+              className={`h-10 w-full justify-between font-normal ${selected.length ? '' : 'text-muted-foreground'}`}
+            >
+              <span className="truncate">
+                {selected.length
+                  ? t('{count} محدد', { count: selected.length })
+                  : t('اختر سجلاً أو أكثر')}
+              </span>
+              <ChevronsUpDown className="opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          {selected.length > 0 && (
+            <ul
+              className="flex flex-wrap gap-1.5"
+              aria-label={t('المحدد في {field}', { field: name })}
+            >
+              {selected.map((key) => {
+                const title = find(key)?.label ?? `#${key}`
+                return (
+                  <li key={key}>
+                    <Badge variant="secondary" className="gap-1 py-0.5 pe-0.5 font-normal">
+                      {title}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        className="size-5"
+                        disabled={disabled}
+                        aria-label={t('إزالة {record}', { record: title })}
+                        onClick={() => toggle(key)}
+                      >
+                        <X />
+                      </Button>
+                    </Badge>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+      </PopoverAnchor>
+      <PopoverContent className="w-(--radix-popper-anchor-width) min-w-64 p-0" align="start">
+        <Command shouldFilter={!searchable}>
+          <CommandInput
+            placeholder={searchable ? t('ابحث في السجلات المرتبطة') : t('تصفية الخيارات')}
+            aria-label={t('البحث في {field}', { field: name })}
+            value={search}
+            onValueChange={typed}
+          />
+          <CommandList id={listId}>
+            <CommandEmpty>
+              {http.processing ? t('جارٍ البحث...') : t('لا توجد سجلات مطابقة')}
+            </CommandEmpty>
+            <CommandGroup>
+              {loaded.map((option) => (
+                <CommandItem
+                  key={option.value}
+                  value={option.value}
+                  keywords={[option.label]}
+                  aria-checked={selected.includes(option.value)}
+                  onSelect={() => toggle(option.value)}
+                >
+                  <Check
+                    className={selected.includes(option.value) ? 'opacity-100' : 'opacity-0'}
+                  />
                   {option.label}
                 </CommandItem>
               ))}
@@ -875,6 +1204,8 @@ export function InlineRows({
               {rows.map((row, index) => {
                 const number = index + 1
                 const rowErrors = errors[row.key] ?? {}
+                // A child whose visibleWhen does not hold in this row shows no control.
+                const rowHidden = hiddenFields(inline.fields, row.values)
                 return (
                   <tr
                     key={row.key}
@@ -884,30 +1215,36 @@ export function InlineRows({
                     <td className="px-4 py-3 tabular-nums text-muted-foreground">{number}</td>
                     {inline.fields.map((child) => (
                       <td key={child.key} className="min-w-40 px-3 py-2">
-                        <FieldControl
-                          field={child}
-                          id={`${field.key}-${row.key}-${child.key}`}
-                          label={t('{field} للبند {number}', { field: label(child.label), number })}
-                          value={row.values[child.key] ?? ''}
-                          disabled={disabled || row.deleted || !editable(row, child.key)}
-                          error={rowErrors[child.key]}
-                          resource={resource}
-                          relation={
-                            child.type === 'belongsTo' || child.type === 'user'
-                              ? {
-                                  url: `/resources/${(field as { resource?: string }).resource}/options/${child.key}`,
-                                  searchable: child.type === 'user',
-                                }
-                              : undefined
-                          }
-                          onChange={(value) =>
-                            update(row.key, {
-                              values: { ...row.values, [child.key]: value },
-                              dirty: true,
-                            })
-                          }
-                        />
-                        {rowErrors[child.key] && (
+                        {rowHidden.has(child.key) ? (
+                          <span className="text-muted-foreground" aria-hidden="true">
+                            —
+                          </span>
+                        ) : (
+                          <FieldControl
+                            field={child}
+                            id={`${field.key}-${row.key}-${child.key}`}
+                            label={t('{field} للبند {number}', { field: label(child.label), number })}
+                            value={row.values[child.key] ?? ''}
+                            disabled={disabled || row.deleted || !editable(row, child.key)}
+                            error={rowErrors[child.key]}
+                            resource={resource}
+                            relation={
+                              child.type === 'belongsTo' || child.type === 'user'
+                                ? {
+                                    url: `/resources/${(field as { resource?: string }).resource}/options/${child.key}`,
+                                    searchable: child.type === 'user',
+                                  }
+                                : undefined
+                            }
+                            onChange={(value) =>
+                              update(row.key, {
+                                values: { ...row.values, [child.key]: value },
+                                dirty: true,
+                              })
+                            }
+                          />
+                        )}
+                        {!rowHidden.has(child.key) && rowErrors[child.key] && (
                           <p role="alert" className="mt-1 text-xs text-destructive">
                             {rowErrors[child.key]}
                           </p>

@@ -55,7 +55,7 @@ export class CatalogMessagesProvider {
  */
 export function installCatalogMessages(
   vine: { messagesProvider: unknown },
-  resources: readonly { validator: unknown }[] = []
+  resources: readonly { validator?: unknown }[] = []
 ): CatalogMessagesProvider {
   const previous = vine.messagesProvider
   const provider = new CatalogMessagesProvider()

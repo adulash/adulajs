@@ -1,5 +1,6 @@
 import Resource from './resource.js'
 import ResourceSnapshot from './resource_snapshot.js'
+import ResourceMigration from './resource_migration.js'
 import Doctor from './doctor.js'
 import Install from './install.js'
 import Capabilities from './capabilities.js'
@@ -24,6 +25,7 @@ import SlaEvaluate from './sla_evaluate.js'
 const commands = [
   Resource,
   ResourceSnapshot,
+  ResourceMigration,
   Doctor,
   Install,
   Capabilities,

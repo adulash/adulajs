@@ -423,6 +423,10 @@
         {
           "path": "registry/ui/resource-value.tsx",
           "type": "registry:ui"
+        },
+        {
+          "path": "registry/ui/field_values.ts",
+          "type": "registry:ui"
         }
       ]
     },
@@ -433,6 +437,8 @@
         "input",
         "textarea",
         "button",
+        "checkbox",
+        "badge",
         "label",
         "select",
         "switch",

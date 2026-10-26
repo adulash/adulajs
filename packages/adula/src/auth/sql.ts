@@ -4,7 +4,12 @@ import { abilitySchemas } from './ability.js'
 import { predicates, usesActor, type Conditions } from './conditions.js'
 import type { Resource } from '../resource/types.js'
 import { columnName } from '../resource/define_resource.js'
-import { canonicalDate, canonicalMoney } from '../resource/values.js'
+import {
+  canonicalDate,
+  canonicalDecimal,
+  canonicalMoney,
+  decimalShape,
+} from '../resource/values.js'
 
 export type Sql = { text: string; bindings: Knex.RawBinding[] }
 export function conditionSql(conditions: Conditions | undefined, resource: Resource): Sql {
@@ -27,7 +32,7 @@ export function conditionSql(conditions: Conditions | undefined, resource: Resou
     .map(({ field, operator, value }) => {
       const column =
         field === 'orgPath' ? 'ou.path' : `r.${resource.fields[field]?.column ?? columnName(field)}`
-      if (resource.fields[field]?.type === 'hasMany')
+      if (['hasMany', 'manyToMany', 'multiSelect'].includes(resource.fields[field]?.type ?? ''))
         throw new Error('Conditions on collections are unsupported')
       const type = resource.fields[field]?.type
       if (type === 'json' || type === 'attachment')
@@ -49,6 +54,18 @@ export function conditionSql(conditions: Conditions | undefined, resource: Resou
           throw new Error('Integer conditions require safe integers')
         if (type === 'money' && operand !== null && !canonicalMoney(operand))
           throw new Error('Money conditions require canonical integer strings')
+        if ((type === 'decimal' || type === 'percent') && operand !== null) {
+          const { precision, scale } = decimalShape(resource.fields[field] as never)
+          let canonical: string | undefined
+          try {
+            canonical = canonicalDecimal(operand, precision, scale)
+          } catch {}
+          // The stored form ("12.50"), so in-memory equality agrees with PostgreSQL.
+          if (canonical !== operand)
+            throw new Error(
+              `Decimal conditions require canonical decimal strings with ${scale} decimals`
+            )
+        }
         if ((type === 'date' || type === 'datetime') && operand !== null) {
           if (!canonicalDate(operand, type))
             throw new Error('Date conditions require a valid ISO date or canonical UTC timestamp')
@@ -97,16 +114,19 @@ export function authorizationSql(
   const branches = rules.map((rule) => {
     for (const predicate of predicates(rule.conditions)) {
       if (
-        resource.fields[predicate.field]?.type === 'money' &&
+        ['money', 'decimal', 'percent'].includes(resource.fields[predicate.field]?.type ?? '') &&
         ['$lt', '$gt'].includes(predicate.operator) &&
         !abilitySchemas
           .get(ability)
           ?.some(
             (schema) =>
-              schema.name === resource.name && schema.fields[predicate.field]?.type === 'money'
+              schema.name === resource.name &&
+              schema.fields[predicate.field]?.type === resource.fields[predicate.field]?.type
           )
       )
-        throw new Error('Ordered money rules require buildAbility(rules, resourceSchemas)')
+        throw new Error(
+          'Ordered money and decimal rules require buildAbility(rules, resourceSchemas)'
+        )
     }
     const where = conditionSql(rule.conditions, resource)
     bindings.push(...where.bindings)

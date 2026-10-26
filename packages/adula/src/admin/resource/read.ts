@@ -161,12 +161,13 @@ export async function preload(
       }
       continue
     }
-    if (field.type !== 'belongsTo' || !records.length) continue
+    if ((field.type !== 'belongsTo' && field.type !== 'manyToMany') || !records.length) continue
     const target = registry.get(field.resource)
     if (!ability.can('view', target.name)) continue
     const ids = records
       .filter((record) => key in serialize(resource, record, ability, actor))
-      .map((record) => record[key])
+      // A manyToMany value is an array of ids; its related rows title every link.
+      .flatMap((record) => record[key])
       .filter((v) => v !== null && v !== undefined) as number[]
     if (!ids.length) continue
     const query = accessibleBy(

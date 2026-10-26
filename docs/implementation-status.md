@@ -24,10 +24,18 @@ All three share one version and are published together from a `v<version>` tag
 
 ## Core capabilities (`adula`)
 
-* Resources: `defineResource` with 13 field types (string, text, integer, money, boolean,
-  date, datetime, json, attachment, belongsTo, user, hasMany, lookup), record titles,
-  sequences, optimistic versions (409 on stale writes), soft delete, draft/submit/cancel
-  and amend-by-copy, create defaults from the URL, keyset pagination with a 100-row cap.
+* Resources: `defineResource` with 21 field types (string, text, email, phone, url,
+  integer, money, decimal, percent, boolean, date, datetime, json, enum, multiSelect,
+  attachment, belongsTo, user, hasMany, manyToMany, lookup), length/pattern/format and
+  numeric range constraints, declared defaults, `visibleWhen`, composite `unique`, record
+  titles, sequences, optimistic versions (409 on stale writes), soft delete,
+  draft/submit/cancel and amend-by-copy, create defaults from the URL, keyset pagination
+  with a 100-row cap. See [resource definitions](resources.md).
+* The definition is the source of truth (ADR 045, Unreleased): writes are validated by a
+  VineJS validator derived from the fields unless the resource declares its own
+  (`definitionValidator`, extensible through `definitionSchema`), every stored value is
+  checked against its field again, `model` is optional, and `resourceSchema` drives both
+  `createResourceTable` and the `resources.schema` doctor check.
 * Authorization: CASL rules with SQL/in-memory parity, organizational scope as a separate
   AND condition, field-level redaction and writable whitelists, `$actor.id` conditions,
   inherited scope (`scope: { from }`), `systemSave()` for module code.
@@ -63,6 +71,9 @@ All three share one version and are published together from a `v<version>` tag
   `adula:restore:reconcile` (see [operations](operations.md)).
 * Commands: `adula:install`, `adula:doctor`, `adula:resource`, `adula:app`, `adula:client`,
   `adula:module:add`, `sla:evaluate`,
+* Commands: `adula:install`, `adula:doctor`, `adula:resource`, `adula:resource:migration`
+  (additive migration of what a table lacks), `adula:resource:snapshot` (deprecated),
+  `adula:app`, `adula:module:add`,
   `adula:module:remove`, `adula:ui`, `adula:capabilities`, `adula:gaps`, `adula:upgrade`.
 * Agent support: managed AGENTS.md block, business-design and review skills, generated
   capability catalog, ESLint rules `adula/no-core-patching` and
@@ -107,7 +118,9 @@ Japa and `node:test` run more cases than declarations where a helper registers t
 
 ## Known limits
 
-* Validator, Lucid model and migration are written by hand next to each resource.
+* `adula:resource:migration` adds columns, join tables and unique indexes only; type
+  changes and search-vector changes need a hand-written migration.
+* CSV import does not map multiSelect or manyToMany fields.
 * XLSX import, SAML SSO and a typed API client are not available. Two-factor
   authentication (TOTP) and OAuth/OIDC SSO are described in [authentication.md](authentication.md).
 * Exports are capped at 5000 rows; restore follows the delete permission (ADR 046).

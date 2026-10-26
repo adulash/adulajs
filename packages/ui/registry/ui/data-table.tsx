@@ -879,9 +879,11 @@ function Cell({
   lookups: LookupOptions
 }) {
   const { calendar } = useUiPreferences()
-  const { t } = useMessages()
-  const text = displayValue(field, row, related, lookups, calendar, t)
-  const numeric = ['money', 'integer', 'date', 'datetime'].includes(field.type)
+  const { t, locale } = useMessages()
+  const text = displayValue(field, row, related, lookups, calendar, t, locale)
+  const numeric = ['money', 'integer', 'decimal', 'percent', 'date', 'datetime'].includes(
+    field.type
+  )
   return (
     <td
       className={`max-w-[280px] truncate px-5 ${numeric ? 'tabular-nums' : ''}`}

@@ -96,7 +96,8 @@ export const IMPORT_ROW_LIMIT = 5000
 const COLUMN_LIMIT = 100
 const ERROR_LIMIT = 200
 const FILE_LIMIT = 5 * 1024 * 1024
-const UNSUPPORTED = new Set(['hasMany', 'attachment', 'json'])
+// Lists (multiSelect, manyToMany) have no single-cell CSV form yet.
+const UNSUPPORTED = new Set(['hasMany', 'attachment', 'json', 'multiSelect', 'manyToMany'])
 const MODES = new Set<ImportMode>(['create', 'upsert'])
 
 const normalize = (value: string) =>
@@ -150,6 +151,13 @@ export function importCell(field: Field, raw: string, lookups: Map<string, strin
       const date = new Date(latin)
       if (Number.isNaN(date.getTime())) throw new Error('تاريخ ووقت غير صالحين')
       return date.toISOString()
+    }
+    case 'decimal':
+    case 'percent': {
+      // "," and "٬" only as thousands grouping (1,234.5); "٫" is the Arabic decimal point.
+      const plain = latin.replace(/[\s%]/g, '').replace('٫', '.').replace(/٬/g, ',')
+      if (!/^-?(\d{1,3}(,\d{3})+|\d+)(\.\d+)?$/.test(plain)) throw new Error('رقم عشري غير صالح')
+      return plain.replace(/,/g, '')
     }
     case 'lookup': {
       const key = lookups.get(normalize(value))

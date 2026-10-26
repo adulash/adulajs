@@ -1,7 +1,7 @@
 import type { Knex } from 'knex'
 import type { ResourceRegistry } from '../../resource/registry.js'
 import type { Action, RecordData, Resource } from '../../resource/types.js'
-import { columnName } from '../../resource/define_resource.js'
+import { columnName, joinTable } from '../../resource/define_resource.js'
 import {
   buildAbility,
   canRecord,
@@ -106,7 +106,67 @@ export async function find(
   if (lock) query.forUpdate('r')
   const row = await query.first()
   if (!row) throw notFound()
-  return fromRow(row, resource)
+  const [record] = await withLinks(db, resource, [fromRow(row, resource)])
+  return record
+}
+
+/**
+ * Adds the linked ids of every manyToMany field (ascending arrays) to records read
+ * from the resource's table, so policies, serialization and audits see them like
+ * column values. Mutates and returns the records.
+ */
+export async function withLinks(db: Knex, resource: Resource, records: RecordData[]) {
+  if (!records.length) return records
+  for (const [key, field] of Object.entries(resource.fields)) {
+    if (field.type !== 'manyToMany') continue
+    const join = joinTable(resource.name, key, field)
+    const rows: RecordData[] = await db(join.table)
+      .whereIn(
+        join.owner,
+        records.map((record) => Number(record.id))
+      )
+      .orderBy(join.target)
+      .select(`${join.owner} as owner`, `${join.target} as target`)
+    const links = new Map<number, number[]>()
+    for (const row of rows) {
+      const list = links.get(Number(row.owner)) ?? []
+      list.push(Number(row.target))
+      links.set(Number(row.owner), list)
+    }
+    for (const record of records) record[key] = links.get(Number(record.id)) ?? []
+  }
+  return records
+}
+
+/**
+ * Applies a filter on a field without a plain column comparison: a multiSelect contains
+ * the value, a manyToMany links the id. Returns false for other fields.
+ */
+export function collectionFilter(
+  query: Knex.QueryBuilder,
+  resource: Resource,
+  key: string,
+  value: unknown
+) {
+  const field = resource.fields[key]
+  if (field?.type === 'multiSelect') {
+    const column = `r.${field.column ?? columnName(key)}`
+    if (value === null)
+      query.where((q) => q.whereNull(column).orWhereRaw("?? = '[]'::jsonb", [column]))
+    else query.whereRaw('?? @> ?::jsonb', [column, JSON.stringify([value])])
+    return true
+  }
+  if (field?.type === 'manyToMany') {
+    const join = joinTable(resource.name, key, field)
+    const links = (exists: Knex.QueryBuilder) => {
+      exists.from(join.table).whereRaw('?? = r.id', [`${join.table}.${join.owner}`])
+      if (value !== null) exists.where(`${join.table}.${join.target}`, value as number)
+    }
+    if (value === null) query.whereNotExists(links)
+    else query.whereExists(links)
+    return true
+  }
+  return false
 }
 
 /** A live record regardless of any actor's scope, for system writes. */
@@ -122,7 +182,8 @@ export async function findAny(db: Knex, resource: Resource, id: number, lock = f
   if (lock) query.forUpdate('r')
   const row = await query.first()
   if (!row) throw notFound()
-  return fromRow(row, resource)
+  const [record] = await withLinks(db, resource, [fromRow(row, resource)])
+  return record
 }
 
 /** Scope (404) and conditional rules (403) of one loaded record. */

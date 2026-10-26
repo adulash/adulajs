@@ -186,4 +186,71 @@ export const resourceFixtures: Record<string, ResourceFixture> = {
       updated: { ...values, endDate: '2026-11-07' },
     }
   },
+  supply_categories: ({ unique }) => ({
+    input: { name: `فئة ${unique}` },
+    expected: { name: `فئة ${unique}` },
+    update: { name: `فئة محدثة ${unique}` },
+    updated: { name: `فئة محدثة ${unique}` },
+  }),
+  // Every 2.2 field type: canonical values are what the server stores and returns (ADR 045).
+  suppliers: async ({ userId, orgUnitId, unique }) => {
+    const runtime = adula()
+    const actor = await runtime.actors.load(userId)
+    const category = await runtime.resources.save('supply_categories', actor, {
+      name: `فئة المورد ${unique}`,
+      orgUnitId,
+    })
+    const code = `SUP-${String(++supplierCodes % 10000).padStart(4, '0')}`
+    const common = { code, name: `مورد ${unique}`, website: 'https://supplier.example' }
+    return {
+      input: {
+        ...common,
+        kind: 'local',
+        commercialRegister: '1010123456',
+        country: 'ألمانيا',
+        email: ' Sales@Supplier.Example ',
+        phone: '٠٥٠ ١٢٣-٤٥٦٧',
+        creditLimit: '250000',
+        paymentTermsDays: 45,
+        discountRate: 2.5,
+        rating: '4',
+        paymentMethods: ['cheque', 'bank', 'cheque'],
+        categories: [Number(category.id)],
+      },
+      expected: {
+        ...common,
+        kind: 'local',
+        commercialRegister: '1010123456',
+        // Hidden for a local supplier: ignored and stored as null.
+        country: null,
+        email: 'sales@supplier.example',
+        phone: '0501234567',
+        creditLimit: '250000',
+        paymentTermsDays: 45,
+        discountRate: '2.50',
+        rating: '4.0',
+        paymentMethods: ['bank', 'cheque'],
+        categories: [Number(category.id)],
+      },
+      update: {
+        ...common,
+        kind: 'international',
+        country: 'ألمانيا',
+        commercialRegister: '1010123456',
+        paymentMethods: ['cash'],
+        categories: [],
+      },
+      updated: {
+        ...common,
+        kind: 'international',
+        country: 'ألمانيا',
+        // Hidden by visibleWhen: stored as null whatever was submitted.
+        commercialRegister: null,
+        paymentMethods: ['cash'],
+        categories: [],
+      },
+    }
+  },
 }
+/** Supplier codes are unique per unit; the contract creates several in one unit. */
+let supplierCodes = Math.floor(Math.random() * 5000)
