@@ -106,11 +106,11 @@
     },
     "Assignment": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ id: number; resource: string; resourceLabel: string; recordId: number; recordTitle: string | null; assigneeId: number; assigneeName: string | null; assignedBy: number | null; assignedByName: string | null; kind: string; title: string; note: string | null; dueOn: string | null; status: AssignmentStatus; outcome: string | null; createdAt: string; completedAt: string | null; workflowRunId: string | null; managed: boolean; closeNote: CloseNotePolicy; closeReason: string | null; canComplete: boolean; canCancel: boolean; canDecide?: boolean | undefined; }"
+      "type": "{ id: number; resource: string; resourceLabel: string; recordId: number; recordTitle: string | null; assigneeId: number; assigneeName: string | null; assignedBy: number | null; assignedByName: string | null; kind: string; title: string; note: string | null; dueOn: string | null; status: AssignmentStatus; outcome: string | null; createdAt: string; completedAt: string | null; workflowRunId: string | null; managed: boolean; closeNote: CloseNotePolicy; closeReason: string | null; canComplete: boolean; canCancel: boolean; canDecide?: boolean | undefined; onBehalfOf?: { id: number; name: string | null; } | null | undefined; dueAt?: string | null | undefined; sla?: SlaState | null | undefined; }"
     },
     "AssignmentOptions": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ closeNote?: CloseNotePolicy | undefined; }"
+      "type": "{ closeNote?: CloseNotePolicy | undefined; now?: (() => Date) | undefined; }"
     },
     "AssignmentPage": {
       "kind": "TypeAliasDeclaration",
@@ -364,6 +364,10 @@
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>) => Promise<void>"
     },
+    "createWorkflowDelegationSlaSchema": {
+      "kind": "FunctionDeclaration",
+      "type": "(db: Knex<any, any[]>) => Promise<void>"
+    },
     "createWorkflowSchema": {
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>) => Promise<void>"
@@ -423,6 +427,10 @@
     "englishMessages": {
       "kind": "VariableDeclaration",
       "type": "Readonly<Record<string, string>>"
+    },
+    "EscalationTarget": {
+      "kind": "TypeAliasDeclaration",
+      "type": "Recipients | { manager: string; }"
     },
     "FailedJob": {
       "kind": "TypeAliasDeclaration",
@@ -1216,6 +1224,22 @@
       "kind": "FunctionDeclaration",
       "type": "(secret: string, timestamp: string, body: string) => string"
     },
+    "SlaEscalation": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ action: \"overdue\"; } | { action: \"notify\"; to: EscalationTarget; } | { action: \"reassign\"; to: EscalationTarget; }"
+    },
+    "SlaEvaluation": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ reminded: number; escalated: number; }"
+    },
+    "slaState": {
+      "kind": "FunctionDeclaration",
+      "type": "(dueAt: Date, dueSoonAt: Date | null, now: Date) => SlaState"
+    },
+    "SlaState": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"overdue\" | \"on_time\" | \"due_soon\""
+    },
     "staleUploads": {
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>, olderThan: Date, limit?: number | undefined) => Promise<AttachmentRecord[]>"
@@ -1223,6 +1247,10 @@
     "StepContext": {
       "kind": "TypeAliasDeclaration",
       "type": "{ record: RecordData; run: { id: string; resource: string; recordId: number; startedBy: number | null; }; db: Knex<any, any[]>; }"
+    },
+    "StepSla": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ hours: number; dueSoonHours?: number | undefined; escalate?: SlaEscalation | undefined; }"
     },
     "StorageDisk": {
       "kind": "TypeAliasDeclaration",
@@ -1456,6 +1484,22 @@
       "kind": "TypeAliasDeclaration",
       "type": "WorkflowInput & { machine: AnyStateMachine; }"
     },
+    "WorkflowDelegation": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ id: number; delegatorId: number; delegatorName: string | null; delegateId: number; delegateName: string | null; startsOn: string; endsOn: string; note: string | null; status: \"scheduled\" | \"active\" | \"ended\" | \"revoked\"; createdBy: number | null; createdAt: string; revokedAt: string | null; }"
+    },
+    "WorkflowDelegationInput": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ delegatorId: number; delegateId: unknown; startsOn: unknown; endsOn: unknown; note?: unknown; }"
+    },
+    "WorkflowDelegationOptions": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ now?: (() => Date) | undefined; }"
+    },
+    "WorkflowDelegations": {
+      "kind": "ClassDeclaration",
+      "type": "typeof WorkflowDelegations"
+    },
     "WorkflowEngine": {
       "kind": "ClassDeclaration",
       "type": "typeof WorkflowEngine"
@@ -1478,15 +1522,19 @@
     },
     "WorkflowRun": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ id: string; resource: string; resourceLabel: string; recordId: number; recordTitle: string | null; definition: string; label: string; version: number; status: WorkflowRunStatus; step: string | null; stepLabel: string | null; outcome: string | null; attempts: number; lastError: string | null; wakeAt: string | null; createdAt: string; completedAt: string | null; history: { step: string | null; event: string; actorName: string | null; detail: { [key: string]: JsonValue; }; at: string; }[]; myApproval: { assignmentId: number; title: string; decision?: WorkflowDecisionForm | undefined; } | null; }"
+      "type": "{ id: string; resource: string; resourceLabel: string; recordId: number; recordTitle: string | null; definition: string; label: string; version: number; status: WorkflowRunStatus; step: string | null; stepLabel: string | null; outcome: string | null; attempts: number; lastError: string | null; wakeAt: string | null; createdAt: string; completedAt: string | null; history: { step: string | null; event: string; actorName: string | null; onBehalfOfName?: string | null | undefined; detail: { [key: string]: JsonValue; }; at: string; }[]; myApproval: { assignmentId: number; title: string; decision?: WorkflowDecisionForm | undefined; onBehalfOf?: { id: number; name: string | null; } | null | undefined; } | null; sla?: WorkflowSlaStatus | null | undefined; }"
     },
     "WorkflowRunStatus": {
       "kind": "TypeAliasDeclaration",
       "type": "\"completed\" | \"pending_definition\" | \"running\" | \"waiting\" | \"failed\" | \"cancelled\""
     },
+    "WorkflowSlaStatus": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ dueAt: string; state: SlaState; escalated: boolean; }"
+    },
     "WorkflowStep": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ type: \"condition\"; label?: string | undefined; when: (record: RecordData) => boolean; then: string; else: string; } | { type: \"update\"; label?: string | undefined; values: RecordData | ((context: StepContext) => RecordData); next: string; } | { type: \"notify\"; label?: string | undefined; to: Recipients; template?: string | undefined; variables?: ((context: StepContext) => Record<string, unknown>) | undefined; next: string; } | { type: \"approval\"; label: string; assignees: Recipients; dueInDays?: number | undefined; approve: string; reject: string; } | { type: \"decision\"; label: string; assignees: Recipients; dueInDays?: number | undefined; outcomes: Record<string, DecisionOutcome>; } | { type: \"delay\"; label?: string | undefined; ms: number; next: string; } | { type: \"http\"; label?: string | undefined; url: string | ((context: StepContext) => string); body?: ((context: StepContext) => unknown) | undefined; next: string; } | { type: \"end\"; label?: string | undefined; outcome: \"approved\" | \"rejected\" | \"completed\"; cancelDocument?: boolean | undefined; }"
+      "type": "{ type: \"condition\"; label?: string | undefined; when: (record: RecordData) => boolean; then: string; else: string; } | { type: \"update\"; label?: string | undefined; values: RecordData | ((context: StepContext) => RecordData); next: string; } | { type: \"notify\"; label?: string | undefined; to: Recipients; template?: string | undefined; variables?: ((context: StepContext) => Record<string, unknown>) | undefined; next: string; } | { type: \"approval\"; label: string; assignees: Recipients; dueInDays?: number | undefined; sla?: StepSla | undefined; approve: string; reject: string; } | { type: \"decision\"; label: string; assignees: Recipients; dueInDays?: number | undefined; sla?: StepSla | undefined; outcomes: Record<string, DecisionOutcome>; } | { type: \"delay\"; label?: string | undefined; ms: number; next: string; } | { type: \"http\"; label?: string | undefined; url: string | ((context: StepContext) => string); body?: ((context: StepContext) => unknown) | undefined; next: string; } | { type: \"end\"; label?: string | undefined; outcome: \"approved\" | \"rejected\" | \"completed\"; cancelDocument?: boolean | undefined; }"
     },
     "writableInput": {
       "kind": "FunctionDeclaration",

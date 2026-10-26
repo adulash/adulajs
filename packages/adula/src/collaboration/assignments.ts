@@ -4,6 +4,8 @@ import type { ResourceService } from '../admin/resource_service.js'
 import { AdulaError } from '../admin/errors.js'
 import { notifyWithTemplate } from '../core/message_templates.js'
 import { canView, resourceLabel, type ActorLoader } from './shared.js'
+import { actionableBy, delegationActive, utcDate } from '../workflows/delegations.js'
+import { slaState, type SlaState } from '../workflows/sla.js'
 
 export type AssignmentStatus = 'open' | 'done' | 'cancelled'
 export type Assignment = {
@@ -37,6 +39,15 @@ export type Assignment = {
   canCancel: boolean
   /** An open approval step waiting for this user's decision (WorkflowEngine.decide). 1.2; optional for compatibility. */
   canDecide?: boolean
+  /**
+   * The approver the viewer acts for through a delegation (ADR 044): the delegator of an
+   * approval routed to the viewer, or a delegator's own pending approval. Null otherwise.
+   */
+  onBehalfOf?: { id: number; name: string | null } | null
+  /** The SLA deadline of an approval with one (ISO time); dueOn stays its calendar date. */
+  dueAt?: string | null
+  /** The SLA state of an open approval with a deadline. */
+  sla?: SlaState | null
 }
 export type AssignmentPage = {
   data: Assignment[]
@@ -52,8 +63,14 @@ export type AssignmentPage = {
  * note. Managed tasks always need a note when closed by hand.
  */
 export type CloseNotePolicy = 'optional' | 'required'
-export type AssignmentOptions = { closeNote?: CloseNotePolicy }
+export type AssignmentOptions = {
+  closeNote?: CloseNotePolicy
+  /** Test hook: the clock for delegation dates and SLA states. */
+  now?: () => Date
+}
 
+type DelegationScope = { delegations: Set<number>; delegators: Set<number> }
+const NO_DELEGATION: DelegationScope = { delegations: new Set(), delegators: new Set() }
 const TITLE_LIMIT = 200
 const NOTE_LIMIT = 2000
 const REASON_LIMIT = 500
@@ -85,8 +102,9 @@ export class Assignments {
       .where({ 'a.resource': name, 'a.record_id': id })
       .orderByRaw("(a.status = 'open') DESC, a.id DESC")
       .limit(100)
+    const scope = await this.scope(actor.id)
     return this.titled(
-      rows.map((row) => this.present(row, actor)),
+      rows.map((row) => this.present(row, actor, scope)),
       actor
     )
   }
@@ -157,6 +175,13 @@ export class Assignments {
        * assignee cannot mark it done; module code closes it with close() (#51).
        */
       managed?: boolean
+      /** Workflow approvals routed to a delegate keep the original approver (ADR 044). */
+      onBehalfOf?: number | null
+      delegationId?: number | null
+      /** SLA deadline and its due-soon reminder time; escalatedAt marks a reassignment. */
+      dueAt?: Date | null
+      dueSoonAt?: Date | null
+      escalatedAt?: Date | null
     }
   ) {
     const insert = async (trx: Knex) => {
@@ -173,6 +198,12 @@ export class Assignments {
           workflow_run_id: input.workflowRunId ?? null,
           workflow_step: input.workflowStep ?? null,
           managed: input.managed ?? false,
+          on_behalf_of: input.onBehalfOf ?? null,
+          delegation_id: input.delegationId ?? null,
+          due_at: input.dueAt ?? null,
+          due_soon_at: input.dueSoonAt ?? null,
+          escalated_at: input.escalatedAt ?? null,
+          reminded_at: input.escalatedAt ?? null,
         })
         .returning('id')
       await notifyWithTemplate(
@@ -206,8 +237,18 @@ export class Assignments {
   ): Promise<AssignmentPage> {
     const status = options.status === 'done' || options.status === 'all' ? options.status : 'open'
     const limit = Math.max(1, Math.min(100, Math.floor(Number(options.limit) || 50)))
-    const query = this.query().where('a.assignee_id', actor.id).orderBy('a.id', 'desc')
-    if (status === 'open') query.where('a.status', 'open')
+    const query = this.query().orderBy('a.id', 'desc')
+    // Open items include approvals held through a delegation in force today (ADR 044);
+    // closed ones are the user's own, those decided for them and those they decided.
+    if (status === 'open')
+      query.where('a.status', 'open').modify(actionableBy(this.db, actor.id, this.today()))
+    else
+      query.where((own) =>
+        own
+          .where('a.assignee_id', actor.id)
+          .orWhere('a.on_behalf_of', actor.id)
+          .orWhere('a.completed_by', actor.id)
+      )
     if (status === 'done') query.whereNot('a.status', 'open')
     if (options.kind === 'approval') query.whereNotNull('a.workflow_run_id')
     if (options.kind === 'task') query.whereNull('a.workflow_run_id')
@@ -218,6 +259,7 @@ export class Assignments {
         throw new AdulaError(422, 'E_CURSOR', 'مؤشر الصفحة غير صالح')
     }
     const data: Assignment[] = []
+    const scope = await this.scope(actor.id)
     let more = true
     // Access is re-checked per record; scan bounded batches to fill the page.
     for (let round = 0; round < 10 && more && data.length < limit; round++) {
@@ -235,17 +277,30 @@ export class Assignments {
         }
         last = Number(row.id)
         if (await this.resources.permits(row.resource, Number(row.record_id), actor))
-          data.push(this.present(row, actor))
+          data.push(this.present(row, actor, scope))
       }
     }
+    // The user's own open items are counted in SQL, as before. Items held only through
+    // a delegation are counted after the same record check as the list (ADR 044), so the
+    // badge never reveals approvals on records the delegate cannot open.
     const [{ count, approvals }] = await this.db('assignments')
       .where({ assignee_id: actor.id, status: 'open' })
+      .whereNull('delegation_id')
       .select(this.db.raw('count(*) as count'), this.db.raw('count(workflow_run_id) as approvals'))
+    let held = 0
+    const borrowed = await this.db('assignments as a')
+      .where('a.status', 'open')
+      .modify(actionableBy(this.db, actor.id, this.today()))
+      .where((q) => q.whereNot('a.assignee_id', actor.id).orWhereNotNull('a.delegation_id'))
+      .limit(200)
+      .select('a.resource', 'a.record_id')
+    for (const row of borrowed)
+      if (await this.resources.permits(row.resource, Number(row.record_id), actor)) held++
     return {
       data: await this.titled(data, actor),
       nextCursor: more && last !== null ? String(last) : null,
-      open: Number(count),
-      approvals: Number(approvals),
+      open: Number(count) + held,
+      approvals: Number(approvals) + held,
     }
   }
 
@@ -386,17 +441,50 @@ export class Assignments {
       .leftJoin('users as u', 'u.id', 'a.assignee_id')
       .leftJoin('users as b', 'b.id', 'a.assigned_by')
       .leftJoin('workflow_runs as wr', 'wr.id', 'a.workflow_run_id')
+      .leftJoin('users as ob', 'ob.id', 'a.on_behalf_of')
       .select(
         'a.*',
         'u.full_name as assignee_name',
         'b.full_name as assigned_by_name',
+        'ob.full_name as on_behalf_of_name',
         'wr.status as run_status',
-        'wr.current_step as run_step'
+        'wr.current_step as run_step',
+        'wr.started_by as run_started_by',
+        delegationActive(db, this.today())
       )
   }
 
-  private present(row: Record<string, any>, actor: Actor): Assignment {
+  private present(
+    row: Record<string, any>,
+    actor: Actor,
+    scope: DelegationScope = NO_DELEGATION
+  ): Assignment {
     const open = row.status === 'open'
+    const assignee = Number(row.assignee_id)
+    // The same rules as actionableBy (ADR 044): a delegate never holds an approval of a
+    // run they started, and a row routed through an ended delegation follows its approver.
+    const routed = row.delegation_id !== null && row.delegation_id !== undefined
+    const ownRun = row.run_started_by !== null && Number(row.run_started_by) === actor.id
+    const own =
+      assignee === actor.id &&
+      (!routed || (scope.delegations.has(Number(row.delegation_id)) && !ownRun))
+    const original = row.on_behalf_of !== null && Number(row.on_behalf_of) === actor.id
+    const delegated =
+      Boolean(row.workflow_run_id) &&
+      !ownRun &&
+      !original &&
+      (routed
+        ? !row.delegation_active && scope.delegators.has(Number(row.on_behalf_of))
+        : scope.delegators.has(assignee))
+    // Whose approval the viewer holds: the delegator of a routed one, or a delegator's own.
+    const behalf =
+      own && row.on_behalf_of
+        ? { id: Number(row.on_behalf_of), name: row.on_behalf_of_name ?? null }
+        : delegated
+          ? routed
+            ? { id: Number(row.on_behalf_of), name: row.on_behalf_of_name ?? null }
+            : { id: assignee, name: row.assignee_name ? String(row.assignee_name) : null }
+          : null
     return {
       id: Number(row.id),
       resource: String(row.resource),
@@ -427,7 +515,17 @@ export class Assignments {
         Boolean(row.workflow_run_id) &&
         row.run_status === 'waiting' &&
         row.run_step === row.workflow_step &&
-        Number(row.assignee_id) === actor.id,
+        (own || original || delegated),
+      onBehalfOf: behalf,
+      dueAt: row.due_at ? new Date(row.due_at).toISOString() : null,
+      sla:
+        open && row.due_at
+          ? slaState(
+              new Date(row.due_at),
+              row.due_soon_at ? new Date(row.due_soon_at) : null,
+              this.now()
+            )
+          : null,
     }
   }
 
@@ -442,6 +540,29 @@ export class Assignments {
         if (item.resource === resource) item.recordTitle = titles.get(item.recordId) ?? null
     }
     return list
+  }
+
+  /** The delegations in force today that make the user act for someone else. */
+  private async scope(actorId: number): Promise<DelegationScope> {
+    const today = this.today()
+    const rows = await this.db('workflow_delegations')
+      .where('delegate_id', actorId)
+      .whereNull('revoked_at')
+      .where('starts_on', '<=', today)
+      .where('ends_on', '>=', today)
+      .select('id', 'delegator_id')
+    return {
+      delegations: new Set(rows.map((row) => Number(row.id))),
+      delegators: new Set(rows.map((row) => Number(row.delegator_id))),
+    }
+  }
+
+  private now() {
+    return this.options.now?.() ?? new Date()
+  }
+
+  private today() {
+    return utcDate(this.now())
   }
 
   private closeNote(row: Record<string, any>): CloseNotePolicy {

@@ -74,7 +74,12 @@ export const SERVICES: Record<string, string[]> = {
     'SavedViews',
     'logActivity',
   ],
-  'Documents and workflows': ['defineWorkflow', 'WorkflowEngine', 'workflowListeners'],
+  'Documents and workflows': [
+    'defineWorkflow',
+    'WorkflowEngine',
+    'workflowListeners',
+    'WorkflowDelegations',
+  ],
   'Notifications and messages': [
     'notify',
     'notifyWithTemplate',
@@ -115,6 +120,8 @@ export const EXTENSION_POINTS = [
   'Create links with defaults: /resources/<resource>/create?defaults[field]=value',
   'Domain events <module>.<resource>.{created,updated,deleted,submitted,cancelled,amended} with idempotent listeners',
   'Module workflows (Module.workflows) with versioned definitions',
+  'Approval delegation while out of office (WorkflowDelegations; never widens record access)',
+  'Step SLA deadlines (sla: hours, dueSoonHours, escalate overdue | notify | reassign, to a recipient or { manager: roleKey }) evaluated by the sla:evaluate job',
   'Message templates edited per deployment',
   'Outgoing webhooks and the bearer-token /api/v1 API',
   'Typed API client of the bearer-token API: GET /api/v1/client.ts per token, or node ace adula:client into clients/<system>/',

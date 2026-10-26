@@ -9,6 +9,7 @@ import {
   ImportBatches,
   InboundWebhooks,
   WorkflowEngine,
+  WorkflowDelegations,
   createOutboundPoster,
 } from 'adula'
 import env from '#start/env'
@@ -52,6 +53,7 @@ export function adula() {
       registry.workflows(),
       { post: createOutboundPoster(outboundPolicy()) }
     ),
+    delegations: new WorkflowDelegations(knex),
     imports: new ImportBatches(knex, registry, resources, actors),
     // Declared in start/sync_jobs.ts; the scheduler queues them and the worker runs them.
     syncJobs: new SyncJobs(knex, resources, syncJobDefinitions, {

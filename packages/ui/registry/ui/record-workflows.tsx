@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import axios from 'axios'
-import { CheckCircle2, GitBranch, XCircle } from 'lucide-react'
-import type { WorkflowRun } from 'adula'
+import { AlarmClock, CheckCircle2, GitBranch, UserRoundCheck, XCircle } from 'lucide-react'
+import type { SlaState, WorkflowRun } from 'adula'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { Label } from '~/components/ui/label'
@@ -47,6 +47,62 @@ const eventLabel: Record<string, string> = {
   migrated: 'ترحيل إلى إصدار أحدث',
   completed: 'اكتمل',
   cancelled: 'أُلغي',
+  sla_reminded: 'تذكير بقرب الموعد',
+  sla_escalated: 'تصعيد بعد تجاوز المهلة',
+}
+const escalationLabel: Record<string, string> = {
+  overdue: 'وُسمت متأخرة',
+  notify: 'أُبلغ المسؤول',
+  reassign: 'أُعيد الإسناد',
+}
+export const slaStateLabel: Record<SlaState, string> = {
+  on_time: 'في الموعد',
+  due_soon: 'يقترب الموعد',
+  overdue: 'متأخر',
+}
+
+/**
+ * Where an approval stands against its SLA deadline (ADR 044), with the deadline itself;
+ * the state is in the text, never in the colour alone.
+ */
+export function SlaBadge({
+  state,
+  dueAt,
+  escalated = false,
+}: {
+  state: SlaState
+  dueAt: string
+  escalated?: boolean
+}) {
+  const { calendar } = useUiPreferences()
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1.5 text-xs">
+      <Badge
+        variant={state === 'overdue' ? 'destructive' : 'outline'}
+        className={state === 'due_soon' ? 'border-amber-300 bg-amber-50 text-amber-900' : undefined}
+      >
+        <AlarmClock aria-hidden="true" />
+        {slaStateLabel[state]}
+      </Badge>
+      <span className="text-muted-foreground">
+        الموعد{' '}
+        <time dateTime={dueAt} className="tabular-nums">
+          <bdi>{formatDatetime(dueAt, calendar)}</bdi>
+        </time>
+      </span>
+      {escalated && <Badge variant="secondary">صُعّدت</Badge>}
+    </span>
+  )
+}
+
+/** «On behalf of <name>» for an approval decided through a delegation. */
+export function OnBehalfOf({ name }: { name: string | null | undefined }) {
+  return (
+    <Badge variant="outline" className="border-sky-300 bg-sky-50 text-sky-900">
+      <UserRoundCheck aria-hidden="true" />
+      نيابة عن {name ?? 'زميل'}
+    </Badge>
+  )
 }
 
 type DecisionChoice = NonNullable<
@@ -111,6 +167,7 @@ export function WorkflowDecision({
     }
   }
   const rejecting = choice?.key === 'reject'
+  const behalf = run.myApproval.onBehalfOf
   return (
     <>
       <div className="flex flex-wrap gap-2">
@@ -139,6 +196,11 @@ export function WorkflowDecision({
               {run.recordTitle ?? `#${run.recordId}`}
             </DialogDescription>
           </DialogHeader>
+          {behalf && (
+            <p className="rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-900">
+              تقرر نيابة عن {behalf.name ?? 'زميل'} بموجب تفويض، ويُسجَّل القرار باسمك نيابة عنه.
+            </p>
+          )}
           <div className="space-y-2">
             <Label htmlFor={`decision-comment-${run.id}`} className="flex items-center gap-1">
               {choice?.comment === 'required' ? (
@@ -226,7 +288,17 @@ export function RecordWorkflows({ resource, id }: { resource: string; id: number
                 {run.status === 'waiting' && run.stepLabel && (
                   <span className="text-xs text-muted-foreground">الخطوة: {run.stepLabel}</span>
                 )}
-                <span className="ms-auto">
+                {run.status === 'waiting' && run.sla && (
+                  <SlaBadge
+                    state={run.sla.state}
+                    dueAt={run.sla.dueAt}
+                    escalated={run.sla.escalated}
+                  />
+                )}
+                <span className="ms-auto flex flex-wrap items-center gap-2">
+                  {run.myApproval?.onBehalfOf && (
+                    <OnBehalfOf name={run.myApproval.onBehalfOf.name} />
+                  )}
                   <WorkflowDecision
                     run={run}
                     onDecided={() => {
@@ -245,6 +317,15 @@ export function RecordWorkflows({ resource, id }: { resource: string; id: number
                   <li key={index} className="flex flex-wrap gap-x-3">
                     <span className="font-medium">{eventLabel[entry.event] ?? entry.event}</span>
                     {entry.actorName && <span>{entry.actorName}</span>}
+                    {entry.onBehalfOfName && (
+                      <span className="text-sky-800">نيابة عن {entry.onBehalfOfName}</span>
+                    )}
+                    {entry.event === 'sla_escalated' &&
+                      typeof entry.detail.action === 'string' && (
+                        <span className="text-muted-foreground">
+                          {escalationLabel[entry.detail.action] ?? entry.detail.action}
+                        </span>
+                      )}
                     {typeof entry.detail.comment === 'string' && (
                       <span className="text-muted-foreground">«{entry.detail.comment}»</span>
                     )}

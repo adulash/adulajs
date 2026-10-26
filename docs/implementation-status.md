@@ -45,14 +45,21 @@ All three share one version and are published together from a `v<version>` tag
   TypeScript client (`/api/v1/client.ts`, `adula:client`), imports through the worker with
   format adapters (CSV built in), templates, dry run and upsert, scheduled sync jobs with
   run history, RTL print page with optional Gotenberg PDF, optional MCP tools (`adula/mcp`).
-* Workflows: versioned XState workflows with condition, update, notify, approval,
-  decision, delay, http and end steps; row locks, bounded retries, failed-runs screen.
+* Workflows: versioned workflows with condition, update, notify, approval, decision,
+  delay, http and end steps; row locks, bounded retries, failed-runs screen;
+  transitions resolved from the step table (ADR 044, XState kept only for the
+  deprecated `machine` until the next major); approval delegation while out of office
+  (`/account/delegations`, `/admin/delegations`) with audit of who acted on whose
+  behalf; per-step SLA deadlines with reminders and escalation (overdue, notify or
+  reassign, including the approver's manager in the org tree) by the `sla:evaluate`
+  job.
 * Attachments: private storage on Drive disks (filesystem or S3), authorized download,
   upload grants, `adula:storage:migrate`, upload pruning.
 * Operations: outbox and jobs, scheduler/worker heartbeats, `backup:create`,
   `backup:verify`, `backup:restore-files`, `backup:restore-test`,
   `adula:restore:reconcile` (see [operations](operations.md)).
-* Commands: `adula:install`, `adula:doctor`, `adula:resource`, `adula:app`, `adula:module:add`,
+* Commands: `adula:install`, `adula:doctor`, `adula:resource`, `adula:app`, `adula:client`,
+  `adula:module:add`, `sla:evaluate`,
   `adula:module:remove`, `adula:ui`, `adula:capabilities`, `adula:gaps`, `adula:upgrade`.
 * Agent support: managed AGENTS.md block, business-design and review skills, generated
   capability catalog, ESLint rules `adula/no-core-patching` and

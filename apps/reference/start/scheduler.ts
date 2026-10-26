@@ -9,6 +9,8 @@ scheduler.command('backup:verify').hourly().withoutOverlapping()
 scheduler.command('backup:restore-test').monthly().withoutOverlapping()
 // Uploads abandoned before their record was saved would otherwise fill the storage disk.
 scheduler.command('adula:uploads:prune').daily().withoutOverlapping()
+// Workflow SLA reminders and escalations (ADR 044); each pass is idempotent.
+scheduler.command('sla:evaluate').everyMinute().withoutOverlapping()
 // Stored inbound webhook deliveries are kept for 90 days (ADR 037).
 scheduler
   .call(async () => {
