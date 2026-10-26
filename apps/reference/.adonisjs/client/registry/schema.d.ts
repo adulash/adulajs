@@ -127,6 +127,90 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['aggregate']>>>
     }
   }
+  'resources.export': {
+    methods: ["GET","HEAD"]
+    pattern: '/resources/:resource/export'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { resource: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['export']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['export']>>>
+    }
+  }
+  'resources.trash': {
+    methods: ["GET","HEAD"]
+    pattern: '/resources/:resource/trash'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { resource: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['trash']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['trash']>>>
+    }
+  }
+  'resources.bulk_actions': {
+    methods: ["GET","HEAD"]
+    pattern: '/resources/:resource/bulk'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { resource: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['bulkActions']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['bulkActions']>>>
+    }
+  }
+  'resources.bulk': {
+    methods: ["POST"]
+    pattern: '/resources/:resource/bulk'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { resource: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['bulk']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['bulk']>>>
+    }
+  }
+  'resources.restore': {
+    methods: ["POST"]
+    pattern: '/resources/:resource/:id/restore'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue, ParamValue]
+      params: { resource: ParamValue; id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['restore']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['restore']>>>
+    }
+  }
+  'dashboards.index': {
+    methods: ["GET","HEAD"]
+    pattern: '/dashboards'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/dashboards_controller').default['index']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/dashboards_controller').default['index']>>>
+    }
+  }
+  'dashboards.show': {
+    methods: ["GET","HEAD"]
+    pattern: '/dashboards/:name'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { name: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/dashboards_controller').default['show']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/dashboards_controller').default['show']>>>
+    }
+  }
   'imports.store': {
     methods: ["POST"]
     pattern: '/resources/:resource/imports'
@@ -571,6 +655,66 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['aggregate']>>>
     }
   }
+  'api.resources.export': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/resources/:resource/export'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { resource: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['export']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['export']>>>
+    }
+  }
+  'api.resources.trash': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/resources/:resource/trash'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { resource: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['trash']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['trash']>>>
+    }
+  }
+  'api.resources.bulk_actions': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/resources/:resource/bulk'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { resource: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['bulkActions']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['bulkActions']>>>
+    }
+  }
+  'api.resources.bulk': {
+    methods: ["POST"]
+    pattern: '/api/v1/resources/:resource/bulk'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { resource: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['bulk']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['bulk']>>>
+    }
+  }
+  'api.resources.restore': {
+    methods: ["POST"]
+    pattern: '/api/v1/resources/:resource/:id/restore'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue, ParamValue]
+      params: { resource: ParamValue; id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['restore']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['restore']>>>
+    }
+  }
   'api.resources.show': {
     methods: ["GET","HEAD"]
     pattern: '/api/v1/resources/:resource/:id'
@@ -893,6 +1037,18 @@ export interface Registry {
       query: ExtractQuery<InferInput<(typeof import('#validators/user').changePasswordValidator)>>
       response: ExtractResponse<Awaited<ReturnType<import('#controllers/profile_controller').default['password']>>>
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/profile_controller').default['password']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
+  'language.update': {
+    methods: ["PUT"]
+    pattern: '/account/language'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/language_controller').default['update']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/language_controller').default['update']>>>
     }
   }
   'two_factor.begin': {
@@ -1769,6 +1925,114 @@ export interface Registry {
       query: {}
       response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/settings_controller').default['destroy']>>>
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/settings_controller').default['destroy']>>>
+    }
+  }
+  'admin_lookups.index': {
+    methods: ["GET","HEAD"]
+    pattern: '/admin/lookups'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/lookups_controller').default['index']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/lookups_controller').default['index']>>>
+    }
+  }
+  'admin_lookups.store': {
+    methods: ["POST"]
+    pattern: '/admin/lookups'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/lookups_controller').default['store']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/lookups_controller').default['store']>>>
+    }
+  }
+  'admin_lookups.reorder': {
+    methods: ["PUT"]
+    pattern: '/admin/lookups/groups/:group/order'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { group: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/lookups_controller').default['reorder']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/lookups_controller').default['reorder']>>>
+    }
+  }
+  'admin_lookups.update': {
+    methods: ["PATCH"]
+    pattern: '/admin/lookups/:id'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/lookups_controller').default['update']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/lookups_controller').default['update']>>>
+    }
+  }
+  'admin_lookups.disable': {
+    methods: ["POST"]
+    pattern: '/admin/lookups/:id/disable'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/lookups_controller').default['disable']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/lookups_controller').default['disable']>>>
+    }
+  }
+  'admin_lookups.enable': {
+    methods: ["POST"]
+    pattern: '/admin/lookups/:id/enable'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/lookups_controller').default['enable']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/lookups_controller').default['enable']>>>
+    }
+  }
+  'admin_lookups.destroy': {
+    methods: ["DELETE"]
+    pattern: '/admin/lookups/:id'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/lookups_controller').default['destroy']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/lookups_controller').default['destroy']>>>
+    }
+  }
+  'admin_sequences.index': {
+    methods: ["GET","HEAD"]
+    pattern: '/admin/sequences'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/sequences_controller').default['index']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/sequences_controller').default['index']>>>
+    }
+  }
+  'admin_sequences.update': {
+    methods: ["PATCH"]
+    pattern: '/admin/sequences/:key'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { key: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/sequences_controller').default['update']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/sequences_controller').default['update']>>>
     }
   }
 }

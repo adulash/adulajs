@@ -17,6 +17,11 @@ export interface ApiDefinition {
     create: typeof routes['resources.create']
     options: typeof routes['resources.options']
     aggregate: typeof routes['resources.aggregate']
+    export: typeof routes['resources.export']
+    trash: typeof routes['resources.trash']
+    bulkActions: typeof routes['resources.bulk_actions']
+    bulk: typeof routes['resources.bulk']
+    restore: typeof routes['resources.restore']
     edit: typeof routes['resources.edit']
     show: typeof routes['resources.show']
     store: typeof routes['resources.store']
@@ -25,6 +30,10 @@ export interface ApiDefinition {
     submit: typeof routes['resources.submit']
     cancel: typeof routes['resources.cancel']
     amend: typeof routes['resources.amend']
+  }
+  dashboards: {
+    index: typeof routes['dashboards.index']
+    show: typeof routes['dashboards.show']
   }
   imports: {
     store: typeof routes['imports.store']
@@ -73,6 +82,11 @@ export interface ApiDefinition {
     resources: {
       index: typeof routes['api.resources.index']
       aggregate: typeof routes['api.resources.aggregate']
+      export: typeof routes['api.resources.export']
+      trash: typeof routes['api.resources.trash']
+      bulkActions: typeof routes['api.resources.bulk_actions']
+      bulk: typeof routes['api.resources.bulk']
+      restore: typeof routes['api.resources.restore']
       show: typeof routes['api.resources.show']
       store: typeof routes['api.resources.store']
       update: typeof routes['api.resources.update']
@@ -121,6 +135,9 @@ export interface ApiDefinition {
     show: typeof routes['profile.show']
     update: typeof routes['profile.update']
     password: typeof routes['profile.password']
+  }
+  language: {
+    update: typeof routes['language.update']
   }
   apiTokens: {
     index: typeof routes['api_tokens.index']
@@ -214,5 +231,18 @@ export interface ApiDefinition {
   }
   adminAuthenticationSettings: {
     update: typeof routes['admin_authentication_settings.update']
+  }
+  adminLookups: {
+    index: typeof routes['admin_lookups.index']
+    store: typeof routes['admin_lookups.store']
+    reorder: typeof routes['admin_lookups.reorder']
+    update: typeof routes['admin_lookups.update']
+    disable: typeof routes['admin_lookups.disable']
+    enable: typeof routes['admin_lookups.enable']
+    destroy: typeof routes['admin_lookups.destroy']
+  }
+  adminSequences: {
+    index: typeof routes['admin_sequences.index']
+    update: typeof routes['admin_sequences.update']
   }
 }

@@ -86,6 +86,11 @@ export function describe(ctx: ResourceContext, name: string, actor: Actor): Reso
     canCreate: resource.actions.includes('create') && ability.can('create', name),
     scoped: resource.scoped,
     submittable: Boolean(resource.submittable),
+    trash: resource.actions.includes('delete') && ability.can('delete', name),
+    exportable: true,
+    bulk: (['delete', 'submit', 'cancel', 'update'] as const).some(
+      (action) => resource.actions.includes(action) && ability.can(action, name)
+    ),
   }
 }
 

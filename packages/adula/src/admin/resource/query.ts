@@ -1,8 +1,9 @@
 import type { Knex } from 'knex'
 import type { Field, JsonValue, RecordData, Resource } from '../../resource/types.js'
 import { columnName } from '../../resource/define_resource.js'
-import type { Actor } from '../../auth/ability.js'
-import { accessibleBy, conditionSql } from '../../auth/sql.js'
+import { accessibleBy, authorizationSql, conditionSql } from '../../auth/sql.js'
+import { canRecord, type Actor, type AdulaAbility } from '../../auth/ability.js'
+import type { RecordPermissions } from '../presentation.js'
 import { fromRow, jsonValue, serialize } from '../contracts.js'
 import { resolveActorConditions, type Conditions } from '../../auth/conditions.js'
 import {
@@ -58,6 +59,12 @@ export type ListOptions = {
   /** Only records carrying this tag (see RecordCollaboration.setTags). */
   tag?: string
   estimate?: boolean
+  /**
+   * Only soft-deleted records («المحذوفات»), for actors who may delete records of the
+   * resource (403 otherwise). Rows are those the actor's delete rules reach, and each
+   * row's permissions carry `restore` (ADR 046).
+   */
+  trashed?: boolean
 }
 
 /**
@@ -93,9 +100,107 @@ function queryValue(field: Field, value: unknown): unknown {
   return fieldValue(field, candidate)
 }
 
+/** A scalar filter operand: equality, or one value of an operator. */
+export type ListFilterScalar = string | number | boolean | null
 /**
- * Equality filters shared by list() and aggregate(): each key must be a filterable field
- * the caller allows querying, and each value must coerce to the field's type.
+ * A list or aggregate filter value (ADR 046): a scalar (equality, null = IS NULL) or one
+ * operator object. `in` takes 1–50 values (an array or a comma-separated string);
+ * `gte`/`lte` are an inclusive range and may be combined; `empty` matches NULL (and the
+ * empty string on text fields) when true and the opposite when false.
+ */
+export type ListFilterValue =
+  | ListFilterScalar
+  | { in: ListFilterScalar[] | string }
+  | { gte?: ListFilterScalar; lte?: ListFilterScalar }
+  | { empty: boolean | 'true' | 'false' }
+
+/** Most values an `in` filter accepts. */
+export const FILTER_IN_LIMIT = 50
+const IN_TYPES = new Set(['string', 'text', 'lookup', 'integer', 'belongsTo', 'user'])
+const RANGE_TYPES = new Set(['integer', 'money', 'date', 'datetime'])
+const TEXT_TYPES = new Set(['string', 'text', 'lookup'])
+
+/** A typed filter condition, after validation and coercion of every operand. */
+export type FilterCondition =
+  | { kind: 'eq'; value: unknown }
+  | { kind: 'in'; values: unknown[] }
+  | { kind: 'range'; gte?: unknown; lte?: unknown }
+  | { kind: 'empty'; empty: boolean }
+
+function isScalar(value: unknown) {
+  return value === null || ['string', 'number', 'boolean'].includes(typeof value)
+}
+
+/** Query strings parse long `in[]` lists as objects with index keys; read them as arrays. */
+function asList(value: unknown): unknown[] | null {
+  if (Array.isArray(value)) return value
+  if (typeof value === 'string') return value.split(',').map((entry) => entry.trim())
+  if (value && typeof value === 'object') {
+    const keys = Object.keys(value)
+    if (keys.length && keys.every((key) => /^\d{1,3}$/.test(key)))
+      return keys
+        .sort((a, b) => Number(a) - Number(b))
+        .map((key) => (value as Record<string, unknown>)[key])
+  }
+  return null
+}
+
+/**
+ * Validates one filter value against its field and coerces every operand to the field's
+ * stored representation. Throws 422 E_FILTER for an unknown operator, an operator the
+ * field type does not support, or an operand that does not fit the field.
+ */
+export function filterCondition(key: string, field: Field, value: unknown): FilterCondition {
+  const coerce = (operand: unknown) => {
+    try {
+      return queryValue(field, operand)
+    } catch {
+      throw invalidFilter(`Invalid filter value: ${key}`)
+    }
+  }
+  if (isScalar(value)) return { kind: 'eq', value: coerce(value) }
+  if (!value || typeof value !== 'object' || Array.isArray(value))
+    throw invalidFilter('Invalid filter value')
+  const operators = Object.keys(value)
+  const entry = value as Record<string, unknown>
+  if (operators.length === 1 && operators[0] === 'in') {
+    if (!IN_TYPES.has(field.type)) throw invalidFilter(`Unsupported filter operator: ${key}`)
+    const operands = asList(entry.in)
+    if (!operands || !operands.length || operands.length > FILTER_IN_LIMIT)
+      throw invalidFilter(`Invalid filter value: ${key}`)
+    const values = operands.map((operand) => {
+      if (operand === null || operand === '' || !isScalar(operand))
+        throw invalidFilter(`Invalid filter value: ${key}`)
+      return coerce(operand)
+    })
+    return { kind: 'in', values: [...new Set(values)] }
+  }
+  if (operators.length === 1 && operators[0] === 'empty') {
+    const empty = entry.empty
+    if (empty === true || empty === 'true') return { kind: 'empty', empty: true }
+    if (empty === false || empty === 'false') return { kind: 'empty', empty: false }
+    throw invalidFilter(`Invalid filter value: ${key}`)
+  }
+  if (operators.length && operators.every((operator) => operator === 'gte' || operator === 'lte')) {
+    if (!RANGE_TYPES.has(field.type)) throw invalidFilter(`Unsupported filter operator: ${key}`)
+    const bound = (operand: unknown) => {
+      if (operand === null || operand === '' || !isScalar(operand))
+        throw invalidFilter(`Invalid filter value: ${key}`)
+      return coerce(operand)
+    }
+    return {
+      kind: 'range',
+      ...('gte' in entry ? { gte: bound(entry.gte) } : {}),
+      ...('lte' in entry ? { lte: bound(entry.lte) } : {}),
+    }
+  }
+  throw invalidFilter(`Unsupported filter operator: ${key}`)
+}
+
+/**
+ * Filters shared by list() and aggregate(): each key must be a filterable field the
+ * caller allows querying, and each value a scalar or operator object whose operands
+ * coerce to the field's type (see ListFilterValue).
  */
 function applyFilters(
   query: Knex.QueryBuilder,
@@ -103,20 +208,44 @@ function applyFilters(
   filters: Record<string, unknown>,
   queryable: (key: string) => boolean
 ) {
+  if (!filters || typeof filters !== 'object' || Array.isArray(filters))
+    throw invalidFilter('Invalid filter value')
   for (const [key, value] of Object.entries(filters)) {
-    if (!resource.fields[key]?.filterable || !queryable(key))
+    if (
+      !Object.hasOwn(resource.fields, key) ||
+      !resource.fields[key]?.filterable ||
+      !queryable(key)
+    )
       throw invalidFilter('Unsupported filter')
-    if (value !== null && !['string', 'number', 'boolean'].includes(typeof value))
-      throw invalidFilter('Invalid filter value')
-    let typed: unknown
-    try {
-      typed = queryValue(resource.fields[key], value)
-    } catch {
-      throw invalidFilter(`Invalid filter value: ${key}`)
+    const field = resource.fields[key]
+    const condition = filterCondition(key, field, value)
+    const column = `r.${field.column ?? columnName(key)}`
+    switch (condition.kind) {
+      case 'eq':
+        if (condition.value === null) query.whereNull(column)
+        else query.where(column, condition.value as string)
+        break
+      case 'in':
+        query.whereIn(column, condition.values as string[])
+        break
+      case 'range':
+        if (condition.gte !== undefined) query.where(column, '>=', condition.gte as string)
+        if (condition.lte !== undefined) query.where(column, '<=', condition.lte as string)
+        break
+      case 'empty': {
+        const text = TEXT_TYPES.has(field.type)
+        if (condition.empty)
+          query.where((empty) => {
+            empty.whereNull(column)
+            if (text) empty.orWhere(column, '')
+          })
+        else {
+          query.whereNotNull(column)
+          if (text) query.whereNot(column, '')
+        }
+        break
+      }
     }
-    const column = `r.${resource.fields[key].column ?? columnName(key)}`
-    if (typed === null) query.whereNull(column)
-    else query.where(column, typed as string)
   }
 }
 
@@ -132,14 +261,16 @@ function applySearch(
   query.whereRaw("r.search_vector @@ plainto_tsquery('simple', ?)", [search])
 }
 
-export async function list(
-  ctx: ResourceContext,
-  name: string,
-  actor: Actor,
-  options: ListOptions = {}
-) {
+/**
+ * The authorized, filtered list query of list() before keyset paging and ordering, with
+ * what paging needs. Shared with countUpTo() so a count uses exactly the list's rules.
+ */
+function listQuery(ctx: ResourceContext, name: string, actor: Actor, options: ListOptions) {
   const resource = ctx.registry.get(name)
   const ability = authorizeAction(ctx, resource, actor, 'view')
+  const trashed = options.trashed === true
+  // The trash is reached through the delete permission: restore reuses the delete rule.
+  if (trashed) authorizeAction(ctx, resource, actor, 'delete')
   const queryable = (key: string) => canQueryField(resource, actor, ability, key)
   const limit = Math.max(1, Math.min(100, Math.floor(Number(options.limit) || 25)))
   const sort = options.sort ?? 'id'
@@ -149,13 +280,14 @@ export async function list(
   // Sorting/filtering private fields would otherwise reveal their values indirectly.
   if (sort !== 'id' && !queryable(sort)) throw forbiddenField('Forbidden sort field')
   const sortColumn = `r.${resource.fields[sort]?.column ?? columnName(sort)}`
-  const query = accessibleBy(
-    ctx.db(`${name} as r`).whereNull('r.deleted_at'),
-    ability,
-    actor,
-    'view',
-    resource
-  )
+  const base = ctx.db(`${name} as r`)
+  if (trashed) {
+    base.whereNotNull('r.deleted_at')
+    // Deleted rows are listed when both the view and the delete rules reach them.
+    const viewable = authorizationSql(ability, 'view', resource)
+    base.whereRaw(viewable.text, viewable.bindings)
+  } else base.whereNull('r.deleted_at')
+  const query = accessibleBy(base, ability, actor, trashed ? 'delete' : 'view', resource)
   query.select(columns(resource, ability, false, [sort]))
   if (resource.scoped) query.select('ou.path as org_path')
   if (options.search) applySearch(query, resource, options.search, queryable)
@@ -172,6 +304,41 @@ export async function list(
         .where('tn.name', options.tag as string)
     )
   }
+  return { resource, ability, trashed, limit, sort, direction, sortColumn, query }
+}
+
+/**
+ * How many records list() would return for these options, counting at most `max` + 1,
+ * so callers can refuse an oversized request with one bounded query.
+ */
+export async function countUpTo(
+  ctx: ResourceContext,
+  name: string,
+  actor: Actor,
+  options: ListOptions,
+  max: number
+): Promise<number> {
+  const { query } = listQuery(ctx, name, actor, options)
+  const bounded = query
+    .clearSelect()
+    .select('r.id')
+    .limit(max + 1)
+  const [row] = await ctx.db.from(bounded.as('bounded')).count<{ count: string }[]>('* as count')
+  return Number(row.count)
+}
+
+export async function list(
+  ctx: ResourceContext,
+  name: string,
+  actor: Actor,
+  options: ListOptions = {}
+) {
+  const { resource, ability, trashed, limit, sort, direction, sortColumn, query } = listQuery(
+    ctx,
+    name,
+    actor,
+    options
+  )
   // Estimate the authorized, filtered query, never the deployment-wide table cardinality.
   // Only the first page pays for the extra planner round trip; later pages keep its figure.
   let estimatedTotal: number | undefined
@@ -208,7 +375,12 @@ export async function list(
   return {
     data: hydrated.map((record) => serialize(resource, record, ability, actor)),
     permissions: Object.fromEntries(
-      records.map((record) => [String(record.id), permissions(resource, record, actor, ability)])
+      records.map((record) => [
+        String(record.id),
+        trashed
+          ? trashedPermissions(resource, record, actor, ability)
+          : permissions(resource, record, actor, ability),
+      ])
     ),
     meta: {
       limit,
@@ -221,6 +393,20 @@ export async function list(
           : null,
     },
     related: await preload(ctx, resource, records, actor),
+  }
+}
+
+/** A deleted record can only be viewed or restored; restore follows the delete rule. */
+function trashedPermissions(
+  resource: Resource,
+  record: RecordData,
+  actor: Actor,
+  ability: AdulaAbility
+): RecordPermissions {
+  return {
+    ...Object.fromEntries(resource.actions.map((action) => [action, false])),
+    view: canRecord(ability, actor, resource, 'view', record),
+    restore: canRecord(ability, actor, resource, 'delete', record),
   }
 }
 

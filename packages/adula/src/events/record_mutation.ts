@@ -14,7 +14,8 @@ export async function recordMutation(
     actorId: number
     /** The administrator acting as actorId, when impersonating. */
     impersonatorId?: number
-    action: Action
+    /** A resource action, or `restore` of a soft-deleted record (ADR 046). */
+    action: Action | 'restore'
     fields: string[]
     /** Before/after values of the changed fields; read back per viewer's field access. */
     changes?: FieldChange[]
@@ -31,6 +32,7 @@ export async function recordMutation(
     submit: 'submitted',
     cancel: 'cancelled',
     amend: 'amended',
+    restore: 'restored',
   }
   if (!past[mutation.action]) throw new Error('Unsupported mutation event')
   const eventId = randomUUID()

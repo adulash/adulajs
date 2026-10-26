@@ -112,6 +112,19 @@ export const apiThrottle = limiter.define('api', (ctx) =>
     .limitExceeded(withMessage)
 )
 
+/**
+ * CSV exports (ADR 046): 10 per minute per user, beside the resource API limit. One
+ * export reads up to 5000 rows, so it is far heavier than a list page.
+ */
+export const EXPORT_LIMIT = 10
+export const exportThrottle = limiter.define('export', (ctx) =>
+  limiter
+    .allowRequests(EXPORT_LIMIT)
+    .every('1 minute')
+    .usingKey(ctx.auth.user ? `user:${ctx.auth.user.id}` : `ip:${ctx.request.ip()}`)
+    .limitExceeded(withMessage)
+)
+
 /** Signed inbound webhooks: 300 deliveries per minute per source and sender address. */
 export const inboundThrottle = limiter.define('inbound_webhooks', (ctx) =>
   limiter

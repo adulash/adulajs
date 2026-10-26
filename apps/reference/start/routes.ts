@@ -19,6 +19,7 @@ import {
   channelChangeThrottle,
   channelCodeThrottle,
   channelTestThrottle,
+  exportThrottle,
   healthThrottle,
   inboundThrottle,
   inboundAddressThrottle,
@@ -67,6 +68,7 @@ const AdminWebhooksController = () => import('#controllers/admin/webhooks_contro
 const AdminLookupsController = () => import('#controllers/admin/lookups_controller')
 const AdminSequencesController = () => import('#controllers/admin/sequences_controller')
 const InboundWebhooksController = () => import('#controllers/inbound_webhooks_controller')
+const DashboardsController = () => import('#controllers/dashboards_controller')
 
 router.on('/').renderInertia('home', {}).as('home')
 
@@ -127,6 +129,14 @@ router
     router.get('/resources/:resource/create', [ResourcesController, 'create'])
     router.get('/resources/:resource/options/:field', [ResourcesController, 'options'])
     router.get('/resources/:resource/aggregate', [ResourcesController, 'aggregate'])
+    // List layer (ADR 046): declared before the /resources/:resource/:id patterns.
+    router.get('/resources/:resource/export', [ResourcesController, 'export']).use(exportThrottle)
+    router.get('/resources/:resource/trash', [ResourcesController, 'trash'])
+    router.get('/resources/:resource/bulk', [ResourcesController, 'bulkActions'])
+    router.post('/resources/:resource/bulk', [ResourcesController, 'bulk'])
+    router.post('/resources/:resource/:id/restore', [ResourcesController, 'restore'])
+    router.get('/dashboards', [DashboardsController, 'index'])
+    router.get('/dashboards/:name', [DashboardsController, 'show'])
     router.post('/resources/:resource/imports', [ImportsController, 'store'])
     router.get('/resources/:resource/imports/template', [ImportsController, 'template'])
     router.get('/imports', [ImportsController, 'index'])
@@ -184,6 +194,11 @@ router
     router.post('imports/:id/start', [ImportsController, 'start'])
     router.post('resources/:resource/imports', [ImportsController, 'store'])
     router.get('resources/:resource/imports/template', [ImportsController, 'template'])
+    router.get('resources/:resource/export', [ResourcesController, 'export']).use(exportThrottle)
+    router.get('resources/:resource/trash', [ResourcesController, 'trash'])
+    router.get('resources/:resource/bulk', [ResourcesController, 'bulkActions'])
+    router.post('resources/:resource/bulk', [ResourcesController, 'bulk'])
+    router.post('resources/:resource/:id/restore', [ResourcesController, 'restore'])
     router.get('resources/:resource/:id', [ResourcesController, 'show'])
     router.post('resources/:resource', [ResourcesController, 'store'])
     router.patch('resources/:resource/:id', [ResourcesController, 'update'])

@@ -168,6 +168,42 @@
       "kind": "FunctionDeclaration",
       "type": "(rules: readonly Rule[], schemas?: readonly Pick<Resource, \"fields\" | \"name\">[] | undefined) => AdulaAbility"
     },
+    "BULK_ID_LIMIT": {
+      "kind": "VariableDeclaration",
+      "type": "100"
+    },
+    "BulkActionDefinition": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ key: string; label: Label; values: RecordData; confirm?: Label | undefined; destructive?: boolean | undefined; }"
+    },
+    "BulkActionOption": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ key: string; label: string; builtIn: boolean; scope: \"records\" | \"trash\"; confirm: string | null; destructive: boolean; }"
+    },
+    "BulkActions": {
+      "kind": "ClassDeclaration",
+      "type": "typeof BulkActions"
+    },
+    "BulkActionSet": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ resource: string; actions: readonly BulkActionDefinition[]; }"
+    },
+    "BulkActionsOptions": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ report?: ((error: unknown, context: { resource: string; action: string; id: number; }) => void) | undefined; }"
+    },
+    "BulkFailure": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ id: number; code: string; message: string; }"
+    },
+    "BulkRequest": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ action: unknown; ids: unknown; versions?: unknown; }"
+    },
+    "BulkResult": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ succeeded: number[]; failed: BulkFailure[]; }"
+    },
     "CalendarPreference": {
       "kind": "TypeAliasDeclaration",
       "type": "CalendarSystem | \"both\""
@@ -334,7 +370,7 @@
     },
     "createResourceController": {
       "kind": "FunctionDeclaration",
-      "type": "(resolveRuntime: (ctx: HttpContext) => Promise<ResourceRuntime>, renderList?: ((ctx: HttpContext, resource: Resource, result: { data: SerializedRecord[]; permissions: { [k: string]: Partial<Record<Action, boolean>>; }; meta: { limit: number; estimatedTotal: number | undefined; nextCursor: string | null; }; related: Record<string, SerializedRecord[]>; }) => unknown) | undefined, renderForm?: ((ctx: HttpContext, resource: Resource, editor: { mode: string; name: string; label: string; recordLabel: string | null; fields: ({ label: Label; column?: string | undefined; required?: boolean | undefined; unique?: boolean | undefined; sortable?: boolean | undefined; searchable?: boolean | undefined; filterable?: boolean | undefined; permissionLevel?: number | undefined; sequence?: string | undefined; type: \"string\" | \"boolean\" | \"text\" | \"integer\" | \"money\" | \"date\" | \"datetime\" | \"json\"; key: string; } | { label: Label; column?: string | undefined; required?: boolean | undefined; unique?: boolean | undefined; sortable?: boolean | undefined; searchable?: boolean | undefined; filterable?: boolean | undefined; permissionLevel?: number | undefined; sequence?: string | undefined; type: \"attachment\"; accept?: string[] | \"any\" | undefined; maxSize?: string | undefined; key: string; } | { label: Label; column?: string | undefined; required?: boolean | undefined; unique?: boolean | undefined; sortable?: boolean | undefined; searchable?: boolean | undefined; filterable?: boolean | undefined; permissionLevel?: number | undefined; sequence?: string | undefined; type: \"belongsTo\"; resource: string; key: string; } | { label: Label; column?: string | undefined; required?: boolean | undefined; unique?: boolean | undefined; sortable?: boolean | undefined; searchable?: boolean | undefined; filterable?: boolean | undefined; permissionLevel?: number | undefined; sequence?: string | undefined; type: \"user\"; key: string; } | { label: Label; column?: string | undefined; required?: boolean | undefined; unique?: boolean | undefined; sortable?: boolean | undefined; searchable?: boolean | undefined; filterable?: boolean | undefined; permissionLevel?: number | undefined; sequence?: string | undefined; type: \"hasMany\"; resource: string; foreignKey: string; inline?: boolean | undefined; key: string; } | { label: Label; column?: string | undefined; required?: boolean | undefined; unique?: boolean | undefined; sortable?: boolean | undefined; searchable?: boolean | undefined; filterable?: boolean | undefined; permissionLevel?: number | undefined; sequence?: string | undefined; type: \"lookup\"; group: string; key: string; })[]; defaults: SerializedRecord; inline: Record<string, { rows: SerializedRecord[]; hasMore: boolean; canCreate: boolean; permissions: Record<string, { update: boolean; delete: boolean; }>; fields: ResourceField[]; createFields: string[]; updateFields: Record<string, string[]>; }>; options: Record<string, { value: string; label: string; }[]>; relationSearch: Record<string, boolean>; orgUnits: { value: string; label: string; }[]; scoped: boolean; scopeFrom: string | null; record: SerializedRecord | null; }) => unknown) | undefined, renderShow?: ((ctx: HttpContext, resource: Resource, result: { data: SerializedRecord; permissions: Partial<Record<Action, boolean>>; related: Record<string, SerializedRecord[]>; }) => unknown) | undefined) => new () => ResourceController"
+      "type": "(resolveRuntime: (ctx: HttpContext) => Promise<ResourceRuntime>, renderList?: ((ctx: HttpContext, resource: Resource, result: { data: SerializedRecord[]; permissions: { [k: string]: Partial<Record<Action | \"restore\", boolean>>; }; meta: { limit: number; estimatedTotal: number | undefined; nextCursor: string | null; }; related: Record<string, SerializedRecord[]>; }) => unknown) | undefined, renderForm?: ((ctx: HttpContext, resource: Resource, editor: { mode: string; name: string; label: string; recordLabel: string | null; fields: ({ label: Label; column?: string | undefined; required?: boolean | undefined; unique?: boolean | undefined; sortable?: boolean | undefined; searchable?: boolean | undefined; filterable?: boolean | undefined; permissionLevel?: number | undefined; sequence?: string | undefined; type: \"string\" | \"boolean\" | \"text\" | \"integer\" | \"money\" | \"date\" | \"datetime\" | \"json\"; key: string; } | { label: Label; column?: string | undefined; required?: boolean | undefined; unique?: boolean | undefined; sortable?: boolean | undefined; searchable?: boolean | undefined; filterable?: boolean | undefined; permissionLevel?: number | undefined; sequence?: string | undefined; type: \"attachment\"; accept?: string[] | \"any\" | undefined; maxSize?: string | undefined; key: string; } | { label: Label; column?: string | undefined; required?: boolean | undefined; unique?: boolean | undefined; sortable?: boolean | undefined; searchable?: boolean | undefined; filterable?: boolean | undefined; permissionLevel?: number | undefined; sequence?: string | undefined; type: \"belongsTo\"; resource: string; key: string; } | { label: Label; column?: string | undefined; required?: boolean | undefined; unique?: boolean | undefined; sortable?: boolean | undefined; searchable?: boolean | undefined; filterable?: boolean | undefined; permissionLevel?: number | undefined; sequence?: string | undefined; type: \"user\"; key: string; } | { label: Label; column?: string | undefined; required?: boolean | undefined; unique?: boolean | undefined; sortable?: boolean | undefined; searchable?: boolean | undefined; filterable?: boolean | undefined; permissionLevel?: number | undefined; sequence?: string | undefined; type: \"hasMany\"; resource: string; foreignKey: string; inline?: boolean | undefined; key: string; } | { label: Label; column?: string | undefined; required?: boolean | undefined; unique?: boolean | undefined; sortable?: boolean | undefined; searchable?: boolean | undefined; filterable?: boolean | undefined; permissionLevel?: number | undefined; sequence?: string | undefined; type: \"lookup\"; group: string; key: string; })[]; defaults: SerializedRecord; inline: Record<string, { rows: SerializedRecord[]; hasMore: boolean; canCreate: boolean; permissions: Record<string, { update: boolean; delete: boolean; }>; fields: ResourceField[]; createFields: string[]; updateFields: Record<string, string[]>; }>; options: Record<string, { value: string; label: string; }[]>; relationSearch: Record<string, boolean>; orgUnits: { value: string; label: string; }[]; scoped: boolean; scopeFrom: string | null; record: SerializedRecord | null; }) => unknown) | undefined, renderShow?: ((ctx: HttpContext, resource: Resource, result: { data: SerializedRecord; permissions: Partial<Record<Action | \"restore\", boolean>>; related: Record<string, SerializedRecord[]>; }) => unknown) | undefined, renderTrash?: ((ctx: HttpContext, resource: Resource, result: { data: SerializedRecord[]; permissions: { [k: string]: Partial<Record<Action | \"restore\", boolean>>; }; meta: { limit: number; estimatedTotal: number | undefined; nextCursor: string | null; }; related: Record<string, SerializedRecord[]>; }) => unknown) | undefined) => new () => ResourceController"
     },
     "createResourceTable": {
       "kind": "FunctionDeclaration",
@@ -372,6 +408,10 @@
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>) => Promise<void>"
     },
+    "CsvExport": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ content: string; filename: string; asciiFilename: string; rows: number; }"
+    },
     "csvImportAdapter": {
       "kind": "VariableDeclaration",
       "type": "ImportAdapter"
@@ -379,6 +419,38 @@
     "currentLanguage": {
       "kind": "FunctionDeclaration",
       "type": "() => string"
+    },
+    "DashboardDefinition": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ name: string; label: Label; description?: Label | undefined; widgets: DashboardWidgetDefinition[]; }"
+    },
+    "DashboardGroupRow": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ value: JsonValue; label: string; measure: string | number | null; }"
+    },
+    "DashboardMeasure": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"count\" | { sum: string; }"
+    },
+    "DashboardResult": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ name: string; label: string; description: string | null; widgets: DashboardWidgetResult[]; }"
+    },
+    "Dashboards": {
+      "kind": "ClassDeclaration",
+      "type": "typeof Dashboards"
+    },
+    "DashboardSummary": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ name: string; label: string; }"
+    },
+    "DashboardWidgetDefinition": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ key: string; label: Label; resource: string; measure: DashboardMeasure; groupBy?: string | undefined; filters?: Record<string, unknown> | undefined; where?: Conditions | undefined; }"
+    },
+    "DashboardWidgetResult": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ key: string; label: string; resource: string; href: string; measure: DashboardMeasure; format: \"integer\" | \"money\" | \"count\"; kind: \"total\" | \"grouped\"; groupBy: string | null; value?: string | number | null | undefined; rows?: DashboardGroupRow[] | undefined; truncated: boolean; }"
     },
     "DecisionOutcome": {
       "kind": "TypeAliasDeclaration",
@@ -395,6 +467,14 @@
     "DEFAULT_UI_PREFERENCES": {
       "kind": "VariableDeclaration",
       "type": "UiPreferences"
+    },
+    "defineBulkActions": {
+      "kind": "FunctionDeclaration",
+      "type": "(resource: string, actions: BulkActionDefinition[]) => BulkActionSet"
+    },
+    "defineDashboard": {
+      "kind": "FunctionDeclaration",
+      "type": "(definition: DashboardDefinition) => DashboardDefinition"
     },
     "defineResource": {
       "kind": "FunctionDeclaration",
@@ -431,6 +511,14 @@
     "EscalationTarget": {
       "kind": "TypeAliasDeclaration",
       "type": "Recipients | { manager: string; }"
+    },
+    "EXPORT_ROW_LIMIT": {
+      "kind": "VariableDeclaration",
+      "type": "5000"
+    },
+    "ExportOptions": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ search?: string | undefined; sort?: string | undefined; direction?: \"asc\" | \"desc\" | undefined; filters?: Record<string, unknown> | undefined; tag?: string | undefined; trashed?: boolean | undefined; }"
     },
     "FailedJob": {
       "kind": "TypeAliasDeclaration",
@@ -724,9 +812,17 @@
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>, onSignal: (signal: NotificationSignal) => void, options?: { retryMs?: number | undefined; onError?: ((error: unknown) => void) | undefined; } | undefined) => () => Promise<void>"
     },
+    "ListFilterScalar": {
+      "kind": "TypeAliasDeclaration",
+      "type": "string | number | boolean | null"
+    },
+    "ListFilterValue": {
+      "kind": "TypeAliasDeclaration",
+      "type": "ListFilterScalar | { in: string | ListFilterScalar[]; } | { gte?: ListFilterScalar | undefined; lte?: ListFilterScalar | undefined; } | { empty: boolean | \"true\" | \"false\"; }"
+    },
     "ListOptions": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ limit?: number | undefined; cursor?: string | undefined; search?: string | undefined; sort?: string | undefined; direction?: \"asc\" | \"desc\" | undefined; filters?: Record<string, unknown> | undefined; tag?: string | undefined; estimate?: boolean | undefined; }"
+      "type": "{ limit?: number | undefined; cursor?: string | undefined; search?: string | undefined; sort?: string | undefined; direction?: \"asc\" | \"desc\" | undefined; filters?: Record<string, unknown> | undefined; tag?: string | undefined; estimate?: boolean | undefined; trashed?: boolean | undefined; }"
     },
     "loadAttachments": {
       "kind": "FunctionDeclaration",
@@ -990,11 +1086,11 @@
     },
     "recordMutation": {
       "kind": "FunctionDeclaration",
-      "type": "(trx: Transaction<any, any[]>, mutation: { module: string; resource: string; id: unknown; actorId: number; impersonatorId?: number | undefined; action: Action; fields: string[]; changes?: FieldChange[] | undefined; system?: boolean | undefined; reason?: string | undefined; }) => Promise<void>"
+      "type": "(trx: Transaction<any, any[]>, mutation: { module: string; resource: string; id: unknown; actorId: number; impersonatorId?: number | undefined; action: Action | \"restore\"; fields: string[]; changes?: FieldChange[] | undefined; system?: boolean | undefined; reason?: string | undefined; }) => Promise<void>"
     },
     "RecordPermissions": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ view?: boolean | undefined; create?: boolean | undefined; update?: boolean | undefined; delete?: boolean | undefined; submit?: boolean | undefined; cancel?: boolean | undefined; amend?: boolean | undefined; }"
+      "type": "{ view?: boolean | undefined; create?: boolean | undefined; update?: boolean | undefined; delete?: boolean | undefined; submit?: boolean | undefined; cancel?: boolean | undefined; amend?: boolean | undefined; restore?: boolean | undefined; }"
     },
     "RECOVERY_CODE_COUNT": {
       "kind": "VariableDeclaration",
@@ -1062,7 +1158,7 @@
     },
     "ResourceDescription": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ name: string; label: string; recordLabel: string | null; createLabel: string | null; fields: ResourceField[]; list: string[]; show: string[]; searchable: boolean; canCreate: boolean; scoped: boolean; submittable: boolean; }"
+      "type": "{ name: string; label: string; recordLabel: string | null; createLabel: string | null; fields: ResourceField[]; list: string[]; show: string[]; searchable: boolean; canCreate: boolean; scoped: boolean; submittable: boolean; trash?: boolean | undefined; exportable?: boolean | undefined; bulk?: boolean | undefined; }"
     },
     "ResourceEditor": {
       "kind": "TypeAliasDeclaration",
@@ -1078,7 +1174,7 @@
     },
     "ResourceList": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ data: SerializedRecord[]; permissions: { [k: string]: Partial<Record<Action, boolean>>; }; meta: { limit: number; estimatedTotal: number | undefined; nextCursor: string | null; }; related: Record<string, SerializedRecord[]>; }"
+      "type": "{ data: SerializedRecord[]; permissions: { [k: string]: Partial<Record<Action | \"restore\", boolean>>; }; meta: { limit: number; estimatedTotal: number | undefined; nextCursor: string | null; }; related: Record<string, SerializedRecord[]>; }"
     },
     "ResourceLookups": {
       "kind": "TypeAliasDeclaration",
@@ -1094,7 +1190,7 @@
     },
     "ResourceRuntime": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ registry: ResourceRegistry; resources: ResourceService; actor: Actor; }"
+      "type": "{ registry: ResourceRegistry; resources: ResourceService; actor: Actor; bulk?: BulkActions | undefined; }"
     },
     "ResourceService": {
       "kind": "ClassDeclaration",
@@ -1102,7 +1198,7 @@
     },
     "ResourceShow": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ data: SerializedRecord; permissions: Partial<Record<Action, boolean>>; related: Record<string, SerializedRecord[]>; }"
+      "type": "{ data: SerializedRecord; permissions: Partial<Record<Action | \"restore\", boolean>>; related: Record<string, SerializedRecord[]>; }"
     },
     "RoleDetail": {
       "kind": "TypeAliasDeclaration",
@@ -1150,7 +1246,7 @@
     },
     "SavedViewQuery": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ search?: string | undefined; sort?: string | undefined; direction?: \"asc\" | \"desc\" | undefined; filters?: Record<string, string | number | boolean | null> | undefined; }"
+      "type": "{ search?: string | undefined; sort?: string | undefined; direction?: \"asc\" | \"desc\" | undefined; filters?: Record<string, ListFilterValue> | undefined; }"
     },
     "SavedViews": {
       "kind": "ClassDeclaration",

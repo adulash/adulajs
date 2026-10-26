@@ -14,6 +14,13 @@ export type ScannedRoutes = {
     'resources.create': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
     'resources.options': { paramsTuple: [ParamValue,ParamValue]; params: {'resource': ParamValue,'field': ParamValue} }
     'resources.aggregate': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
+    'resources.export': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
+    'resources.trash': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
+    'resources.bulk_actions': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
+    'resources.bulk': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
+    'resources.restore': { paramsTuple: [ParamValue,ParamValue]; params: {'resource': ParamValue,'id': ParamValue} }
+    'dashboards.index': { paramsTuple?: []; params?: {} }
+    'dashboards.show': { paramsTuple: [ParamValue]; params: {'name': ParamValue} }
     'imports.store': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
     'imports.index': { paramsTuple?: []; params?: {} }
     'imports.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -51,6 +58,11 @@ export type ScannedRoutes = {
     'api.open_api': { paramsTuple?: []; params?: {} }
     'api.resources.index': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
     'api.resources.aggregate': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
+    'api.resources.export': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
+    'api.resources.trash': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
+    'api.resources.bulk_actions': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
+    'api.resources.bulk': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
+    'api.resources.restore': { paramsTuple: [ParamValue,ParamValue]; params: {'resource': ParamValue,'id': ParamValue} }
     'api.resources.show': { paramsTuple: [ParamValue,ParamValue]; params: {'resource': ParamValue,'id': ParamValue} }
     'api.resources.store': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
     'api.resources.update': { paramsTuple: [ParamValue,ParamValue]; params: {'resource': ParamValue,'id': ParamValue} }
@@ -78,6 +90,7 @@ export type ScannedRoutes = {
     'profile.show': { paramsTuple?: []; params?: {} }
     'profile.update': { paramsTuple?: []; params?: {} }
     'profile.password': { paramsTuple?: []; params?: {} }
+    'language.update': { paramsTuple?: []; params?: {} }
     'two_factor.begin': { paramsTuple?: []; params?: {} }
     'two_factor.confirm': { paramsTuple?: []; params?: {} }
     'two_factor.regenerate': { paramsTuple?: []; params?: {} }
@@ -151,6 +164,15 @@ export type ScannedRoutes = {
     'admin_settings.upsert': { paramsTuple?: []; params?: {} }
     'admin_authentication_settings.update': { paramsTuple?: []; params?: {} }
     'admin_settings.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin_lookups.index': { paramsTuple?: []; params?: {} }
+    'admin_lookups.store': { paramsTuple?: []; params?: {} }
+    'admin_lookups.reorder': { paramsTuple: [ParamValue]; params: {'group': ParamValue} }
+    'admin_lookups.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin_lookups.disable': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin_lookups.enable': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin_lookups.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin_sequences.index': { paramsTuple?: []; params?: {} }
+    'admin_sequences.update': { paramsTuple: [ParamValue]; params: {'key': ParamValue} }
   }
   GET: {
     'home': { paramsTuple?: []; params?: {} }
@@ -159,6 +181,11 @@ export type ScannedRoutes = {
     'resources.create': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
     'resources.options': { paramsTuple: [ParamValue,ParamValue]; params: {'resource': ParamValue,'field': ParamValue} }
     'resources.aggregate': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
+    'resources.export': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
+    'resources.trash': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
+    'resources.bulk_actions': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
+    'dashboards.index': { paramsTuple?: []; params?: {} }
+    'dashboards.show': { paramsTuple: [ParamValue]; params: {'name': ParamValue} }
     'imports.index': { paramsTuple?: []; params?: {} }
     'imports.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'record_collaboration.tag_options': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
@@ -176,6 +203,9 @@ export type ScannedRoutes = {
     'api.open_api': { paramsTuple?: []; params?: {} }
     'api.resources.index': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
     'api.resources.aggregate': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
+    'api.resources.export': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
+    'api.resources.trash': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
+    'api.resources.bulk_actions': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
     'api.resources.show': { paramsTuple: [ParamValue,ParamValue]; params: {'resource': ParamValue,'id': ParamValue} }
     'new_account.create': { paramsTuple?: []; params?: {} }
     'user_invitations.show': { paramsTuple: [ParamValue]; params: {'token': ParamValue} }
@@ -206,6 +236,8 @@ export type ScannedRoutes = {
     'admin_webhooks.deliveries': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin_webhooks.inbound_deliveries': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'setup.index': { paramsTuple?: []; params?: {} }
+    'admin_lookups.index': { paramsTuple?: []; params?: {} }
+    'admin_sequences.index': { paramsTuple?: []; params?: {} }
   }
   HEAD: {
     'home': { paramsTuple?: []; params?: {} }
@@ -214,6 +246,11 @@ export type ScannedRoutes = {
     'resources.create': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
     'resources.options': { paramsTuple: [ParamValue,ParamValue]; params: {'resource': ParamValue,'field': ParamValue} }
     'resources.aggregate': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
+    'resources.export': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
+    'resources.trash': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
+    'resources.bulk_actions': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
+    'dashboards.index': { paramsTuple?: []; params?: {} }
+    'dashboards.show': { paramsTuple: [ParamValue]; params: {'name': ParamValue} }
     'imports.index': { paramsTuple?: []; params?: {} }
     'imports.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'record_collaboration.tag_options': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
@@ -231,6 +268,9 @@ export type ScannedRoutes = {
     'api.open_api': { paramsTuple?: []; params?: {} }
     'api.resources.index': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
     'api.resources.aggregate': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
+    'api.resources.export': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
+    'api.resources.trash': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
+    'api.resources.bulk_actions': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
     'api.resources.show': { paramsTuple: [ParamValue,ParamValue]; params: {'resource': ParamValue,'id': ParamValue} }
     'new_account.create': { paramsTuple?: []; params?: {} }
     'user_invitations.show': { paramsTuple: [ParamValue]; params: {'token': ParamValue} }
@@ -261,12 +301,16 @@ export type ScannedRoutes = {
     'admin_webhooks.deliveries': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin_webhooks.inbound_deliveries': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'setup.index': { paramsTuple?: []; params?: {} }
+    'admin_lookups.index': { paramsTuple?: []; params?: {} }
+    'admin_sequences.index': { paramsTuple?: []; params?: {} }
   }
   POST: {
     'subscribe': { paramsTuple?: []; params?: {} }
     'unsubscribe': { paramsTuple?: []; params?: {} }
     'mcp.post': { paramsTuple?: []; params?: {} }
     'inbound_webhooks.receive': { paramsTuple: [ParamValue]; params: {'source': ParamValue} }
+    'resources.bulk': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
+    'resources.restore': { paramsTuple: [ParamValue,ParamValue]; params: {'resource': ParamValue,'id': ParamValue} }
     'imports.store': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
     'imports.start': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'record_collaboration.comment': { paramsTuple: [ParamValue,ParamValue]; params: {'resource': ParamValue,'id': ParamValue} }
@@ -280,6 +324,8 @@ export type ScannedRoutes = {
     'resources.amend': { paramsTuple: [ParamValue,ParamValue]; params: {'resource': ParamValue,'id': ParamValue} }
     'saved_views.store': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
     'attachments.store': { paramsTuple?: []; params?: {} }
+    'api.resources.bulk': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
+    'api.resources.restore': { paramsTuple: [ParamValue,ParamValue]; params: {'resource': ParamValue,'id': ParamValue} }
     'api.resources.store': { paramsTuple: [ParamValue]; params: {'resource': ParamValue} }
     'api.resources.submit': { paramsTuple: [ParamValue,ParamValue]; params: {'resource': ParamValue,'id': ParamValue} }
     'api.resources.cancel': { paramsTuple: [ParamValue,ParamValue]; params: {'resource': ParamValue,'id': ParamValue} }
@@ -324,6 +370,9 @@ export type ScannedRoutes = {
     'setup.notification': { paramsTuple?: []; params?: {} }
     'admin_settings.test_mail': { paramsTuple?: []; params?: {} }
     'admin_settings.confirm_mail': { paramsTuple?: []; params?: {} }
+    'admin_lookups.store': { paramsTuple?: []; params?: {} }
+    'admin_lookups.disable': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin_lookups.enable': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
   }
   PATCH: {
     'record_collaboration.edit_comment': { paramsTuple: [ParamValue,ParamValue,ParamValue]; params: {'resource': ParamValue,'id': ParamValue,'comment': ParamValue} }
@@ -332,6 +381,8 @@ export type ScannedRoutes = {
     'profile.update': { paramsTuple?: []; params?: {} }
     'admin_roles.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin_org_units.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin_lookups.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin_sequences.update': { paramsTuple: [ParamValue]; params: {'key': ParamValue} }
   }
   DELETE: {
     'record_collaboration.delete_comment': { paramsTuple: [ParamValue,ParamValue,ParamValue]; params: {'resource': ParamValue,'id': ParamValue,'comment': ParamValue} }
@@ -353,16 +404,19 @@ export type ScannedRoutes = {
     'admin_webhooks.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin_webhooks.destroy_inbound': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin_settings.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'admin_lookups.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
   }
   PUT: {
     'record_collaboration.follow': { paramsTuple: [ParamValue,ParamValue]; params: {'resource': ParamValue,'id': ParamValue} }
     'record_collaboration.tags': { paramsTuple: [ParamValue,ParamValue]; params: {'resource': ParamValue,'id': ParamValue} }
+    'language.update': { paramsTuple?: []; params?: {} }
     'admin_roles.set_rule': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin_templates.update': { paramsTuple: [ParamValue]; params: {'key': ParamValue} }
     'admin_webhooks.update': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin_webhooks.update_inbound': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin_settings.upsert': { paramsTuple?: []; params?: {} }
     'admin_authentication_settings.update': { paramsTuple?: []; params?: {} }
+    'admin_lookups.reorder': { paramsTuple: [ParamValue]; params: {'group': ParamValue} }
   }
 }
 declare module '@adonisjs/core/types/http' {

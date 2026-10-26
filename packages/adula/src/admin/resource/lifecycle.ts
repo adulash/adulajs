@@ -95,7 +95,7 @@ export async function audit(
   trx: Knex.Transaction,
   resource: Resource,
   actor: Actor,
-  action: Action,
+  action: Action | 'restore',
   record: RecordData,
   fields: string[],
   changes?: FieldChange[],

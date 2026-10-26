@@ -31,8 +31,11 @@ All three share one version and are published together from a `v<version>` tag
 * Authorization: CASL rules with SQL/in-memory parity, organizational scope as a separate
   AND condition, field-level redaction and writable whitelists, `$actor.id` conditions,
   inherited scope (`scope: { from }`), `systemSave()` for module code.
-* `ResourceService`: list (equality filters, full-text search, tags, sort), show, save,
-  delete, `aggregate()` (group, count, sum), titles, editor options, inline child rows.
+* `ResourceService`: list (equality, `in`, range and empty filters, full-text search, tags, sort, deleted records), show, save,
+  delete, restore, CSV export of the filtered set, `aggregate()` (group, count, sum), titles, editor options, inline child rows.
+* Lists (ADR 046): bulk actions with per-row authorization (`BulkActions`,
+  `defineBulkActions`), a «المحذوفات» view with restore, and dashboards built on
+  `aggregate()` (`defineDashboard`, `Dashboards`).
 * Administration services: users, invitations, roles and rules, organizational units,
   settings, sessions, impersonation with audit, activity log, runtime health, setup center.
 * Collaboration: comments with mentions, followers, tags, field history, assignments and
@@ -107,7 +110,7 @@ Japa and `node:test` run more cases than declarations where a helper registers t
 * Validator, Lucid model and migration are written by hand next to each resource.
 * XLSX import, SAML SSO and a typed API client are not available. Two-factor
   authentication (TOTP) and OAuth/OIDC SSO are described in [authentication.md](authentication.md).
-* Lists filter by equality only; CSV export covers the loaded rows.
+* Exports are capped at 5000 rows; restore follows the delete permission (ADR 046).
 * The interface is Arabic only.
 
 The full list is in [GAPS.md](../GAPS.md).

@@ -4,7 +4,7 @@ import UserTransformer from '#transformers/user_transformer'
 import BaseInertiaMiddleware from '@adonisjs/inertia/inertia_middleware'
 import { adula } from '#services/adula'
 import { sharedAdminProps } from '#middleware/admin_middleware'
-import { clientMessages, localizeText, uiPreferences } from 'adula'
+import { clientMessages, localizeText, runWithLanguage, uiPreferences } from 'adula'
 import db from '@adonisjs/lucid/services/db'
 import { signupEnabled } from '#services/signup'
 import {
@@ -26,6 +26,7 @@ export default class InertiaMiddleware extends BaseInertiaMiddleware {
      */
     const { auth } = ctx as Partial<HttpContext>
     const language = requestLanguage(ctx)
+    const actor = auth?.user ? await adula().actors.load(auth.user.id) : undefined
 
     /**
      * Data shared with all Inertia pages. Make sure you are using
@@ -36,12 +37,11 @@ export default class InertiaMiddleware extends BaseInertiaMiddleware {
       uiPreferences: ctx.inertia.always(await uiPreferences(db.connection().getWriteClient())),
       user: ctx.inertia.always(auth?.user ? UserTransformer.transform(auth.user) : undefined),
       navigation: ctx.inertia.always(
-        auth?.user
-          ? this.#localizedNavigation(
-              adula().resources.navigation(await adula().actors.load(auth.user.id)),
-              language
-            )
-          : []
+        actor ? this.#localizedNavigation(adula().resources.navigation(actor), language) : []
+      ),
+      // Indicator pages the user may open (ADR 046), for a navigation link to /dashboards/:name.
+      dashboards: ctx.inertia.always(
+        actor ? runWithLanguage(language, () => adula().dashboards.list(actor)) : []
       ),
       // Arabic is the base language; `messages` maps Arabic interface text to the
       // user's language and is empty for Arabic, so components render their own text.

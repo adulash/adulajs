@@ -30,6 +30,9 @@ test.group('Educational fixture isolation', () => {
     assert.deepEqual(probe.resources, [])
     // Fixture sync jobs (tests/fixtures/sync_jobs.ts) are never scheduled outside tests.
     assert.deepEqual(probe.syncJobs, [])
+    // Fixture dashboards and bulk actions (ADR 046) stay test-only too.
+    assert.deepEqual(probe.dashboards, [])
+    assert.deepEqual(probe.bulkActions, [])
     // Framework listeners (webhooks, followers) are not example code; none may be educational.
     assert.deepEqual(
       probe.listeners.filter((name: string) => !name.startsWith('adula.')),

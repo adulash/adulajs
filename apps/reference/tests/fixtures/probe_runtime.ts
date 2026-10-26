@@ -10,6 +10,8 @@ try {
   const { listeners } = await import('#start/listeners')
   const { default: database } = await import('#config/database')
   const { syncJobDefinitions } = await import('#start/sync_jobs')
+  const { dashboards } = await import('#start/dashboards')
+  const { bulkActions } = await import('#start/bulk_actions')
   console.log(
     'FIXTURE_PROBE:' +
       JSON.stringify({
@@ -18,6 +20,8 @@ try {
         listeners: listeners.map((listener) => listener.name),
         migrations: database.connections.postgres.migrations?.paths,
         syncJobs: syncJobDefinitions.map((job) => job.name),
+        dashboards: dashboards.map((dashboard) => dashboard.name),
+        bulkActions: bulkActions.map((set) => set.resource),
       })
   )
 } finally {

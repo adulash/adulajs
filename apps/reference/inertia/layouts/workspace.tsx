@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { usePage } from '@inertiajs/react'
 import { Link } from '@adonisjs/inertia/react'
 import {
+  ChartColumn,
   ChevronDown,
   ClipboardList,
   LayoutDashboard,
@@ -9,7 +10,7 @@ import {
   FileUp,
   UserPlus,
 } from 'lucide-react'
-import type { ResourceNavigation } from 'adula'
+import type { DashboardSummary, ResourceNavigation } from 'adula'
 import { Toaster } from '~/components/ui/sonner'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
@@ -58,6 +59,7 @@ export default function Workspace({ children }: { children: ReactNode }) {
     canImport?: boolean
     openTasks?: number
     isAdmin?: boolean
+    dashboards?: DashboardSummary[]
   }>()
   const { collapsed, toggle } = useCollapsedModules()
   const openTasks = page.props.openTasks ?? 0
@@ -66,6 +68,17 @@ export default function Workspace({ children }: { children: ReactNode }) {
   const work = [
     { href: '/', label: t('نظرة عامة'), icon: LayoutDashboard, badge: 0 },
     { href: '/my-tasks', label: t('مهامي'), icon: ListChecks, badge: openTasks },
+    // /dashboards opens the first dashboard the viewer may see; it links to the others (ADR 046).
+    ...(page.props.dashboards?.length
+      ? [
+          {
+            href: '/dashboards',
+            label: t('لوحات المؤشرات'),
+            icon: ChartColumn,
+            badge: 0,
+          },
+        ]
+      : []),
     ...(page.props.canImport
       ? [{ href: '/imports', label: t('الاستيراد'), icon: FileUp, badge: 0 }]
       : []),
