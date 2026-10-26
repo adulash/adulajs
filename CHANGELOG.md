@@ -17,7 +17,8 @@ as scalars.
 * Server export: `ResourceService.export()` and `GET /resources/:resource/export`
   (also under `/api/v1`) write a CSV of the whole filtered set. It uses the list's
   authorization, keeps only the fields the user may read, shows display values and
-  guards against spreadsheet formulas. Above `EXPORT_ROW_LIMIT` (5000) rows it answers
+  guards against spreadsheet formulas (= + - @, also after
+  spaces and in full-width forms, and a leading tab or CR). Above `EXPORT_ROW_LIMIT` (5000) rows it answers
   422 `E_EXPORT_LIMIT`. Each export is written to the activity log (`core.exports`).
 * Bulk actions: `BulkActions` and `defineBulkActions()`, served by
   `GET`/`POST /resources/:resource/bulk`. Built-in actions are delete, restore, submit

@@ -1,3 +1,4 @@
+import { subject } from '@casl/ability'
 import type { Knex } from 'knex'
 import type { ResourceRegistry } from '../resource/registry.js'
 import type { Label, RecordData, Resource } from '../resource/types.js'
@@ -211,19 +212,25 @@ export class BulkActions {
     // Read and write under one row lock, so a concurrent edit between reading the stored
     // values and saving them cannot be overwritten. Authorization stays in save().
     return this.resources.transaction(async (trx: Knex.Transaction) => {
+      // Authorize the row (organization scope and update conditions) before locking it, so
+      // an actor cannot hold locks on records outside their reach.
+      await this.resources.access(name, id, actor, 'update', trx)
       const row = await trx(name).where({ id }).whereNull('deleted_at').forUpdate().first()
       const stored = row ? fromRow(row, resource) : {}
-      // The edit form resubmits the stored values the actor may write; the action's
-      // values replace their fields, so validation sees a complete record.
+      const after = { ...stored, ...definition.values }
+      // The edit form resubmits the stored values the actor may write on this record (the
+      // same per-record checks save() applies); the action's values replace their fields,
+      // so validation sees a complete record. Attachments resend their stored id, which
+      // save() treats as unchanged.
       const input: RecordData = {}
       for (const key of resource.form) {
         const field = resource.fields[key]
         if (
           field.type === 'hasMany' ||
-          field.type === 'attachment' ||
           field.sequence ||
           !(key in stored) ||
-          !ability.can('update', name, key) ||
+          !ability.can('update', subject(name, stored), key) ||
+          !ability.can('update', subject(name, after), key) ||
           actor.permissionLevel < fieldLevel(resource, key)
         )
           continue

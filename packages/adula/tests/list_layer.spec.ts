@@ -8,7 +8,8 @@ import {
   defineDashboard,
 } from '../index.js'
 import type { Actor, RecordData } from '../index.js'
-import { ResourceRegistry } from '../index.js'
+import { AdulaError, ResourceRegistry } from '../index.js'
+import { csvCell } from '../src/admin/resource/export.js'
 import { admin, customer, db } from './helpers.js'
 import { failure } from './helpers/failure.js'
 import { clerk, item, listRegistry, setupListItems } from './helpers/list_items.js'
@@ -490,6 +491,118 @@ test.group('Bulk action row failures and locking (ADR 046)', (group) => {
     const row = await db('list_items').where('id', beta).first()
     assert.equal(row.title, 'Beta edited')
     assert.isTrue(row.active)
+  })
+})
+
+test.group('Bulk resubmission, row locks and CSV guard (ADR 046 review)', (group) => {
+  group.setup(async () => {
+    await setupListItems()
+    // An attachment the validator requires, like a required file on a real form.
+    await db.raw('ALTER TABLE list_items ADD COLUMN doc integer')
+    await db('list_items').update({ doc: 4242 })
+  })
+  const withDoc = {
+    ...item,
+    fields: {
+      ...item.fields,
+      doc: { type: 'attachment' as const, label: { ar: 'المستند', en: 'Document' } },
+    },
+    form: [...item.form, 'doc'],
+    validator: {
+      validate: async (data: RecordData) => {
+        if (data.doc === undefined || data.doc === null)
+          throw new AdulaError(422, 'E_REQUIRED', 'Required field: doc')
+        return data
+      },
+    },
+  }
+  const registry = new ResourceRegistry().register([
+    { name: 'customers', label: customer.label, dependsOn: [], resources: [customer] },
+    { name: 'lists', label: item.label, dependsOn: ['customers'], resources: [withDoc] },
+  ])
+  const bulk = () =>
+    new BulkActions(registry, new ResourceService(db, registry), [
+      defineBulkActions('list_items', [
+        { key: 'activate', label: { ar: 'تفعيل' }, values: { active: true } },
+      ]),
+    ])
+  // May update title, active and doc everywhere in scope, but qty only on own records.
+  const owner = () =>
+    clerk({
+      rules: [
+        { subject: 'list_items', action: 'view' },
+        { subject: 'list_items', action: 'update', fields: ['title', 'active', 'doc'] },
+        { subject: 'list_items', action: 'update', fields: ['qty'], conditions: { ownerId: 2 } },
+        { subject: 'customers', action: 'view' },
+      ],
+    })
+
+  test('stored values are resent only where the actor may write them on that record', async ({
+    assert,
+  }) => {
+    const alpha = await id('Alpha') // owned by user 1: qty is not writable here
+    const beta = await id('Beta') // owned by user 2: qty is writable
+    const result = await bulk().run('list_items', owner(), {
+      action: 'activate',
+      ids: [alpha, beta],
+      versions: { [alpha]: 1, [beta]: 1 },
+    })
+    assert.deepEqual(result.failed, [])
+    assert.deepEqual(result.succeeded, [alpha, beta])
+    const rows = await db('list_items').whereIn('id', [alpha, beta]).orderBy('id')
+    assert.deepEqual(
+      rows.map((row) => [row.active, row.qty, row.doc]),
+      [
+        [true, 5, 4242],
+        [true, 10, 4242],
+      ]
+    )
+  })
+
+  test('rows outside the actor scope fail without being locked', async ({ assert }) => {
+    const delta = await id('Delta') // unit 1.3, outside the clerk's 1.2
+    const holder = await db.transaction()
+    try {
+      await holder('list_items').where('id', delta).forUpdate()
+      const outcome = await Promise.race([
+        bulk().run('list_items', owner(), {
+          action: 'activate',
+          ids: [delta],
+          versions: { [delta]: 1 },
+        }),
+        new Promise<'blocked'>((resolve) => setTimeout(() => resolve('blocked'), 3000)),
+      ])
+      assert.notEqual(outcome, 'blocked')
+      if (outcome !== 'blocked')
+        assert.deepEqual(
+          outcome.failed.map((entry) => [entry.id, entry.code]),
+          [[delta, 'E_NOT_FOUND']]
+        )
+    } finally {
+      await holder.rollback()
+    }
+    const row = await db('list_items').where('id', delta).first()
+    assert.isNull(row.active)
+  })
+
+  test('formula text is neutralised after spaces and in full-width forms', async ({ assert }) => {
+    const titles = [' =1+1', '\t@SUM(A1)', '＝cmd', '＋1', '－1', '＠x', '\r=1', 'plain - text']
+    for (const title of titles)
+      await db('list_items').insert({
+        title,
+        org_unit_id: 2,
+        created_by: 1,
+        updated_by: 1,
+        version: 1,
+      })
+    const file = await service().export('list_items', admin, {
+      filters: { title: { in: titles } },
+    })
+    for (const title of titles.slice(0, -1))
+      assert.include(file.content, `"'${title}"`, `guarded: ${JSON.stringify(title)}`)
+    assert.include(file.content, '"plain - text"')
+    assert.equal(csvCell('-5', false), '"-5"')
+    assert.equal(csvCell('  -5', true), `"'  -5"`)
   })
 })
 
