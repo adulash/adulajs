@@ -17,6 +17,7 @@ import {
 import { Label } from '~/components/ui/label'
 import { useMessages } from '~/components/ui/messages'
 import { inputValue, isAttachment, parseValue } from '~/components/ui/resource-value'
+import { hiddenFields, listInput } from '~/components/ui/field_values'
 
 type Failure = { message: string; conflict: boolean }
 type RowErrors = Record<string, Record<string, Record<string, string>>>
@@ -84,6 +85,26 @@ export function ResourceForm({
   const [rowErrors, setRowErrors] = useState<RowErrors>({})
   const [sectionErrors, setSectionErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
+  const multiValued = new Set(
+    editor.fields
+      .filter((field) => field.type === 'multiSelect' || field.type === 'manyToMany')
+      .map((field) => field.key)
+  )
+  // visibleWhen reads the live form values; siblings outside the form keep their stored
+  // value. A field whose sibling is hidden is evaluated with that sibling empty.
+  const current = { ...values }
+  for (const field of scalar)
+    for (const key of Object.keys(field.visibleWhen ?? {}))
+      if (!(key in current)) {
+        const stored = editor.record?.[key] ?? editor.defaults?.[key]
+        current[key] = Array.isArray(stored)
+          ? listInput(stored)
+          : stored === null || stored === undefined
+            ? ''
+            : String(stored)
+      }
+  const hidden = hiddenFields(scalar, current)
+  const applies = (field: Field) => !hidden.has(field.key)
 
   const inlinePayload = (field: Field, collected: RowErrors) => {
     const definition = editor.inline[field.key]
@@ -99,8 +120,10 @@ export function ResourceForm({
           : (definition.updateFields[String(row.id)] ?? [])
       const entry: Record<string, unknown> =
         row.id === undefined ? {} : { id: row.id, version: row.version }
+      // A child field whose visibleWhen does not hold in its row is hidden and not submitted.
+      const rowHidden = hiddenFields(definition.fields, row.values)
       for (const child of definition.fields) {
-        if (!allowed.includes(child.key)) continue
+        if (!allowed.includes(child.key) || rowHidden.has(child.key)) continue
         const raw = row.values[child.key] ?? ''
         if (raw === '' && !child.required && row.id === undefined) continue
         try {
@@ -164,13 +187,19 @@ export function ResourceForm({
         if (inline) payload[field.key] = inline
         continue
       }
+      // A field whose visibleWhen does not hold is hidden and not submitted; the server
+      // stores null for it whatever was typed before it was hidden.
+      if (!applies(field)) continue
       const raw = values[field.key] ?? ''
+      const multiple = multiValued.has(field.key)
       // Updates submit the whole form: the resource validator checks the submitted
       // document, and `version` — not a partial payload — protects concurrent edits.
-      if (editor.mode === 'create' && raw === '' && !field.required) continue
+      // A cleared multi-value field is still submitted so its declared default is not applied.
+      if (editor.mode === 'create' && raw === '' && !field.required && !multiple) continue
       try {
         const parsed = parseValue(field, raw)
-        if (parsed === null && field.required) throw new Error('هذا الحقل مطلوب')
+        const empty = parsed === null || (Array.isArray(parsed) && parsed.length === 0)
+        if (empty && field.required) throw new Error('هذا الحقل مطلوب')
         payload[field.key] = parsed
       } catch (error) {
         fieldErrors[field.key] = t((error as Error).message)
@@ -272,7 +301,7 @@ export function ResourceForm({
               />
             </div>
           )}
-          {scalar.map((field) => {
+          {scalar.filter(applies).map((field) => {
             const stored = editor.record?.[field.key]
             return (
               <ResourceField
@@ -288,7 +317,7 @@ export function ResourceForm({
                 attachment={field.type === 'attachment' && isAttachment(stored) ? stored : null}
                 onChange={(value) => setValues((current) => ({ ...current, [field.key]: value }))}
                 relation={
-                  field.type === 'belongsTo'
+                  field.type === 'belongsTo' || field.type === 'manyToMany'
                     ? {
                         url: `${base}/options/${field.key}${editor.record ? `?id=${editor.record.id}` : ''}`,
                         searchable: editor.relationSearch[field.key] ?? false,

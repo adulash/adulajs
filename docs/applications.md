@@ -39,7 +39,8 @@ The command creates:
   default roles, `<name>_manager` (view, create, update, delete) and `<name>_user` (view,
   create, and update only the records the user created).
 - One example resource named after the application, generated like `adula:resource`:
-  definition, migration, model, validator, factory and its security contract test.
+  definition, create-migration and its security contract test. Validation, columns and
+  forms derive from the definition; no validator, model or factory is written.
 - The empty module folders (`models`, `resources`, `validators`, `migrations`, `workflows` …).
 - A smoke test, `tests/functional/<name>/smoke.spec.ts`, that opens the resource list as an
   administrator and checks the application's menu group.
@@ -47,9 +48,10 @@ The command creates:
 
 Then:
 
-1. Fill the example resource (fields, list, form) and run
-   `node ace adula:resource:snapshot <name>` to refresh its pending migration.
-2. `node ace migration:run`.
+1. `node ace migration:run`.
+2. Fill the example resource (fields, list, form; see [resource definitions](resources.md)),
+   then `node ace adula:resource:migration <name>` and `node ace migration:run` again to add
+   the new columns. Update the contract fixture in `tests/functional/<name>.spec.ts`.
 3. `node ace adula:install` creates the default roles and lookup values that are missing. It
    never changes a role or lookup row that already exists, so administrators own them after
    installation.

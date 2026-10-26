@@ -150,7 +150,7 @@ export default defineResource({
 
   scoped: true,          // إلزامي: true = org_unit_id + نطاق الشجرة تلقائياً
   submittable: true,     // doc_status + amended_from_id + حدث submitted
-  // اختيارية بقيم افتراضية: version (true إن submittable)، search (true إن وُجد searchable)، customFields (false)
+  // اختيارية بقيم افتراضية: version (true إن submittable)، search (true إن وُجد searchable). أُزيل خيار customFields في المرحلة 3 (لم يقرأ عمود custom_fields أو يكتبه شيء)
 
   fields: {
     number:     { type: 'string',    label: { ar: 'رقم الطلب', en: 'Number' }, sequence: 'ORD', unique: true },
@@ -185,7 +185,7 @@ export default defineResource({
 **الأعمدة القياسية (يولّدها الأمر ولا تُكتب يدوياً):**
 
 - إلزامية (7): `id`, `org_unit_id` (إن scoped), `created_by`, `updated_by`, `created_at`, `updated_at`, `deleted_at`.
-- اختيارية بافتراضات: `version` (تلقائي للـ submittable؛ 409 عند التعارض)، `search_vector` (tsvector + GIN فقط إن وُجد حقل searchable)، `custom_fields` (JSONB عند `customFields: true` فقط)، `doc_status` و`amended_from_id` (للـ submittable).
+- اختيارية بافتراضات: `version` (تلقائي للـ submittable؛ 409 عند التعارض)، `search_vector` (tsvector + GIN فقط إن وُجد حقل searchable)، `doc_status` و`amended_from_id` (للـ submittable). أُزيل `custom_fields` (JSONB عند `customFields: true`) في المرحلة 3 لأنه بلا واجهة ولا مستهلك؛ يبقى العمود كما هو في التطبيقات التي أنشأته.
 - الفهارس المولَّدة: كل مفتاح أجنبي، `(org_unit_id, deleted_at)` مركّب، تفرد جزئي `where deleted_at is null`، GiST على path، GIN على search_vector.
 - سياسة المفاتيح الأجنبية: `restrict` افتراضياً؛ `cascade` داخل الوحدة نفسها فقط.
 

@@ -56,8 +56,10 @@ import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover
 import {
   csvCell,
   displayValue,
+  fieldOptions,
   parseValue,
   relationLabel,
+  toLatinDigits,
   type LookupOptions,
   type Option,
 } from '~/components/ui/resource-value'
@@ -81,7 +83,7 @@ export function DataTable({
   savedViews?: SavedView[]
 }) {
   const { calendar } = useUiPreferences()
-  const { t, label } = useMessages()
+  const { t, label, locale } = useMessages()
   const { url } = usePage()
   const query = new URL(url, 'http://localhost').searchParams
   const [search, setSearch] = useState(query.get('search') ?? '')
@@ -158,7 +160,7 @@ export function DataTable({
     const content = [
       fields.map((field) => label(field.label)),
       ...result.data.map((row) =>
-        fields.map((field) => displayValue(field, row, related, lookups, calendar, t))
+        fields.map((field) => displayValue(field, row, related, lookups, calendar, t, locale))
       ),
     ]
     const href = URL.createObjectURL(
@@ -669,9 +671,11 @@ function Cell({
   lookups: LookupOptions
 }) {
   const { calendar } = useUiPreferences()
-  const { t } = useMessages()
-  const text = displayValue(field, row, related, lookups, calendar, t)
-  const numeric = ['money', 'integer', 'date', 'datetime'].includes(field.type)
+  const { t, locale } = useMessages()
+  const text = displayValue(field, row, related, lookups, calendar, t, locale)
+  const numeric = ['money', 'integer', 'decimal', 'percent', 'date', 'datetime'].includes(
+    field.type
+  )
   return (
     <td
       className={`max-w-[280px] truncate px-5 ${numeric ? 'tabular-nums' : ''}`}
@@ -702,7 +706,7 @@ function Filter({
   related?: SerializedRecord[]
   onApply: (value: string | undefined) => void
 }): ReactNode {
-  const { t, label } = useMessages()
+  const { t, label, locale } = useMessages()
   const [draft, setDraft] = useState(value)
   const id = `filter-${field.key}`
   const select = (choices: Option[]) => (
@@ -720,12 +724,14 @@ function Filter({
       {label(field.label)}
       {field.type === 'lookup' ? (
         select(options ?? [])
+      ) : field.type === 'enum' || field.type === 'multiSelect' ? (
+        select(fieldOptions(field, locale))
       ) : field.type === 'boolean' ? (
         select([
           { value: 'true', label: t('نعم') },
           { value: 'false', label: t('لا') },
         ])
-      ) : field.type === 'belongsTo' || field.type === 'user' ? (
+      ) : field.type === 'belongsTo' || field.type === 'user' || field.type === 'manyToMany' ? (
         <RelationFilter
           resource={resource}
           field={field}
@@ -761,7 +767,9 @@ function Filter({
           onKeyDown={(event) => {
             if (event.key === 'Enter') {
               event.preventDefault()
-              onApply(draft || undefined)
+              // Numbers typed with Arabic-Indic digits or the Arabic separator filter as Latin.
+              const numeric = ['decimal', 'percent', 'integer'].includes(field.type)
+              onApply((numeric ? toLatinDigits(draft) : draft) || undefined)
             }
           }}
         />
@@ -782,7 +790,7 @@ function RelationFilter({
   onApply,
 }: {
   resource: string
-  field: ResourceField & { type: 'belongsTo' | 'user' }
+  field: ResourceField & { type: 'belongsTo' | 'user' | 'manyToMany' }
   value: string
   /** Related rows already loaded with the list; they label the active filter after a reload. */
   related?: SerializedRecord[]

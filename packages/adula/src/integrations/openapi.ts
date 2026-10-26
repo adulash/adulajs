@@ -23,6 +23,33 @@ function fieldSchema(field: Field, mode: 'read' | 'write', registry: ResourceReg
       return { type: 'string', format: 'date-time', description }
     case 'json':
       return { description }
+    case 'decimal':
+    case 'percent':
+      return {
+        type: 'string',
+        pattern: '^-?\\d+(\\.\\d+)?$',
+        description: `${description} (decimal string)`,
+      }
+    case 'enum':
+      return { type: 'string', enum: field.options.map((option) => option.value), description }
+    case 'multiSelect':
+      return {
+        type: 'array',
+        uniqueItems: true,
+        items: { type: 'string', enum: field.options.map((option) => option.value) },
+        description,
+      }
+    case 'manyToMany':
+      return {
+        type: 'array',
+        uniqueItems: true,
+        items: { type: 'integer' },
+        description: `${description} → ${field.resource} ids`,
+      }
+    case 'email':
+      return { type: 'string', format: 'email', description }
+    case 'url':
+      return { type: 'string', format: 'uri', description }
     case 'belongsTo':
       return { type: 'integer', description: `${description} → ${field.resource}` }
     case 'user':

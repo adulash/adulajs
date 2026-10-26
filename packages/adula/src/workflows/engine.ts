@@ -9,6 +9,7 @@ import type { Assignments } from '../collaboration/assignments.js'
 import { canView, resourceLabel, type ActorLoader } from '../collaboration/shared.js'
 import { AdulaError } from '../admin/errors.js'
 import { fromRow } from '../admin/contracts.js'
+import { withLinks } from '../admin/resource/shared.js'
 import { recordMutation } from '../events/record_mutation.js'
 import { notifyWithTemplate } from '../core/message_templates.js'
 import {
@@ -712,8 +713,10 @@ export class WorkflowEngine {
     const resource = this.registry.get(run.resource)
     const row = await trx(resource.name).where('id', run.record_id).first()
     if (!row) throw new StepFailure('The workflow record no longer exists')
+    // manyToMany links are not columns; steps see them like any other value.
+    const [record] = await withLinks(trx, resource, [fromRow(row, resource)])
     return {
-      record: fromRow(row, resource),
+      record,
       run: {
         id: String(run.id),
         resource: String(run.resource),

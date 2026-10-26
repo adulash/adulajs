@@ -80,7 +80,9 @@ function matrixFields(resource: Resource): MatrixField[] {
     key,
     label: field.label,
     type: field.type,
-    conditionable: !['hasMany', 'json', 'attachment'].includes(field.type),
+    conditionable: !['hasMany', 'manyToMany', 'multiSelect', 'json', 'attachment'].includes(
+      field.type
+    ),
     ...(field.type === 'user' ? { actor: true } : {}),
   }))
 }

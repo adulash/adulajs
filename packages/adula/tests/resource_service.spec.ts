@@ -250,7 +250,8 @@ test.group('Transactional resource service', (group) => {
     const record = await service.save('customers', admin, { name: 'شركة الاختبار' })
     await assert.rejects(
       () => service.save('customers', admin, { name: 'شركة الاختبار' }),
-      /unique/
+      // The unique violation is reported as E_DUPLICATE naming the field (ADR 045).
+      'هذه القيمة مستخدمة في سجل آخر: الاسم'
     )
     await service.transition('customers', Number(record.id), admin, 'delete')
     const replacement = await service.save('customers', admin, { name: 'شركة الاختبار' })

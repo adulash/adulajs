@@ -16,8 +16,19 @@ test.group('Resource generator', () => {
       '// adula:imports\nexport const modules = [/* adula:modules */]\n'
     )
     const files = await generateResource(root, 'samples', 'examples')
-    assert.lengthOf(files, 6)
+    // The definition is the source of truth: no validator, model or factory by default (ADR 045).
+    assert.sameMembers(
+      files.map((file) => file.replace(/\d+_create/, 'N_create')),
+      [
+        'app/modules/examples/resources/samples.ts',
+        'app/modules/examples/migrations/N_create_samples.ts',
+        'tests/functional/samples.spec.ts',
+      ]
+    )
     for (const file of files) await access(join(root, file))
+    const resource = await readFile(join(root, 'app/modules/examples/resources/samples.ts'), 'utf8')
+    assert.notInclude(resource, 'validator')
+    assert.notInclude(resource, 'model')
     const module = await readFile(join(root, 'app/modules/examples/module.ts'), 'utf8')
     assert.include(module, "import resource_samples from './resources/samples.js'")
     assert.include(
@@ -36,6 +47,28 @@ test.group('Resource generator', () => {
     )
     assert.equal(await readFile(join(root, 'app/modules/examples/module.ts'), 'utf8'), module)
     await assert.rejects(() => generateResource(root, '../escape', 'examples'), /Unsafe/)
+  })
+  test('writes a validator, model and factory only when asked', async ({ assert }) => {
+    const root = await mkdtemp(join(tmpdir(), 'adula-generator-'))
+    await mkdir(join(root, 'start'))
+    await writeFile(
+      join(root, 'start/modules.ts'),
+      '// adula:imports\nexport const modules = [/* adula:modules */]\n'
+    )
+    const files = await generateResource(root, 'samples', 'examples', {
+      validator: true,
+      model: true,
+    })
+    for (const file of [
+      'app/modules/examples/validators/samples.ts',
+      'app/modules/examples/models/samples.ts',
+      'app/modules/examples/factories/samples.ts',
+    ])
+      assert.include(files, file)
+    const resource = await readFile(join(root, 'app/modules/examples/resources/samples.ts'), 'utf8')
+    assert.include(resource, "import { validator } from '#modules/examples/validators/samples'")
+    assert.include(resource, 'model: Model,')
+    assert.include(resource, 'validator,')
   })
   test('appends to populated arrays and accepts SQL names that are JS keywords', async ({
     assert,

@@ -45,6 +45,21 @@ test.group('CSV import batches', (group) => {
     )
   })
 
+  test('decimal cells accept thousands grouping but never a comma as the decimal point', ({
+    assert,
+  }) => {
+    const lookups = new Map<string, string>()
+    const rate = { type: 'decimal', label: { ar: 'السعر' } } as const
+    assert.equal(importCell(rate, '1,234.5', lookups), '1234.5')
+    assert.equal(importCell(rate, '12,345,678.25', lookups), '12345678.25')
+    assert.equal(importCell(rate, '١٢٫٥', lookups), '12.5')
+    assert.equal(importCell(rate, '١٬٢٣٤٫٥', lookups), '1234.5')
+    assert.equal(importCell({ type: 'percent', label: rate.label }, '12.5 %', lookups), '12.5')
+    // "12,5" is 12.5 in a comma-decimal locale and 125 with grouping: refused, never guessed.
+    for (const cell of ['12,5', '1,23', '1,2345.5', ',5', '1.2.3', 'abc'])
+      assert.throws(() => importCell(rate, cell, lookups), /رقم عشري غير صالح/, cell)
+  })
+
   test('maps columns, imports valid rows and reports the failed ones by line', async ({
     assert,
   }) => {

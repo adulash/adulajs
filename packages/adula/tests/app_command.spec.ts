@@ -149,13 +149,13 @@ test.group('adula:app', () => {
     for (const file of [
       'app/modules/leave_requests/module.ts',
       'app/modules/leave_requests/resources/leave_requests.ts',
-      'app/modules/leave_requests/models/leave_requests.ts',
-      'app/modules/leave_requests/validators/leave_requests.ts',
-      'app/modules/leave_requests/factories/leave_requests.ts',
       'tests/functional/leave_requests.spec.ts',
       'tests/functional/leave_requests/smoke.spec.ts',
     ])
       assert.include(files, file)
+    // The definition derives validation; no validator, model or factory is scaffolded (ADR 045).
+    for (const folder of ['models', 'validators', 'factories'])
+      assert.notInclude(files, `app/modules/leave_requests/${folder}/leave_requests.ts`)
     assert.isTrue(files.some((file) => /migrations\/\d+_create_leave_requests\.ts$/.test(file)))
 
     await writeAppPlan(root, plan)

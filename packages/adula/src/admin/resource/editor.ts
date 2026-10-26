@@ -7,6 +7,7 @@ import { fromRow, serialize } from '../contracts.js'
 import { AdulaError, documentLocked, forbiddenField, invalidCursor } from '../errors.js'
 import { fieldValue } from '../../resource/values.js'
 import { escapeLike } from '../../core/like.js'
+import { labelText } from '../../languages/catalog.js'
 import type { ResourceField } from '../presentation.js'
 import {
   authorizeAction,
@@ -103,9 +104,12 @@ export async function editor(
           : []
       const records = rows.slice(0, 100).map((row) => fromRow(row, child))
       const hydratedRows = await hydrate(db, child, records)
+      // Inline rows do not edit many-to-many links: rows load without them, and an
+      // inline payload's manyToMany keys are ignored (write.ts writeInlineRows).
       const childFields = child.form.filter(
         (key) =>
           key !== field.foreignKey &&
+          child.fields[key].type !== 'manyToMany' &&
           !child.fields[key].sequence &&
           actor.permissionLevel >= fieldLevel(child, key)
       )
@@ -140,7 +144,12 @@ export async function editor(
         .orderBy('id')
         .select('key', 'label_ar')
       options[field.key] = lookups.map((row) => ({ value: row.key, label: row.label_ar }))
-    } else if (field.type === 'belongsTo') {
+    } else if (field.type === 'enum' || field.type === 'multiSelect') {
+      options[field.key] = field.options.map((option) => ({
+        value: option.value,
+        label: labelText(option.label),
+      }))
+    } else if (field.type === 'belongsTo' || field.type === 'manyToMany') {
       const target = registry.get(field.resource)
       if (ability.can('view', target.name)) {
         relationSearch[field.key] = describe(ctx, target.name, actor).searchable
@@ -150,12 +159,15 @@ export async function editor(
           value: String(row.id),
           label: title(row) ?? `#${row.id}`,
         }))
-        const selected = record?.[field.key]
-        if (
-          selected !== null &&
-          selected !== undefined &&
-          !options[field.key].some((option) => option.value === String(selected))
-        ) {
+        const value = record?.[field.key]
+        // Current values outside the first page keep a labelled choice when still viewable.
+        for (const selected of Array.isArray(value) ? value : [value]) {
+          if (
+            selected === null ||
+            selected === undefined ||
+            options[field.key].some((option) => option.value === String(selected))
+          )
+            continue
           try {
             const current = await show(ctx, target.name, Number(selected), actor)
             options[field.key].push({
@@ -198,6 +210,13 @@ export async function editor(
     if (current) units.push(current)
   }
   const defaults: SerializedRecord = {}
+  // Declared field defaults prefill a create form; requested defaults below override them.
+  if (id === undefined)
+    for (const field of fields)
+      if (field.default !== undefined && field.default !== null)
+        defaults[field.key] = Array.isArray(field.default)
+          ? [...(field.default as string[])]
+          : (field.default as string | number | boolean)
   const requested = request.defaults
   if (id === undefined && requested && typeof requested === 'object')
     for (const field of fields) {
@@ -277,7 +296,8 @@ export async function relationOptions(
     return userOptions(ctx, name, key, actor, options)
   const form = await editor(ctx, name, actor, options.id)
   const field = form.fields.find((entry) => entry.key === key)
-  if (!field || field.type !== 'belongsTo') throw forbiddenField('ليس لديك صلاحية لهذا الحقل')
+  if (!field || (field.type !== 'belongsTo' && field.type !== 'manyToMany'))
+    throw forbiddenField('ليس لديك صلاحية لهذا الحقل')
   const target = ctx.registry.get(field.resource)
   const page = await list(ctx, target.name, actor, {
     search: options.search,

@@ -19,6 +19,7 @@ import {
   hydrateOne,
   requireRecord,
   type ResourceContext,
+  withLinks,
 } from './shared.js'
 
 /** The parent record an inline write belongs to, with the action taken on that parent. */
@@ -143,7 +144,8 @@ export async function transition(
       values.doc_status = action === 'submit' ? 1 : 2
     }
     const [row] = await trx(name).where({ id }).update(values).returning('*')
-    const saved = fromRow(row, resource)
+    // manyToMany links are not columns; the response carries them like show().
+    const [saved] = await withLinks(trx, resource, [fromRow(row, resource)])
     await audit(ctx, trx, resource, actor, action, saved, [])
     return serialize(resource, await hydrateOne(trx, resource, saved), ability, actor)
   }
