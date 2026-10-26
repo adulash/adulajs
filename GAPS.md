@@ -15,13 +15,15 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
 
 ## Lists and data
 
-* List filters are equality only (plus search and tags); range, `in` and condition filters
-  exist in `aggregate()` but not in lists.
-* CSV export runs in the browser and contains only the rows already loaded.
-* No bulk actions on selected rows.
-* No dashboards or charts, although `ResourceService.aggregate()` and its HTTP endpoint
-  provide grouped counts and sums.
-* Soft delete has no restore (undelete) operation or screen.
+* Exports above 5000 rows are refused; there is no background export job yet.
+* Restore follows the delete permission; there is no separate restore permission.
+* Restore clears `deleted_at` only: it runs no validator or hooks and does not re-check
+  related records or lookups. The `restored` event reaches no followers, live updates or
+  webhooks yet.
+* A resource-defined bulk action resubmits the stored form values, so it fails on a row
+  whose lookup became inactive or whose related record the user can no longer view.
+* Dashboards show counts, sums and grouped values as tiles and ranked bars; there are
+  no time-series charts and no dashboard editor (dashboards are defined in code).
 
 ## Notifications, printing and files
 

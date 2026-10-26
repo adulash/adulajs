@@ -6,8 +6,9 @@ import { arabicInterfaceMessages } from './ar_ui.js'
  * text the framework has always produced, so Arabic output stays byte-identical.
  *
  * Sections: validation.* (VineJS rules), errors.* (AdulaError and HTTP error bodies,
- * by error code), flash.* (one-line notices after a redirect), language.* and ui.*
- * (interface strings, see ar_ui.ts).
+ * by error code), flash.* (one-line notices after a redirect), list.* (server-made list
+ * labels: bulk actions, export and dashboard values), language.* and ui.* (interface
+ * strings, see ar_ui.ts).
  */
 export const arabicMessages: Readonly<Record<string, string>> = Object.freeze({
   'validation.required': 'هذا الحقل مطلوب',
@@ -297,5 +298,28 @@ export const arabicMessages: Readonly<Record<string, string>> = Object.freeze({
   'flash.users_controller.9': 'أنت الآن تتصفح باسم المستخدم',
   'flash.users_controller.10': 'عدت إلى حسابك',
   'flash.language.saved': 'تم حفظ لغة الواجهة.',
+  // List layer (ADR 046): export, bulk actions, dashboards and display values.
+  'errors.E_EXPORT_LIMIT':
+    'عدد السجلات المطابقة يتجاوز حد التصدير (5000 سجل). ضيّق التصفية ثم أعد المحاولة.',
+  'errors.E_BULK.1': 'اختر من سجل واحد إلى 100 سجل لتنفيذ الإجراء الجماعي',
+  'errors.E_BULK.2': 'الإجراء الجماعي غير معروف',
+  'errors.E_BULK_ROW': 'تعذر تنفيذ الإجراء على هذا السجل',
+  'errors.E_NOT_FOUND.5': 'لوحة المؤشرات غير موجودة',
+  // Per-row bulk failures whose service message is not catalog text (developer English).
+  'errors.E_DOCUMENT_LOCKED.2': 'المستند معتمد أو ملغى ولا يقبل هذا الإجراء',
+  'errors.E_DOCUMENT_STATE': 'حالة المستند لا تسمح بهذا الإجراء',
+  'list.bulk.delete': 'حذف',
+  'list.bulk.deleteConfirm': 'حذف السجلات المحددة؟ تُنقل إلى المحذوفات ويمكن استعادتها.',
+  'list.bulk.restore': 'استعادة',
+  'list.bulk.submit': 'اعتماد',
+  'list.bulk.submitConfirm': 'اعتماد المستندات المحددة؟ بعد الاعتماد لا يمكن تعديلها.',
+  'list.bulk.cancel': 'إلغاء الاعتماد',
+  'list.bulk.cancelConfirm': 'إلغاء اعتماد المستندات المحددة؟',
+  'list.value.yes': 'نعم',
+  'list.value.no': 'لا',
+  'list.value.none': 'غير محدد',
+  'list.status.0': 'مسودة',
+  'list.status.1': 'معتمد',
+  'list.status.2': 'ملغي',
   ...arabicInterfaceMessages,
 })

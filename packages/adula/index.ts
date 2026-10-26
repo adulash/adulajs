@@ -22,6 +22,33 @@ export { accessibleBy, authorizationSql, conditionSql } from './src/auth/sql.js'
 export { ACTOR_ID, resolveActorConditions } from './src/auth/conditions.js'
 export { ResourceService, canQueryField } from './src/admin/resource_service.js'
 export type { AggregateOptions, AggregateRow, ListOptions } from './src/admin/resource_service.js'
+export { EXPORT_ROW_LIMIT } from './src/admin/resource_service.js'
+export type {
+  CsvExport,
+  ExportOptions,
+  ListFilterScalar,
+  ListFilterValue,
+} from './src/admin/resource_service.js'
+export { BulkActions, defineBulkActions, BULK_ID_LIMIT } from './src/lists/bulk_actions.js'
+export type {
+  BulkActionDefinition,
+  BulkActionOption,
+  BulkActionSet,
+  BulkActionsOptions,
+  BulkFailure,
+  BulkRequest,
+  BulkResult,
+} from './src/lists/bulk_actions.js'
+export { Dashboards, defineDashboard } from './src/lists/dashboards.js'
+export type {
+  DashboardDefinition,
+  DashboardGroupRow,
+  DashboardMeasure,
+  DashboardResult,
+  DashboardSummary,
+  DashboardWidgetDefinition,
+  DashboardWidgetResult,
+} from './src/lists/dashboards.js'
 export { serialize, writableInput, selectedFields } from './src/admin/contracts.js'
 export { AdulaError } from './src/admin/errors.js'
 export {

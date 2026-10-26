@@ -5,12 +5,14 @@ import { buildAbility, type Actor, type AdulaAbility } from '../auth/ability.js'
 import { AdulaError } from '../admin/errors.js'
 import { canQueryField } from '../admin/resource_service.js'
 import { logActivity } from './activity.js'
+import { filterCondition, type ListFilterValue } from '../admin/resource/query.js'
 
 export type SavedViewQuery = {
   search?: string
   sort?: string
   direction?: 'asc' | 'desc'
-  filters?: Record<string, string | number | boolean | null>
+  /** Equality values or the operator objects of ADR 046 ({ in }, { gte, lte }, { empty }). */
+  filters?: Record<string, ListFilterValue>
 }
 export type SavedView = {
   id: number
@@ -195,7 +197,7 @@ export class SavedViews {
     if (input.filters !== undefined && input.filters !== null) {
       if (typeof input.filters !== 'object' || Array.isArray(input.filters))
         return reject('E_VIEW_QUERY', 'تصفية العرض غير صالحة')
-      const filters: Record<string, string | number | boolean | null> = {}
+      const filters: Record<string, ListFilterValue> = {}
       for (const [key, entry] of Object.entries(input.filters as Record<string, unknown>)) {
         if (!resource.fields[key]?.filterable)
           return reject('E_VIEW_QUERY', `حقل التصفية غير مدعوم: ${key}`)
@@ -205,8 +207,16 @@ export class SavedViews {
           typeof entry !== 'string' &&
           typeof entry !== 'number' &&
           typeof entry !== 'boolean'
-        )
-          return reject('E_VIEW_QUERY', `قيمة التصفية غير صالحة: ${key}`)
+        ) {
+          // An operator object is checked exactly as the list will check it.
+          try {
+            filterCondition(key, resource.fields[key], entry)
+          } catch {
+            return reject('E_VIEW_QUERY', `قيمة التصفية غير صالحة: ${key}`)
+          }
+          filters[key] = JSON.parse(JSON.stringify(entry)) as ListFilterValue
+          continue
+        }
         filters[key] = entry
       }
       if (Object.keys(filters).length) query.filters = filters

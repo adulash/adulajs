@@ -33,6 +33,8 @@ export type ResourceView =
       resource: ResourceDescription
       lookups: ResourceLookups
       savedViews: SavedView[]
+      /** `/resources/:name/trash`: the soft-deleted records, offered for restore (ADR 046). */
+      trashed?: boolean
     }
   | { mode: 'form'; editor: ResourceEditor; permissions: RecordPermissions }
   | {
@@ -120,7 +122,13 @@ export function ResourcePage({
   const { t } = useMessages()
   const name = view.mode === 'form' ? view.editor.name : view.resource.name
   const label = view.mode === 'form' ? view.editor.label : view.resource.label
-  const title = view.mode === 'index' ? label : recordTitle(view, t)
+  const trashed = view.mode === 'index' && view.trashed === true
+  const title =
+    view.mode === 'index'
+      ? trashed
+        ? t('المحذوفات · {resource}', { resource: label })
+        : label
+      : recordTitle(view, t)
   const noun = view.mode === 'index' ? view.resource.recordLabel : null
   const createText =
     view.mode === 'index'
@@ -140,10 +148,12 @@ export function ResourcePage({
           <div>
             <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
             <p className="mt-3 text-sm text-muted-foreground">
-              {t('سجلاتك ومتابعتك اليومية في مكان واحد.')}
+              {trashed
+                ? t('السجلات المحذوفة ضمن نطاقك؛ استعد ما تحتاجه منها إلى السجلات النشطة.')
+                : t('سجلاتك ومتابعتك اليومية في مكان واحد.')}
             </p>
           </div>
-          {view.mode === 'index' && view.resource.canCreate && (
+          {view.mode === 'index' && view.resource.canCreate && !trashed && (
             <div className="flex flex-wrap gap-2">
               <ResourceImport resource={name} label={label} />
               <Button asChild>
@@ -160,11 +170,12 @@ export function ResourcePage({
         <>
           {result ? (
             <DataTable
-              key={name}
+              key={`${name}:${trashed ? 'trash' : 'active'}`}
               resource={view.resource}
               result={result}
               lookups={view.lookups}
               savedViews={view.savedViews}
+              trashed={trashed}
             />
           ) : null}
           {overlay && overlayView && overlayId !== undefined && (
@@ -186,14 +197,20 @@ export function ResourcePage({
                 childrenData={childrenData}
                 activity={activity}
                 onSaved={(id) =>
-                  void openRecord(name, id, 'show', { replace: true, changed: true })
+                  void openRecord(name, id, 'show', {
+                    replace: true,
+                    changed: true,
+                  })
                 }
                 onCancel={() => void openRecord(name, overlayId, 'show', { replace: true })}
                 onEdit={() => void openRecord(name, overlayId, 'edit', { replace: true })}
                 onAction={(action) =>
                   action === 'delete'
                     ? closeRecord({ ...overlay, changed: true })
-                    : void openRecord(name, overlayId, 'show', { replace: true, changed: true })
+                    : void openRecord(name, overlayId, 'show', {
+                        replace: true,
+                        changed: true,
+                      })
                 }
               />
             </ResourceSurface>

@@ -1,7 +1,8 @@
 import type { Action, Field } from '../resource/types.js'
 
 export type ResourceField = Field & { key: string }
-export type RecordPermissions = Partial<Record<Action, boolean>>
+/** Per-record permissions; `restore` appears on rows of a trashed list (ADR 046). */
+export type RecordPermissions = Partial<Record<Action | 'restore', boolean>>
 export type ResourceDescription = {
   name: string
   label: string
@@ -16,6 +17,16 @@ export type ResourceDescription = {
   canCreate: boolean
   scoped: boolean
   submittable: boolean
+  /**
+   * Whether the actor may open «المحذوفات» (the trashed list) and restore records: the
+   * resource offers delete and the actor holds it (ADR 046). Optional for compatibility
+   * with descriptions built by older code.
+   */
+  trash?: boolean
+  /** The list can be exported as CSV through GET …/export (ADR 046). */
+  exportable?: boolean
+  /** Whether GET …/bulk may offer any action to this actor; the list decides each action. */
+  bulk?: boolean
 }
 export type ResourceNavigation = {
   name: string

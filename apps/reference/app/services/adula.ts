@@ -1,8 +1,11 @@
 import db from '@adonisjs/lucid/services/db'
+import logger from '@adonisjs/core/services/logger'
 import {
   ActorStore,
   Assignments,
   RecordCollaboration,
+  BulkActions,
+  Dashboards,
   ResourceService,
   SavedViews,
   Webhooks,
@@ -14,6 +17,8 @@ import {
 import env from '#start/env'
 import encryption from '@adonisjs/core/services/encryption'
 import { registry } from '#start/modules'
+import { dashboards } from '#start/dashboards'
+import { bulkActions } from '#start/bulk_actions'
 import cache from '@adonisjs/cache/services/main'
 import type { Actor } from 'adula'
 import type { HttpContext } from '@adonisjs/core/http'
@@ -36,6 +41,11 @@ export function adula() {
     registry,
     resources,
     savedViews: new SavedViews(knex, registry),
+    bulk: new BulkActions(registry, resources, bulkActions, {
+      report: (error, context) =>
+        logger.error({ err: error, ...context }, 'bulk action row failed'),
+    }),
+    dashboards: new Dashboards(knex, registry, resources, dashboards),
     actors,
     collaboration: new RecordCollaboration(knex, resources, actors),
     assignments,

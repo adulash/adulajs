@@ -128,5 +128,30 @@ export default createResourceController(
       childrenData: ctx.inertia.defer(() => details().then((loaded) => loaded.children), 'details'),
       activity: ctx.inertia.defer(() => details().then((loaded) => loaded.activity), 'details'),
     })
+  },
+  // «المحذوفات»: the generic list page in trash mode; override pages are not used here.
+  async (ctx, resource, result) => {
+    const runtime = adula()
+    const actor = await actorOf(ctx)
+    return ctx.inertia.render('resources/page', {
+      view: async () => ({
+        mode: 'index' as const,
+        resource: localizeResource(
+          runtime.resources.describe(resource.name, actor),
+          requestLanguage(ctx)
+        ),
+        lookups: await runtime.resources.lookups(resource.name, actor),
+        savedViews: [],
+        trashed: true,
+      }),
+      result: ctx.inertia
+        .scroll(result, (value) => ({
+          pageName: 'cursor',
+          currentPage: (ctx.request.input('cursor') as string | undefined) ?? null,
+          nextPage: value.meta.nextCursor,
+          previousPage: null,
+        }))
+        .matchOn('id'),
+    })
   }
 )

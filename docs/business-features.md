@@ -92,6 +92,49 @@ accepts `Authorization: Bearer <token>` only (no cookies, no CSRF) and exposes t
 same resource operations with the token owner's current permissions.
 `GET /api/v1/openapi.json` describes the resources and actions the caller may use.
 
+## Lists: filters, export, bulk actions and deleted records
+
+Generic index pages filter each filterable field by its type: «أيٌّ من» (several values)
+for lookups, texts and relations, «من / إلى» for numbers, amounts and dates, and
+«فارغ / غير فارغ» for every field. Saved views keep these filters. The URL form is
+`filters[status][in]=open,closed`, `filters[total][gte]=1000`, `filters[notes][empty]=true`.
+
+«تصدير النتائج» downloads a CSV of every record matching the current search and filters,
+not just the loaded rows, with the columns the user may read. Exports above 5000 rows are
+refused with a request to narrow the filters.
+
+Selecting rows shows a bulk bar with the actions the user may take: delete, submit,
+cancel, restore in «المحذوفات», and actions the application defines in `start/bulk_actions.ts`:
+
+```ts
+defineBulkActions('tasks', [
+  { key: 'markDone', label: { ar: 'تعليم كمنجزة' }, values: { done: true } },
+])
+```
+
+Each selected record is checked separately against the user's permissions; the result
+lists the records that could not be changed and why. Users who may delete a resource see
+«المحذوفات» and can restore deleted records (ADR 046).
+
+## Dashboards
+
+`start/dashboards.ts` declares indicator pages served at `/dashboards/:name`:
+
+```ts
+defineDashboard({
+  name: 'orders_overview',
+  label: { ar: 'لوحة الطلبات' },
+  widgets: [
+    { key: 'orders', label: { ar: 'عدد الطلبات' }, resource: 'orders', measure: 'count' },
+    { key: 'total', label: { ar: 'الإجمالي' }, resource: 'orders', measure: { sum: 'total' } },
+    { key: 'byStatus', label: { ar: 'حسب الحالة' }, resource: 'orders', measure: 'count', groupBy: 'status' },
+  ],
+})
+```
+
+Every number is computed as the viewer through `aggregate()`, within the viewer's scope;
+a widget over data the viewer cannot read is not shown.
+
 ## CSV import
 
 Generic index pages offer "استيراد CSV" to users who may create records. Columns

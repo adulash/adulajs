@@ -2,6 +2,46 @@
 
 ## Unreleased
 
+### List layer
+
+Minor: filter operators, server export, bulk actions, restore and dashboards (ADR 046).
+No migration. Resource definitions need no change. `pnpm check:api` reports some
+existing types as changed: each change is an added optional member or a widened union.
+Code that reads a saved view's filter values must now accept operator objects as well
+as scalars.
+
+* Filter operators for lists, `aggregate()` and saved views:
+  `filters[f][in]=a,b` (1–50 values), `filters[f][gte]` / `filters[f][lte]` (integer,
+  money, date, datetime) and `filters[f][empty]=true|false`. Invalid operands are
+  422 `E_FILTER`, as for equality filters. New types `ListFilterValue` and `ListFilterScalar`.
+* Server export: `ResourceService.export()` and `GET /resources/:resource/export`
+  (also under `/api/v1`) write a CSV of the whole filtered set. It uses the list's
+  authorization, keeps only the fields the user may read, shows display values and
+  guards against spreadsheet formulas. Above `EXPORT_ROW_LIMIT` (5000) rows it answers
+  422 `E_EXPORT_LIMIT`. Each export is written to the activity log (`core.exports`).
+* Bulk actions: `BulkActions` and `defineBulkActions()`, served by
+  `GET`/`POST /resources/:resource/bulk`. Built-in actions are delete, restore, submit
+  and cancel; a defined action is an update with fixed values. Each row runs in its own
+  transaction, with the user's own permissions checked for that row. The response lists
+  the rows that succeeded and the rows that failed, with Arabic messages. At most
+  `BULK_ID_LIMIT` (100) rows per request.
+* Restore: `ResourceService.restore()` and `POST /resources/:resource/:id/restore`.
+  `list(…, { trashed: true })` and `GET /resources/:resource/trash` list deleted
+  records. Both are allowed by the user's delete permission, with its conditions and
+  organization scope applied to the deleted record. Restore writes a `restore` activity
+  and a `<module>.<resource>.restored` event. `describe()` adds `trash`, `exportable`
+  and `bulk`.
+* Dashboards: `defineDashboard()` and `Dashboards` build indicator pages from
+  `aggregate()`, running each widget as the viewer. A widget the viewer cannot read is
+  left out. Grouped values come with display labels. The reference app adds
+  `/dashboards/:name` and a «لوحات المؤشرات» navigation link when dashboards exist.
+* `@adula/ui`: new `list-filters`, `resource-bulk` and `resource-dashboard` items.
+  `data-table` adds operator filters with chips, «تصدير النتائج» (server export),
+  row selection with a bulk bar and confirmation Dialog, and the «المحذوفات» view
+  with «استعادة». Run `node ace adula:ui` to update copied components.
+* Reference consumers (test fixtures, ADR 017): the `orders_overview` dashboard and
+  the tasks `markDone` bulk action.
+
 ### Optional languages
 
 Minor: Arabic stays the base language and every other language is an optional layer

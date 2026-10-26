@@ -316,7 +316,7 @@ test.group('Generic resource browser acceptance', (group) => {
     await page.waitForURL(/\/resources\/customers$/)
   })
 
-  test('sample index: search, sort, filters and CSV export of the loaded rows', async ({
+  test('sample index: search, sort, operator filters, saved views and the server export', async ({
     browserContext,
     visit,
     assert,
@@ -327,13 +327,14 @@ test.group('Generic resource browser acceptance', (group) => {
     await knex()('ui_sample_lines').del()
     await knex()('ui_samples').del()
     const customer = await knex()('customers').where('name', customerName).first('id')
+    const statuses: Record<number, string | null> = { 1: 'open', 2: null, 3: 'closed' }
     for (const quantity of [1, 2, 3])
       await runtime.resources.save('ui_samples', loaded, {
         orgUnitId: admin.orgUnitId,
         title: `عينة الفرز ${quantity} ${stamp}`,
         quantity,
         enabled: quantity === 2,
-        status: quantity === 3 ? 'closed' : 'open',
+        status: statuses[quantity],
         customerId: quantity === 2 ? customer.id : null,
         reviewer: quantity === 1 ? admin.user.id : null,
       })
@@ -346,7 +347,9 @@ test.group('Generic resource browser acceptance', (group) => {
     await page.getByLabel('البحث في عينات الواجهة').press('Enter')
     await page.waitForURL(/search=/)
     await page.assertElementsCount('tbody tr[aria-rowindex]', 1)
-    await page.getByRole('button', { name: 'الكمية' }).click()
+    // The sort control is the column header; the toolbar's «تصفية الكمية» is a separate button.
+    const sortQuantity = page.locator('thead').getByRole('button', { name: 'الكمية', exact: true })
+    await sortQuantity.click()
     await page.waitForURL(/sort=quantity&direction=asc/)
     await page.assertElementsCount('tbody tr[aria-rowindex]', 1)
     await page.goto(
@@ -355,19 +358,35 @@ test.group('Generic resource browser acceptance', (group) => {
         .replace(/[?&]search=[^&]*/, '')
         .replace('ui_samples&', 'ui_samples?')
     )
-    await page.getByRole('button', { name: 'الكمية' }).waitFor()
+    await sortQuantity.waitFor()
     assert.equal(await page.locator('th[aria-sort]').getAttribute('aria-sort'), 'ascending')
+    // The quantity is the first left-to-right (numeric) cell; the selection checkbox comes first.
     const firstQuantity = () =>
-      page.locator('tbody tr[aria-rowindex]').first().locator('td').nth(1).innerText()
+      page.locator('tbody tr[aria-rowindex]').first().locator('td[dir="ltr"]').first().innerText()
     assert.equal(await firstQuantity(), '1')
-    await page.getByRole('button', { name: 'الكمية' }).click()
+    await sortQuantity.click()
     await page.waitForURL(/sort=quantity&direction=desc/)
     assert.equal(await firstQuantity(), '3')
-    // Filters use the registry Select and a searchable relation picker, not native lists (#39).
-    await page.getByRole('combobox', { name: 'الحالة' }).click()
-    await page.getByRole('option', { name: 'مغلق', exact: true }).click()
-    await page.waitForURL(/filters%5Bstatus%5D=closed/)
-    await page.assertElementsCount('tbody tr[aria-rowindex]', 1)
+
+    // Filters are popovers over the operators of ADR 046, composed of registry components (#39).
+    const panel = page.locator('[data-slot="popover-content"]')
+    const openFilter = async (field: string) => {
+      await page.getByRole('button', { name: `تصفية ${field}`, exact: true }).click()
+      await panel.waitFor()
+    }
+    const apply = async () => {
+      await panel.getByRole('button', { name: 'تطبيق', exact: true }).click()
+      await panel.waitFor({ state: 'hidden' })
+    }
+    const chips = page.getByRole('list', { name: 'التصفية المطبقة' })
+    // «أيٌّ من»: several lookup values travel as filters[status][in]=open,closed.
+    await openFilter('الحالة')
+    await panel.getByRole('option', { name: 'مفتوح', exact: true }).click()
+    await panel.getByRole('option', { name: 'مغلق', exact: true }).click()
+    await apply()
+    await page.waitForURL(/filters%5Bstatus%5D%5Bin%5D=open%2Cclosed/)
+    await page.assertElementsCount('tbody tr[aria-rowindex]', 2)
+    await page.assertVisible(chips.getByText('مفتوح، مغلق'))
     // Row actions stay pinned at the inline end of wide tables (#31).
     assert.equal(
       await page.evaluate<string>(
@@ -383,48 +402,114 @@ test.group('Generic resource browser acceptance', (group) => {
     await page.getByRole('dialog', { name: 'تفاصيل · عينات الواجهة' }).waitFor()
     await page.keyboard.press('Escape')
     await page.waitForURL(listUrl)
-    await page.assertElementsCount('tbody tr[aria-rowindex]', 1)
+    await page.assertElementsCount('tbody tr[aria-rowindex]', 2)
     assert.equal(
       await page.evaluate<string>('document.activeElement?.getAttribute("href") ?? ""'),
       record
     )
-    await page.getByRole('combobox', { name: 'مفعل' }).click()
-    await page.getByRole('option', { name: 'نعم', exact: true }).click()
-    await page.waitForURL(/filters%5Benabled%5D=true/)
+    // «فارغ» replaces the field's previous operator: only the sample without a status remains.
+    await openFilter('الحالة')
+    await panel.getByRole('button', { name: 'فارغ', exact: true }).click()
+    await apply()
+    await page.waitForURL(
+      (url) =>
+        url.search.includes('filters%5Bstatus%5D%5Bempty%5D=true') &&
+        !url.search.includes('%5Bin%5D')
+    )
+    await page.assertElementsCount('tbody tr[aria-rowindex]', 1)
+    assert.equal(await firstQuantity(), '2')
+    await openFilter('مفعل')
+    await panel.getByRole('button', { name: 'لا', exact: true }).click()
+    await apply()
+    await page.waitForURL(/filters%5Benabled%5D=false/)
     await page.assertVisible(page.getByText('لا توجد سجلات مطابقة'))
     await page.getByRole('button', { name: 'مسح التصفية' }).click()
     await page.waitForURL((url) => !url.search.includes('filters'))
     await page.assertElementsCount('tbody tr[aria-rowindex]', 3)
-    await page.getByRole('combobox', { name: 'العميل' }).click()
-    await page.getByPlaceholder('ابحث في السجلات المرتبطة').fill(customerName)
-    await page.getByRole('option', { name: customerName, exact: true }).click()
-    await page.waitForURL(new RegExp(`filters%5BcustomerId%5D=${customer.id}`))
-    await page.assertElementsCount('tbody tr[aria-rowindex]', 1)
-    await page.assertVisible(page.getByRole('combobox', { name: 'العميل' }).getByText(customerName))
-    await page.getByRole('combobox', { name: 'العميل' }).click()
-    await page.getByRole('option', { name: 'الكل', exact: true }).click()
+    // «من / إلى»: an inclusive integer range.
+    await openFilter('الكمية')
+    await panel.getByLabel('من', { exact: true }).fill('2')
+    await panel.getByLabel('إلى', { exact: true }).fill('3')
+    await apply()
+    await page.waitForURL(/filters%5Bquantity%5D%5Bgte%5D=2&filters%5Bquantity%5D%5Blte%5D=3/)
+    await page.assertElementsCount('tbody tr[aria-rowindex]', 2)
+    assert.equal(await firstQuantity(), '3')
+    await page.assertVisible(chips.getByText('من 2 إلى 3'))
+    await page.getByRole('button', { name: 'إزالة تصفية الكمية', exact: true }).click()
     await page.waitForURL((url) => !url.search.includes('filters'))
     await page.assertElementsCount('tbody tr[aria-rowindex]', 3)
-    await page.getByRole('combobox', { name: 'المراجع' }).click()
-    await page.getByRole('option', { name: 'مدير الواجهة', exact: true }).click()
+    // Related records are searched on the server and stay labelled by title in the chip.
+    await openFilter('العميل')
+    await panel.getByPlaceholder('ابحث في السجلات المرتبطة').fill(customerName)
+    await panel.getByRole('option', { name: customerName, exact: true }).click()
+    await apply()
+    await page.waitForURL(new RegExp(`filters%5BcustomerId%5D=${customer.id}`))
+    await page.assertElementsCount('tbody tr[aria-rowindex]', 1)
+    await page.assertVisible(chips.getByText(customerName))
+    await page.getByRole('button', { name: 'إزالة تصفية العميل', exact: true }).click()
+    await page.waitForURL((url) => !url.search.includes('filters'))
+    await page.assertElementsCount('tbody tr[aria-rowindex]', 3)
+    await openFilter('المراجع')
+    await panel.getByRole('option', { name: 'مدير الواجهة', exact: true }).click()
+    await apply()
     await page.waitForURL(new RegExp(`filters%5Breviewer%5D=${admin.user.id}`))
     await page.assertElementsCount('tbody tr[aria-rowindex]', 1)
     await page.assertVisible(page.locator('tbody').getByText('مدير الواجهة', { exact: true }))
     await page.getByRole('button', { name: 'مسح التصفية' }).click()
     await page.waitForURL((url) => !url.search.includes('filters'))
     await page.assertElementsCount('tbody tr[aria-rowindex]', 3)
+
+    // A saved view stores the operator object and reapplies it.
+    await openFilter('الكمية')
+    await panel.getByLabel('من', { exact: true }).fill('2')
+    await apply()
+    await page.waitForURL(/filters%5Bquantity%5D%5Bgte%5D=2/)
+    await page.assertElementsCount('tbody tr[aria-rowindex]', 2)
+    const viewName = `نطاق الكمية ${stamp}`
+    await page.getByRole('button', { name: 'حفظ العرض الحالي', exact: true }).click()
+    await page.getByLabel('اسم العرض', { exact: true }).fill(viewName)
+    await page.getByRole('button', { name: 'حفظ', exact: true }).click()
+    await page.getByRole('button', { name: viewName, exact: true }).waitFor()
+    await page.getByRole('button', { name: 'مسح التصفية' }).click()
+    await page.waitForURL((url) => !url.search.includes('filters'))
+    await page.assertElementsCount('tbody tr[aria-rowindex]', 3)
+    await page.getByRole('button', { name: viewName, exact: true }).click()
+    await page.waitForURL(/filters%5Bquantity%5D%5Bgte%5D=2/)
+    await page.assertElementsCount('tbody tr[aria-rowindex]', 2)
+
+    // The server export writes the whole filtered set, beyond the rows loaded into the page.
+    const user = admin.user.id
+    await knex()('ui_samples').insert(
+      Array.from({ length: 101 }, (_, index) => ({
+        org_unit_id: admin.orgUnitId,
+        created_by: user,
+        updated_by: user,
+        title: `عينة التصدير ${String(index + 1).padStart(3, '0')} ${stamp}`,
+        quantity: 10,
+      }))
+    )
+    await page.goto(
+      '/resources/ui_samples?filters%5Bquantity%5D%5Bgte%5D=10&sort=title&direction=asc'
+    )
+    await page.locator('tbody tr[aria-rowindex]').first().waitFor()
+    await page.assertVisible(page.getByRole('button', { name: 'تحميل المزيد', exact: true }))
+    assert.isBelow(await page.locator('tbody tr[aria-rowindex]').count(), 101)
+    assert.equal(await page.getByText(`عينة التصدير 101 ${stamp}`).count(), 0)
     const download = page.waitForEvent('download')
-    await page.getByRole('button', { name: 'تصدير المعروض', exact: true }).click()
+    await page.getByRole('button', { name: 'تصدير النتائج', exact: true }).click()
     const file = await download
-    assert.equal(file.suggestedFilename(), 'عينات الواجهة.csv')
+    assert.match(file.suggestedFilename(), /^عينات الواجهة-\d{4}-\d{2}-\d{2}\.csv$/)
     const chunks: Buffer[] = []
     for await (const chunk of await file.createReadStream()) chunks.push(Buffer.from(chunk))
     const csv = Buffer.concat(chunks).toString('utf8')
     assert.isTrue(
-      csv.startsWith('﻿"العنوان","الكمية","المبلغ","مفعل","اليوم","العميل","الحالة","المراجع"')
+      csv.startsWith('﻿"العنوان","الكمية","المبلغ","مفعل","اليوم","العميل","الحالة","المراجع"\r\n')
     )
-    assert.include(csv, `"عينة الفرز 3 ${stamp}","3"`)
-    assert.include(csv, '"مغلق"')
+    assert.lengthOf(csv.trimEnd().split('\r\n'), 102)
+    // The 101st row was never loaded into the page; the filter left out the other samples.
+    assert.include(csv, `"عينة التصدير 101 ${stamp}","10"`)
+    assert.notInclude(csv, 'عينة الفرز')
+    await knex()('ui_samples').where('title', 'like', 'عينة التصدير %').del()
   })
 
   test('records open over the mounted list; editing switches the same dialog to the details', async ({

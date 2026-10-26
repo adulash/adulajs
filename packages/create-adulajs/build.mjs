@@ -70,6 +70,11 @@ files['database/schema.ts'] =
   `import { BaseModel, column } from '@adonisjs/lucid/orm'\nimport { DateTime } from 'luxon'\n${user}\n`
 files['start/modules.ts'] =
   `import { ResourceRegistry, type Module } from 'adula'\n// adula:imports\nexport const modules: Module[] = [\n  /* adula:modules */\n]\nexport const registry = new ResourceRegistry().register(modules)\n`
+// List-layer definitions (ADR 046) start empty; the reference fixtures stay out of new systems.
+files['start/dashboards.ts'] =
+  `import type { DashboardDefinition } from 'adula'\n// adula:imports\n/** Indicator pages (ADR 046), served at /dashboards/:name; each widget is read as the viewer. */\nexport const dashboards: DashboardDefinition[] = [\n  /* adula:dashboards */\n]\n`
+files['start/bulk_actions.ts'] =
+  `import type { BulkActionSet } from 'adula'\n// adula:imports\n/** Resource-defined bulk actions (ADR 046); delete, restore, submit and cancel are built in. */\nexport const bulkActions: BulkActionSet[] = [\n  /* adula:bulk_actions */\n]\n`
 files['start/listeners.ts'] =
   `import { followerListeners, workflowListeners, type Listener } from 'adula'\nimport { registry } from '#start/modules'\nimport { adula } from '#services/adula'\n\n// Follower notifications for every registered resource; add module listeners below.\nexport const listeners: Listener[] = [\n  ...followerListeners(registry, () => adula().collaboration),\n  ...workflowListeners(registry, () => adula().workflows),\n  {\n    name: 'adula.webhooks',\n    event: '*',\n    handle: (event, trx) => adula().webhooks.listener().handle(event, trx),\n  },\n]\n`
 files['config/database.ts'] = files['config/database.ts']

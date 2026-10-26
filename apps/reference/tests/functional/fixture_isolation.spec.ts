@@ -28,6 +28,9 @@ test.group('Educational fixture isolation', () => {
     const probe = JSON.parse(line!.slice('FIXTURE_PROBE:'.length))
     assert.deepEqual(probe.modules, [])
     assert.deepEqual(probe.resources, [])
+    // Fixture dashboards and bulk actions (ADR 046) stay test-only too.
+    assert.deepEqual(probe.dashboards, [])
+    assert.deepEqual(probe.bulkActions, [])
     // Framework listeners (webhooks, followers) are not example code; none may be educational.
     assert.deepEqual(
       probe.listeners.filter((name: string) => !name.startsWith('adula.')),

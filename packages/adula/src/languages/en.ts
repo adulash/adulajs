@@ -310,5 +310,28 @@ export const englishMessages: Readonly<Record<string, string>> = Object.freeze({
   'flash.users_controller.9': 'You are now browsing as the user',
   'flash.users_controller.10': 'You are back in your account',
   'flash.language.saved': 'Interface language saved.',
+  'errors.E_EXPORT_LIMIT':
+    'The matching records exceed the export limit (5000 records). Narrow the filters and try again.',
+  'errors.E_BULK.1': 'Select between 1 and 100 records for a bulk action',
+  'errors.E_BULK.2': 'Unknown bulk action',
+  'errors.E_BULK_ROW': 'The action could not be completed for this record',
+  'errors.E_NOT_FOUND.5': 'Dashboard not found',
+  'errors.E_DOCUMENT_LOCKED.2':
+    'The document is submitted or cancelled and does not accept this action',
+  'errors.E_DOCUMENT_STATE': 'The document state does not allow this action',
+  'list.bulk.delete': 'Delete',
+  'list.bulk.deleteConfirm':
+    'Delete the selected records? They move to the deleted records and can be restored.',
+  'list.bulk.restore': 'Restore',
+  'list.bulk.submit': 'Submit',
+  'list.bulk.submitConfirm': 'Submit the selected documents? Submitted documents cannot be edited.',
+  'list.bulk.cancel': 'Cancel submission',
+  'list.bulk.cancelConfirm': 'Cancel the submission of the selected documents?',
+  'list.value.yes': 'Yes',
+  'list.value.no': 'No',
+  'list.value.none': 'Not set',
+  'list.status.0': 'Draft',
+  'list.status.1': 'Submitted',
+  'list.status.2': 'Cancelled',
   ...englishInterfaceMessages,
 })

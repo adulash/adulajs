@@ -9,11 +9,21 @@ import * as query from './resource/query.js'
 import * as form from './resource/editor.js'
 import * as write from './resource/write.js'
 import { transition } from './resource/lifecycle.js'
+import { restore } from './resource/trash.js'
+import { exportCsv, type CsvExport, type ExportOptions } from './resource/export.js'
 import type { AggregateOptions, AggregateRow, ListOptions } from './resource/query.js'
 import type { SystemSaveOptions } from './resource/write.js'
 
 export { canQueryField } from './resource/shared.js'
-export type { AggregateOptions, AggregateRow, ListOptions } from './resource/query.js'
+export type {
+  AggregateOptions,
+  AggregateRow,
+  ListOptions,
+  ListFilterScalar,
+  ListFilterValue,
+} from './resource/query.js'
+export { EXPORT_ROW_LIMIT } from './resource/export.js'
+export type { CsvExport, ExportOptions } from './resource/export.js'
 export type { SystemSaveOptions } from './resource/write.js'
 
 /**
@@ -29,6 +39,14 @@ export class ResourceService {
     private registry: ResourceRegistry
   ) {
     this.context = { db, registry }
+  }
+
+  /**
+   * Runs work in one database transaction; pass the transaction to save(), transition(),
+   * restore() or amend() so several reads and writes commit or roll back together.
+   */
+  async transaction<T>(work: (trx: Knex.Transaction) => Promise<T>): Promise<T> {
+    return this.db.transaction(work)
   }
 
   /** The Arabic label of a registered resource, for notifications and titles. */
@@ -203,6 +221,26 @@ export class ResourceService {
     transaction?: Knex.Transaction
   ) {
     return transition(this.context, name, id, actor, action, version, transaction)
+  }
+
+  /**
+   * Restores a soft-deleted record (ADR 046). Authorized by the actor's delete rule: its
+   * conditions and organization scope are evaluated on the deleted record (404 outside
+   * the scope or when the record is not deleted, 403 when a condition refuses). Records a
+   * `restore` activity and a `<module>.<resource>.restored` event.
+   */
+  async restore(name: string, id: number, actor: Actor, transaction?: Knex.Transaction) {
+    return restore(this.context, name, id, actor, transaction)
+  }
+
+  /**
+   * The currently filtered list as CSV (BOM, CRLF), read through list() with the same
+   * authorization, filters, search, tag and sort; columns are the list fields the actor
+   * may read, as display values. Above EXPORT_ROW_LIMIT rows it is 422 E_EXPORT_LIMIT.
+   * Every export is recorded in the activity log (`core.exports`, `exported`).
+   */
+  async export(name: string, actor: Actor, options: ExportOptions = {}): Promise<CsvExport> {
+    return exportCsv(this.context, name, actor, options)
   }
 
   /**
