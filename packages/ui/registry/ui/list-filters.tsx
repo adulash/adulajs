@@ -19,27 +19,37 @@ import { FieldControl } from '~/components/ui/resource-field'
 import { useMessages, type Translate } from '~/components/ui/messages'
 import {
   CURRENCY_LABEL,
+  PERCENT_LABEL,
+  fieldOptions,
   formatDate,
   formatDatetime,
   inputValue,
   moneyDisplay,
+  optionLabel,
   parseValue,
   relationLabel,
   type Option,
 } from '~/components/ui/resource-value'
+import { decimalDisplay, decimalScale } from '~/components/ui/field_values'
 import {
   FILTER_IN_LIMIT,
+  choiceFilter,
   chosenValues,
+  filterAllowed,
   filterMode,
   inclusiveDatetime,
   normalizeFilter,
+  singleChoice,
   type FieldFilter,
 } from '~/components/ui/list_query'
 
 /** Labels of chosen related records, remembered so chips stay readable after a reload. */
 export type FilterLabels = Record<string, Record<string, string>>
 
-/** A bound or value as the user reads it: lookup label, record title, formatted date or amount. */
+/**
+ * A bound or value as the user reads it: lookup or option label, record title, formatted
+ * date, amount, decimal or percent.
+ */
 export function filterValueLabel(
   field: ResourceField,
   value: string,
@@ -49,20 +59,31 @@ export function filterValueLabel(
     labels?: Record<string, string>
     calendar: CalendarPreference
     t: Translate
+    /** The interface language of option labels and number formats; Arabic by default. */
+    language?: string
   }
 ) {
+  const language = context.language ?? 'ar'
   switch (field.type) {
     case 'lookup':
       return context.options?.find((option) => option.value === value)?.label ?? value
+    case 'enum':
+    case 'multiSelect':
+      return optionLabel(field, value, language)
     case 'boolean':
       return value === 'true' ? context.t('نعم') : context.t('لا')
     case 'belongsTo':
-    case 'user': {
+    case 'user':
+    case 'manyToMany': {
       const row = context.related?.find((item) => String(item.id) === value)
       return context.labels?.[value] ?? (row ? relationLabel(row, value) : `#${value}`)
     }
     case 'money':
       return `${moneyDisplay(value)} ${context.t(CURRENCY_LABEL)}`
+    case 'decimal':
+      return decimalDisplay(value, decimalScale(field), language)
+    case 'percent':
+      return `${decimalDisplay(value, decimalScale(field), language)}${context.t(PERCENT_LABEL)}`
     case 'date':
       return formatDate(value, context.calendar)
     case 'datetime':
@@ -94,9 +115,10 @@ export function describeFilter(filter: FieldFilter, value: (raw: string) => stri
 }
 
 /**
- * One field's filter: «أيٌّ من» for lookups, text and related records, «من / إلى» for
- * numbers, amounts and dates, نعم/لا for booleans and «فارغ / غير فارغ» for every field.
- * Changes stay a draft until «تطبيق».
+ * One field's filter: «أيٌّ من» for lookups, options, text and related records, «يحتوي على»
+ * one option or linked record for multiSelect and manyToMany, «من / إلى» for numbers,
+ * amounts, decimals, percents and dates, نعم/لا for booleans and «فارغ / غير فارغ» for
+ * every field. Changes stay a draft until «تطبيق».
  */
 export function FilterControl({
   resource,
@@ -117,7 +139,7 @@ export function FilterControl({
   onRemember?: (choices: Option[]) => void
   onApply: (filter: FieldFilter | null) => void
 }) {
-  const { t, label } = useMessages()
+  const { t, label, locale } = useMessages()
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<FieldFilter | null>(filter ?? null)
   const [error, setError] = useState('')
@@ -129,6 +151,10 @@ export function FilterControl({
     setError('')
     if (next?.op === 'in' && next.values.length > FILTER_IN_LIMIT) {
       setError(t('يمكن اختيار {count} قيمة كحد أقصى.', { count: FILTER_IN_LIMIT }))
+      return
+    }
+    if (next && !filterAllowed(field.type, next)) {
+      setError(t('لا يدعم هذا الحقل هذا النوع من التصفية.'))
       return
     }
     setOpen(false)
@@ -195,17 +221,20 @@ export function FilterControl({
               onChange={(next) => setDraft(next)}
               onError={setError}
             />
-          ) : mode === 'choice' &&
-            (field.type === 'lookup' || field.type === 'belongsTo' || field.type === 'user') ? (
+          ) : mode === 'choice' && LISTED.has(field.type) ? (
             <ChoiceList
               resource={resource}
               field={field}
               values={chosenValues(draft ?? undefined)}
-              options={options}
+              options={
+                field.type === 'enum' || field.type === 'multiSelect'
+                  ? fieldOptions(field, locale)
+                  : options
+              }
               related={related}
               labels={labels}
               onRemember={onRemember}
-              onChange={(values) => setDraft({ op: 'in', values })}
+              onChange={(values) => setDraft(choiceFilter(field.type, values))}
             />
           ) : mode === 'choice' ? (
             <TextValues
@@ -265,7 +294,15 @@ export function FilterControl({
   )
 }
 
-/** Inclusive bounds; dates use the field's own control, so the calendar preference applies. */
+/** Choice fields whose values come from a list: lookups, options or related records. */
+const LISTED = new Set(['lookup', 'enum', 'multiSelect', 'belongsTo', 'user', 'manyToMany'])
+/** Related records searched through the target resource's list route. */
+const REMOTE = new Set(['belongsTo', 'user', 'manyToMany'])
+
+/**
+ * Inclusive bounds; dates use the field's own control, so the calendar preference applies.
+ * Numbers accept Arabic-Indic digits and the Arabic decimal separator (parseValue).
+ */
 function RangeInputs({
   field,
   filter,
@@ -319,7 +356,7 @@ function RangeInputs({
               <Input
                 id={id}
                 dir="ltr"
-                inputMode={field.type === 'money' ? 'decimal' : 'numeric'}
+                inputMode={field.type === 'integer' ? 'numeric' : 'decimal'}
                 className="h-9 text-xs tabular-nums"
                 value={text[side]}
                 onChange={(event) => change(side, event.target.value)}
@@ -332,7 +369,10 @@ function RangeInputs({
   )
 }
 
-/** «أيٌّ من»: lookup options, or related records searched through the server. */
+/**
+ * «أيٌّ من»: lookup or field options, or related records searched through the server. A
+ * multiSelect or manyToMany filter is «يحتوي على» one option or record.
+ */
 function ChoiceList({
   resource,
   field,
@@ -353,7 +393,8 @@ function ChoiceList({
   onChange: (values: string[]) => void
 }) {
   const { t, label } = useMessages()
-  const remote = field.type === 'belongsTo' || field.type === 'user'
+  const remote = REMOTE.has(field.type)
+  const single = singleChoice(field.type)
   const [term, setTerm] = useState('')
   const [found, setFound] = useState<Option[] | null>(null)
   const [busy, setBusy] = useState(false)
@@ -417,7 +458,9 @@ function ChoiceList({
     )
   return (
     <div className="grid gap-2">
-      <span className="text-xs text-muted-foreground">{t('أيٌّ من')}</span>
+      <span className="text-xs text-muted-foreground">
+        {single ? t('يحتوي على') : t('أيٌّ من')}
+      </span>
       <Command shouldFilter={!remote} className="rounded-md border">
         <CommandInput
           placeholder={remote ? t('ابحث في السجلات المرتبطة') : t('ابحث في الخيارات')}

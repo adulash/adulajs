@@ -42,6 +42,7 @@ export type {
 export { Dashboards, defineDashboard } from './src/lists/dashboards.js'
 export type {
   DashboardDefinition,
+  DashboardFormat,
   DashboardGroupRow,
   DashboardMeasure,
   DashboardResult,

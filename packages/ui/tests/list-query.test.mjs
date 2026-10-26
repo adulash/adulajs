@@ -2,8 +2,10 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   bulkPayload,
+  choiceFilter,
   clearFilter,
   exportHref,
+  filterAllowed,
   filterMode,
   fromSavedFilter,
   inclusiveDatetime,
@@ -11,6 +13,7 @@ import {
   readFilters,
   selectionState,
   serverMessage,
+  singleChoice,
   toSavedFilter,
   toggleSelection,
   writeFilter,
@@ -309,4 +312,75 @@ test('money and integer sums keep every digit: no Number() rounding', () => {
     ['9007199254740993', '9007199254740992']
   )
   assert.deepEqual(shares(['8', '2']), [100, 25])
+})
+
+test('the field types of ADR 045 get the controls and operators the server accepts', () => {
+  for (const type of ['enum', 'email', 'phone', 'url', 'multiSelect', 'manyToMany'])
+    assert.equal(filterMode(type), 'choice', type)
+  for (const type of ['decimal', 'percent']) assert.equal(filterMode(type), 'range', type)
+  // Several-valued fields match one member: never «أيٌّ من» (in) and never a range.
+  for (const type of ['multiSelect', 'manyToMany']) {
+    assert.equal(singleChoice(type), true, type)
+    assert.equal(filterAllowed(type, { op: 'in', values: ['a', 'b'] }), false, type)
+    assert.equal(filterAllowed(type, { op: 'range', gte: '1' }), false, type)
+    assert.equal(filterAllowed(type, { op: 'eq', value: 'a' }), true, type)
+    assert.equal(filterAllowed(type, { op: 'empty', empty: true }), true, type)
+  }
+  for (const type of ['enum', 'email', 'phone', 'url', 'lookup', 'belongsTo']) {
+    assert.equal(singleChoice(type), false, type)
+    assert.equal(filterAllowed(type, { op: 'in', values: ['a', 'b'] }), true, type)
+    assert.equal(filterAllowed(type, { op: 'range', gte: '1' }), false, type)
+  }
+  for (const type of ['decimal', 'percent']) {
+    assert.equal(filterAllowed(type, { op: 'range', gte: '1.5' }), true, type)
+    assert.equal(filterAllowed(type, { op: 'in', values: ['1', '2'] }), false, type)
+  }
+})
+
+test('member choices emit one equality; other choices emit in', () => {
+  // Choosing a second option replaces the first: the latest choice is the member.
+  assert.deepEqual(choiceFilter('multiSelect', ['sms', 'call']), { op: 'eq', value: 'call' })
+  assert.deepEqual(choiceFilter('manyToMany', ['7']), { op: 'eq', value: '7' })
+  assert.equal(choiceFilter('manyToMany', []), null)
+  assert.deepEqual(choiceFilter('enum', ['person', 'company']), {
+    op: 'in',
+    values: ['person', 'company'],
+  })
+  const params = new URLSearchParams()
+  writeFilter(params, 'channels', normalizeFilter(choiceFilter('multiSelect', ['sms', 'call'])))
+  writeFilter(params, 'tags', normalizeFilter(choiceFilter('manyToMany', ['7'])))
+  writeFilter(params, 'kind', normalizeFilter(choiceFilter('enum', ['person', 'company'])))
+  writeFilter(params, 'rate', { op: 'range', gte: '10.50', lte: '99.00' })
+  writeFilter(params, 'discount', { op: 'range', lte: '7.10' })
+  writeFilter(params, 'email', normalizeFilter(choiceFilter('email', ['a@x.test'])))
+  writeFilter(params, 'label', { op: 'empty', empty: true })
+  assert.equal(
+    decoded(params),
+    'filters[channels]=call&filters[tags]=7&filters[kind][in]=person,company' +
+      '&filters[rate][gte]=10.50&filters[rate][lte]=99.00&filters[discount][lte]=7.10' +
+      '&filters[email]=a@x.test&filters[label][empty]=true'
+  )
+  assert.deepEqual(readFilters(params, ['channels', 'tags', 'label']), {
+    channels: { op: 'eq', value: 'call' },
+    tags: { op: 'eq', value: '7' },
+    label: { op: 'empty', empty: true },
+  })
+})
+
+test('decimal and percent dashboard sums keep their fraction', () => {
+  assert.equal(formatDecimal('12345.50', 'decimal'), '12,345.50')
+  assert.equal(formatDecimal('-7.125', 'percent'), '-7.125')
+  const view = normalizeDashboard({
+    widgets: [
+      { key: 'rate', kind: 'total', format: 'decimal', value: '37.60' },
+      { key: 'share', kind: 'total', format: 'percent', value: '12.5' },
+    ],
+  })
+  assert.deepEqual(
+    view.widgets.map((widget) => [widget.format, widget.value]),
+    [
+      ['decimal', '37.60'],
+      ['percent', '12.5'],
+    ]
+  )
 })

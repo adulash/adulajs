@@ -2,7 +2,7 @@ import { Link } from '@adonisjs/inertia/react'
 import { Inbox, ShieldCheck } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
 import { useMessages, type Translate } from '~/components/ui/messages'
-import { CURRENCY_LABEL } from '~/components/ui/resource-value'
+import { CURRENCY_LABEL, PERCENT_LABEL } from '~/components/ui/resource-value'
 import {
   formatDecimal,
   normalizeDashboard,
@@ -13,10 +13,14 @@ import {
 
 export type DashboardLink = { name: string; label: string }
 
-/** A value as the indicator shows it: grouped digits, amounts with two decimals and currency. */
+/**
+ * A value as the indicator shows it: grouped digits, amounts with two decimals and currency,
+ * percent totals with the percent sign.
+ */
 export function indicatorValue(value: string, format: DashboardFormat, t: Translate) {
   const digits = formatDecimal(value, format)
-  return format === 'money' ? `${digits} ${t(CURRENCY_LABEL)}` : digits
+  if (format === 'money') return `${digits} ${t(CURRENCY_LABEL)}`
+  return format === 'percent' ? `${digits}${t(PERCENT_LABEL)}` : digits
 }
 
 /**

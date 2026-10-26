@@ -260,6 +260,8 @@ export const englishInterfaceMessages: Partial<
   'ui.list.to': 'To',
   'ui.list.boundOf': '{bound} · {field}',
   'ui.list.anyOf': 'Any of',
+  'ui.list.contains': 'Contains',
+  'ui.list.unsupportedFilter': 'This field does not support this kind of filter.',
   'ui.list.searchOptions': 'Search options',
   'ui.list.noOptions': 'No matching options',
   'ui.list.typeValue': 'Type a value, then press Enter',

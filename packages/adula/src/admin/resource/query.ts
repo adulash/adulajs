@@ -551,7 +551,17 @@ export async function aggregate(
     'view',
     resource
   )
-  applyFilters(query, resource, options.filters ?? {}, (key) => queryable(key))
+  // A manyToMany field cannot be grouped or totalled, but filters by one linked id or none.
+  applyFilters(
+    query,
+    resource,
+    options.filters ?? {},
+    (key) =>
+      queryable(key) ||
+      (Object.hasOwn(resource.fields, key) &&
+        resource.fields[key].type === 'manyToMany' &&
+        canQueryField(resource, actor, ability, key))
+  )
   if (options.where !== undefined && options.where !== null) {
     if (typeof options.where !== 'object' || Array.isArray(options.where))
       throw invalidFilter('Conditions must be an object')

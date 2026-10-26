@@ -607,7 +607,10 @@ test.group('Dashboards (ADR 046)', (group) => {
       label: { ar: 'x' },
       widgets: [{ ...widget, measure: { sum: 'title' } }],
     })
-    assert.throws(() => new Dashboards(db, listRegistry, service(), [sumTitle]), /integer or money/)
+    assert.throws(
+      () => new Dashboards(db, listRegistry, service(), [sumTitle]),
+      /integer, money, decimal or percent/
+    )
     const unknown = defineDashboard({
       name: 'ok',
       label: { ar: 'x' },

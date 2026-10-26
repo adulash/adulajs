@@ -1,4 +1,4 @@
-import type { Field, JsonValue, SerializedRecord } from '../../resource/types.js'
+import type { Field, FieldOption, JsonValue, SerializedRecord } from '../../resource/types.js'
 import type { Actor } from '../../auth/ability.js'
 import { AdulaError } from '../errors.js'
 import { labelText, translate } from '../../languages/catalog.js'
@@ -145,10 +145,15 @@ function exportLimit() {
 
 /** Fields whose text comes from users, and so may carry a spreadsheet formula. */
 function textual(field: Field) {
-  return !['integer', 'money', 'boolean', 'date', 'datetime'].includes(field.type)
+  return !['integer', 'money', 'decimal', 'percent', 'boolean', 'date', 'datetime'].includes(
+    field.type
+  )
 }
 
-/** The display text of one stored value: labels, titles, names, «نعم/لا», ISO dates. */
+/**
+ * The display text of one stored value: lookup and option labels, titles, names, «نعم/لا»,
+ * ISO dates. Several values (multiSelect, manyToMany) are joined with «، » as lists show them.
+ */
 export function cellText(
   field: Field,
   value: JsonValue | undefined,
@@ -166,6 +171,16 @@ export function cellText(
     case 'belongsTo':
     case 'user':
       return resolve.title(Number(value)) ?? `#${value}`
+    case 'enum':
+      return optionText(field.options, value)
+    case 'multiSelect':
+      return Array.isArray(value)
+        ? value.map((entry) => optionText(field.options, entry)).join('، ')
+        : optionText(field.options, value)
+    case 'manyToMany':
+      return Array.isArray(value)
+        ? value.map((id) => resolve.title(Number(id)) ?? `#${id}`).join('، ')
+        : String(value)
     case 'money':
       return moneyText(String(value))
     case 'attachment':
@@ -177,6 +192,12 @@ export function cellText(
     default:
       return typeof value === 'object' ? JSON.stringify(value) : String(value)
   }
+}
+
+/** The label of an enum or multiSelect option in the interface language; unknown keys stay. */
+function optionText(options: readonly FieldOption[], value: JsonValue) {
+  const option = options.find((entry) => entry.value === String(value))
+  return option ? labelText(option.label) : String(value)
 }
 
 /** Canonical minor units as a plain decimal amount (150000 → 1500.00), as forms show it. */

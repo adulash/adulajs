@@ -255,6 +255,8 @@ export const arabicInterfaceMessages = {
   'ui.list.to': 'إلى',
   'ui.list.boundOf': '{bound} · {field}',
   'ui.list.anyOf': 'أيٌّ من',
+  'ui.list.contains': 'يحتوي على',
+  'ui.list.unsupportedFilter': 'لا يدعم هذا الحقل هذا النوع من التصفية.',
   'ui.list.searchOptions': 'ابحث في الخيارات',
   'ui.list.noOptions': 'لا توجد خيارات مطابقة',
   'ui.list.typeValue': 'اكتب قيمة ثم اضغط Enter',

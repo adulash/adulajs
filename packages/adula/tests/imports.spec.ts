@@ -440,7 +440,8 @@ test.group('Upsert imports by a unique field', (group) => {
       [true, false, false]
     )
     assert.include(validated.report[1].message, 'مكررة في الملف (الصف 2)')
-    assert.equal(validated.report[2].message, 'هذه القيمة مستخدمة في سجل آخر')
+    // Duplicate errors name the unique field since ADR 045.
+    assert.equal(validated.report[2].message, 'هذه القيمة مستخدمة في سجل آخر: الرمز')
     await imports().start(batch.id, creator, batch.mapping)
     const result = await imports().process()
     assert.deepEqual(result, { id: batch.id, processed: 3, created: 1, updated: 0, failed: 2 })

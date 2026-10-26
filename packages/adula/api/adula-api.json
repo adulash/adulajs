@@ -436,6 +436,10 @@
       "kind": "TypeAliasDeclaration",
       "type": "{ name: string; label: Label; description?: Label | undefined; widgets: DashboardWidgetDefinition[]; }"
     },
+    "DashboardFormat": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"integer\" | \"money\" | \"decimal\" | \"percent\" | \"count\""
+    },
     "DashboardGroupRow": {
       "kind": "TypeAliasDeclaration",
       "type": "{ value: JsonValue; label: string; measure: string | number | null; }"
@@ -462,7 +466,7 @@
     },
     "DashboardWidgetResult": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ key: string; label: string; resource: string; href: string; measure: DashboardMeasure; format: \"integer\" | \"money\" | \"count\"; kind: \"total\" | \"grouped\"; groupBy: string | null; value?: string | number | null | undefined; rows?: DashboardGroupRow[] | undefined; truncated: boolean; }"
+      "type": "{ key: string; label: string; resource: string; href: string; measure: DashboardMeasure; format: DashboardFormat; kind: \"total\" | \"grouped\"; groupBy: string | null; value?: string | number | null | undefined; rows?: DashboardGroupRow[] | undefined; truncated: boolean; }"
     },
     "decimalShape": {
       "kind": "FunctionDeclaration",

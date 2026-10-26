@@ -1,4 +1,4 @@
-export type DashboardFormat = 'count' | 'integer' | 'money'
+export type DashboardFormat = 'count' | 'integer' | 'money' | 'decimal' | 'percent'
 /*
  * The DashboardResult of ADR 046 as the indicators page reads it. Every number was computed
  * by the server as the viewer; this module only normalizes and ranks it, and drops what it
@@ -34,7 +34,8 @@ export type DashboardView = {
 
 const DECIMAL = /^-?\d+(\.\d+)?$/
 /**
- * count is an integer; integer sums are decimal strings; money sums are minor-unit strings.
+ * count is an integer; integer, decimal and percent sums are decimal strings; money sums are
+ * minor-unit strings.
  * Strings are kept as they are (never through Number), so large sums lose no digits.
  */
 export function decimal(value: unknown): string | null {
@@ -66,7 +67,8 @@ const groupDigits = (whole: string) => grouping.format(BigInt(whole))
 
 /**
  * The digits of an indicator: grouped thousands; money as major units with two decimals
- * (minor units in, string math only). The caller adds the currency label.
+ * (minor units in, string math only); decimal and percent sums keep the fraction the server
+ * returned. The caller adds the currency or percent label.
  */
 export function formatDecimal(value: string, format: DashboardFormat) {
   const negative = value.startsWith('-')
@@ -80,7 +82,7 @@ export function formatDecimal(value: string, format: DashboardFormat) {
   return `${sign}${groupDigits(whole)}${fraction ? `.${fraction}` : ''}`
 }
 const text = (value: unknown) => (typeof value === 'string' ? value : null)
-const formats = new Set<unknown>(['count', 'integer', 'money'])
+const formats = new Set<unknown>(['count', 'integer', 'money', 'decimal', 'percent'])
 
 /** Reads one DashboardWidgetResult; a widget without a key is dropped. */
 export function normalizeWidget(input: unknown): DashboardTile | null {

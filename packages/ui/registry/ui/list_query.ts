@@ -26,14 +26,61 @@ export type SavedFilterValue =
 /** How the filter control of a field type behaves. */
 export type FilterMode = 'choice' | 'range' | 'boolean' | 'text'
 
-const CHOICE = new Set(['lookup', 'belongsTo', 'user', 'string', 'text'])
-const RANGE = new Set(['integer', 'money', 'date', 'datetime'])
+const CHOICE = new Set([
+  'lookup',
+  'enum',
+  'belongsTo',
+  'user',
+  'string',
+  'text',
+  'email',
+  'phone',
+  'url',
+  'multiSelect',
+  'manyToMany',
+])
+const RANGE = new Set(['integer', 'money', 'decimal', 'percent', 'date', 'datetime'])
+/** Several values per record: the server matches one member (equality) or emptiness only. */
+const MEMBER = new Set(['multiSelect', 'manyToMany'])
 
 export function filterMode(type: string): FilterMode {
   if (type === 'boolean') return 'boolean'
   if (RANGE.has(type)) return 'range'
   if (CHOICE.has(type)) return 'choice'
   return 'text'
+}
+
+/** Whether a choice filter picks one member (multiSelect, manyToMany) instead of «أيٌّ من». */
+export function singleChoice(type: string) {
+  return MEMBER.has(type)
+}
+
+/**
+ * The draft of a choice control: «أيٌّ من» is `in`; a member filter keeps only the latest
+ * choice as equality, since the server accepts no `in` for several-valued fields.
+ */
+export function choiceFilter(type: string, values: string[]): FieldFilter | null {
+  const chosen = values.filter(Boolean)
+  if (!singleChoice(type)) return { op: 'in', values: chosen }
+  const last = chosen.at(-1)
+  return last ? { op: 'eq', value: last } : null
+}
+
+/**
+ * Whether the filter controls emit this operator for the field type, each one the server
+ * accepts (ADR 046): `in` for choices except member fields, ranges for numbers and dates,
+ * equality and emptiness for every type.
+ */
+export function filterAllowed(type: string, filter: FieldFilter) {
+  switch (filter.op) {
+    case 'eq':
+    case 'empty':
+      return true
+    case 'in':
+      return filterMode(type) === 'choice' && !singleChoice(type)
+    case 'range':
+      return filterMode(type) === 'range'
+  }
 }
 
 const prefix = (key: string) => `filters[${key}]`

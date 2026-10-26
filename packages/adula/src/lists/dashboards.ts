@@ -43,8 +43,11 @@ export type DashboardWidgetResult = {
   /** The list page of the widget's resource. */
   href: string
   measure: DashboardMeasure
-  /** count: an integer; integer: a decimal string total; money: minor units as a string. */
-  format: 'count' | 'integer' | 'money'
+  /**
+   * count: an integer; integer, decimal and percent: a decimal string total (percent points
+   * for percent); money: minor units as a string.
+   */
+  format: DashboardFormat
   kind: 'total' | 'grouped'
   groupBy: string | null
   value?: number | string | null
@@ -57,6 +60,11 @@ export type DashboardResult = {
   description: string | null
   widgets: DashboardWidgetResult[]
 }
+
+/** How a widget's measure reads: a count, or the sum's field type. */
+export type DashboardFormat = 'count' | 'integer' | 'money' | 'decimal' | 'percent'
+/** Field types a widget may total, as ResourceService.aggregate sums them. */
+const SUMMABLE = ['integer', 'money', 'decimal', 'percent']
 
 const NAME = /^[a-z][a-z0-9_]*$/
 const KEY = /^[a-z][a-zA-Z0-9_]*$/
@@ -123,7 +131,7 @@ export class Dashboards {
 
   /**
    * Checks dashboards against the registered resources: unique names, existing widget
-   * resources, integer or money totals, groupable fields and filter or condition keys
+   * resources, integer, money, decimal or percent totals, groupable fields and filter or condition keys
    * that exist on the resource. Call it when the application loads its definitions, so a
    * bad definition fails at boot.
    */
@@ -136,8 +144,10 @@ export class Dashboards {
         const where = `${dashboard.name}.${widget.key}`
         if (typeof widget.measure === 'object') {
           const field = resource.fields[widget.measure.sum]
-          if (!field || !['integer', 'money'].includes(field.type))
-            throw new Error(`${where}: ${widget.measure.sum} is not an integer or money field`)
+          if (!field || !SUMMABLE.includes(field.type))
+            throw new Error(
+              `${where}: ${widget.measure.sum} is not an integer, money, decimal or percent field`
+            )
         }
         if (widget.groupBy !== undefined && !groupable(resource, widget.groupBy))
           throw new Error(`${where}: ${widget.groupBy} cannot be grouped`)
@@ -231,7 +241,7 @@ export class Dashboards {
       resource: resource.name,
       href: `/resources/${resource.name}`,
       measure: widget.measure,
-      format: (sum === null ? 'count' : resource.fields[sum].type) as 'count' | 'integer' | 'money',
+      format: (sum === null ? 'count' : resource.fields[sum].type) as DashboardFormat,
       groupBy: widget.groupBy ?? null,
       truncated: aggregate.truncated,
     }
@@ -299,5 +309,6 @@ function groupable(resource: Resource, key: string) {
   if (key === 'docStatus') return Boolean(resource.submittable)
   if (key === 'orgUnitId') return resource.scoped
   const field = Object.hasOwn(resource.fields, key) ? resource.fields[key] : undefined
-  return Boolean(field) && !['hasMany', 'json', 'attachment'].includes(field!.type)
+  // As aggregate(): a manyToMany field has no single value to group or compare.
+  return Boolean(field) && !['hasMany', 'manyToMany', 'json', 'attachment'].includes(field!.type)
 }

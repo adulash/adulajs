@@ -103,7 +103,7 @@ export function DataTable({
   trashed?: boolean
 }) {
   const { calendar } = useUiPreferences()
-  const { t, label } = useMessages()
+  const { t, label, locale } = useMessages()
   const { url } = usePage()
   const description = resource as ListDescription
   const query = new URL(url, 'http://localhost').searchParams
@@ -227,6 +227,7 @@ export function DataTable({
       labels: labels.current[field.key],
       calendar,
       t,
+      language: locale,
     })
   const remember = (key: string) => (choices: Option[]) => {
     labels.current[key] = {
