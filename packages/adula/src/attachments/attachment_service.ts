@@ -4,12 +4,16 @@ import { identifier } from '../resource/define_resource.js'
 import type { Field, JsonValue } from '../resource/types.js'
 import { logActivity } from '../core/activity.js'
 
+/** How a file can be previewed inline (ADR 047); every other file only downloads. */
+export type AttachmentPreview = 'image' | 'pdf' | 'text'
 export type AttachmentSummary = {
   id: number
   name: string
   size: number
   mimeType: string
   url: string
+  /** Set for allow-listed images, PDF and plain text: `${url}?preview=1` renders inline. */
+  preview: AttachmentPreview | null
 }
 export type AttachmentRecord = {
   id: number
@@ -141,6 +145,85 @@ export async function forgetUpload(db: Knex, id: number) {
 export function attachmentUrl(id: number) {
   return `/attachments/${id}`
 }
+
+/**
+ * Files that may render inline, by extension: the stored content type must be the listed
+ * one too, and the response then carries the listed type, never the uploader's. SVG, HTML
+ * and every other type can run script or be mistaken for a page, so they only download.
+ */
+const PREVIEWABLE: Readonly<
+  Record<string, { preview: AttachmentPreview; contentType: string; mimeTypes: string[] }>
+> = Object.freeze({
+  png: { preview: 'image', contentType: 'image/png', mimeTypes: ['image/png'] },
+  jpg: { preview: 'image', contentType: 'image/jpeg', mimeTypes: ['image/jpeg'] },
+  jpeg: { preview: 'image', contentType: 'image/jpeg', mimeTypes: ['image/jpeg'] },
+  gif: { preview: 'image', contentType: 'image/gif', mimeTypes: ['image/gif'] },
+  webp: { preview: 'image', contentType: 'image/webp', mimeTypes: ['image/webp'] },
+  pdf: { preview: 'pdf', contentType: 'application/pdf', mimeTypes: ['application/pdf'] },
+  txt: { preview: 'text', contentType: 'text/plain; charset=utf-8', mimeTypes: ['text/plain'] },
+})
+
+function previewEntry(file: { extname: string; mimeType: string }) {
+  const extname = String(file.extname).toLowerCase()
+  const entry = Object.hasOwn(PREVIEWABLE, extname) ? PREVIEWABLE[extname] : undefined
+  const mimeType = String(file.mimeType).split(';')[0].trim().toLowerCase()
+  return entry && entry.mimeTypes.includes(mimeType) ? entry : undefined
+}
+
+/** How a stored file previews inline, or null when it can only be downloaded. */
+export function attachmentPreview(file: {
+  extname: string
+  mimeType: string
+}): AttachmentPreview | null {
+  return previewEntry(file)?.preview ?? null
+}
+
+/** RFC 5987: an ASCII fallback plus the UTF-8 name so Arabic titles survive every browser. */
+function disposition(kind: 'inline' | 'attachment', name: string) {
+  const fallback = name.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_') || 'file'
+  const encoded = encodeURIComponent(name).replace(
+    /[!'()*]/g,
+    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`
+  )
+  return `${kind}; filename="${fallback}"; filename*=UTF-8''${encoded}`
+}
+
+/**
+ * Response headers of an authorized download. With `preview`, an allow-listed file is
+ * served inline with its listed type and may be framed by this origin only (the preview
+ * dialog); any other file is still sent as a download. Every response forbids sniffing and
+ * script: images and text are sandboxed, PDFs are not (browsers refuse to show sandboxed
+ * PDFs) but may run no page script either.
+ */
+export function attachmentHeaders(
+  file: Pick<AttachmentRecord, 'originalName' | 'mimeType' | 'extname' | 'size'>,
+  options: { preview?: boolean } = {}
+): Record<string, string> {
+  const entry = options.preview ? previewEntry(file) : undefined
+  const common = {
+    'Content-Length': String(file.size),
+    'X-Content-Type-Options': 'nosniff',
+    'Cache-Control': 'private, no-store',
+  }
+  if (!entry)
+    return {
+      ...common,
+      'Content-Type': file.mimeType || 'application/octet-stream',
+      'Content-Disposition': disposition('attachment', file.originalName),
+      'Content-Security-Policy': "default-src 'none'; frame-ancestors 'none'; sandbox",
+      'X-Frame-Options': 'DENY',
+    }
+  return {
+    ...common,
+    'Content-Type': entry.contentType,
+    'Content-Disposition': disposition('inline', file.originalName),
+    'Content-Security-Policy':
+      entry.preview === 'pdf'
+        ? "default-src 'none'; object-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'self'"
+        : "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; frame-ancestors 'self'; sandbox",
+    'X-Frame-Options': 'SAMEORIGIN',
+  }
+}
 export function isAttachmentId(value: unknown): value is number {
   return Number.isSafeInteger(value) && Number(value) >= 1 && Number(value) <= MAX_ID
 }
@@ -169,6 +252,10 @@ export function summarizeAttachment(row: Record<string, unknown>): AttachmentSum
     size: Number(row.size),
     mimeType: String(row.mime_type),
     url: attachmentUrl(Number(row.id)),
+    preview: attachmentPreview({
+      extname: String(row.extname ?? ''),
+      mimeType: String(row.mime_type),
+    }),
   }
 }
 function fromRow(row: Record<string, unknown>): AttachmentRecord {
@@ -300,7 +387,7 @@ export async function loadAttachments(db: Knex, ids: readonly number[]) {
   const rows = await db('attachments')
     .whereIn('id', valid)
     .whereNull('deleted_at')
-    .select('id', 'original_name', 'size', 'mime_type')
+    .select('id', 'original_name', 'size', 'mime_type', 'extname')
   for (const row of rows) summaries.set(Number(row.id), summarizeAttachment(row))
   return summaries
 }
@@ -357,6 +444,36 @@ export async function claimAttachment(trx: Knex.Transaction, input: ClaimInput) 
     })
     .returning('*')
   return fromRow(updated)
+}
+
+/**
+ * Moves a file the record already holds to the record's new organization unit, inside the
+ * record write's transaction. Unlike claimAttachment there is no uploader check: the file
+ * is bound to exactly this record field already, and the record's own move was authorized.
+ * Anything else (unbound, released, another record or field) is refused.
+ */
+export async function rebindAttachment(
+  trx: Knex.Transaction,
+  input: {
+    attachmentId: number
+    resource: string
+    field: string
+    recordId: number
+    orgUnitId: number
+  }
+) {
+  if (!isAttachmentId(input.attachmentId)) throw new AdulaError(422, 'E_ATTACHMENT', REJECTED)
+  const row = await trx('attachments').where('id', input.attachmentId).forUpdate().first()
+  if (
+    !row ||
+    row.deleted_at !== null ||
+    row.resource !== input.resource ||
+    row.field !== input.field ||
+    row.record_id === null ||
+    Number(row.record_id) !== Number(input.recordId)
+  )
+    throw new AdulaError(422, 'E_ATTACHMENT', 'المرفق مرتبط بسجل آخر')
+  await trx('attachments').where('id', input.attachmentId).update({ org_unit_id: input.orgUnitId })
 }
 
 /** Unbinding keeps the file and its metadata for restore drills; only the row is soft-deleted. */

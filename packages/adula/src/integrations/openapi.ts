@@ -2,6 +2,7 @@ import { buildAbility, type Actor, type AdulaAbility } from '../auth/ability.js'
 import { canQueryField, fieldLevel } from '../admin/resource/shared.js'
 import type { ResourceRegistry } from '../resource/registry.js'
 import type { Field, Resource } from '../resource/types.js'
+import { attachmentLimit, isMultipleAttachment } from '../resource/values.js'
 
 type Schema = Record<string, unknown>
 
@@ -82,20 +83,36 @@ function fieldSchema(field: Field, mode: 'read' | 'write', registry: ResourceReg
       return { type: 'integer', description: `${description} → user id (related: id, fullName)` }
     case 'lookup':
       return { type: 'string', description: `${description} (lookup group ${field.group})` }
-    case 'attachment':
+    case 'attachment': {
+      const summary: Schema = {
+        type: 'object',
+        properties: {
+          id: { type: 'integer' },
+          name: { type: 'string' },
+          size: { type: 'integer' },
+          mimeType: { type: 'string' },
+          url: { type: 'string' },
+          preview: { type: ['string', 'null'], enum: ['image', 'pdf', 'text', null] },
+        },
+        required: ['id', 'name', 'size', 'mimeType'],
+      }
+      // A multiple field is the ordered array of its files (ADR 047).
+      if (field.multiple)
+        return mode === 'write'
+          ? {
+              type: 'array',
+              // A required field needs at least one file (write.ts refuses an empty array).
+              ...(field.required ? { minItems: 1 } : {}),
+              maxItems: attachmentLimit(field),
+              uniqueItems: true,
+              items: { type: 'integer' },
+              description: `${description} (ordered ids returned by POST /attachments)`,
+            }
+          : { type: 'array', description, items: summary }
       return mode === 'write'
         ? { type: 'integer', description: `${description} (id returned by POST /attachments)` }
-        : {
-            type: 'object',
-            description,
-            properties: {
-              id: { type: 'integer' },
-              name: { type: 'string' },
-              size: { type: 'integer' },
-              mimeType: { type: 'string' },
-            },
-            required: ['id', 'name', 'size', 'mimeType'],
-          }
+        : { ...summary, description }
+    }
     case 'hasMany': {
       const child = registry.get(field.resource)
       // Rows are saved with the parent: it sets the foreign key (and a scoped child's unit);
@@ -119,6 +136,8 @@ function fieldSchema(field: Field, mode: 'read' | 'write', registry: ResourceReg
 
 /** The JSON type a query-string filter value is coerced to (see queryValue in admin/resource/query.ts). */
 function filterSchema(field: Field): Schema | undefined {
+  // Several files have no equality filter, only filters[field][empty].
+  if (isMultipleAttachment(field)) return undefined
   switch (field.type) {
     case 'integer':
     case 'belongsTo':

@@ -25,6 +25,21 @@ export const TEXT_LIMITS: Readonly<Record<string, number>> = {
 }
 /** The most ids one manyToMany write may link. */
 export const MANY_TO_MANY_LIMIT = 500
+/** Files a multiple attachment field accepts when it declares no `max` (ADR 047). */
+export const MULTIPLE_ATTACHMENT_LIMIT = 10
+/** The largest `max` a multiple attachment field may declare. */
+export const MULTIPLE_ATTACHMENT_MAX = 100
+
+/** An attachment field holding several files: a JSON array of attachment ids, in order. */
+export function isMultipleAttachment(field: Field | undefined): boolean {
+  return field?.type === 'attachment' && field.multiple === true
+}
+/** The most files an attachment field accepts: one, or the `max` of a multiple field. */
+export function attachmentLimit(field: Field) {
+  return field.type === 'attachment' && field.multiple
+    ? (field.max ?? MULTIPLE_ATTACHMENT_LIMIT)
+    : 1
+}
 
 /** numeric(precision, scale) of a decimal or percent field, with the documented defaults. */
 export function decimalShape(field: { type: string; precision?: number; scale?: number }) {
@@ -303,11 +318,25 @@ export function fieldValue(field: Field, value: unknown): unknown {
     case 'json':
       if (!isJson(value)) throw new Error('Expected a JSON value without cycles or non-JSON values')
       return value
-    case 'attachment':
+    case 'attachment': {
       // Writes carry the id of an owned upload; reads are hydrated into summaries later.
-      if (!Number.isSafeInteger(value) || Number(value) < 1 || Number(value) > 2147483647)
-        throw new Error('Expected the identifier of an uploaded attachment')
-      return value
+      const isId = (id: unknown) =>
+        Number.isSafeInteger(id) && Number(id) >= 1 && Number(id) <= 2147483647
+      if (!field.multiple) {
+        if (!isId(value)) throw new Error('Expected the identifier of an uploaded attachment')
+        return value
+      }
+      // Several files keep the order the user gave them; form posts may send digit strings.
+      const ids = Array.isArray(value)
+        ? value.map((id) => (typeof id === 'string' && /^\d{1,10}$/.test(id) ? Number(id) : id))
+        : null
+      if (!ids || ids.length > MULTIPLE_ATTACHMENT_MAX || !ids.every(isId))
+        throw new FieldValueError('attachments')
+      if (new Set(ids).size !== ids.length) throw new FieldValueError('attachments.distinct')
+      const max = attachmentLimit(field)
+      if (ids.length > max) throw new FieldValueError('attachments.max', { max })
+      return ids
+    }
     default:
       return value
   }

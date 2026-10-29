@@ -63,6 +63,9 @@ export const arabicMessages: Readonly<Record<string, string>> = Object.freeze({
   'validation.unsafeNumber':
     'هذا الرقم أطول من أن يُنقل رقمًا دون تقريب؛ أرسل القيمة نصًا، مثل "12345678901234567.89"',
   'validation.relation': 'اختر سجلات صحيحة',
+  'validation.attachments': 'أرفق ملفات صحيحة',
+  'validation.attachments.distinct': 'الملف مرفق أكثر من مرة',
+  'validation.attachments.max': 'يمكن إرفاق {max} ملفات على الأكثر',
   'errors.E_NOT_FOUND.1': 'السجل غير موجود',
   'errors.E_NOT_FOUND.2': 'الكيان غير موجود',
   'errors.E_DUPLICATE': 'هذه القيمة مستخدمة في سجل آخر',

@@ -89,8 +89,16 @@ export type Field = {
        * DEFAULT_ATTACHMENT_EXTENSIONS (documents, images and archives).
        */
       accept?: string[] | 'any'
-      /** Upload size limit such as '5mb'. Defaults to '20mb'. */
+      /** Upload size limit of each file, such as '5mb'. Defaults to '20mb'. */
       maxSize?: string
+      /**
+       * Several files per record (ADR 047): the column is a JSON array of attachment ids in
+       * display order; reads return the summaries in that order. Cannot be switched on or
+       * off for an existing column.
+       */
+      multiple?: boolean
+      /** Most files of a multiple field, from 1 to 100; defaults to MULTIPLE_ATTACHMENT_LIMIT. */
+      max?: number
     }
   | { type: 'belongsTo'; resource: string }
   /**

@@ -231,8 +231,9 @@ export function fieldColumnType(field: Field): string | null {
     case 'hasMany':
     case 'manyToMany':
       return null
-    case 'belongsTo':
     case 'attachment':
+      return field.multiple ? 'jsonb' : 'integer'
+    case 'belongsTo':
     case 'user':
     case 'integer':
       return 'integer'
@@ -323,7 +324,7 @@ export function resourceSchema(resource: ResourceTableDefinition): ResourceSchem
       ...(fallback === undefined ? {} : { default: fallback }),
       ...(field.type === 'belongsTo'
         ? { references: identifier(field.resource) }
-        : field.type === 'attachment'
+        : field.type === 'attachment' && !field.multiple
           ? { references: 'attachments' }
           : field.type === 'user'
             ? { references: 'users' }
@@ -372,6 +373,12 @@ function addFieldColumn(
       column.references('id').inTable(identifier(field.resource)).onDelete('RESTRICT').index()
       break
     case 'attachment':
+      // Several files are a JSON array of attachment ids; the attachments rows keep the
+      // binding (resource, record, field), so no foreign key is needed (ADR 047).
+      if (field.multiple) {
+        column = t.jsonb(name)
+        break
+      }
       column = t.integer(name)
       column.references('id').inTable('attachments').onDelete('RESTRICT').index()
       break

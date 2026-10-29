@@ -132,7 +132,15 @@ export {
   isVisible,
   applyVisibility,
 } from './src/resource/definition.js'
-export { FieldValueError, canonicalDecimal, decimalShape } from './src/resource/values.js'
+export {
+  FieldValueError,
+  canonicalDecimal,
+  decimalShape,
+  isMultipleAttachment,
+  attachmentLimit,
+  MULTIPLE_ATTACHMENT_LIMIT,
+  MULTIPLE_ATTACHMENT_MAX,
+} from './src/resource/values.js'
 export { defineWorkflow, nextStep } from './src/workflows/define_workflow.js'
 export type {
   WorkflowDefinition,
@@ -266,6 +274,8 @@ export {
   isAttachmentId,
   isRelativeDiskPath,
   attachmentPolicy,
+  attachmentPreview,
+  attachmentHeaders,
   pendingUploadCount,
   staleUploads,
   forgetUpload,
@@ -276,6 +286,7 @@ export {
 export type {
   AttachmentRecord,
   AttachmentSummary,
+  AttachmentPreview,
   UploadInput,
   ClaimInput,
 } from './src/attachments/attachment_service.js'

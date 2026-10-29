@@ -1,6 +1,11 @@
 import type { Field, Label, Resource, ResourceInput } from './types.js'
 import { assertTitle } from '../admin/record_title.js'
-import { decimalShape, fieldValue } from './values.js'
+import {
+  MULTIPLE_ATTACHMENT_MAX,
+  decimalShape,
+  fieldValue,
+  isMultipleAttachment,
+} from './values.js'
 
 export function identifier(value: string): string {
   if (!/^[a-z][a-z0-9_]*$/.test(value)) throw new Error(`Unsafe SQL identifier: ${value}`)
@@ -119,7 +124,22 @@ function assertFieldProps(name: string, key: string, field: Field, fields: Recor
     // Required means at least one linked record; persist() checks it.
     joinTable(name, key, field)
   }
-  if (COLLECTIONS.includes(field.type))
+  if (field.type === 'attachment') {
+    if (raw.multiple !== undefined && typeof raw.multiple !== 'boolean')
+      throw new Error(`${context}: multiple must be true or false`)
+    if (raw.max !== undefined) {
+      if (!field.multiple) throw new Error(`${context}: max needs multiple: true`)
+      if (
+        !Number.isSafeInteger(raw.max) ||
+        Number(raw.max) < 1 ||
+        Number(raw.max) > MULTIPLE_ATTACHMENT_MAX
+      )
+        throw new Error(
+          `${context}: max must be an integer from 1 to ${MULTIPLE_ATTACHMENT_MAX} files`
+        )
+    }
+  }
+  if (COLLECTIONS.includes(field.type) || isMultipleAttachment(field))
     for (const flag of ['sortable', 'searchable', 'unique'] as const)
       if (field[flag]) throw new Error(`${context}: ${field.type} fields cannot be ${flag}`)
   if (
@@ -219,7 +239,12 @@ export function defineResource<const F extends Record<string, Field>>(
     for (const key of keys) {
       if (key === 'orgUnitId' && input.scoped) continue
       const field = (input.fields as Record<string, Field>)[key]
-      if (!field || COLLECTIONS.includes(field.type) || field.type === 'json')
+      if (
+        !field ||
+        COLLECTIONS.includes(field.type) ||
+        field.type === 'json' ||
+        isMultipleAttachment(field)
+      )
         throw new Error(`${input.name}: unique combination names unknown or unstored field ${key}`)
     }
     const columnsOf = keys.map((key) =>

@@ -408,10 +408,29 @@
       ]
     },
     {
+      "name": "attachment-preview",
+      "type": "registry:ui",
+      "registryDependencies": [
+        "button",
+        "dialog",
+        "messages"
+      ],
+      "dependencies": [
+        "lucide-react@1.47.0"
+      ],
+      "files": [
+        {
+          "path": "registry/ui/attachment-preview.tsx",
+          "type": "registry:ui"
+        }
+      ]
+    },
+    {
       "name": "resource-value",
       "type": "registry:ui",
       "registryDependencies": [
         "badge",
+        "attachment-preview",
         "calendar-date",
         "ui-preferences",
         "messages"
@@ -446,6 +465,7 @@
         "calendar",
         "command",
         "resource-value",
+        "attachment-preview",
         "hijri-calendar",
         "calendar-date",
         "ui-preferences",

@@ -21,7 +21,8 @@ export const FIELD_TYPES: Record<string, string> = {
   date: 'date (YYYY-MM-DD)',
   datetime: 'timestamptz',
   json: 'jsonb',
-  attachment: 'attachments row id; per-field accept/maxSize',
+  attachment:
+    'attachments row id; per-file accept/maxSize; multiple: true (max, default 10) stores an ordered jsonb array of ids; images, PDF and text preview inline',
   belongsTo: 'foreign key, preloaded, restrict on delete',
   user: 'users foreign key, restrict on delete; choices are active members of the record unit or its ancestors; related as { id, fullName }',
   hasMany: 'child resource; inline rows saved with the parent',
