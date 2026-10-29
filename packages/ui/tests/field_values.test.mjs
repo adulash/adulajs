@@ -94,6 +94,7 @@ test('visibleWhen compares canonically, as the server does', () => {
     share: { type: 'percent' },
     days: { type: 'integer' },
     code: { type: 'string' },
+    note: { type: 'text' },
   }
   // A decimal typed or stored as 12.5 matches the canonical rule value "12.50", and back.
   assert.equal(fieldApplies({ visibleWhen: { rate: '12.50' } }, { rate: '12.5' }, siblings), true)
@@ -102,9 +103,15 @@ test('visibleWhen compares canonically, as the server does', () => {
   assert.equal(fieldApplies({ visibleWhen: { rate: '12.50' } }, { rate: '12.51' }, siblings), false)
   assert.equal(fieldApplies({ visibleWhen: { share: ['5.00', '10.00'] } }, { share: '10' }, siblings), true)
   assert.equal(fieldApplies({ visibleWhen: { days: 30 } }, { days: '030' }, siblings), true)
-  // Text compares as typed: the server does not trim it either.
-  assert.equal(fieldApplies({ visibleWhen: { code: 'A1' } }, { code: '  A1 ' }, siblings), false)
+  // A string sibling is trimmed, as the server's validator (vine.string().trim()) stores it.
+  assert.equal(fieldApplies({ visibleWhen: { code: 'A1' } }, { code: '  A1 ' }, siblings), true)
   assert.equal(fieldApplies({ visibleWhen: { code: 'A1' } }, { code: 'A1' }, siblings), true)
+  assert.equal(fieldApplies({ visibleWhen: { code: 'A1' } }, { code: ' A2 ' }, siblings), false)
+  assert.equal(canonicalValue('  A1 ', siblings.code), 'A1')
+  // Text compares as typed: the server does not trim it either.
+  assert.equal(fieldApplies({ visibleWhen: { note: 'A1' } }, { note: '  A1 ' }, siblings), false)
+  assert.equal(fieldApplies({ visibleWhen: { note: 'A1' } }, { note: 'A1' }, siblings), true)
+  assert.equal(canonicalValue('  A1 ', siblings.note), '  A1 ')
   // Whitespace only is empty.
   assert.equal(fieldApplies({ visibleWhen: { code: null } }, { code: '   ' }, siblings), true)
   // An unparsable decimal compares as its trimmed text instead of throwing.

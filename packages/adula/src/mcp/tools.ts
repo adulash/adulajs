@@ -107,7 +107,7 @@ export function createResourceTools(
             messages: (error as { messages?: unknown }).messages,
           })
         )
-      if (['23505', '23503'].includes((error as { code?: string })?.code ?? ''))
+      if (['23505', '23503', '23502'].includes((error as { code?: string })?.code ?? ''))
         return context.response.error(
           JSON.stringify({
             status: 422,

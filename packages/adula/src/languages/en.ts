@@ -56,11 +56,17 @@ export const englishMessages: Readonly<Record<string, string>> = Object.freeze({
   'validation.phone': 'Enter a valid phone number (7 to 15 digits)',
   'validation.decimalScale': 'Enter at most {scale} decimal places',
   'validation.decimalPrecision': 'Enter at most {digits} digits before the decimal point',
+  'validation.unsafeNumber':
+    'This number is too long to send as a JSON number without rounding; send the value as a string, such as "12345678901234567.89"',
   'validation.relation': 'Choose valid records',
   'errors.E_NOT_FOUND.1': 'Record not found',
   'errors.E_NOT_FOUND.2': 'Entity not found',
   'errors.E_DUPLICATE': 'This value is already used by another record',
   'errors.E_DUPLICATE.fields': 'This value is already used by another record: {fields}',
+  'errors.E_NOT_NULL':
+    'The record cannot be saved: a field does not accept an empty value in the database',
+  'errors.E_NOT_NULL.field':
+    'The record cannot be saved: the field {field} does not accept an empty value in the database',
   'errors.E_RELATION': 'Check the related records',
   'errors.E_FORBIDDEN.1': 'You do not have permission for this action',
   'errors.E_FIELD_FORBIDDEN.1': 'You do not have permission for this field',

@@ -46,23 +46,38 @@ e-mail, phone, URL, decimal, percent, choice and many-to-many fields (GAPS.md). 
   values are canonical values of the controlling field (`'12.50'` for a scale-2 decimal,
   options for enum and multiSelect), checked by `defineResource`, and the record value is
   made canonical before it is compared. A composite unique index treats NULLs as equal
-  (`NULLS NOT DISTINCT`), so a combination with an empty member still names one record. A
-  `required` field with `visibleWhen` is a
-  nullable column. Declared defaults fill keys a create leaves out before validation;
+  (`NULLS NOT DISTINCT`), so a combination with an empty member still names one record.
+  On a submittable resource every unique index (single or composite) also excludes
+  cancelled documents (`WHERE deleted_at IS NULL AND doc_status <> 2`): the cancelled
+  original of an amend-by-copy stays live, and its copy must be able to keep its values;
+  sequence fields still receive a new number. A `required` field with `visibleWhen` is a
+  nullable column, and so is every optional field. A column created NOT NULL before
+  `visibleWhen` was added to its field keeps the constraint until `adula:resource:migration`
+  drops it; until then a save that hides the field is 422 `E_NOT_NULL` naming the field
+  (never a 500). Declared defaults fill keys a create leaves out before validation;
   they are not field writes by the actor. A manyToMany write syncs by difference inside
-  the record's transaction; every newly linked record must be viewable (404/403 like
-  belongsTo); links kept unchanged are not re-checked. Unique violations (single or
+  the record's transaction; every newly linked record must be live and viewable, checked
+  with one query per field (scope and role rules as SQL, 404 when any is not); links kept
+  unchanged are not re-checked. Amend-by-copy links the same records, on the document and
+  on its copied inline lines (a line's links follow the same field-permission filter as
+  its other copied fields). Decimal and percent values sent as JSON numbers must be exact:
+  a magnitude of `Number.MAX_SAFE_INTEGER` or more, or more than 15 significant digits, is
+  422 `unsafeNumber` asking the client to send a string. Unique violations (single or
   composite) stay 409 `E_DUPLICATE`, the status the released resource contract pins, now
   with a message naming the fields.
 * **Schema from the definition.** `resourceSchema(resource)` returns the expected table:
   columns with types, nullability and defaults, unique indexes and join tables.
   `createResourceTable` builds exactly that. The doctor check `resources.schema`
   compares every registered resource with the live database (missing table, columns,
-  unique indexes by column set, join tables; different types). `node ace
-  adula:resource:migration <name>` writes an additive migration embedding only what is
-  missing and applying it with the new `alterResourceTable(db, name, addition)`; a
-  column added to a table that may hold rows is NOT NULL only with a default, and types
-  are never changed automatically. Released migrations stay immutable.
+  unique indexes by column set, join tables; different types; NOT NULL columns the
+  definition lets be empty; unique indexes of a submittable table that still count
+  cancelled documents). `node ace adula:resource:migration <name>` writes a migration
+  embedding only what is missing plus the two relaxing changes (`dropNotNull`, and
+  `recreateUnique`: drop and create again in the same migration with the new predicate),
+  applied by the new `alterResourceTable(db, name, addition)`. A column added to a table
+  that may hold rows is NOT NULL only with a default; NOT NULL is never added to an
+  existing column and types are never changed automatically. Released migrations stay
+  immutable.
 * **Snapshot deprecated.** `adula:resource:snapshot` still rewrites a pending
   create-migration but prints a deprecation notice pointing to
   `adula:resource:migration`; the `resources.snapshots` doctor check is unchanged.

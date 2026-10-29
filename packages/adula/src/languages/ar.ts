@@ -59,11 +59,16 @@ export const arabicMessages: Readonly<Record<string, string>> = Object.freeze({
   'validation.phone': 'أدخل رقم هاتف صحيحًا (من 7 إلى 15 رقمًا)',
   'validation.decimalScale': 'يقبل هذا الحقل {scale} منازل عشرية على الأكثر',
   'validation.decimalPrecision': 'يقبل هذا الحقل {digits} خانات على الأكثر قبل الفاصلة العشرية',
+  'validation.unsafeNumber':
+    'هذا الرقم أطول من أن يُنقل رقمًا دون تقريب؛ أرسل القيمة نصًا، مثل "12345678901234567.89"',
   'validation.relation': 'اختر سجلات صحيحة',
   'errors.E_NOT_FOUND.1': 'السجل غير موجود',
   'errors.E_NOT_FOUND.2': 'الكيان غير موجود',
   'errors.E_DUPLICATE': 'هذه القيمة مستخدمة في سجل آخر',
   'errors.E_DUPLICATE.fields': 'هذه القيمة مستخدمة في سجل آخر: {fields}',
+  'errors.E_NOT_NULL': 'لا يمكن حفظ السجل لأن أحد الحقول لا يقبل قيمة فارغة في قاعدة البيانات',
+  'errors.E_NOT_NULL.field':
+    'لا يمكن حفظ السجل لأن الحقل «{field}» لا يقبل قيمة فارغة في قاعدة البيانات',
   'errors.E_RELATION': 'تحقق من السجلات المرتبطة',
   'errors.E_FORBIDDEN.1': 'ليس لديك صلاحية لهذا الإجراء',
   'errors.E_FIELD_FORBIDDEN.1': 'ليس لديك صلاحية لهذا الحقل',

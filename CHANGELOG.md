@@ -308,6 +308,23 @@ Changed:
   clears its lines' links.
 * `visibleWhen: { field: null }` on a multiSelect controller matches no selection (null or
   an empty list), in the server and the generated form alike.
+* Adding `visibleWhen` to an existing required field: the doctor's `resources.schema`
+  check reports a `NOT NULL` column the definition lets be empty (`SchemaDrift.notNullColumns`),
+  and `adula:resource:migration` drops the constraint (`ResourceAddition.dropNotNull`; only
+  relaxes, `NOT NULL` is never added). Until then a save that hides the field is 422
+  `E_NOT_NULL` naming the field (catalog `errors.E_NOT_NULL`, `errors.E_NOT_NULL.field`)
+  instead of a 500.
+* Submittable resources: unique indexes, single and composite, exclude cancelled documents
+  (`WHERE deleted_at IS NULL AND doc_status <> 2`), so an amended copy keeps the unique values
+  of its cancelled original; two live documents still conflict (409). Existing indexes are
+  reported by the doctor (`SchemaDrift.staleUnique`) and recreated by
+  `adula:resource:migration` (`ResourceAddition.recreateUnique`: dropped and created again in
+  the same migration). `ResourceUniqueIndex` gains `excludeCancelled`.
+* Decimal and percent values sent as JSON numbers of magnitude `Number.MAX_SAFE_INTEGER` or
+  more, or with more than 15 significant digits, are refused with 422 (catalog
+  `validation.unsafeNumber`, asking for a string) instead of being rounded silently.
+* Amend-by-copy also copies the manyToMany links of inline lines (within the actor's field
+  permissions), and newly linked manyToMany targets are checked with one query per field.
 
 Deprecated:
 

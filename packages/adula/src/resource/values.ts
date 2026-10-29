@@ -35,12 +35,26 @@ export function decimalShape(field: { type: string; precision?: number; scale?: 
 }
 
 /**
+ * Refuses a JSON number that cannot carry a decimal exactly: its magnitude reaches
+ * Number.MAX_SAFE_INTEGER or it has more than 15 significant digits, so String(value)
+ * may already be a rounded neighbour of what the client meant (12345678901234567 arrives
+ * as 12345678901234568). Such values must be sent as strings.
+ */
+function unsafeNumber(value: number) {
+  const significant = String(Math.abs(value)).replace('.', '').replace(/^0+/, '').replace(/0+$/, '')
+  if (Math.abs(value) >= Number.MAX_SAFE_INTEGER || significant.length > 15)
+    throw new FieldValueError('unsafeNumber')
+}
+
+/**
  * The canonical decimal string of a number or numeric string: an optional minus, the
  * integer digits without leading zeros and exactly `scale` fractional digits ("12.50").
- * Rejects more fractional digits than `scale` (trailing zeros excepted) and more than
- * `precision - scale` integer digits.
+ * Rejects more fractional digits than `scale` (trailing zeros excepted), more than
+ * `precision - scale` integer digits and JSON numbers beyond exact precision (see
+ * unsafeNumber); strings keep every digit.
  */
 export function canonicalDecimal(value: unknown, precision: number, scale: number): string {
+  if (typeof value === 'number' && Number.isFinite(value)) unsafeNumber(value)
   const text =
     typeof value === 'number' && Number.isFinite(value)
       ? String(value)

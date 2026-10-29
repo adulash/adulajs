@@ -166,14 +166,15 @@ export function siblingShapes(fields: readonly (SiblingShape & { key: string })[
  * The stored form of a sibling value, mirroring the server's normalization: e-mail trimmed
  * and lower-cased, phone with Latin digits and no separators (a leading + kept), URL
  * trimmed, decimal/percent at the sibling's scale («12.5» equals "12.50"), integers without
- * leading zeros. Text is compared as typed (the server does not trim it).
+ * leading zeros, string fields trimmed (the server's validator trims them). Text is
+ * compared as typed (the server does not trim it).
  */
 export function canonicalValue(raw: string, sibling?: SiblingShape) {
   if (!sibling || raw.trim() === '') return raw
   const format = sibling.type === 'string' ? sibling.format : sibling.type
   if (format === 'email') return raw.trim().toLowerCase()
   if (format === 'phone') return toLatinDigits(raw.trim()).replace(/[\s\-().]/g, '')
-  if (format === 'url') return raw.trim()
+  if (format === 'url' || sibling.type === 'string') return raw.trim()
   if (sibling.type === 'decimal' || sibling.type === 'percent') {
     try {
       return parseDecimal(raw, sibling.scale ?? 2)

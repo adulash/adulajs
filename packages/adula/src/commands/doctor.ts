@@ -7,7 +7,7 @@ import { columnName, joinTable } from '../resource/define_resource.js'
 import { decimalShape } from '../resource/values.js'
 import type { Knex } from 'knex'
 import type { Field, Resource } from '../resource/types.js'
-import { describeDrift, inSync, schemaDrift } from '../database/schema_diff.js'
+import { describeDrift, inSync, migratable, schemaDrift } from '../database/schema_diff.js'
 import type { WorkflowDefinition } from '../workflows/define_workflow.js'
 import type { RuntimeHealth } from '../core/health.js'
 
@@ -450,8 +450,10 @@ export function diagnoseOutbox(
 
 /**
  * Compares every registered resource with its live table (see schemaDrift): missing
- * columns, different types, missing unique indexes and missing join tables. Run
- * `node ace adula:resource:migration <name>` to add what is missing.
+ * columns, different types, NOT NULL columns the definition lets be empty, missing unique
+ * indexes, unique indexes still counting cancelled documents and missing join tables. Run
+ * `node ace adula:resource:migration <name>` to add what is missing and apply the
+ * relaxing changes.
  */
 export async function diagnoseResourceSchemas(
   db: Knex,
@@ -462,11 +464,7 @@ export async function diagnoseResourceSchemas(
   for (const resource of resources) {
     const drift = await schemaDrift(db, resource)
     if (inSync(drift)) continue
-    if (
-      !drift.missingTable &&
-      (drift.missingColumns.length || drift.missingUnique.length || drift.missingJoinTables.length)
-    )
-      missing.add(resource.name)
+    if (migratable(drift)) missing.add(resource.name)
     problems.push(...describeDrift(drift))
   }
   return {

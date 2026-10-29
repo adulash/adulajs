@@ -22,10 +22,17 @@ or snapshot to keep in step.
    column added to a table that may hold rows is `NOT NULL` only when the field has a
    default; a column whose type differs is reported and never changed automatically (write
    an expand/contract migration by hand). Making an existing field `searchable` also needs
-   a hand-written migration: the generated search vector is not changed.
+   a hand-written migration: the generated search vector is not changed. The migration
+   also applies two relaxing changes: `dropNotNull` removes `NOT NULL` from a column the
+   definition now lets be empty (for example a required field that gained `visibleWhen`;
+   until then saving it hidden is 422 `E_NOT_NULL`), and `recreateUnique` drops and
+   recreates, in the same migration, a unique index of a submittable table that still
+   counts cancelled documents. `NOT NULL` is never added to an existing column.
 4. `node ace adula:doctor` runs the `resources.schema` check: for every registered resource
-   it reports a missing table, missing columns, different column types, missing unique
-   indexes and missing join tables, and names the `adula:resource:migration` command to run.
+   it reports a missing table, missing columns, different column types, `NOT NULL` columns
+   the definition lets be empty, missing unique indexes, unique indexes that still count
+   cancelled documents and missing join tables, and names the `adula:resource:migration`
+   command to run.
 
 `node ace adula:resource:snapshot <name>` is deprecated. It still rewrites a pending
 create-migration from the current definition and prints a notice pointing to
@@ -90,7 +97,7 @@ below and is exercised by `apps/reference/tests/functional/field_types.spec.ts`.
 | `url` | varchar(2048) | absolute `http://` or `https://` URL; `javascript:`, `data:` and relative URLs are refused | `min`, `max`, `pattern` | equality |
 | `integer` | integer | number | `min`, `max` | equality |
 | `money` | bigint | integer string of minor units, e.g. `"150000"` | `min`, `max` in minor units (string or safe integer) | equality |
-| `decimal` | numeric(precision, scale) | decimal string with exactly `scale` digits, e.g. `"12.50"`; numbers and shorter strings are accepted and normalized | `precision` (default 18, 1 to 1000), `scale` (default 2, 0 to precision), `min`, `max` | equality |
+| `decimal` | numeric(precision, scale) | decimal string with exactly `scale` digits, e.g. `"12.50"`; numbers and shorter strings are accepted and normalized. A JSON number of magnitude `Number.MAX_SAFE_INTEGER` or more, or with more than 15 significant digits, is refused (422 `unsafeNumber`): send such values as strings | `precision` (default 18, 1 to 1000), `scale` (default 2, 0 to precision), `min`, `max` | equality |
 | `percent` | numeric(precision, scale) | like decimal; `"12.50"` means 12.5 % | as decimal, defaults precision 7 and scale 2 | equality |
 | `boolean` | boolean | boolean | | equality |
 | `date` | date | `YYYY-MM-DD` | | equality |
@@ -119,18 +126,21 @@ A `manyToMany` field stores no column. Its join table is `table`, or
 (`related_id` when a resource links itself), both foreign keys `RESTRICT`, primary key on the
 pair and an index on the target. `joinTable(owner, key, field)` returns those names. A write
 replaces the whole list (at most 500 ids) and the server syncs it by difference inside the
-record's transaction; the actor must be able to view every newly linked record (404, or 403
-for a conditional rule, like belongsTo). Amend-by-copy links the same records.
+record's transaction; every newly linked record must be live and viewable by the actor
+(scope and role rules), checked with one query per field: 404 when any of them is not. Links
+kept unchanged are not re-checked. Amend-by-copy links the same records, on the document and
+on its copied inline lines (a line's links are copied only when the actor may create that
+field, like its other values).
 
 ### Common field props
 
 | Prop | Meaning |
 |---|---|
 | `label` | Required `Label` (`{ ar, en?, … }`). |
-| `required` | A value is needed (at least one for multiSelect and manyToMany). The column is `NOT NULL` unless the field has `visibleWhen`. |
+| `required` | A value is needed (at least one for multiSelect and manyToMany). The column is `NOT NULL` unless the field has `visibleWhen`; optional fields are nullable columns. A column created `NOT NULL` before `visibleWhen` was added keeps the constraint until `adula:resource:migration` drops it (the doctor reports it); meanwhile a save that hides the field is 422 `E_NOT_NULL` naming the field. |
 | `default` | Applied on create when the input omits the key (before validation), prefilled in the create form (`editor.defaults`) and the column default for scalar types. Must be a canonical value of the type (`'0.00'` for a scale-2 percent); an array only for multiSelect. Not allowed on belongsTo, user, attachment, json, hasMany, manyToMany or sequence fields. A default is the definition's value, not a field write by the actor. |
 | `visibleWhen` | `{ sibling: value \| value[] }`: the field applies only while every named sibling equals the value or one of the listed values (a multiSelect sibling must contain it; `null` matches an empty value, and for a multiSelect sibling no selection). A field whose sibling is itself hidden is evaluated with that sibling cleared, repeated until stable, on the server and in the generated form (inline rows included). Each value must be a canonical value of the controlling field (`'12.50'` for a scale-2 decimal, an option value for enum and multiSelect), checked by `defineResource`; the server makes the record's value canonical before comparing. While the field does not apply the form hides it, `required` is not enforced and the server stores null (an empty list for manyToMany) on create and on update, whatever was submitted, except that an update keeps the stored value or links of a field the actor may not write. Siblings must exist and cannot be hasMany, manyToMany, json or attachment. |
-| `unique` | Partial unique index over live rows (`WHERE deleted_at IS NULL`). |
+| `unique` | Partial unique index over live rows (`WHERE deleted_at IS NULL`). On a submittable resource cancelled documents do not count (`AND doc_status <> 2`), so an amended copy keeps the value of its cancelled original. |
 | `sortable` | Allowed in `sort`. Not on multiSelect, manyToMany or hasMany. |
 | `searchable` | Part of the generated full-text vector. Only string, text, email, url, phone, enum and lookup. |
 | `filterable` | Offered as a list filter. |
@@ -155,7 +165,7 @@ manyToMany yet.
 | `label`, `recordLabel`, `createLabel` | List heading (plural), record noun («إضافة مورد»), full create-button text. |
 | `scoped` | Required. `true` adds `org_unit_id` and organizational scope. `scope: { from }` copies the unit from a required belongsTo parent. |
 | `fields`, `list`, `form`, `show`, `serialize`, `hidden`, `title` | Field definitions and the keys each surface uses. `title` names the record in relations, pickers, tasks and approvals. |
-| `unique` | Composite unique combinations, for example `[['orgUnitId', 'code']]`: a partial unique index over live rows per combination that treats NULLs as equal (`NULLS NOT DISTINCT`: two rows with the same code and both empty in another member conflict). Adding a combination with `adula:resource:migration` fails while live rows already repeat it, null members included: correct those rows first. Each needs two or more distinct stored fields; `orgUnitId` is allowed on a scoped resource (a code unique per unit). |
+| `unique` | Composite unique combinations, for example `[['orgUnitId', 'code']]`: a partial unique index over live rows (not cancelled documents on a submittable resource) per combination that treats NULLs as equal (`NULLS NOT DISTINCT`: two rows with the same code and both empty in another member conflict). Adding a combination with `adula:resource:migration` fails while live rows already repeat it, null members included: correct those rows first. Each needs two or more distinct stored fields; `orgUnitId` is allowed on a scoped resource (a code unique per unit). |
 | `submittable`, `version` | Draft/submit/cancel/amend-by-copy; optimistic versions (default with submittable). |
 | `actions` | `view`, `create`, `update`, `delete`, and `submit`, `cancel`, `amend` when submittable. |
 | `hooks` | `beforeSave` / `afterSave`, inside the write transaction. |
