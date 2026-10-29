@@ -16,6 +16,7 @@ import {
   createOutboundPoster,
 } from 'adula'
 import env from '#start/env'
+import adulaConfig from '#config/adula'
 import encryption from '@adonisjs/core/services/encryption'
 import { registry } from '#start/modules'
 import { dashboards } from '#start/dashboards'
@@ -40,7 +41,11 @@ export function adula() {
     },
   })
   // closeNote: 'optional' shows a closing note field; 'required' refuses an empty note.
-  const assignments = new Assignments(knex, resources, actors, { closeNote: 'optional' })
+  const { timeZone } = adulaConfig
+  const assignments = new Assignments(knex, resources, actors, {
+    closeNote: 'optional',
+    timeZone,
+  })
   return {
     registry,
     resources,
@@ -60,9 +65,9 @@ export function adula() {
       actors,
       assignments,
       registry.workflows(),
-      { post: createOutboundPoster(outboundPolicy()) }
+      { post: createOutboundPoster(outboundPolicy()), timeZone }
     ),
-    delegations: new WorkflowDelegations(knex),
+    delegations: new WorkflowDelegations(knex, { timeZone }),
     imports: new ImportBatches(knex, registry, resources, actors),
     // Declared in start/sync_jobs.ts; the scheduler queues them and the worker runs them.
     syncJobs: new SyncJobs(knex, resources, syncJobDefinitions, {

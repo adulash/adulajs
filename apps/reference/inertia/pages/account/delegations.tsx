@@ -9,10 +9,14 @@ import { formatDate } from '~/components/ui/resource-value'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
 import { DelegationDialog, DelegationTable } from '~/components/delegations'
 
-type Props = { delegations: { given: WorkflowDelegation[]; received: WorkflowDelegation[] } }
+type Props = {
+  delegations: { given: WorkflowDelegation[]; received: WorkflowDelegation[] }
+  /** The system time zone; delegation days are its calendar days. */
+  timeZone: string
+}
 
 /** Out-of-office delegation of the user's workflow approvals (ADR 044). */
-export default function AccountDelegations({ delegations }: Props) {
+export default function AccountDelegations({ delegations, timeZone }: Props) {
   const { calendar } = useUiPreferences()
   const [creating, setCreating] = useState(false)
   const active = delegations.given.find((item) => item.status === 'active')
@@ -88,6 +92,7 @@ export default function AccountDelegations({ delegations }: Props) {
         </section>
       )}
       <DelegationDialog
+        timeZone={timeZone}
         open={creating}
         onOpenChange={setCreating}
         endpoint="/account/delegations"

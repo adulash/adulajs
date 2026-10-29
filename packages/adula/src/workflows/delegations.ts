@@ -3,6 +3,7 @@ import { AdulaError } from '../admin/errors.js'
 import { logActivity } from '../core/activity.js'
 import { notifyWithTemplate } from '../core/message_templates.js'
 import { escapeLike } from '../core/like.js'
+import { assertTimeZone, calendarDate } from './calendar.js'
 
 /** A user's approvals routed to a delegate for an inclusive date range (ADR 044). */
 export type WorkflowDelegation = {
@@ -11,7 +12,7 @@ export type WorkflowDelegation = {
   delegatorName: string | null
   delegateId: number
   delegateName: string | null
-  /** Inclusive dates (YYYY-MM-DD), compared with the UTC calendar date. */
+  /** Inclusive dates (YYYY-MM-DD), days in the system time zone (UTC by default). */
   startsOn: string
   endsOn: string
   note: string | null
@@ -27,18 +28,17 @@ export type WorkflowDelegationInput = {
   endsOn: unknown
   note?: unknown
 }
-export type WorkflowDelegationOptions = { now?: () => Date }
+export type WorkflowDelegationOptions = {
+  now?: () => Date
+  /** The system time zone whose calendar days delegation ranges use (default UTC). */
+  timeZone?: string
+}
 
 const DATE = /^\d{4}-\d{2}-\d{2}$/
 const MAX_DAYS = 366
 const NOTE_LIMIT = 500
 /** The activity log subject for delegation changes. */
 export const DELEGATION_ACTIVITY = 'core.workflow_delegations'
-
-/** The UTC calendar date of an instant: delegation ranges are whole days. */
-export function utcDate(now: Date) {
-  return now.toISOString().slice(0, 10)
-}
 
 /** node-postgres reads a date column as local midnight; read it back with local fields. */
 function dateText(value: unknown) {
@@ -123,7 +123,9 @@ export class WorkflowDelegations {
   constructor(
     private db: Knex,
     private options: WorkflowDelegationOptions = {}
-  ) {}
+  ) {
+    if (options.timeZone) assertTimeZone(options.timeZone)
+  }
 
   /** A user's own delegations (given and received), newest first. */
   async forUser(userId: number): Promise<{
@@ -356,6 +358,6 @@ export class WorkflowDelegations {
   }
 
   private today() {
-    return utcDate(this.now())
+    return calendarDate(this.now(), this.options.timeZone)
   }
 }

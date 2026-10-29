@@ -627,4 +627,44 @@ test.group('Workflow approval delegation', (group) => {
     assert.deepEqual([row.assignee_id, row.on_behalf_of], [manager.id, null])
     assert.lengthOf(await workflows.inbox(peer), 0, 'routing never chains to a second delegate')
   })
+
+  test('delegation days follow the system time zone', async ({ assert }) => {
+    // 01:00 on 10 October in Riyadh is still 9 October in UTC.
+    now = new Date('2026-10-09T22:00:00Z')
+    const zone = { now: clock, timeZone: 'Asia/Riyadh' }
+    const riyadh = new WorkflowDelegations(db, zone)
+    const created = await riyadh.create(
+      {
+        delegatorId: manager.id,
+        delegateId: deputy.id,
+        startsOn: '2026-10-10',
+        endsOn: '2026-10-10',
+      },
+      manager.id
+    )
+    assert.equal(created.status, 'active')
+    const [inUtc] = await given(manager.id)
+    assert.equal(inUtc.status, 'scheduled', 'the same range has not started in UTC')
+    const workflows = new WorkflowEngine(
+      db,
+      registry,
+      service(),
+      loader,
+      new Assignments(db, service(), loader, zone),
+      [approval()],
+      zone
+    )
+    const runId = await submitted(workflows)
+    assert.equal(
+      await column('assignments', { workflow_run_id: runId, status: 'open' }, 'assignee_id'),
+      deputy.id
+    )
+    // 03:00 on 11 October in Riyadh: the one-day delegation has ended there.
+    now = new Date('2026-10-11T00:00:00Z')
+    assert.lengthOf(await workflows.inbox(deputy), 0)
+    assert.throws(
+      () => new WorkflowDelegations(db, { timeZone: 'Nowhere/City' }),
+      /Unknown time zone/
+    )
+  })
 })

@@ -1,4 +1,5 @@
 import type { HttpContext } from '@adonisjs/core/http'
+import adulaConfig from '#config/adula'
 import { adula } from '#services/adula'
 import { acting } from '#services/impersonation'
 import { mutate, positiveId, wantsJson } from '#controllers/admin/support'
@@ -11,7 +12,10 @@ export default class DelegationsController {
   async index(ctx: HttpContext) {
     const delegations = await adula().delegations.forUser(ctx.auth.getUserOrFail().id)
     if (wantsJson(ctx)) return { data: delegations }
-    return ctx.inertia.render('account/delegations', { delegations })
+    return ctx.inertia.render('account/delegations', {
+      delegations,
+      timeZone: adulaConfig.timeZone,
+    })
   }
 
   /** Active users to choose a delegate from, by name or e-mail. */
@@ -57,7 +61,10 @@ export default class DelegationsController {
   async adminIndex(ctx: HttpContext) {
     const delegations = await adula().delegations.current()
     if (wantsJson(ctx)) return { data: delegations }
-    return ctx.inertia.render('admin/delegations/index', { delegations })
+    return ctx.inertia.render('admin/delegations/index', {
+      delegations,
+      timeZone: adulaConfig.timeZone,
+    })
   }
 
   async adminCandidates(ctx: HttpContext) {

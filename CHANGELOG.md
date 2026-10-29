@@ -75,8 +75,8 @@ migrations: `1770000000041_import_modes`, `1770000000042_sync_jobs`,
 
 Minor (ADR 044). An additive migration `1770000000046_workflow_delegation_sla` adds
 `workflow_delegations`, `workflow_escalations` and six nullable `assignments` columns.
-`pnpm check:api` reports `WorkflowStep`, `WorkflowRun`, `Assignment` and
-`AssignmentOptions` as changed because each gains optional fields; existing code
+`pnpm check:api` reports `WorkflowStep`, `WorkflowRun`, `WorkflowOptions`, `Assignment`
+and `AssignmentOptions` as changed because each gains optional fields; existing code
 compiles unchanged.
 
 * Delegation while out of office: `WorkflowDelegations` (create, revoke, list,
@@ -103,6 +103,11 @@ compiles unchanged.
   reopens). Any other step naming itself is refused by `defineWorkflow`, and the
   engine fails such a run. `WorkflowDefinition.machine` is
   deprecated; it and the `xstate` dependency are removed in the next major version.
+* System time zone: `WorkflowOptions`, `AssignmentOptions` and
+  `WorkflowDelegationOptions` take an optional `timeZone` (IANA name, default UTC).
+  Due dates (`dueOn`) and delegation ranges are calendar days in that zone. Before,
+  `dueOn` was the UTC day, so between 00:00 and 03:00 in Riyadh it came out one day
+  early. The reference `config/adula.ts` sets `timeZone: 'Asia/Riyadh'`.
 * New exports: `WorkflowDelegations`, `slaState`, `createWorkflowDelegationSlaSchema`
   and the types `StepSla`, `SlaEscalation`, `EscalationTarget`, `SlaState`,
   `WorkflowSlaStatus`, `SlaEvaluation`, `WorkflowDelegation`,

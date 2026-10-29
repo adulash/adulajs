@@ -118,7 +118,7 @@
     },
     "AssignmentOptions": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ closeNote?: CloseNotePolicy | undefined; now?: (() => Date) | undefined; }"
+      "type": "{ closeNote?: CloseNotePolicy | undefined; now?: (() => Date) | undefined; timeZone?: string | undefined; }"
     },
     "AssignmentPage": {
       "kind": "TypeAliasDeclaration",
@@ -1694,7 +1694,7 @@
     },
     "WorkflowDelegationOptions": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ now?: (() => Date) | undefined; }"
+      "type": "{ now?: (() => Date) | undefined; timeZone?: string | undefined; }"
     },
     "WorkflowDelegations": {
       "kind": "ClassDeclaration",
@@ -1718,7 +1718,7 @@
     },
     "WorkflowOptions": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ post?: HttpPoster | undefined; beforeCommit?: ((run: { id: string; step: string; }) => void | Promise<void>) | undefined; now?: (() => Date) | undefined; }"
+      "type": "{ post?: HttpPoster | undefined; beforeCommit?: ((run: { id: string; step: string; }) => void | Promise<void>) | undefined; now?: (() => Date) | undefined; timeZone?: string | undefined; }"
     },
     "WorkflowRun": {
       "kind": "TypeAliasDeclaration",

@@ -210,9 +210,15 @@ Delegation never widens record access (the delegate's own rights still apply), n
 covers manual tasks, and never lets anyone approve a request they submitted. It ends at
 its last date or when revoked; revoking returns the routed approvals to the approver.
 Routing is one hop: if the delegate is away too, the approval stays with its approver.
-Ranges are inclusive UTC dates; in Riyadh (UTC+3), a delegation dated 1 to 3 November
-runs from 03:00 on 1 November to 02:59 on 4 November. One delegation per user at a
-time. Code: `WorkflowDelegations`.
+Ranges are inclusive calendar days of the system time zone (`timeZone` in
+`config/adula.ts`, an IANA name such as `Asia/Riyadh`; UTC when unset). With
+`Asia/Riyadh`, a delegation dated 1 to 3 November runs from local midnight on
+1 November to the end of 3 November. One delegation per user at a time. Code:
+`WorkflowDelegations`.
+
+Due dates (`dueInDays`, and the date of an SLA deadline) are calendar days of the same
+zone. Pass the zone to `WorkflowEngine`, `Assignments` and `WorkflowDelegations`
+(`timeZone` option); the reference `app/services/adula.ts` does.
 
 ### SLA deadlines and escalation
 
