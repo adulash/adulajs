@@ -738,4 +738,50 @@ test.group('Workflow SLA deadlines and escalation', (group) => {
     assert.equal(pass.reminded, 1)
     assert.deepEqual(await recipients('workflow.sla_due_soon'), [backup.id])
   })
+
+  test('due dates are calendar days in the system time zone', async ({ assert }) => {
+    const zoned = (definition: WorkflowDefinition, timeZone: string) =>
+      new WorkflowEngine(db, registry, service(), loader, assignments(), [definition], {
+        now: clock,
+        timeZone,
+      })
+    assert.throws(() => zoned(slaFlow({ hours: 1 }), 'Mars/Base'), /Unknown time zone "Mars\/Base"/)
+    // 23:30 on 9 October in Riyadh (UTC+3): one hour later is already 10 October there.
+    now = new Date('2026-10-09T20:30:00Z')
+    const riyadh = zoned(slaFlow({ hours: 1, dueSoonHours: 0 }), 'Asia/Riyadh')
+    const slaRun = await submitted(riyadh)
+    const slaRow = await db('assignments').where({ workflow_run_id: slaRun }).first()
+    const [slaTask] = await tasks(manager)
+    assert.equal(slaTask.dueOn, '2026-10-10')
+    assert.equal(new Date(slaRow.due_at).toISOString(), '2026-10-09T21:30:00.000Z')
+    await db('assignments').del()
+    // 01:00 on 10 October in Riyadh, still 9 October in UTC: two days later is the 12th.
+    now = new Date('2026-10-09T22:00:00Z')
+    const days = defineWorkflow({
+      name: 'sla_approval',
+      version: 1,
+      resource: 'orders',
+      label: 'اعتماد بأيام',
+      start: 'review',
+      steps: {
+        review: {
+          type: 'approval',
+          label: 'موافقة المدير',
+          assignees: { users: [manager.id] },
+          dueInDays: 2,
+          approve: 'approved',
+          reject: 'rejected',
+        },
+        approved: { type: 'end', outcome: 'approved' },
+        rejected: { type: 'end', outcome: 'rejected' },
+      },
+    })
+    await submitted(zoned(days, 'Asia/Riyadh'))
+    const [inRiyadh] = await tasks(manager)
+    assert.equal(inRiyadh.dueOn, '2026-10-12')
+    await db('assignments').del()
+    await submitted(zoned(days, 'UTC'))
+    const [inUtc] = await tasks(manager)
+    assert.equal(inUtc.dueOn, '2026-10-11', 'the default UTC zone keeps its own calendar')
+  })
 })

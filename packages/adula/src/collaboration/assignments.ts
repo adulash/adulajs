@@ -4,7 +4,8 @@ import type { ResourceService } from '../admin/resource_service.js'
 import { AdulaError } from '../admin/errors.js'
 import { notifyWithTemplate } from '../core/message_templates.js'
 import { canView, resourceLabel, type ActorLoader } from './shared.js'
-import { actionableBy, delegationActive, utcDate } from '../workflows/delegations.js'
+import { actionableBy, delegationActive } from '../workflows/delegations.js'
+import { assertTimeZone, calendarDate } from '../workflows/calendar.js'
 import { slaState, type SlaState } from '../workflows/sla.js'
 
 export type AssignmentStatus = 'open' | 'done' | 'cancelled'
@@ -67,6 +68,8 @@ export type AssignmentOptions = {
   closeNote?: CloseNotePolicy
   /** Test hook: the clock for delegation dates and SLA states. */
   now?: () => Date
+  /** The system time zone whose calendar days delegation ranges use (default UTC). */
+  timeZone?: string
 }
 
 type DelegationScope = { delegations: Set<number>; delegators: Set<number> }
@@ -94,7 +97,9 @@ export class Assignments {
     private resources: ResourceService,
     private actors: ActorLoader,
     private options: AssignmentOptions = {}
-  ) {}
+  ) {
+    if (options.timeZone) assertTimeZone(options.timeZone)
+  }
 
   async forRecord(name: string, id: number, actor: Actor): Promise<Assignment[]> {
     await this.resources.access(name, id, actor)
@@ -562,7 +567,7 @@ export class Assignments {
   }
 
   private today() {
-    return utcDate(this.now())
+    return calendarDate(this.now(), this.options.timeZone)
   }
 
   private closeNote(row: Record<string, any>): CloseNotePolicy {

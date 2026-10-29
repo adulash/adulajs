@@ -63,8 +63,8 @@ Measured on `packages/adula` at 4ca707e:
    * `pnpm check:api` will report `WorkflowDefinition` as changed, which is expected
      for a major.
 3. **Delegation (out-of-office).**
-   * **Table.** `workflow_delegations` stores delegator, delegate, inclusive UTC
-     dates, a note, the creator and the revocation. `WorkflowDelegations` creates and
+   * **Table.** `workflow_delegations` stores delegator, delegate, inclusive
+     dates (calendar days of the system time zone), a note, the creator and the revocation. `WorkflowDelegations` creates and
      revokes delegations. It refuses delegating to oneself, a disabled delegate,
      overlapping ranges (under a lock on both user rows), ranges that ended and ranges
      longer than a year. It records `delegation_created` and `delegation_revoked` in
@@ -126,11 +126,19 @@ Measured on `packages/adula` at 4ca707e:
      `WorkflowRun.sla` and `Assignment.sla` carry the state, and pages show «في
      الموعد / يقترب الموعد / متأخر».
 5. **Time.** The clock comes from `WorkflowOptions.now`, `AssignmentOptions.now` and
-   `WorkflowDelegationOptions.now`, so tests control it. Delegation dates compare with
-   the UTC calendar date, like `dueOn`. AdulaJS has no system time-zone setting yet,
-   so a delegation dated 1 to 3 November runs in Riyadh (UTC+3) from 03:00 on
-   1 November to 02:59 on 4 November. Interpreting the dates in the system's time
-   zone is the follow-up once such a setting exists.
+   `WorkflowDelegationOptions.now`, so tests control it.
+6. **Calendar days in the system time zone.** `WorkflowOptions.timeZone`,
+   `AssignmentOptions.timeZone` and `WorkflowDelegationOptions.timeZone` take an IANA
+   name. The default is UTC, and an unknown name is refused when the service is built.
+   * Due dates (`dueOn`, from `dueInDays` or from an SLA deadline) and delegation
+     ranges are calendar days in that zone.
+   * Instants (`due_at`, `due_soon_at`) stay in UTC, and SLA hours are exact hours.
+   * Without the zone, a due date was a day early between 00:00 and 03:00 in Riyadh.
+     For example, at 01:00 on 10 October in Riyadh, a two-day approval was due on
+     11 October instead of 12 October.
+   * The reference application sets the zone once in `config/adula.ts`
+     (`timeZone: 'Asia/Riyadh'`) and passes it to all three services. The delegation
+     dialog takes its "today" from the same zone.
 
 ## Consequences
 
@@ -141,7 +149,8 @@ Measured on `packages/adula` at 4ca707e:
 * **API report.** `pnpm check:api` reports the additions and these changed types:
   `WorkflowStep` (optional `sla`), `WorkflowRun` (optional `sla`,
   `myApproval.onBehalfOf`, `history[].onBehalfOfName`), `Assignment` (optional
-  `onBehalfOf`, `dueAt`, `sla`), `AssignmentOptions` (optional `now`). Every new field
+  `onBehalfOf`, `dueAt`, `sla`), `AssignmentOptions` (optional `now`, `timeZone`),
+  `WorkflowOptions` (optional `timeZone`). Every new field
   is optional; existing code compiles unchanged.
 * **Deployments.** Existing deployments must schedule `sla:evaluate`. The reference
   scheduler (`start/scheduler.ts`) does, and systems created from it inherit it.
@@ -149,7 +158,7 @@ Measured on `packages/adula` at 4ca707e:
 * **Not covered.**
   * Business calendars (working days and holidays) are not modelled: SLA hours are
     wall-clock hours.
-  * Delegation dates are UTC days (in Riyadh, a day starts at 03:00).
+  * The time zone is one per system; users in other zones see the system's days.
   * Escalation runs once per opening of a step; there is no chain of escalation
     levels.
   * These limits are listed in GAPS.md.

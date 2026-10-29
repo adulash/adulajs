@@ -11,7 +11,8 @@ import { AdulaError } from '../admin/errors.js'
 import { fromRow } from '../admin/contracts.js'
 import { recordMutation } from '../events/record_mutation.js'
 import { notifyWithTemplate } from '../core/message_templates.js'
-import { WorkflowDelegations, actionableBy, utcDate } from './delegations.js'
+import { WorkflowDelegations, actionableBy } from './delegations.js'
+import { addDays, assertTimeZone, calendarDate } from './calendar.js'
 import {
   nextStep,
   type EscalationTarget,
@@ -78,6 +79,11 @@ export type WorkflowOptions = {
   /** Test hook simulating a crash after a step's effect and before its commit. */
   beforeCommit?: (run: { id: string; step: string }) => void | Promise<void>
   now?: () => Date
+  /**
+   * The system time zone (IANA name, default UTC). Due dates (dueOn) and delegation
+   * ranges are calendar days in this zone (ADR 044).
+   */
+  timeZone?: string
 }
 
 const MAX_STEPS_PER_TICK = 25
@@ -131,7 +137,11 @@ export class WorkflowEngine {
     definitions: readonly WorkflowDefinition[],
     private options: WorkflowOptions = {}
   ) {
-    this.#delegations = new WorkflowDelegations(db, { now: () => this.now() })
+    if (options.timeZone) assertTimeZone(options.timeZone)
+    this.#delegations = new WorkflowDelegations(db, {
+      now: () => this.now(),
+      timeZone: options.timeZone,
+    })
     for (const definition of definitions) this.register(definition)
   }
 
@@ -1125,10 +1135,12 @@ export class WorkflowEngine {
     approvers: number[],
     deadline: Deadline | null = this.deadline(step)
   ) {
+    // Calendar days of the system's time zone: at 01:00 in Riyadh it is already the
+    // next day there, though not yet in UTC.
     const dueOn = deadline
-      ? utcDate(deadline.dueAt)
+      ? calendarDate(deadline.dueAt, this.options.timeZone)
       : step.dueInDays
-        ? utcDate(new Date(this.now().getTime() + step.dueInDays * 86400000))
+        ? addDays(this.today(), step.dueInDays)
         : null
     const routed: { from: number; to: number }[] = []
     const opened = new Set<string>()
@@ -1255,7 +1267,7 @@ export class WorkflowEngine {
   }
 
   private today() {
-    return utcDate(this.now())
+    return calendarDate(this.now(), this.options.timeZone)
   }
 
   private now() {

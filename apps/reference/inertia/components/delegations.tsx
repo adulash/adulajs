@@ -167,6 +167,16 @@ const dateField = (label: string): ResourceField =>
   ({ key: label, type: 'date', required: true, label: { ar: label } }) as ResourceField
 
 /** The date control stores Hijri entry as `hijri:<date>`; the API takes ISO dates. */
+/** Today's date (YYYY-MM-DD) in the system time zone. */
+function systemToday(timeZone: string) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date())
+}
+
 function isoDate(value: string) {
   try {
     return value.startsWith('hijri:')
@@ -186,15 +196,18 @@ export function DelegationDialog({
   onOpenChange,
   endpoint,
   candidatesUrl,
+  timeZone,
   admin = false,
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
   endpoint: string
   candidatesUrl: string
+  /** The system time zone: delegation days are its calendar days. */
+  timeZone: string
   admin?: boolean
 }) {
-  const today = new Date().toISOString().slice(0, 10)
+  const today = systemToday(timeZone)
   const [delegator, setDelegator] = useState<Candidate | null>(null)
   const [delegate, setDelegate] = useState<Candidate | null>(null)
   const [startsOn, setStartsOn] = useState(today)
@@ -206,11 +219,11 @@ export function DelegationDialog({
     if (!open) return
     setDelegator(null)
     setDelegate(null)
-    setStartsOn(new Date().toISOString().slice(0, 10))
+    setStartsOn(systemToday(timeZone))
     setEndsOn('')
     setNote('')
     setError('')
-  }, [open])
+  }, [open, timeZone])
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     if (admin && !delegator) return setError('اختر صاحب الموافقات.')
@@ -294,7 +307,7 @@ export function DelegationDialog({
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            المدة شاملة لليومين، بحد أقصى سنة، وبتوقيت UTC.
+            المدة شاملة لليومين، بحد أقصى سنة، وتُحسب الأيام بتوقيت النظام ({timeZone}).
           </p>
           <div className="space-y-2">
             <Label htmlFor="delegation-note">

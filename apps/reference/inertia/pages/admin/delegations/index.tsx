@@ -7,10 +7,10 @@ import { AdminHeader } from '~/components/admin-nav'
 import { Button } from '~/components/ui/button'
 import { DelegationDialog, DelegationTable } from '~/components/delegations'
 
-type Props = { delegations: WorkflowDelegation[] }
+type Props = { delegations: WorkflowDelegation[]; timeZone: string }
 
 /** Every delegation in force or scheduled; administrators create and revoke for anyone. */
-export default function AdminDelegations({ delegations }: Props) {
+export default function AdminDelegations({ delegations, timeZone }: Props) {
   const [creating, setCreating] = useState(false)
   return (
     <>
@@ -32,6 +32,7 @@ export default function AdminDelegations({ delegations }: Props) {
         empty="لا تفويضات سارية أو مجدولة."
       />
       <DelegationDialog
+        timeZone={timeZone}
         admin
         open={creating}
         onOpenChange={setCreating}
