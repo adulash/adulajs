@@ -266,7 +266,8 @@ test.group('Field type widgets in the generated UI', (group) => {
     await page.assertVisible(row.getByText(services, { exact: true }))
     await page.assertVisible(row.getByText('2.5', { exact: true }))
     await page.goto('/resources/suppliers?filters[paymentMethods]=cash')
-    await page.getByRole('combobox', { name: 'طرق الدفع' }).waitFor()
+    // The list-layer filter (ADR 046) opens from a button named after the field.
+    await page.getByRole('button', { name: 'تصفية طرق الدفع', exact: true }).waitFor()
     assert.equal(await page.getByRole('row').filter({ hasText: name }).count(), 0)
   })
 })
