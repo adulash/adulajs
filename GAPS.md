@@ -61,4 +61,10 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
 * Arabic is the base language; other languages are optional (docs/languages.md).
   English is bundled for the framework's own strings; the administration pages,
   record assignments, workflows, collaboration and CSV import are not in the catalog yet.
-* No documentation site.
+* No documentation site: the guides are Markdown pages in docs/ (Arabic set in docs/ar/).
+* The Arabic set covers the documentation map, installation, initial setup, applications,
+  resource definitions, languages, authentication and the tutorial; the other guides
+  (business features, integration, operations, development, releasing) and the generated
+  defineResource reference are in English only.
+* Only `defineResource` has a generated reference; workflows, dashboards, list views and
+  the other exports are described in the guides, not in generated reference pages.

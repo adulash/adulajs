@@ -4,11 +4,16 @@ The approved [v4 plan](../adulajs-plan.md) records the original architecture and
 
 AdulaJS builds one **system** (النظام) per company. Each business area inside it, such as assets, maintenance or HR, is an **application** (تطبيق), implemented as a module under `app/modules/<name>`. Applications share users, roles, the organisation tree, notifications and the task inbox, and the system integrates with the company's other software through the API, webhooks and imports.
 
+العربية: [التوثيق باللغة العربية](ar/README.md).
+
 | Question | Document |
 |---|---|
+| How do I build a first application from start to finish? | [Tutorial: build a leave-requests application](tutorial-leave-requests.md) |
 | How do I create a system? | [Installation](installation.md) |
 | How do I add an application to a system? | [Applications](applications.md) |
 | How do I define a resource, its fields and their migrations? | [Resource definitions](resources.md) |
+| Which options and field types does `defineResource` accept? | [defineResource reference](reference/define-resource.md) (generated) |
+| Where is the documentation in Arabic? | [التوثيق باللغة العربية](ar/README.md): installation, setup, applications, resources, languages, authentication and the tutorial |
 | How do I upgrade a 1.x system to 2.x? | [Upgrade to 2.0](upgrade-2.0.md) |
 | What do I do after the first sign-in? | [Initial setup](initial-setup.md) |
 | How do I run and test the source? | [Development](development.md) |
