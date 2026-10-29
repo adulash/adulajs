@@ -14,7 +14,8 @@ test('packed creator module entrypoint supports generating and specializing an i
     await mkdir(join(target, 'start'))
     await mkdir(join(target, 'docs'))
     await writeFile(join(target, 'start/modules.ts'), files['start/modules.ts'])
-    for (const resource of resources) await generateResource(target, resource.name, 'medical')
+    // The medical consumer keeps explicit validators and models, which the generator writes only on request (ADR 045).
+    for (const resource of resources) await generateResource(target, resource.name, 'medical', { validator: true, model: true })
     await installMedicalModule(target)
     const source = await readFile(join(target, 'start/modules.ts'), 'utf8')
     assert.equal(source.match(/import module_medical /g)?.length, 1)

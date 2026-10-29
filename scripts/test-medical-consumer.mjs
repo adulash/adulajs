@@ -76,7 +76,7 @@ await stage('create', async () => {
 })
 
 await stage('module', async () => {
-  for (const resource of resources) await ace(`generate-${resource.name}`, ['adula:resource', resource.name, '--module=medical'])
+  for (const resource of resources) await ace(`generate-${resource.name}`, ['adula:resource', resource.name, '--module=medical', '--validator', '--model'])
   await installMedicalModule(target)
   // Application-owned Drive configuration makes isolated recovery use a separate disk root.
   const drivePath = join(target, 'config/drive.ts')
