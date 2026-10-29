@@ -1214,7 +1214,7 @@
     },
     "ResourceAddition": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ fields?: Record<string, Field> | undefined; unique?: readonly (readonly string[])[] | undefined; }"
+      "type": "{ fields?: Record<string, Field> | undefined; unique?: readonly (readonly string[])[] | undefined; dropNotNull?: readonly string[] | undefined; recreateUnique?: readonly { index: string; columns: readonly string[]; }[] | undefined; }"
     },
     "ResourceChildren": {
       "kind": "TypeAliasDeclaration",
@@ -1286,7 +1286,7 @@
     },
     "ResourceUniqueIndex": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ name: string; columns: string[]; fields: string[]; }"
+      "type": "{ name: string; columns: string[]; fields: string[]; excludeCancelled: boolean; }"
     },
     "resourceValidator": {
       "kind": "FunctionDeclaration",
@@ -1354,7 +1354,7 @@
     },
     "SchemaDrift": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ table: string; missingTable: boolean; missingColumns: ResourceColumn[]; wrongTypes: { column: string; expected: string; actual: string; }[]; missingUnique: ResourceUniqueIndex[]; missingJoinTables: ResourceJoinTable[]; }"
+      "type": "{ table: string; missingTable: boolean; missingColumns: ResourceColumn[]; wrongTypes: { column: string; expected: string; actual: string; }[]; notNullColumns: string[]; missingUnique: ResourceUniqueIndex[]; staleUnique: { index: string; expected: ResourceUniqueIndex; }[]; missingJoinTables: ResourceJoinTable[]; }"
     },
     "SecretBox": {
       "kind": "TypeAliasDeclaration",

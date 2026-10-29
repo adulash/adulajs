@@ -142,8 +142,9 @@ export type Resource = {
   actions: readonly Action[]
   /**
    * Field combinations that must be unique among live records (a partial unique index
-   * `WHERE deleted_at IS NULL`), for example `[['customerId', 'code']]`. Every key is a
-   * stored field, or `orgUnitId` on a scoped resource (a code unique per unit).
+   * `WHERE deleted_at IS NULL`, and `AND doc_status <> 2` on a submittable resource so
+   * cancelled documents do not count), for example `[['customerId', 'code']]`. Every key
+   * is a stored field, or `orgUnitId` on a scoped resource (a code unique per unit).
    */
   unique?: readonly (readonly string[])[]
   /**

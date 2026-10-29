@@ -10,6 +10,7 @@ import {
 } from '../../resource/definition.js'
 import { currentLanguage, labelText, translate } from '../../languages/catalog.js'
 import { buildAbility, type Actor } from '../../auth/ability.js'
+import { accessibleBy } from '../../auth/sql.js'
 import { fromRow, serialize, systemInput, writableInput } from '../contracts.js'
 import {
   AdulaError,
@@ -38,6 +39,7 @@ import {
   hydrateOne,
   normalizeValues,
   requireRecord,
+  withLinks,
   type ResourceContext,
 } from './shared.js'
 import {
@@ -94,29 +96,43 @@ function storedValue(field: Field, value: unknown) {
 }
 
 /**
- * Runs a write and turns a unique violation (PostgreSQL 23505) on the resource's table
- * into 409 E_DUPLICATE naming the fields of the violated index, single or composite.
+ * Runs a write and turns constraint violations on the resource's table into catalog
+ * errors: a unique violation (PostgreSQL 23505) becomes 409 E_DUPLICATE naming the fields
+ * of the violated index, single or composite; a NOT NULL violation (23502), such as a
+ * hidden visibleWhen field stored as null in a column created NOT NULL before the rule
+ * existed, becomes 422 E_NOT_NULL naming the field (adula:resource:migration relaxes it).
  */
-async function uniqueViolations<T>(resource: Resource, write: () => Promise<T>): Promise<T> {
+async function constraintViolations<T>(resource: Resource, write: () => Promise<T>): Promise<T> {
   try {
     return await write()
   } catch (error) {
-    const failure = error as { code?: string; table?: string; detail?: string }
-    if (failure?.code !== '23505' || failure.table !== resource.name) throw error
-    const columns = /^Key \(([^)]*)\)=/.exec(failure.detail ?? '')?.[1]?.split(', ') ?? []
+    const failure = error as { code?: string; table?: string; detail?: string; column?: string }
+    if (!['23505', '23502'].includes(failure?.code ?? '') || failure.table !== resource.name)
+      throw error
     const byColumn = new Map(
       Object.entries(resource.fields).map(([key, field]) => [
         field.column ?? columnName(key),
         field,
       ])
     )
-    const labels = columns.map((column) =>
+    const label = (column: string) =>
       column === 'org_unit_id'
         ? translate('ui.form.orgUnit', currentLanguage())
         : byColumn.get(column)
           ? labelText(byColumn.get(column)!.label)
           : column
-    )
+    if (failure.code === '23502')
+      throw new AdulaError(
+        422,
+        'E_NOT_NULL',
+        failure.column
+          ? translate('errors.E_NOT_NULL.field', currentLanguage(), {
+              field: label(failure.column),
+            })
+          : translate('errors.E_NOT_NULL', currentLanguage())
+      )
+    const columns = /^Key \(([^)]*)\)=/.exec(failure.detail ?? '')?.[1]?.split(', ') ?? []
+    const labels = columns.map(label)
     throw new AdulaError(
       409,
       'E_DUPLICATE',
@@ -378,11 +394,22 @@ export async function persist(
       }
       // Every newly linked record must be viewable, like a belongsTo value; links kept
       // unchanged are not re-checked, so an edit never fails on a record moved out of scope.
+      // One query for all of them: the live targets the actor may view (scope and rules
+      // as SQL); any target missing from the count is 404, like an unviewable belongsTo.
       if (field.type === 'manyToMany' && Array.isArray(candidate[key])) {
         const related = registry.get(field.resource)
         const before = new Set(Array.isArray(existing[key]) ? (existing[key] as number[]) : [])
-        for (const target of candidate[key] as number[])
-          if (!before.has(target)) check(related, 'view', await load(trx, related, target))
+        const added = [...new Set(candidate[key] as number[])].filter(
+          (target) => !before.has(target)
+        )
+        if (added.length) {
+          const targets = trx(`${related.name} as r`)
+            .whereNull('r.deleted_at')
+            .whereIn('r.id', added)
+          if (!system) accessibleBy(targets, ability, actor, 'view', related)
+          const [{ count }] = await targets.count({ count: 'r.id' })
+          if (Number(count) !== added.length) throw notFound()
+        }
       }
       // A new user, or a record moved by a user to another unit, needs an eligible user.
       // An unchanged value never blocks other edits, even after the account is disabled.
@@ -474,7 +501,7 @@ export async function persist(
       if (field.type !== 'hasMany' && field.type !== 'manyToMany' && key in candidate)
         values[field.column ?? columnName(key)] = storedValue(field, candidate[key])
     }
-    const [row] = await uniqueViolations(resource, () =>
+    const [row] = await constraintViolations(resource, () =>
       id === undefined
         ? trx(name).insert(values).returning('*')
         : trx(name).where({ id }).update(values).returning('*')
@@ -642,7 +669,9 @@ export async function amend(
         copied.push(key)
       }
     }
-    const [row] = await uniqueViolations(resource, () => trx(name).insert(values).returning('*'))
+    const [row] = await constraintViolations(resource, () =>
+      trx(name).insert(values).returning('*')
+    )
     const saved: RecordData = { ...fromRow(row, resource), orgPath: source.orgPath }
     // The copy links the same records as the cancelled original.
     for (const [key, field] of Object.entries(resource.fields)) {
@@ -665,8 +694,13 @@ export async function amend(
       // Copies are new child records: they go through persist(), so the actor needs
       // create on the child resource and its field rules, validator and hooks apply.
       const childAbility = authorizeAction(ctx, child, actor, 'create')
-      for (const line of lines) {
-        const stored = fromRow(line, child)
+      // With their manyToMany links, so the copied lines link the same records.
+      const storedLines = await withLinks(
+        trx,
+        child,
+        lines.map((line) => fromRow(line, child))
+      )
+      for (const stored of storedLines) {
         const data: RecordData = {}
         for (const key of child.form) {
           const childField = child.fields[key]

@@ -280,6 +280,11 @@ export function createResourceController(
           return ctx.response.conflict({
             error: { code: 'E_DUPLICATE', message: translate('errors.E_DUPLICATE') },
           })
+        // A NOT NULL column the definition lets be empty (see adula:resource:migration).
+        if ((error as { code?: string })?.code === '23502')
+          return ctx.response.unprocessableEntity({
+            error: { code: 'E_NOT_NULL', message: translate('errors.E_NOT_NULL') },
+          })
         if ((error as { code?: string })?.code === '23503')
           return ctx.response.unprocessableEntity({
             error: { code: 'E_RELATION', message: translate('errors.E_RELATION') },

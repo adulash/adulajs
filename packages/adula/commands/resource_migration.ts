@@ -48,7 +48,7 @@ export default class ResourceMigration extends BaseCommand {
         `${this.name}.${entry.column} is ${entry.actual}, the definition expects ${entry.expected}; types are never changed automatically (write an expand/contract migration).`
       )
     const addition = resourceAddition(resource, drift)
-    if (!addition.fields && !addition.unique) {
+    if (!Object.keys(addition).length) {
       this.logger.info(
         `${this.name}: the database already has every column, join table and unique index.`
       )

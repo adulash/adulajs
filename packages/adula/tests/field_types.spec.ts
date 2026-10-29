@@ -576,7 +576,9 @@ test.group('Field types: definition as the source of truth', (group) => {
     assert.deepEqual(wrong.wrongTypes, [
       { column: 'rating', expected: 'integer', actual: 'numeric(4,1)' },
     ])
-    assert.deepEqual(resourceAddition(retyped, wrong), {})
+    // The type is never changed; the retyped field is also optional now, so the only
+    // generated change is the relaxing one (its NOT NULL column may hold nulls).
+    assert.deepEqual(resourceAddition(retyped, wrong), { dropNotNull: ['rating'] })
     assert.lengthOf(resourceSchema(grown).joinTables, 2)
   })
 
