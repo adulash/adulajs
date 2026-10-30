@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import type { Knex } from 'knex'
 import { AdulaError } from '../admin/errors.js'
 import { targetColumns, type NotificationTarget } from '../services/settings.js'
+import { PLACEHOLDER } from './template_language.js'
 
 export type TemplateDefinition = {
   label: string
@@ -131,7 +132,6 @@ export const DEFAULT_TEMPLATES: Record<string, TemplateDefinition> = {
   },
 }
 
-const PLACEHOLDER = /\{\{\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\}\}/g
 const SUBJECT_LIMIT = 200
 const BODY_LIMIT = 4000
 

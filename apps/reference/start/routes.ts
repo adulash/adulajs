@@ -64,6 +64,7 @@ const AdminAuthenticationSettingsController = () =>
 const SetupController = () => import('#controllers/admin/setup_controller')
 const NotificationsController = () => import('#controllers/admin/notifications_controller')
 const AdminTemplatesController = () => import('#controllers/admin/templates_controller')
+const AdminPrintTemplatesController = () => import('#controllers/admin/print_templates_controller')
 const AdminWebhooksController = () => import('#controllers/admin/webhooks_controller')
 const AdminLookupsController = () => import('#controllers/admin/lookups_controller')
 const AdminSequencesController = () => import('#controllers/admin/sequences_controller')
@@ -156,6 +157,7 @@ router
     ])
     router.put('/resources/:resource/:id/follow', [RecordCollaborationController, 'follow'])
     router.put('/resources/:resource/:id/tags', [RecordCollaborationController, 'tags'])
+    router.get('/resources/:resource/print-templates', [PrintController, 'templates'])
     router.get('/resources/:resource/:id/print', [PrintController])
     router.get('/resources/:resource/:id/assignments', [AssignmentsController, 'forRecord'])
     router.post('/resources/:resource/:id/assignments', [AssignmentsController, 'store'])
@@ -344,6 +346,15 @@ router
     router.get('templates', [AdminTemplatesController, 'index'])
     router.put('templates/:key', [AdminTemplatesController, 'update'])
     router.delete('templates/:key', [AdminTemplatesController, 'reset'])
+    router.get('print-templates', [AdminPrintTemplatesController, 'index'])
+    router.post('print-templates', [AdminPrintTemplatesController, 'store'])
+    router.post('print-templates/preview', [AdminPrintTemplatesController, 'preview'])
+    router.get('print-templates/:resource/:key', [AdminPrintTemplatesController, 'show'])
+    router.put('print-templates/:resource/:key', [AdminPrintTemplatesController, 'update'])
+    router.get('print-templates/:resource/:key/versions', [
+      AdminPrintTemplatesController,
+      'versions',
+    ])
     router.get('workflows', [WorkflowsController, 'failed'])
     router.post('workflows/:run/retry', [WorkflowsController, 'retry'])
     router.get('delegations', [DelegationsController, 'adminIndex'])

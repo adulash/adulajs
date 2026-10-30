@@ -320,4 +320,17 @@ export const arabicInterfaceMessages = {
   'ui.attachment.added': 'أُضيف الملف {name}',
   'ui.attachment.removed': 'أُزيل الملف {name}',
   'ui.attachment.moved': 'نُقل الملف {name} إلى الموضع {position}',
+  // Print templates (ADR 048).
+  'ui.print.title': 'طباعة السجل',
+  'ui.print.description': 'اختر قالب الطباعة وصيغة المستند.',
+  'ui.print.loadFailed': 'تعذر تحميل قوالب الطباعة.',
+  'ui.print.retry': 'إعادة المحاولة',
+  'ui.print.loading': 'جارٍ تحميل القوالب…',
+  'ui.print.template': 'قالب الطباعة',
+  'ui.print.format': 'صيغة المستند',
+  'ui.print.html': 'صفحة للطباعة',
+  'ui.print.pdfUnavailable': 'تحويل PDF غير مفعّل؛ استخدم الطباعة من المتصفح.',
+  'ui.print.open': 'فتح للطباعة',
+  'ui.activity.printed': 'طباعة السجل بقالب',
+  'ui.admin.printTemplates': 'قوالب الطباعة',
 } as const

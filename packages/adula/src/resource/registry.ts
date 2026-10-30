@@ -1,5 +1,6 @@
 import type { Module, Resource } from './types.js'
 import { assertLabel, identifier, joinTable } from './define_resource.js'
+import { assertPrintTemplateColumns } from '../integrations/print_templates.js'
 
 export class ResourceRegistry {
   #resources = new Map<string, Resource>()
@@ -72,6 +73,7 @@ export class ResourceRegistry {
         if (field.type === 'hasMany' && !(field.foreignKey in target.fields))
           throw new Error(`Missing child foreign key: ${field.foreignKey}`)
       }
+      assertPrintTemplateColumns(resource, next)
     }
     this.#resources = next.#resources
     this.#owners = next.#owners

@@ -13,6 +13,7 @@ export const controllers = {
     Lookups: () => import('#controllers/admin/lookups_controller'),
     Notifications: () => import('#controllers/admin/notifications_controller'),
     OrgUnits: () => import('#controllers/admin/org_units_controller'),
+    PrintTemplates: () => import('#controllers/admin/print_templates_controller'),
     Roles: () => import('#controllers/admin/roles_controller'),
     Sequences: () => import('#controllers/admin/sequences_controller'),
     Settings: () => import('#controllers/admin/settings_controller'),

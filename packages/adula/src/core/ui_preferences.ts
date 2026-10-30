@@ -4,10 +4,14 @@ import { AdulaError } from '../admin/errors.js'
 
 export type CalendarSystem = 'gregory' | 'islamic-umalqura'
 export type CalendarPreference = CalendarSystem | 'both'
+/** Latin (0-9) or Arabic-Indic (٠-٩) digits in printed documents. */
+export type DigitsPreference = 'latn' | 'arab'
 export type UiPreferences = {
   calendar: CalendarPreference
   confirmDialogClose: boolean
   pageTransitions: boolean
+  /** Optional for values stored before it existed; absent means 'latn'. */
+  digits?: DigitsPreference
 }
 export const UI_PREFERENCES_KEY = 'ui.preferences'
 export const DEFAULT_UI_PREFERENCES: UiPreferences = {
@@ -15,6 +19,8 @@ export const DEFAULT_UI_PREFERENCES: UiPreferences = {
   confirmDialogClose: true,
   pageTransitions: true,
 }
+
+const PREFERENCE_KEYS = ['calendar', 'confirmDialogClose', 'pageTransitions', 'digits']
 
 export function validateUiPreferences(value: unknown): UiPreferences {
   const input = value as UiPreferences | undefined
@@ -25,7 +31,8 @@ export function validateUiPreferences(value: unknown): UiPreferences {
     !['gregory', 'islamic-umalqura', 'both'].includes(input.calendar) ||
     typeof input.confirmDialogClose !== 'boolean' ||
     typeof input.pageTransitions !== 'boolean' ||
-    Object.keys(input).some((key) => !(key in DEFAULT_UI_PREFERENCES))
+    (input.digits !== undefined && !['latn', 'arab'].includes(input.digits)) ||
+    Object.keys(input).some((key) => !PREFERENCE_KEYS.includes(key))
   )
     throw new AdulaError(
       422,
@@ -36,6 +43,7 @@ export function validateUiPreferences(value: unknown): UiPreferences {
     calendar: input.calendar,
     confirmDialogClose: input.confirmDialogClose,
     pageTransitions: input.pageTransitions,
+    ...(input.digits === undefined ? {} : { digits: input.digits }),
   }
 }
 

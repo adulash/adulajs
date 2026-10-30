@@ -92,6 +92,38 @@ add `preview`.
   files (progress, reorder, remove, preview); record details show preview buttons.
   Regenerate consumer UI through `adula:ui`.
 
+### Print templates
+
+Minor (ADR 048), with the additive migration `1770000000049_print_templates`.
+`pnpm check:api` reports `Resource`, `ResourceDescription`, `UiPreferences` and
+`ResourceChildren` as changed because each gains an optional field (`printTemplates`,
+`printTemplates`, `digits`, `related`);
+existing code compiles unchanged.
+
+* Resources may declare `printTemplates` (paper, orientation, header/footer, fields,
+  line columns and totals); unknown fields are definition errors.
+* Administrators create and version templates per resource in «قوالب الطباعة»
+  (`/admin/print-templates`) with a safe `{{ }}` language, an allowlist HTML sanitizer
+  and a preview on a readable record. Versions are immutable.
+* `GET /resources/:resource/:id/print?template=<key>` prints with a template; values are
+  read as the printing user, so unreadable fields stay empty. Every print records a
+  `printed` activity with the template key, version and format.
+* The record page's «طباعة» opens a dialog to choose the template and HTML or PDF
+  (registry component `record-print`).
+* `ui.preferences` accepts an optional `digits: 'latn' | 'arab'` for printed numbers;
+  stored values without it stay valid.
+* New `ResourceService.documentLines(name, id, actor, { fields, limit })` reads the line
+  groups of a printed document with children()'s authorization, the lines' own relation
+  rows, and no silent cut: a print refuses more than `PRINT_LINE_LIMIT` (1000) lines per
+  group with 422 `E_PRINT_LINE_LIMIT`. The generic print uses it too, so it no longer
+  stops at 100 lines.
+* `PrintTemplates.create` refuses an existing key (409), `update` needs one (404) and keeps
+  the stored `active` flag when it is not sent. `recordPrinted` writes the `printed`
+  activity; the reference app calls it after the HTML is rendered or the PDF converted.
+* `renderTemplateDocument` renders a template for one reader's description; printed
+  date-times and the print time use the application time zone (`timeZone`), and Arabic-
+  Indic digits apply to `{{id}}`, `{{rowNumber}}` and `{{printedAt}}` too.
+
 ### Workflow delegation and SLA
 
 Minor (ADR 044). An additive migration `1770000000046_workflow_delegation_sla` adds

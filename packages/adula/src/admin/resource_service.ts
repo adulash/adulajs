@@ -134,6 +134,22 @@ export class ResourceService {
     return read.recordChildren(this.context, name, id, actor)
   }
 
+  /**
+   * The lines of a printed document (ADR 048), authorized like children(): the hasMany
+   * field's rules and level, the child's view permission and each line's scope apply,
+   * and a group is read only when the record exposes it (`serialize`, or `list` and
+   * `show`) or one of the resource's code print templates declares it. Each group holds up
+   * to `limit` rows (`hasMore` beyond) with the display rows of the lines' relations.
+   */
+  async documentLines(
+    name: string,
+    id: number,
+    actor: Actor,
+    options: { fields: readonly string[]; limit: number }
+  ) {
+    return read.documentLines(this.context, name, id, actor, options.fields, options.limit)
+  }
+
   /** Active lookup labels for the lookup fields the actor may read on this resource. */
   async lookups(name: string, actor: Actor) {
     return read.lookups(this.context, name, actor)

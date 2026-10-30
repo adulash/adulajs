@@ -200,6 +200,34 @@ export {
   PRINT_LOGO_LIMIT,
 } from './src/integrations/print.js'
 export type { PrintIdentity, PrintInput } from './src/integrations/print.js'
+export {
+  PrintTemplates,
+  DEFAULT_PRINT_TEMPLATE,
+  PRINT_HELPERS,
+  PRINT_PAPERS,
+  PRINT_ORIENTATIONS,
+  codeTemplateVersion,
+  renderTemplateDocument,
+  printableGroups,
+  PRINT_LINE_LIMIT,
+} from './src/integrations/print_templates.js'
+export type {
+  PrintTemplateDetail,
+  PrintTemplateDraft,
+  PrintTemplateInput,
+  PrintTemplateOption,
+  PrintTemplateSource,
+  PrintTemplateSummary,
+  PrintTemplateVersion,
+  PrintedDocument,
+  PrintOptions,
+  PrintSource,
+  PrintLayout,
+} from './src/integrations/print_templates.js'
+export { sanitizePrintHtml } from './src/core/html_sanitizer.js'
+export { parseTemplate } from './src/core/template_language.js'
+export type { TemplateNode, TemplateRef } from './src/core/template_language.js'
+export { createPrintTemplatesSchema } from './src/database/schema.js'
 export { Webhooks, signWebhook, WEBHOOK_MAX_ATTEMPTS } from './src/integrations/webhooks.js'
 export {
   createOutboundPoster,
@@ -320,6 +348,7 @@ export type {
   UiPreferences,
   CalendarSystem,
   CalendarPreference,
+  DigitsPreference,
 } from './src/core/ui_preferences.js'
 export { moveOrgUnit } from './src/org/org_service.js'
 export { publishOutbox, consumeEvent } from './src/events/outbox.js'

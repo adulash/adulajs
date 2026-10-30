@@ -119,6 +119,24 @@ export const englishMessages: Readonly<Record<string, string>> = Object.freeze({
   'errors.E_TEMPLATE_SUBJECT': 'The subject is required and must not exceed 200 characters',
   'errors.E_TEMPLATE_BODY': 'The message body is required and must not exceed 4000 characters',
   'errors.E_TEMPLATE_NOT_FOUND': 'Template not found',
+  // Print templates (ADR 048).
+  'errors.E_PRINT_TEMPLATE_NOT_FOUND': 'Print template not found',
+  'errors.E_PRINT_TEMPLATE_LABEL':
+    'The template name is required and must not exceed 200 characters',
+  'errors.E_PRINT_TEMPLATE_BODY.1': 'The template body is required',
+  'errors.E_PRINT_TEMPLATE_BODY.2':
+    'Nothing is left of the template body after removing disallowed tags',
+  'errors.E_PRINT_TEMPLATE_PAPER': 'Choose a valid paper size and orientation',
+  'errors.E_PRINT_TEMPLATE_TEXT': 'The header and footer must not exceed 500 characters each',
+  'errors.E_PRINT_TEMPLATE_KEY':
+    'The template key uses lower-case letters, digits and underscores and starts with a letter',
+  'errors.E_PRINT_TEMPLATE_KEY_TAKEN': 'This key is used by a template defined in the system',
+  'errors.E_PRINT_PREVIEW_EMPTY': 'There is no record available to you to preview the template',
+  'errors.E_PRINT_LINE_LIMIT': 'The document has more lines than can be printed (1000 lines)',
+  'errors.E_PRINT_TEMPLATE_EXISTS':
+    'A print template with this key already exists for this resource',
+  'flash.print_templates.saved': 'Print template saved',
+  'flash.print_templates.versioned': 'A new version of the print template was saved',
   'errors.E_NOTIFICATION_NOT_FOUND': 'Notification not found',
   'errors.E_ORG_NOT_FOUND': 'Parent unit not found',
   'errors.E_ORG_HAS_CHILDREN': 'Move the child units first',

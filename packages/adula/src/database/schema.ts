@@ -1134,3 +1134,62 @@ export async function createWorkflowDelegationSlaSchema(db: Knex) {
     t.index(['run_id', 'id'])
   })
 }
+
+/**
+ * Administrator print templates (ADR 048). A template row points to its current
+ * version; versions are immutable (a trigger refuses UPDATE and DELETE, except clearing
+ * created_by when the author is deleted), so a printed
+ * document's recorded version always resolves to the markup that produced it.
+ * Templates are deployment-wide, like message_templates.
+ */
+export async function createPrintTemplatesSchema(db: Knex) {
+  await db.schema.createTable('print_templates', (t) => {
+    t.increments('id')
+    t.string('resource', 63).notNullable()
+    t.string('key', 64).notNullable()
+    t.string('label', 200).notNullable()
+    t.integer('current_version').notNullable().defaultTo(0)
+    t.boolean('active').notNullable().defaultTo(true)
+    t.integer('created_by').references('id').inTable('users').onDelete('SET NULL')
+    t.integer('updated_by').references('id').inTable('users').onDelete('SET NULL')
+    t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+    t.timestamp('updated_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+    t.unique(['resource', 'key'])
+  })
+  await db.schema.createTable('print_template_versions', (t) => {
+    t.bigIncrements('id')
+    t.integer('template_id')
+      .notNullable()
+      .references('id')
+      .inTable('print_templates')
+      .onDelete('RESTRICT')
+    t.integer('version').notNullable()
+    t.string('label', 200).notNullable()
+    t.text('body').notNullable()
+    t.string('paper', 10).notNullable()
+    t.string('orientation', 10).notNullable()
+    t.string('header', 500).notNullable().defaultTo('')
+    t.string('footer', 500).notNullable().defaultTo('')
+    t.integer('created_by').references('id').inTable('users').onDelete('SET NULL')
+    t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+    t.unique(['template_id', 'version'])
+  })
+  await db.raw(
+    "ALTER TABLE print_template_versions ADD CONSTRAINT print_template_versions_paper CHECK (paper IN ('A4', 'A5', 'Letter')), ADD CONSTRAINT print_template_versions_orientation CHECK (orientation IN ('portrait', 'landscape')), ADD CONSTRAINT print_template_versions_positive CHECK (version > 0)"
+  )
+  await db.raw(`CREATE FUNCTION adula_print_template_versions_immutable() RETURNS trigger AS $$
+BEGIN
+  -- Deleting the author only clears created_by (ON DELETE SET NULL); nothing else changes.
+  IF TG_OP = 'UPDATE' AND NEW.created_by IS NULL
+    AND (NEW.id, NEW.template_id, NEW.version, NEW.label, NEW.body, NEW.paper, NEW.orientation, NEW.header, NEW.footer, NEW.created_at)
+      IS NOT DISTINCT FROM (OLD.id, OLD.template_id, OLD.version, OLD.label, OLD.body, OLD.paper, OLD.orientation, OLD.header, OLD.footer, OLD.created_at)
+  THEN
+    RETURN NEW;
+  END IF;
+  RAISE EXCEPTION 'print_template_versions rows are immutable';
+END
+$$ LANGUAGE plpgsql`)
+  await db.raw(
+    'CREATE TRIGGER print_template_versions_immutable BEFORE UPDATE OR DELETE ON print_template_versions FOR EACH ROW EXECUTE FUNCTION adula_print_template_versions_immutable()'
+  )
+}
