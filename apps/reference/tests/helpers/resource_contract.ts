@@ -4,7 +4,7 @@ import app from '@adonisjs/core/services/app'
 import db from '@adonisjs/lucid/services/db'
 import { adula } from '#services/adula'
 import { randomUUID } from 'node:crypto'
-import { attachmentPolicy, columnName, joinTable } from 'adula'
+import { attachmentPolicy, columnName, isMultipleAttachment, joinTable } from 'adula'
 import type { Action, Field, RecordData, Resource, SerializedRecord } from 'adula'
 
 export type FixtureContext = { userId: number; orgUnitId: number; unique: string }
@@ -452,7 +452,15 @@ export function resourceContract(name: string, fixture: ResourceFixture) {
           .loginAs(writer)
           .withCsrfToken()
           .header('Accept', 'application/json')
-          .json(input({ ...values.input, [key]: foreign.body().data.id }))
+          // A multiple field (ADR 047) takes the foreign upload as one of its files.
+          .json(
+            input({
+              ...values.input,
+              [key]: isMultipleAttachment(resource.fields[key])
+                ? [foreign.body().data.id]
+                : foreign.body().data.id,
+            })
+          )
         rejected.assertStatus(422)
         assert.equal(rejected.body().error.code, 'E_ATTACHMENT')
         const download = await client

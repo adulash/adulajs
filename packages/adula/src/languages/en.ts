@@ -59,6 +59,9 @@ export const englishMessages: Readonly<Record<string, string>> = Object.freeze({
   'validation.unsafeNumber':
     'This number is too long to send as a JSON number without rounding; send the value as a string, such as "12345678901234567.89"',
   'validation.relation': 'Choose valid records',
+  'validation.attachments': 'Attach valid files',
+  'validation.attachments.distinct': 'The same file is attached more than once',
+  'validation.attachments.max': 'Attach at most {max} files',
   'errors.E_NOT_FOUND.1': 'Record not found',
   'errors.E_NOT_FOUND.2': 'Entity not found',
   'errors.E_DUPLICATE': 'This value is already used by another record',

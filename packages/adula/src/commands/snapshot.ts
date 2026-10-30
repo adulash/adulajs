@@ -27,6 +27,8 @@ export function fieldSnapshot(field: Field): Field {
       ? { default: field.default }
       : {}),
     ...('options' in field ? { options: field.options } : {}),
+    // A multiple attachment field is a jsonb column instead of a foreign key.
+    ...(field.type === 'attachment' && field.multiple ? { multiple: true } : {}),
   } as Field
 }
 

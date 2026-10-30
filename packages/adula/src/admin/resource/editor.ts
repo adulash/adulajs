@@ -5,7 +5,8 @@ import { inOrgScope, type Actor } from '../../auth/ability.js'
 import { accessibleBy } from '../../auth/sql.js'
 import { fromRow, serialize } from '../contracts.js'
 import { AdulaError, documentLocked, forbiddenField, invalidCursor } from '../errors.js'
-import { fieldValue } from '../../resource/values.js'
+import { attachmentLimit, fieldValue } from '../../resource/values.js'
+import type { Field } from '../../resource/types.js'
 import { escapeLike } from '../../core/like.js'
 import { labelText } from '../../languages/catalog.js'
 import type { ResourceField } from '../presentation.js'
@@ -64,7 +65,7 @@ export async function editor(
         ability.can(action, record ? subject(name, record) : name, key)
       )
     })
-    .map((key) => ({ key, ...resource.fields[key] }))
+    .map((key) => editorField(key, resource.fields[key]))
   const options: Record<string, { value: string; label: string }[]> = {}
   const relationSearch: Record<string, boolean> = {}
   const inline: Record<
@@ -114,7 +115,7 @@ export async function editor(
           actor.permissionLevel >= fieldLevel(child, key)
       )
       inline[field.key] = {
-        fields: childFields.map((key) => ({ key, ...child.fields[key] })),
+        fields: childFields.map((key) => editorField(key, child.fields[key])),
         createFields: childFields.filter((key) => ability.can('create', child.name, key)),
         updateFields: Object.fromEntries(
           records.map((row) => [
@@ -373,4 +374,11 @@ async function userOptions(
     })),
     nextCursor: rows.length > 50 ? String(rows[49].id) : null,
   }
+}
+
+/** A form field as the editor sends it: a multiple attachment field carries its resolved limit. */
+function editorField(key: string, field: Field): ResourceField {
+  return field.type === 'attachment' && field.multiple
+    ? { key, ...field, max: attachmentLimit(field) }
+    : { key, ...field }
 }

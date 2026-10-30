@@ -33,7 +33,8 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
   WhatsApp (a company gateway in front of its vendor); there is no push channel and no
   bundled vendor integration.
 * One generic print layout serves every resource; there are no custom print templates.
-* An attachment field holds one file; there is no in-page preview of attachments.
+* Attachment preview covers images (png, jpg, gif, webp), PDF and plain text; office
+  documents, SVG and HTML only download, and there are no thumbnails in lists (ADR 047).
 
 ## Workflows
 

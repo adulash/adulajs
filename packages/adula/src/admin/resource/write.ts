@@ -2,6 +2,7 @@ import { subject } from '@casl/ability'
 import type { Knex } from 'knex'
 import type { Action, Field, RecordData, Resource, SerializedRecord } from '../../resource/types.js'
 import { columnName, joinTable } from '../../resource/define_resource.js'
+import { isMultipleAttachment } from '../../resource/values.js'
 import {
   applyVisibility,
   missingDefaults,
@@ -27,6 +28,7 @@ import { sequence } from '../../services/settings.js'
 import type { FieldChange } from '../../events/record_mutation.js'
 import {
   claimAttachment,
+  rebindAttachment,
   isAttachmentId,
   releaseAttachment,
 } from '../../attachments/attachment_service.js'
@@ -90,9 +92,16 @@ type SystemWrite = {
 
 /** A normalized value as its column binding: JSON columns are bound as JSON text. */
 function storedValue(field: Field, value: unknown) {
-  return (field.type === 'json' || field.type === 'multiSelect') && value !== null
+  return (field.type === 'json' || field.type === 'multiSelect' || isMultipleAttachment(field)) &&
+    value !== null
     ? JSON.stringify(value)
     : value
+}
+
+/** The attachment ids a field value holds: one id, the ordered ids of a multiple field, or none. */
+function attachmentIds(value: unknown): number[] {
+  if (Array.isArray(value)) return value.filter(isAttachmentId)
+  return isAttachmentId(value) ? [value] : []
 }
 
 /**
@@ -378,7 +387,7 @@ export async function persist(
         !hidden.has(key) &&
         (candidate[key] === null ||
           candidate[key] === undefined ||
-          (['multiSelect', 'manyToMany'].includes(field.type) &&
+          ((['multiSelect', 'manyToMany'].includes(field.type) || isMultipleAttachment(field)) &&
             Array.isArray(candidate[key]) &&
             (candidate[key] as unknown[]).length === 0) ||
           // Whatever a validator or hook returned, a blank required text is missing.
@@ -447,21 +456,36 @@ export async function persist(
         )
           throw new AdulaError(422, 'E_LOOKUP', `Invalid lookup: ${key}`)
       }
-      if (
-        field.type === 'attachment' &&
-        isAttachmentId(candidate[key]) &&
-        (candidate[key] !== existing[key] ||
-          (resource.scoped && Number(candidate.orgUnitId) !== Number(existing.orgUnitId)))
-      )
-        await claimAttachment(trx, {
-          attachmentId: candidate[key],
-          actor,
-          resource: name,
-          field: key,
-          recordId: id,
-          orgUnitId: resource.scoped ? Number(candidate.orgUnitId) : null,
-          scoped: resource.scoped,
-        })
+      // Each newly added file is claimed by its uploader; a new record's files are verified
+      // here and bound once its id exists. Files the record already holds follow it to a new
+      // unit without the uploader check, so files from several uploaders never block a move.
+      if (field.type === 'attachment') {
+        const before = new Set(attachmentIds(existing[key]))
+        const moved =
+          id !== undefined &&
+          resource.scoped &&
+          Number(candidate.orgUnitId) !== Number(existing.orgUnitId)
+        const kept = key in candidate ? attachmentIds(candidate[key]) : [...before]
+        for (const attachmentId of kept)
+          if (!before.has(attachmentId))
+            await claimAttachment(trx, {
+              attachmentId,
+              actor,
+              resource: name,
+              field: key,
+              recordId: id,
+              orgUnitId: resource.scoped ? Number(candidate.orgUnitId) : null,
+              scoped: resource.scoped,
+            })
+          else if (moved)
+            await rebindAttachment(trx, {
+              attachmentId,
+              resource: name,
+              field: key,
+              recordId: id,
+              orgUnitId: Number(candidate.orgUnitId),
+            })
+      }
     }
     // Hooks may calculate fields, but may never move a record past authorization.
     check(resource, action, candidate)
@@ -516,19 +540,21 @@ export async function persist(
     }
     for (const [key, field] of Object.entries(resource.fields)) {
       if (field.type !== 'attachment' || !(key in candidate)) continue
-      const next = isAttachmentId(candidate[key]) ? candidate[key] : null
-      const previous = isAttachmentId(existing[key]) ? existing[key] : null
-      if (next !== null && id === undefined)
-        await claimAttachment(trx, {
-          attachmentId: next,
-          actor,
-          resource: name,
-          field: key,
-          recordId: Number(row.id),
-          orgUnitId: resource.scoped ? Number(candidate.orgUnitId) : null,
-          scoped: resource.scoped,
-        })
-      if (previous !== null && previous !== next) await releaseAttachment(trx, previous)
+      const next = attachmentIds(candidate[key])
+      if (id === undefined)
+        for (const attachmentId of next)
+          await claimAttachment(trx, {
+            attachmentId,
+            actor,
+            resource: name,
+            field: key,
+            recordId: Number(row.id),
+            orgUnitId: resource.scoped ? Number(candidate.orgUnitId) : null,
+            scoped: resource.scoped,
+          })
+      // A removed file is released; reordering only rewrites the column.
+      for (const previous of attachmentIds(existing[key]))
+        if (!next.includes(previous)) await releaseAttachment(trx, previous)
     }
     await writeInlineRows(ctx, trx, resource, actor, form, id, row, candidate, action)
     const changes: FieldChange[] = []

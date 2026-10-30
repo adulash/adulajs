@@ -168,7 +168,7 @@ export type Field = {
          */
         table?: string
       }
-    /** One uploaded file, stored as the id of its attachments row. */
+    /** Uploaded files: the id of one attachments row, or a JSON array of ids when `multiple`. */
     | {
         type: 'attachment'
         /**
@@ -178,10 +178,22 @@ export type Field = {
          */
         accept?: string[] | 'any'
         /**
-         * Upload size limit such as '5mb'.
+         * Upload size limit of each file, such as '5mb'.
          * @default '20mb'
          */
         maxSize?: string
+        /**
+         * Several files per record (ADR 047): the column is a JSON array of attachment ids in
+         * display order; reads return the summaries in that order. Cannot be switched on or
+         * off for an existing column.
+         * @default false
+         */
+        multiple?: boolean
+        /**
+         * Most files of a multiple field, from 1 to 100.
+         * @default MULTIPLE_ATTACHMENT_LIMIT
+         */
+        max?: number
       }
     /** A record of another resource (integer foreign key, `RESTRICT`). */
     | {

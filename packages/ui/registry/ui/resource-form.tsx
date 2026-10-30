@@ -315,6 +315,11 @@ export function ResourceForm({
                 disabled={busy}
                 resource={editor.name}
                 attachment={field.type === 'attachment' && isAttachment(stored) ? stored : null}
+                attachments={
+                  field.type === 'attachment' && Array.isArray(stored)
+                    ? stored.filter(isAttachment)
+                    : undefined
+                }
                 onChange={(value) => setValues((current) => ({ ...current, [field.key]: value }))}
                 relation={
                   field.type === 'belongsTo' || field.type === 'manyToMany'

@@ -109,6 +109,7 @@ below and is exercised by `apps/reference/tests/functional/field_types.spec.ts`.
 | `belongsTo` | integer foreign key (restrict) | target id | `resource` (required) | equality |
 | `user` | integer foreign key to users (restrict) | user id; readers see `{ id, fullName }` | | equality |
 | `attachment` | integer (attachments row) | attachment id | `accept` (extensions or `'any'`), `maxSize` (default `'20mb'`) | equality |
+| `attachment` with `multiple: true` | jsonb array of attachment ids | ids in display order, `[]` when none; readers see summaries in that order | `max` (1 to 100, default 10), `accept` and `maxSize` per file | has files / no files (`{ empty }`) |
 | `hasMany` | none (child resource) | child rows | `resource`, `foreignKey` (required), `inline` | none |
 | `manyToMany` | none: join table | ascending array of linked ids, `[]` when none | `resource` (required), `table` | has the target id; `null` = no links |
 
@@ -131,6 +132,22 @@ record's transaction; every newly linked record must be live and viewable by the
 kept unchanged are not re-checked. Amend-by-copy links the same records, on the document and
 on its copied inline lines (a line's links are copied only when the actor may create that
 field, like its other values).
+
+An `attachment` field stores the id of a file uploaded beforehand with
+`POST /attachments` (`file`, `resource`, `field`, or a module's upload `grant`). With
+`multiple: true` it stores the ordered ids of up to `max` files; `accept` and `maxSize`
+apply to each file, a duplicate or an extra file is refused with 422, and `required`
+means at least one file. A write binds every new id to the record (only its uploader may,
+for this field only, and an upload made under a grant only for the granted record) and
+releases removed ids; reordering only rewrites the order. Switching an existing field
+between one file and several is a column type change the schema diff reports but never
+applies. Uploads never bound to a record are pruned after a day, file by file.
+`GET /attachments/:id` downloads a file for a user who can show the record and read the
+field (organization scope included), otherwise 404. `?preview=1` serves png, jpg, gif,
+webp, pdf and txt inline (when the extension and stored type agree) with `nosniff` and a
+script-free CSP; SVG, HTML and other types always download. Summaries carry
+`preview: 'image' | 'pdf' | 'text' | null` for the preview Dialog. Export lists file
+names joined with «، »; import does not accept attachment columns. See ADR 047.
 
 ### Common field props
 

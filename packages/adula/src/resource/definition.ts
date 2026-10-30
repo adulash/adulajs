@@ -53,10 +53,13 @@ function baseSchema(field: Field) {
     case 'enum':
     case 'date':
       return vine.string()
+    case 'attachment':
+      return field.multiple
+        ? vine.array(vine.number().withoutDecimals())
+        : vine.number().withoutDecimals()
     case 'integer':
     case 'belongsTo':
     case 'user':
-    case 'attachment':
       return vine.number().withoutDecimals()
     case 'boolean':
       return vine.boolean()

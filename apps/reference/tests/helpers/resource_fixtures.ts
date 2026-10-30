@@ -45,6 +45,7 @@ async function uploadContract(
         size: row.size,
         mimeType: 'application/pdf',
         url: attachmentUrl(row.id),
+        preview: 'pdf',
       },
     }
   } finally {
@@ -127,6 +128,22 @@ export const resourceFixtures: Record<string, ResourceFixture> = {
       input: { ...values, scan: scan.id },
       expected: { ...values, scan: scan.summary },
       stored: { scan: scan.id },
+    }
+  },
+  order_documents: async ({ userId, unique }) => {
+    // Several files in order: the update reorders, removes one and adds another (ADR 047).
+    const target = { resource: 'order_documents', field: 'files' }
+    const first = await uploadContract(userId, `${unique}-1`, target)
+    const second = await uploadContract(userId, `${unique}-2`, target)
+    const third = await uploadContract(userId, `${unique}-3`, target)
+    const values = { title: `مستند ${unique}` }
+    return {
+      input: { ...values, files: [first.id, second.id] },
+      expected: { ...values, files: [first.summary, second.summary] },
+      stored: { files: [first.id, second.id] },
+      update: { ...values, files: [third.id, second.id] },
+      updated: { ...values, files: [third.summary, second.summary] },
+      updatedStored: { files: [third.id, second.id] },
     }
   },
   order_deliveries: async (context) => {

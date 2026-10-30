@@ -70,10 +70,13 @@ function text(
       const label = related ? Object.entries(related).find(([key]) => key !== 'id')?.[1] : null
       return label === null || label === undefined ? `#${String(value)}` : String(label)
     }
-    case 'attachment':
-      return typeof value === 'object' && !Array.isArray(value) && value.name
-        ? String(value.name)
-        : 'مرفق'
+    case 'attachment': {
+      const name = (entry: unknown) =>
+        entry && typeof entry === 'object' && !Array.isArray(entry) && 'name' in entry
+          ? String(entry.name)
+          : 'مرفق'
+      return Array.isArray(value) ? value.map(name).join('، ') : name(value)
+    }
     case 'datetime':
       return new Date(String(value)).toLocaleString('ar-u-nu-latn-ca-gregory', { timeZone: 'UTC' })
     case 'json':

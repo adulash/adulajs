@@ -379,6 +379,14 @@ export class ImportBatches {
       const index = Number(column)
       if (!Number.isInteger(index) || index < 0 || index >= row.headers.length)
         throw new AdulaError(422, 'E_IMPORT_MAPPING', 'عمود غير موجود')
+      // Files cannot come from a spreadsheet cell: they are uploaded on the record page.
+      const named = this.registry.get(row.resource).fields
+      if (typeof key === 'string' && Object.hasOwn(named, key) && named[key].type === 'attachment')
+        throw new AdulaError(
+          422,
+          'E_IMPORT_MAPPING',
+          `لا يمكن استيراد المرفقات من ملف؛ ارفعها من صفحة السجل: ${named[key].label.ar}`
+        )
       if (typeof key !== 'string' || !targets.some((target) => target.key === key) || used.has(key))
         throw new AdulaError(
           422,

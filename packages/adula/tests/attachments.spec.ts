@@ -185,6 +185,7 @@ test.group('Attachment ownership and hydration', (group) => {
       size: 1234,
       mimeType: 'application/pdf',
       url: `/attachments/${first.id}`,
+      preview: 'pdf',
     }
     assert.deepEqual(saved.file, summary)
     assert.isNull(saved.privateFile)
@@ -237,6 +238,7 @@ test.group('Attachment ownership and hydration', (group) => {
           'size',
           'mimeType',
           'url',
+          'preview',
         ])
   })
 

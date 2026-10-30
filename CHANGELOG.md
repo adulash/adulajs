@@ -71,6 +71,27 @@ migrations: `1770000000041_import_modes`, `1770000000042_sync_jobs`,
   until an abandoned handler of that job settles.
 * The reference worker now delivers notifications through the channel dispatcher and runs
   sync jobs in a lane of their own.
+### Multiple attachments and preview
+
+Minor (ADR 047), no migration. `pnpm check:api` reports `AttachmentSummary` (new
+`preview` key), `Field`, `ResourceEditor` and `createResourceController` as changed, plus
+new exports (`attachmentPreview`, `attachmentHeaders`, `AttachmentPreview`,
+`MULTIPLE_ATTACHMENT_LIMIT`). A consumer test that deep-compares attachment summaries must
+add `preview`.
+
+* An attachment field takes `multiple: true` and `max` (1 to 100, default 10): a `jsonb`
+  column of ordered attachment ids. `accept` and `maxSize` apply to each file. Added files
+  are claimed like one file (uploader, field, grant record, unit), removed files are
+  released, the audit records the id arrays, export lists the file names and import
+  refuses the column with an Arabic message.
+* `GET /attachments/:id?preview=1` renders png, jpg, gif, webp, pdf and txt inline when the
+  extension and stored type agree, with the listed `Content-Type`, `nosniff` and a CSP
+  with `default-src 'none'` (sandboxed except PDF). SVG, HTML and other types always
+  download. The authorization is the download's.
+* `@adula/ui`: new `attachment-preview` Dialog; the attachment control handles several
+  files (progress, reorder, remove, preview); record details show preview buttons.
+  Regenerate consumer UI through `adula:ui`.
+
 ### Workflow delegation and SLA
 
 Minor (ADR 044). An additive migration `1770000000046_workflow_delegation_sla` adds

@@ -12,7 +12,7 @@ import {
 import { conditionSql } from '../../auth/sql.js'
 import { fromRow, selectedFields } from '../contracts.js'
 import { AdulaError, forbiddenAction, notFound } from '../errors.js'
-import { fieldValue } from '../../resource/values.js'
+import { fieldValue, isMultipleAttachment } from '../../resource/values.js'
 import { isAttachmentId, loadAttachments } from '../../attachments/attachment_service.js'
 import type { RecordPermissions } from '../presentation.js'
 
@@ -236,13 +236,22 @@ export async function hydrate(db: Knex, resource: Resource, records: RecordData[
     (key) => resource.fields[key].type === 'attachment'
   )
   if (!keys.length || !records.length) return records
-  const ids = records.flatMap((record) => keys.map((key) => record[key]).filter(isAttachmentId))
-  const summaries = await loadAttachments(db, ids)
+  // A multiple field holds an ordered array of ids: its summaries keep that order.
+  const ids = records.flatMap((record) =>
+    keys.flatMap((key) => (Array.isArray(record[key]) ? record[key] : [record[key]]))
+  )
+  const summaries = await loadAttachments(db, ids.filter(isAttachmentId))
   return records.map((record) => {
     const copy = { ...record }
-    for (const key of keys)
-      if (key in copy)
-        copy[key] = isAttachmentId(copy[key]) ? (summaries.get(copy[key]) ?? null) : null
+    for (const key of keys) {
+      if (!(key in copy)) continue
+      const value = copy[key]
+      if (isMultipleAttachment(resource.fields[key]))
+        copy[key] = (Array.isArray(value) ? value : [])
+          .map((id) => (isAttachmentId(id) ? summaries.get(id) : undefined))
+          .filter((summary) => summary !== undefined)
+      else copy[key] = isAttachmentId(value) ? (summaries.get(value) ?? null) : null
+    }
     return copy
   })
 }

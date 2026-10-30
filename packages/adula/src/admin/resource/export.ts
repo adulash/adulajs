@@ -183,10 +183,14 @@ export function cellText(
         : String(value)
     case 'money':
       return moneyText(String(value))
-    case 'attachment':
-      return value && typeof value === 'object' && !Array.isArray(value)
-        ? String((value as Record<string, JsonValue>).name ?? '')
-        : String(value)
+    case 'attachment': {
+      // A multiple field lists its file names in order, joined like other lists.
+      const name = (entry: JsonValue) =>
+        entry && typeof entry === 'object' && !Array.isArray(entry)
+          ? String((entry as Record<string, JsonValue>).name ?? '')
+          : String(entry)
+      return Array.isArray(value) ? value.map(name).join('، ') : name(value)
+    }
     case 'json':
       return JSON.stringify(value)
     default:

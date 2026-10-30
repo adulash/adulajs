@@ -13,7 +13,7 @@ import {
   invalidFilter,
   searchUnavailable,
 } from '../errors.js'
-import { fieldValue } from '../../resource/values.js'
+import { fieldValue, isMultipleAttachment } from '../../resource/values.js'
 import {
   authorizeAction,
   canQueryField,
@@ -267,6 +267,16 @@ function applyFilters(
           collectionFilter(present, resource, key, null)
         })
       else throw invalidFilter(`Unsupported filter operator: ${key}`)
+      continue
+    }
+    // Several files filter only by having files or none (ADR 047).
+    if (isMultipleAttachment(field)) {
+      if (condition.kind !== 'empty') throw invalidFilter(`Unsupported filter operator: ${key}`)
+      if (condition.empty)
+        query.where((empty) => {
+          empty.whereNull(column).orWhereRaw(`?? = '[]'::jsonb`, [column])
+        })
+      else query.whereNotNull(column).whereRaw(`?? <> '[]'::jsonb`, [column])
       continue
     }
     switch (condition.kind) {

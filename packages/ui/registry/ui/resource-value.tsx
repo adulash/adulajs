@@ -5,6 +5,7 @@ import { calendarDisplay, calendarIso } from '~/components/ui/calendar_date'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
 import { arabicText, useMessages, type Translate } from '~/components/ui/messages'
 import { Badge } from '~/components/ui/badge'
+import { AttachmentPreviewButton } from '~/components/ui/attachment-preview'
 import {
   decimalDisplay,
   decimalInput,
@@ -29,6 +30,8 @@ export type AttachmentValue = {
   size: number
   mimeType: string
   url: string
+  /** Inline preview kind for allow-listed images, PDF and text (ADR 047); others download. */
+  preview?: 'image' | 'pdf' | 'text' | null
 }
 
 /**
@@ -119,6 +122,16 @@ export function isAttachment(value: unknown): value is AttachmentValue {
   )
 }
 
+/** Whether an attachment field holds several files (an ordered array of summaries). */
+export function isMultipleAttachment(field: ResourceField) {
+  return field.type === 'attachment' && field.multiple === true
+}
+
+/** The files of a multiple attachment value, in their stored order. */
+export function attachmentList(value: unknown): AttachmentValue[] {
+  return Array.isArray(value) ? value.filter(isAttachment) : []
+}
+
 export function fileSize(bytes: number, t: Translate = arabicText) {
   if (bytes < 1024) return t('{size} بايت', { size: integerFormat.format(bytes) })
   if (bytes < 1024 * 1024) return t('{size} ك.ب', { size: sizeFormat.format(bytes / 1024) })
@@ -162,6 +175,11 @@ export function inputValue(field: ResourceField, value: unknown) {
     return decimalInput(value, decimalScale(field))
   if (multiValued.has(field.type)) return listInput(value)
   if (field.type === 'json') return JSON.stringify(value, null, 2)
+  // Several files are edited as the JSON array of their ids, in order.
+  if (isMultipleAttachment(field))
+    return Array.isArray(value)
+      ? listInput(value.map((entry) => (isAttachment(entry) ? entry.id : entry)))
+      : ''
   if (field.type === 'attachment') return isAttachment(value) ? String(value.id) : String(value)
   if (field.type === 'datetime') {
     const date = new Date(String(value))
@@ -179,7 +197,7 @@ export function inputValue(field: ResourceField, value: unknown) {
 export function parseValue(field: ResourceField, raw: string): unknown {
   // Multi-value fields always submit an array, so clearing them is explicit.
   if (field.type === 'multiSelect') return orderedSelection(field.options, listValue(raw))
-  if (field.type === 'manyToMany') return listValue(raw).map(Number)
+  if (field.type === 'manyToMany' || isMultipleAttachment(field)) return listValue(raw).map(Number)
   if (raw === '') return null
   switch (field.type) {
     case 'decimal':
@@ -273,6 +291,10 @@ export function displayValue(
     case 'json':
       return JSON.stringify(value)
     case 'attachment':
+      if (Array.isArray(value))
+        return attachmentList(value)
+          .map((entry) => entry.name)
+          .join('، ')
       return isAttachment(value) ? value.name : t('مرفق')
     case 'date':
       return formatDate(value, calendar)
@@ -287,6 +309,25 @@ export function displayValue(
 export function csvCell(value: string) {
   const safe = /^[\s -]*[=+@-]|^[\t\r\n]/.test(value) ? `'${value}` : value
   return `"${safe.replaceAll('"', '""')}"`
+}
+
+/** A downloadable file with its size and, for previewable types, a preview button. */
+function AttachmentLink({ file }: { file: AttachmentValue }) {
+  const { t } = useMessages()
+  return (
+    <>
+      <a
+        href={file.url}
+        download={file.name}
+        className="inline-flex items-center gap-2 text-primary underline-offset-4 hover:underline"
+      >
+        <Paperclip size={14} />
+        {file.name}
+        <span className="text-xs text-muted-foreground">({fileSize(file.size, t)})</span>
+      </a>
+      <AttachmentPreviewButton file={file} />
+    </>
+  )
 }
 
 export function ResourceValue({
@@ -351,17 +392,21 @@ export function ResourceValue({
         ))}
       </span>
     )
+  if (field.type === 'attachment' && Array.isArray(value))
+    return (
+      <ul className="space-y-1">
+        {attachmentList(value).map((file) => (
+          <li key={file.id} className="flex flex-wrap items-center gap-1">
+            <AttachmentLink file={file} />
+          </li>
+        ))}
+      </ul>
+    )
   if (field.type === 'attachment' && isAttachment(value))
     return (
-      <a
-        href={value.url}
-        download={value.name}
-        className="inline-flex items-center gap-2 text-primary underline-offset-4 hover:underline"
-      >
-        <Paperclip size={14} />
-        {value.name}
-        <span className="text-xs text-muted-foreground">({fileSize(value.size, t)})</span>
-      </a>
+      <span className="inline-flex flex-wrap items-center gap-1">
+        <AttachmentLink file={value} />
+      </span>
     )
   if (field.type === 'boolean')
     return <Badge variant={value ? 'default' : 'secondary'}>{value ? t('نعم') : t('لا')}</Badge>

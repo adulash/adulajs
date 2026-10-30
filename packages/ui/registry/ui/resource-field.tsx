@@ -3,6 +3,8 @@ import { useHttp } from '@inertiajs/react'
 import axios from 'axios'
 import { format } from 'date-fns'
 import {
+  ArrowDown,
+  ArrowUp,
   CalendarDays,
   Check,
   ChevronsUpDown,
@@ -22,6 +24,7 @@ import { HijriCalendar } from '~/components/ui/hijri-calendar'
 import { calendarInput, calendarIso } from '~/components/ui/calendar_date'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
 import { useMessages } from '~/components/ui/messages'
+import { AttachmentPreviewButton } from '~/components/ui/attachment-preview'
 import {
   Command,
   CommandEmpty,
@@ -60,6 +63,7 @@ import {
   PERCENT_LABEL,
   fieldOptions,
   fileSize,
+  isAttachment,
   moneyDisplay,
   moneyInput,
   parseMoney,
@@ -88,6 +92,8 @@ export type FieldProps = {
   options?: Option[]
   relation?: RelationSource
   attachment?: AttachmentValue | null
+  /** The stored files of a multiple attachment field, in order (ADR 047). */
+  attachments?: AttachmentValue[]
   /** Resource name; attachment uploads are claimed against it. */
   resource?: string
   /** Accessible name when the visible label lives elsewhere, e.g. inline rows. */
@@ -249,7 +255,11 @@ export function FieldControl(props: FieldProps) {
         </div>
       )
     case 'attachment':
-      return <AttachmentControl {...props} />
+      return field.multiple ? (
+        <MultipleAttachmentControl {...props} />
+      ) : (
+        <AttachmentControl {...props} />
+      )
     case 'text':
       return (
         <Textarea
@@ -736,6 +746,7 @@ function AttachmentControl({
           </a>
           <span className="text-xs text-muted-foreground">{fileSize(shown.size, t)}</span>
           <span className="ms-auto flex gap-1">
+            <AttachmentPreviewButton file={shown} disabled={disabled} />
             <Button
               type="button"
               variant="ghost"
@@ -787,6 +798,257 @@ function AttachmentControl({
           {failure}
         </p>
       )}
+    </div>
+  )
+}
+
+/** The upload failure as the server worded it, or a generic Arabic message. */
+function uploadFailure(caught: unknown, t: ReturnType<typeof useMessages>['t']) {
+  return axios.isAxiosError(caught)
+    ? (caught.response?.data?.error?.message ?? t('تعذر رفع الملف. حاول مجدداً.'))
+    : t('تعذر الاتصال بالخادم.')
+}
+
+/**
+ * Several files for one field: each selected file uploads on its own (with its own
+ * progress) and joins the ordered list; files can be moved, removed and previewed. The
+ * value is the JSON array of attachment ids the record saves; the server checks every
+ * limit again.
+ */
+function MultipleAttachmentControl({
+  id,
+  value,
+  onChange,
+  disabled,
+  error,
+  field,
+  label,
+  attachments,
+  resource,
+}: FieldProps) {
+  const { t, label: localized } = useMessages()
+  // The editor sends the resolved limit; 10 is AdulaJS's default for older payloads.
+  const max = field.type === 'attachment' ? (field.max ?? 10) : 10
+  const [known, setKnown] = useState<AttachmentValue[]>(attachments ?? [])
+  const [uploads, setUploads] = useState<{ key: string; name: string; progress: number }[]>([])
+  const [failures, setFailures] = useState<{ key: string; text: string }[]>([])
+  const [announcement, setAnnouncement] = useState('')
+  const input = useRef<HTMLInputElement>(null)
+  // The latest value, so uploads finishing one after another append to each other.
+  const latest = useRef(value)
+  latest.current = value
+  // A reloaded record brings its stored files; keep summaries of files uploaded here too.
+  const storedIds = (attachments ?? []).map((file) => file.id).join(',')
+  useEffect(() => {
+    if (!attachments?.length) return
+    setKnown((current) => [
+      ...attachments,
+      ...current.filter((file) => !attachments.some((stored) => stored.id === file.id)),
+    ])
+    // The stored ids decide a re-sync; a new array with the same files changes nothing.
+  }, [storedIds])
+  const ids = listValue(value).map(Number)
+  const fileOf = (fileId: number) => known.find((file) => file.id === fileId)
+  const nameOf = (fileId: number) => fileOf(fileId)?.name ?? t('ملف رقم {id}', { id: fileId })
+  const save = (next: number[]) => {
+    latest.current = listInput(next)
+    onChange(latest.current)
+  }
+  const fail = (text: string) =>
+    setFailures((current) => [...current, { key: `${Date.now()}-${current.length}`, text }])
+  const upload = async (file: File, key: string) => {
+    const body = new FormData()
+    body.append('file', file)
+    if (resource) body.append('resource', resource)
+    body.append('field', field.key)
+    try {
+      const response = await axios.post<{ data: AttachmentValue }>('/attachments', body, {
+        headers: { Accept: 'application/json' },
+        withXSRFToken: true,
+        onUploadProgress: (event) =>
+          setUploads((current) =>
+            current.map((entry) =>
+              entry.key === key
+                ? {
+                    ...entry,
+                    progress: event.total ? Math.round((event.loaded / event.total) * 100) : 50,
+                  }
+                : entry
+            )
+          ),
+      })
+      const stored = response.data.data
+      setKnown((current) => [...current, stored])
+      save([...listValue(latest.current).map(Number), stored.id])
+      setAnnouncement(t('أُضيف الملف {name}', { name: stored.name }))
+    } catch (caught) {
+      fail(`${file.name}: ${uploadFailure(caught, t)}`)
+    } finally {
+      setUploads((current) => current.filter((entry) => entry.key !== key))
+    }
+  }
+  const choose = async (chosen: File[]) => {
+    setFailures([])
+    if (input.current) input.current.value = ''
+    const room = max - ids.length - uploads.length
+    if (chosen.length > room) {
+      fail(t('يمكن إرفاق {max} ملفات على الأكثر', { max }))
+      return
+    }
+    const batch = chosen.map((file, index) => ({
+      file,
+      key: `${Date.now()}-${index}-${file.name}`,
+    }))
+    setUploads((current) => [
+      ...current,
+      ...batch.map(({ file, key }) => ({ key, name: file.name, progress: 0 })),
+    ])
+    // One after another, so the files keep the order they were chosen in.
+    for (const { file, key } of batch) await upload(file, key)
+  }
+  // Moves and removals address the file by id, never by its position in a filtered list.
+  const move = (fileId: number, offset: number) => {
+    const from = ids.indexOf(fileId)
+    const to = from + offset
+    if (from < 0 || to < 0 || to >= ids.length) return
+    const next = [...ids]
+    next.splice(from, 1)
+    next.splice(to, 0, fileId)
+    save(next)
+    setAnnouncement(
+      t('نُقل الملف {name} إلى الموضع {position}', { name: nameOf(fileId), position: to + 1 })
+    )
+  }
+  const remove = (fileId: number) => {
+    save(ids.filter((entry) => entry !== fileId))
+    setAnnouncement(t('أُزيل الملف {name}', { name: nameOf(fileId) }))
+  }
+  const busy = disabled || uploads.length > 0
+  const name = label ?? localized(field.label)
+  return (
+    <div className="space-y-2">
+      <input
+        ref={input}
+        id={id}
+        type="file"
+        multiple
+        className="sr-only"
+        disabled={busy || ids.length >= max}
+        aria-label={label}
+        aria-describedby={error ? `${id}-error` : undefined}
+        onChange={(event) => {
+          const chosen = [...(event.target.files ?? [])]
+          if (chosen.length) void choose(chosen)
+        }}
+      />
+      {ids.length > 0 && (
+        <ol className="divide-y rounded-md border bg-white text-sm" aria-label={name}>
+          {ids.map((fileId, index) => {
+            const file = fileOf(fileId)
+            const fileName = nameOf(fileId)
+            return (
+              <li key={fileId} className="flex flex-wrap items-center gap-2 px-3 py-2">
+                <Paperclip size={15} className="text-muted-foreground" />
+                {file ? (
+                  <>
+                    <a
+                      href={file.url}
+                      download={file.name}
+                      className="min-w-0 truncate text-primary underline-offset-4 hover:underline"
+                    >
+                      {file.name}
+                    </a>
+                    <span className="text-xs text-muted-foreground">
+                      {fileSize(file.size, t)}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">{fileName}</span>
+                )}
+                <span className="ms-auto flex gap-1">
+                  {file && <AttachmentPreviewButton file={file} disabled={disabled} />}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-8"
+                    disabled={busy || index === 0}
+                    aria-label={t('تقديم {name}', { name: fileName })}
+                    onClick={() => move(fileId, -1)}
+                  >
+                    <ArrowUp size={14} />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-8"
+                    disabled={busy || index === ids.length - 1}
+                    aria-label={t('تأخير {name}', { name: fileName })}
+                    onClick={() => move(fileId, 1)}
+                  >
+                    <ArrowDown size={14} />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={busy}
+                    className="text-destructive"
+                    aria-label={t('إزالة {name}', { name: fileName })}
+                    onClick={() => remove(fileId)}
+                  >
+                    <X size={14} />
+                    {t('إزالة')}
+                  </Button>
+                </span>
+              </li>
+            )
+          })}
+        </ol>
+      )}
+      {uploads.map((entry) => (
+        <div key={entry.key} className="space-y-1">
+          <p className="truncate text-xs text-muted-foreground">
+            {t('جارٍ رفع {name} {progress}%', { name: entry.name, progress: entry.progress })}
+          </p>
+          <div
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={entry.progress}
+            aria-label={t('رفع {field}', { field: entry.name })}
+            className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+          >
+            <div
+              className="h-full bg-primary transition-all"
+              style={{ width: `${entry.progress}%` }}
+            />
+          </div>
+        </div>
+      ))}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          type="button"
+          variant="outline"
+          disabled={busy || ids.length >= max}
+          onClick={() => input.current?.click()}
+        >
+          <Upload size={15} />
+          {t('إضافة ملفات')}
+        </Button>
+        <span className="text-xs text-muted-foreground">
+          {t('{count} من {max} ملفات', { count: ids.length, max })}
+        </span>
+      </div>
+      <p role="status" aria-live="polite" className="sr-only">
+        {announcement}
+      </p>
+      {failures.map((failure) => (
+        <p key={failure.key} role="alert" className="text-xs text-destructive">
+          {failure.text}
+        </p>
+      ))}
     </div>
   )
 }
@@ -1150,6 +1412,13 @@ export function InlineRows({
         (inline.updateFields[String(row.id)] ?? []).includes(key)
   const { t, label } = useMessages()
   const live = rows.filter((row) => !row.deleted)
+  // Row files upload for the child resource and field, which is what the child's own
+  // write claims; a saved row shows its stored files (ADR 047).
+  const childResource = (field as { resource?: string }).resource ?? resource
+  const storedValue = (row: InlineRow, key: string) =>
+    row.id === undefined
+      ? undefined
+      : inline.rows.find((entry) => String(entry.id) === String(row.id))?.[key]
   return (
     <section aria-label={label(field.label)} className="rounded-xl border bg-white">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b px-7 py-4">
@@ -1227,7 +1496,19 @@ export function InlineRows({
                             value={row.values[child.key] ?? ''}
                             disabled={disabled || row.deleted || !editable(row, child.key)}
                             error={rowErrors[child.key]}
-                            resource={resource}
+                            resource={childResource}
+                            attachment={
+                              child.type === 'attachment' &&
+                              isAttachment(storedValue(row, child.key))
+                                ? (storedValue(row, child.key) as AttachmentValue)
+                                : null
+                            }
+                            attachments={
+                              child.type === 'attachment' &&
+                              Array.isArray(storedValue(row, child.key))
+                                ? (storedValue(row, child.key) as unknown[]).filter(isAttachment)
+                                : undefined
+                            }
                             relation={
                               child.type === 'belongsTo' || child.type === 'user'
                                 ? {
