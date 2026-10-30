@@ -18,8 +18,10 @@ What you use:
 | Workflows, delegation, SLA | [Business features](business-features.md#documents-and-workflows), [ADR 044](decisions/044-workflow-engine.md) |
 | List filters, saved views, dashboards | [Business features](business-features.md#lists-filters-export-bulk-actions-and-deleted-records), [ADR 046](decisions/046-list-layer.md) |
 
-Several files per attachment field with in-page preview (ADR 047) and print templates
-(ADR 048) are outside this tutorial.
+Several files in one attachment field with in-page preview
+([ADR 047](decisions/047-multiple-attachments-and-preview.md)) and print templates
+([ADR 048](decisions/048-print-templates.md)) are outside this tutorial; see
+[Resource definitions](resources.md).
 
 Each step ends with **You should see**, the result to check before going on.
 

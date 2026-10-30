@@ -188,6 +188,7 @@ manyToMany yet.
 | `submittable`, `version` | Draft/submit/cancel/amend-by-copy; optimistic versions (default with submittable). |
 | `actions` | `view`, `create`, `update`, `delete`, and `submit`, `cancel`, `amend` when submittable. |
 | `hooks` | `beforeSave` / `afterSave`, inside the write transaction. |
+| `printTemplates` | Printable layouts offered on the record page; see [Print templates](#print-templates). |
 | `validator` | Optional; see below. |
 | `model` | Optional and never read: AdulaJS persists through Knex. Keep it if your own code uses the Lucid model. |
 
@@ -234,3 +235,80 @@ violates it fails with 422 until the value is corrected. A unique violation, sin
 
 `@vinejs/vine` (`^4.0.0`) is a peer dependency of `adula`; every AdonisJS application
 already has it.
+
+## Print templates
+
+`printTemplates` declares printable layouts with the resource (ADR 048). The record page's
+«طباعة» dialog offers them next to the generic print and the administrator templates;
+`GET /resources/:resource/:id/print?template=<key>` prints one. Adding `&format=pdf` gives a
+PDF when `GOTENBERG_URL` is set, and 501 otherwise. A resource without `printTemplates` keeps
+the generic print, `default`, which is also used when `?template` is left out.
+
+```ts
+import { defineResource } from 'adula'
+
+export default defineResource({
+  name: 'invoices',
+  label: { ar: 'الفواتير' },
+  recordLabel: { ar: 'فاتورة' },
+  scoped: true,
+  fields: {
+    number: { type: 'string', label: { ar: 'رقم الفاتورة' }, required: true },
+    issuedAt: { type: 'date', label: { ar: 'تاريخ الإصدار' }, required: true },
+    total: { type: 'money', label: { ar: 'الإجمالي' }, required: true },
+    items: {
+      type: 'hasMany',
+      label: { ar: 'البنود' },
+      resource: 'invoice_items',
+      foreignKey: 'invoiceId',
+      inline: true,
+    },
+  },
+  list: ['number', 'issuedAt', 'total'],
+  form: ['number', 'issuedAt', 'total', 'items'],
+  show: ['number', 'issuedAt', 'total', 'items'],
+  actions: ['view', 'create', 'update', 'delete'],
+  printTemplates: [
+    {
+      key: 'tax_invoice',
+      label: { ar: 'فاتورة ضريبية', en: 'Tax invoice' },
+      paper: 'A4',
+      orientation: 'portrait',
+      header: 'فاتورة رقم {{field.number}}',
+      footer: 'شكرًا لتعاملكم مع {{company}}',
+      fields: ['number', 'issuedAt'],
+      lines: { items: ['description', 'quantity', 'amount'] },
+      totals: [
+        { label: { ar: 'إجمالي الكميات' }, lines: 'items', column: 'quantity' },
+        { label: { ar: 'الإجمالي' }, field: 'total' },
+      ],
+    },
+  ],
+})
+```
+
+| Option | Meaning |
+|---|---|
+| `key` | Stable key for `?template=`: a lower-case letter, then lower-case letters, digits and `_`, at most 64 characters. `default` is refused, and keys are unique within the resource. |
+| `label` | Required `Label`, shown in the print dialog. |
+| `paper` | `A4` (default), `A5` or `Letter`. |
+| `orientation` | `portrait` (default) or `landscape`. |
+| `header`, `footer` | Plain text of at most 500 characters with placeholders such as `{{id}}`, `{{company}}` and `{{field.key}}`. No blocks, lines or logo. |
+| `fields` | Record fields in print order, not hasMany. |
+| `lines` | hasMany field key → the child columns to print. |
+| `totals` | `{ label, field }` for a money, integer, decimal or percent field, or `{ label, lines, column }` summing a printed line column of one of those types. |
+
+`defineResource` refuses unknown fields, unknown hasMany groups, an invalid key, paper or
+orientation, and non-numeric total fields. Registering the module refuses unknown child
+columns and non-numeric line totals.
+
+A template is a layout, not a permission. Printing reads the record as the printing user, so
+a field the user may not read stays out of the page and another unit's record is 404, as on
+the record page. A hasMany field named in `lines` becomes printable even when the record's
+`list` and `show` leave it out; its own rules and each line's organization scope still apply.
+A group of more than 1000 lines is refused with 422 `E_PRINT_LINE_LIMIT`, on the generic print
+too, so a table or total is never silently cut. Every print records a `printed` activity on
+the record.
+
+Administrators add templates without code in «قوالب الطباعة» (`/admin/print-templates`); see
+[Print templates](business-features.md#print-templates).

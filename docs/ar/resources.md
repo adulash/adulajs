@@ -97,6 +97,7 @@ export default defineResource({
 | `belongsTo` | مفتاح أجنبي integer (restrict) | معرّف السجل المرتبط | `resource` (مطلوب) | مساواة |
 | `user` | مفتاح أجنبي integer إلى users (restrict) | معرّف المستخدم؛ ويراه القارئ بالشكل `{ id, fullName }` | | مساواة |
 | `attachment` | integer (صف في attachments) | معرّف المرفق | `accept` (الامتدادات أو `'any'`)، `maxSize` (الافتراضي `'20mb'`) | مساواة |
+| `attachment` مع `multiple: true` | مصفوفة jsonb من معرّفات المرفقات | المعرّفات بترتيب العرض، و`[]` عند عدم وجود ملفات؛ ويرى القارئ الملخصات بهذا الترتيب | `max` (من 1 إلى 100، والافتراضي 10)، و`accept` و`maxSize` لكل ملف | توجد ملفات / لا توجد ملفات (`{ empty }`) |
 | `hasMany` | لا يوجد (مورد فرعي) | الصفوف الفرعية | `resource` و`foreignKey` (مطلوبان)، `inline` | لا يوجد |
 | `manyToMany` | لا يوجد: جدول ربط | مصفوفة تصاعدية بمعرّفات السجلات المرتبطة، و`[]` إن لم يوجد شيء | `resource` (مطلوب)، `table` | يحتوي معرّف الهدف؛ `null` = لا روابط |
 
@@ -111,6 +112,33 @@ export default defineResource({
 - الكتابة تستبدل القائمة كلها (500 معرّف على الأكثر)، ويزامنها الخادم بالفرق داخل معاملة السجل.
 - كل سجل يُربط حديثًا يجب أن يكون حيًّا (غير محذوف) ومسموحًا للمستخدم بعرضه (النطاق وقواعد الدور)، ويُفحص ذلك باستعلام واحد لكل حقل: والنتيجة 404 إن لم يتحقق في أي منها. الروابط التي لم تتغير لا يُعاد فحصها.
 - التعديل بالنسخ (amend-by-copy) يربط السجلات نفسها في المستند وفي أسطره المضمَّنة المنسوخة (تُنسخ روابط السطر فقط إذا كان المستخدم يملك إنشاء ذلك الحقل، كبقية قيمه).
+
+### حقول المرفقات
+
+يخزّن حقل `attachment` معرّف ملف رُفع مسبقًا عبر `POST /attachments` (`file` و`resource` و`field`، أو `grant` لرفع يمنحه أحد التطبيقات). ويمكن أن يحمل الحقل الواحد عدة ملفات، مثل طلب شراء معه عرض السعر والفاتورة ومذكرة التسليم:
+
+```ts
+documents: {
+  type: 'attachment',
+  multiple: true, // several files
+  max: 3, // 1 to 100, default MULTIPLE_ATTACHMENT_LIMIT (10)
+  accept: ['pdf', 'png', 'jpg'], // per file, as for one file
+  maxSize: '5mb', // per file
+}
+```
+
+- مع `multiple: true` يخزّن الحقل معرّفات الملفات مرتبة، بحد أقصى `max` ملفًا. وينطبق `accept` و`maxSize` على كل ملف، ويعني `required` ملفًا واحدًا على الأقل.
+- الملف المكرر أو الزائد يُرفض بالخطأ 422. ويرفض `defineResource` الخيار `max` بلا `multiple`، وقيمة `max` خارج المدى من 1 إلى 100، والخيارات `sortable` و`searchable` و`unique` على الحقل متعدد الملفات.
+- تربط الكتابة كل معرّف جديد بالسجل، ولا يملك ذلك إلا من رفع الملف، ولهذا الحقل فقط. والملف المرفوع بموجب `grant` يُربط بالسجل المحدد في المنحة فقط. وتُحرَّر المعرّفات المحذوفة، أما تغيير الترتيب فيعيد كتابة القائمة فقط.
+- تحويل حقل موجود من ملف واحد إلى عدة ملفات أو العكس تغيير في نوع العمود: يبلّغ عنه فحص المخطط ولا يطبّقه تلقائيًا.
+- الملفات المرفوعة التي لم تُربط بسجل تُزال بعد يوم، ملفًا ملفًا.
+- `GET /attachments/:id` ينزّل الملف لمن يستطيع عرض السجل وقراءة الحقل (مع مراعاة النطاق التنظيمي)، وإلا فالنتيجة 404.
+
+**المعاينة:** يعرض `?preview=1` داخل الصفحة ملفات png وjpg وgif وwebp وpdf وtxt حين يتفق الامتداد مع النوع المخزّن، مع الترويسة `nosniff` وسياسة أمان المحتوى (CSP) التي تمنع البرامج النصية. أما SVG وHTML وبقية الأنواع فتُنزَّل دائمًا. وتحمل ملخصات الملفات `preview: 'image' | 'pdf' | 'text' | null` (اختياري؛ وغيابه يعني null) لنافذة المعاينة.
+
+إذا كانت سياسة شركتك تمنع عرض ملفات PDF داخل المتصفح، فاضبط `attachments: { pdfPreview: false }` في `config/adula.ts`: عندها تُنزَّل ملفات PDF فقط.
+
+يجمع التصدير أسماء الملفات بالفاصلة «، »، ولا يقبل الاستيراد أعمدة المرفقات. راجع [ADR 047](../decisions/047-multiple-attachments-and-preview.md).
 
 ### خصائص مشتركة للحقول
 
@@ -146,6 +174,7 @@ export default defineResource({
 | `submittable` و`version` | دورة المسودة/الاعتماد/الإلغاء/التعديل بالنسخ؛ والإصدارات المتفائلة لمنع الكتابة المتزامنة (مفعّلة افتراضيًا مع submittable). |
 | `actions` | `view` و`create` و`update` و`delete`، و`submit` و`cancel` و`amend` في المورد القابل للاعتماد. |
 | `hooks` | `beforeSave` و`afterSave`، داخل معاملة الكتابة. |
+| `printTemplates` | تخطيطات طباعة تُعرض في صفحة السجل؛ راجع [قوالب الطباعة](#قوالب-الطباعة). |
 | `validator` | اختياري؛ راجع قسم التحقق أدناه. |
 | `model` | اختياري ولا يُقرأ أبدًا: AdulaJS يحفظ البيانات عبر Knex. أبقه إن كانت شيفرتك تستخدم نموذج Lucid. |
 
@@ -179,4 +208,68 @@ export default defineResource({
 
 مخالفة التفرد، مفردة أو مركّبة، خطأ 409 `E_DUPLICATE` برسالة تذكر الحقول، مثل «هذه القيمة مستخدمة في سجل آخر: الوحدة التنظيمية، رمز المورد».
 
-الحزمة `@vinejs/vine` (`^4.0.0`) اعتمادية نظيرة (peer dependency) لـ `adula`، وهي موجودة في كل تطبيق AdonisJS.
+الحزمة `@vinejs/vine` (`^4.0.0`) اعتمادية نظيرة (peer dependency) لـ `adula`، وهي موجودة في كل مشروع AdonisJS.
+
+## قوالب الطباعة
+
+يصف `printTemplates` تخطيطات طباعة تُعرَّف مع المورد ([ADR 048](../decisions/048-print-templates.md))، مثل فاتورة ضريبية أو مذكرة تسليم. تعرضها نافذة «طباعة» في صفحة السجل بجانب الطباعة العامة وقوالب المسؤول، ويطبع `GET /resources/:resource/:id/print?template=<key>` أحدها. وبإضافة `&format=pdf` تحصل على ملف PDF إذا كان `GOTENBERG_URL` مضبوطًا، وإلا فالنتيجة 501. والمورد الذي لا يعرّف `printTemplates` تبقى له الطباعة العامة `default`، وهي المستخدمة أيضًا عند ترك `?template`.
+
+```ts
+import { defineResource } from 'adula'
+
+export default defineResource({
+  name: 'invoices',
+  label: { ar: 'الفواتير' },
+  recordLabel: { ar: 'فاتورة' },
+  scoped: true,
+  fields: {
+    number: { type: 'string', label: { ar: 'رقم الفاتورة' }, required: true },
+    issuedAt: { type: 'date', label: { ar: 'تاريخ الإصدار' }, required: true },
+    total: { type: 'money', label: { ar: 'الإجمالي' }, required: true },
+    items: {
+      type: 'hasMany',
+      label: { ar: 'البنود' },
+      resource: 'invoice_items',
+      foreignKey: 'invoiceId',
+      inline: true,
+    },
+  },
+  list: ['number', 'issuedAt', 'total'],
+  form: ['number', 'issuedAt', 'total', 'items'],
+  show: ['number', 'issuedAt', 'total', 'items'],
+  actions: ['view', 'create', 'update', 'delete'],
+  printTemplates: [
+    {
+      key: 'tax_invoice',
+      label: { ar: 'فاتورة ضريبية', en: 'Tax invoice' },
+      paper: 'A4',
+      orientation: 'portrait',
+      header: 'فاتورة رقم {{field.number}}',
+      footer: 'شكرًا لتعاملكم مع {{company}}',
+      fields: ['number', 'issuedAt'],
+      lines: { items: ['description', 'quantity', 'amount'] },
+      totals: [
+        { label: { ar: 'إجمالي الكميات' }, lines: 'items', column: 'quantity' },
+        { label: { ar: 'الإجمالي' }, field: 'total' },
+      ],
+    },
+  ],
+})
+```
+
+| الخيار | المعنى |
+|---|---|
+| `key` | مفتاح ثابت لـ `?template=`: حرف إنجليزي صغير، ثم حروف صغيرة وأرقام و`_`، بحد أقصى 64 حرفًا. القيمة `default` مرفوضة، والمفاتيح فريدة داخل المورد. |
+| `label` | `Label` مطلوب، يظهر في نافذة الطباعة. |
+| `paper` | `A4` (الافتراضي) أو `A5` أو `Letter`. |
+| `orientation` | `portrait` (الافتراضي) أو `landscape`. |
+| `header` و`footer` | نص عادي لا يتجاوز 500 حرف، فيه عناصر نائبة مثل `{{id}}` و`{{company}}` و`{{field.key}}`. بلا كتل ولا بنود ولا شعار. |
+| `fields` | حقول السجل بترتيب الطباعة، وليس منها hasMany. |
+| `lines` | مفتاح حقل hasMany ← أعمدة الابن المطلوب طباعتها. |
+| `totals` | `{ label, field }` لحقل money أو integer أو decimal أو percent، أو `{ label, lines, column }` لجمع عمود مطبوع من هذه الأنواع. |
+
+يرفض `defineResource` الحقول غير المعروفة، ومجموعات hasMany غير المعروفة، والمفتاح أو الورق أو الاتجاه غير الصحيح، وحقول الإجمالي غير الرقمية. ويرفض تسجيل التطبيق أعمدة الابن غير المعروفة وإجماليات البنود غير الرقمية.
+
+القالب تخطيط وليس صلاحية. فالطباعة تقرأ السجل بصلاحيات من يطبعه: الحقل الذي لا يملك قراءته لا يظهر في الصفحة، وسجل وحدة تنظيمية أخرى يعطي 404 كما في صفحة السجل. وحقل hasMany المذكور في `lines` تصبح طباعته ممكنة ولو لم يرد في `list` و`show`، مع بقاء قواعده والنطاق التنظيمي لكل بند. والمجموعة التي تتجاوز 1000 بند تُرفض بالخطأ 422 `E_PRINT_LINE_LIMIT`، وكذلك في الطباعة العامة، حتى لا يُقطع جدول أو إجمالي بصمت. وتُسجَّل كل طباعة في نشاط السجل بالحدث `printed`.
+
+ويضيف المسؤولون قوالب بلا شيفرة من شاشة «قوالب الطباعة» (`/admin/print-templates`)؛ راجع [Print templates](../business-features.md#print-templates).

@@ -14,7 +14,7 @@
 | سير العمل والتفويض ومواعيد SLA | [Business features](../business-features.md#documents-and-workflows)، [ADR 044](../decisions/044-workflow-engine.md) |
 | مرشّحات القوائم وطرق العرض المحفوظة ولوحات المؤشرات | [Business features](../business-features.md#lists-filters-export-bulk-actions-and-deleted-records)، [ADR 046](../decisions/046-list-layer.md) |
 
-تعدد الملفات في حقل المرفق مع المعاينة داخل الصفحة (ADR 047)، وقوالب الطباعة (ADR 048)، خارج نطاق هذا الدرس.
+تعدد الملفات في حقل المرفق مع المعاينة داخل الصفحة ([ADR 047](../decisions/047-multiple-attachments-and-preview.md))، وقوالب الطباعة ([ADR 048](../decisions/048-print-templates.md))، خارج نطاق هذا الدرس؛ راجع [تعريف الموارد](resources.md).
 
 تنتهي كل خطوة بفقرة **ما يجب أن تراه**، وهي النتيجة التي تتحقق منها قبل الانتقال إلى الخطوة التالية.
 

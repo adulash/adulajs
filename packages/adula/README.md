@@ -101,6 +101,9 @@ and SLA, list filters, saved views and a dashboard.
   delegation while out of office; SLA deadlines with reminders and escalation (ADR 044).
 * **Lists.** Range, multi-value and empty filters, saved views, filtered CSV export, bulk
   actions, deleted records and restore, and dashboards computed as the viewer (ADR 046).
+* **Files and printing.** One or several files per attachment field, with in-page preview of
+  images, PDF and text (ADR 047); print templates in code or written by administrators, printed
+  as HTML or PDF with the reader's permissions (ADR 048).
 * **Collaboration.** Comments with mentions, followers, tags, field history, assignments and
   one "my tasks" inbox, notifications by template with e-mail, realtime updates, SMS or
   WhatsApp through a signed HTTP provider.
