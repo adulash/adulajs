@@ -128,8 +128,12 @@ const CSS_VALUE = /^[#%.,\w\s-]*$/
 const CSS_COLOR_FUNCTION = /\b(?:rgba?|hsla?)\(\s*[\d.%,\s]+\)/gi
 const CSS_FORBIDDEN = /url|expression|import|javascript|behavio|binding|image|attr|var|@|\/\/|:/i
 
+/** Longest style attribute kept; longer ones are dropped whole. */
+const STYLE_LIMIT = 500
+
 /** A style attribute reduced to allowlisted properties with plain values; '' when none survive. */
 export function sanitizeStyle(style: string): string {
+  if (style.length > STYLE_LIMIT) return ''
   if (/[\\&<>"'`{}]|\/\*/.test(style)) return ''
   const declarations: string[] = []
   for (const part of style.split(';')) {

@@ -211,6 +211,8 @@ test.group('Print template language and sanitizer', () => {
       'color: \\75 rl(http://evil)',
       'border: 1px solid red /* x */',
       'color: {{field.note}}',
+      // Over STYLE_LIMIT: dropped whole, however harmless each declaration is.
+      'color: red; '.repeat(100),
     ])
       assert.notInclude(sanitizePrintHtml(`<p style="${style}">x</p>`), 'style', style)
     assert.equal(
@@ -465,6 +467,7 @@ test.group('Print templates', (group) => {
         paper: 'A5',
         orientation: 'portrait',
         footer: 'نسخة {{company}}',
+        expectedVersion: 1,
       },
       1
     )
@@ -731,10 +734,69 @@ test.group('Print template hardening', (group) => {
       /غير موجود/,
       404
     )
-    await templates.update('pt_bills', 'meta', { label: 'قيم', body: '<p>x</p>', active: false }, 1)
-    await templates.update('pt_bills', 'meta', { label: 'قيم', body: '<p>y</p>' }, 1)
+    await templates.update(
+      'pt_bills',
+      'meta',
+      { label: 'قيم', body: '<p>x</p>', active: false, expectedVersion: 1 },
+      1
+    )
+    await templates.update(
+      'pt_bills',
+      'meta',
+      { label: 'قيم', body: '<p>y</p>', expectedVersion: 2 },
+      1
+    )
     const stored = await templates.get('pt_bills', 'meta')
     assert.isFalse(stored.active)
+  })
+
+  test('a save from a stale version is refused, so a concurrent edit is never lost', async ({
+    assert,
+  }) => {
+    const opened = await templates.get('pt_bills', 'meta')
+    const from = Number(opened.version)
+    // Administrator A saves first from the version both opened.
+    const first = await templates.update(
+      'pt_bills',
+      'meta',
+      { label: 'قيم', body: '<p>تعديل أ</p>', expectedVersion: from },
+      1
+    )
+    assert.equal(first.version, from + 1)
+    // Administrator B still holds the old version: refused, A's change stays current.
+    await rejectsWith(
+      () =>
+        templates.update(
+          'pt_bills',
+          'meta',
+          { label: 'قيم', body: '<p>تعديل ب</p>', expectedVersion: from },
+          1
+        ),
+      /عدّل مسؤول آخر/,
+      409
+    )
+    await rejectsWith(
+      () => templates.update('pt_bills', 'meta', { label: 'قيم', body: '<p>بلا نسخة</p>' }, 1),
+      /عدّل مسؤول آخر/,
+      409
+    )
+    const current = await templates.get('pt_bills', 'meta')
+    assert.equal(current.version, String(from + 1))
+    assert.include(current.body, 'تعديل أ')
+    // Two saves racing from the same version: exactly one wins under the row lock.
+    const racing = await Promise.allSettled(
+      ['ج', 'د'].map((name) =>
+        templates.update(
+          'pt_bills',
+          'meta',
+          { label: 'قيم', body: `<p>${name}</p>`, expectedVersion: from + 1 },
+          1
+        )
+      )
+    )
+    assert.deepEqual(racing.map((result) => result.status).sort(), ['fulfilled', 'rejected'])
+    const settled = await templates.get('pt_bills', 'meta')
+    assert.equal(settled.version, String(from + 2))
   })
 
   test('the renderer prints only fields of the reader description, whatever the record holds', ({

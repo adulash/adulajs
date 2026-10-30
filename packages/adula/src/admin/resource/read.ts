@@ -322,7 +322,10 @@ async function childrenOf(
   const id = Number(parent.id)
   const limit = options.limit ?? 100
   // A line group is readable where the record exposes it (serialize, or list and show),
-  // or where the resource's own code print templates declare it (ADR 048).
+  // or where the resource's own code print templates declare it (ADR 048). Declaring a
+  // group in a code print template is the resource author exposing it like a detail field:
+  // children() returns it to any caller that names it, not only to printing (the record
+  // page itself names `show`).
   const exposed = new Set([
     ...(resource.serialize ?? [...resource.list, ...resource.show]),
     ...(resource.printTemplates ?? []).flatMap((template) => Object.keys(template.lines ?? {})),

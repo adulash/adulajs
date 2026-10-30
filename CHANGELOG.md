@@ -96,6 +96,12 @@ existing code compiles unchanged.
   rows, and no silent cut: a print refuses more than `PRINT_LINE_LIMIT` (1000) lines per
   group with 422 `E_PRINT_LINE_LIMIT`. The generic print uses it too, so it no longer
   stops at 100 lines.
+* **Behavior change:** the generic print (`/resources/:resource/:id/print` without a
+  template) of a record with more than 1000 lines in a group now answers 422
+  `E_PRINT_LINE_LIMIT`; before, it silently printed the first 100 lines.
+* `PrintTemplates.update` needs `expectedVersion`, the version the editor opened; a
+  mismatch (another administrator saved meanwhile) is 409 `E_PRINT_TEMPLATE_CONFLICT`, so
+  a concurrent edit is refused instead of silently dropped.
 * `PrintTemplates.create` refuses an existing key (409), `update` needs one (404) and keeps
   the stored `active` flag when it is not sent. `recordPrinted` writes the `printed`
   activity; the reference app calls it after the HTML is rendered or the PDF converted.

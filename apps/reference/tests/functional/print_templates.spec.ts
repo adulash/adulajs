@@ -156,6 +156,7 @@ test.group('Print templates', (group) => {
         label: 'إذن تسليم معدّل',
         body: '<p>النسخة الثانية {{field.notes}}</p>',
         paper: 'A4',
+        expectedVersion: 1,
       })
       .loginAs(admin.user)
       .headers(json)
@@ -231,9 +232,19 @@ test.group('Print templates', (group) => {
       { label: 'إذن تسليم', body: '<p>{{field.notes}}</p>', active: false },
       { label: 'إذن تسليم', body: '<p>{{field.notes}} ثالثة</p>' },
     ]) {
+      const { current_version: expectedVersion } = await knex()('print_templates')
+        .where({ resource: 'orders', key: 'delivery_note' })
+        .first()
+      const stale = await client
+        .put('/admin/print-templates/orders/delivery_note')
+        .json({ ...body, expectedVersion: Number(expectedVersion) - 1 })
+        .loginAs(admin.user)
+        .headers(json)
+        .withCsrfToken()
+      stale.assertStatus(409)
       const saved = await client
         .put('/admin/print-templates/orders/delivery_note')
-        .json(body)
+        .json({ ...body, expectedVersion: Number(expectedVersion) })
         .loginAs(admin.user)
         .headers(json)
         .withCsrfToken()
