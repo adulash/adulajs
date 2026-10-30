@@ -32,6 +32,7 @@ A Default of `required` means the option must be given; `—` means it is option
 | `actions` | `readonly Action[]` | required | Operations the resource offers: view, create, update, delete, and submit, cancel and amend on a submittable resource. Role rules still decide who may use each one. |
 | `unique` | `readonly (readonly string[])[]` | — | Field combinations that must be unique among live records (a partial unique index `WHERE deleted_at IS NULL`, and `AND doc_status <> 2` on a submittable resource so cancelled documents do not count), for example `[['customerId', 'code']]`. Every key is a stored field, or `orgUnitId` on a scoped resource (a code unique per unit). |
 | `validator` | `{ validate(data: unknown): Promise<RecordData> }` | — | Optional: without it, writes are validated by the VineJS validator derived from the fields (see definitionValidator). A given validator replaces the derived one; field constraints are enforced again when values are stored, whatever the validator returns. |
+| `printTemplates` | `readonly PrintTemplate[]` | — | Printable layouts offered on the record page next to the generic print (ADR 048). Administrators add more in «قوالب الطباعة»; see PrintTemplates. |
 | `hooks` | `{ beforeSave?: (record: RecordData, context: HookContext) => Promise<void>; afterSave?: (record: RecordData, context: HookContext) => Promise<void> }` | — | Functions called inside the write transaction, before and after a record is stored. |
 
 ## Common field props
@@ -132,12 +133,14 @@ Records of another resource linked through a join table (not a column). The valu
 
 ### `attachment`
 
-One uploaded file, stored as the id of its attachments row.
+Uploaded files: the id of one attachments row, or a JSON array of ids when `multiple`.
 
 | Prop | Type | Default | Description |
 |---|---|---|---|
 | `accept` | `string[] \| 'any'` | `DEFAULT_ATTACHMENT_EXTENSIONS` | Lower-case file extensions accepted for upload, or 'any'. DEFAULT_ATTACHMENT_EXTENSIONS lists documents, images and archives. |
-| `maxSize` | `string` | `'20mb'` | Upload size limit such as '5mb'. |
+| `maxSize` | `string` | `'20mb'` | Upload size limit of each file, such as '5mb'. |
+| `multiple` | `boolean` | `false` | Several files per record (ADR 047): the column is a JSON array of attachment ids in display order; reads return the summaries in that order. Cannot be switched on or off for an existing column. |
+| `max` | `number` | `MULTIPLE_ATTACHMENT_LIMIT` | Most files of a multiple field, from 1 to 100. |
 
 ### `belongsTo`
 
