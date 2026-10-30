@@ -18,6 +18,7 @@ import {
   Hash,
   ListChecks,
   UserRoundCheck,
+  Printer,
   type LucideIcon,
 } from 'lucide-react'
 import { calendarDisplay } from '~/components/ui/calendar_date'
@@ -51,6 +52,7 @@ export const adminGroups: AdminGroup[] = [
       { href: '/admin/lookups', label: 'القوائم المرجعية', icon: ListChecks },
       { href: '/admin/sequences', label: 'الترقيم التسلسلي', icon: Hash },
       { href: '/admin/templates', label: 'قوالب الرسائل', icon: Mail },
+      { href: '/admin/print-templates', label: 'قوالب الطباعة', icon: Printer },
       { href: '/admin/webhooks', label: 'الربط الخارجي', icon: Webhook },
     ],
   },

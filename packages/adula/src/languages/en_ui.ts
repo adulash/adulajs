@@ -310,4 +310,17 @@ export const englishInterfaceMessages: Partial<
   'ui.dashboard.meter': '{label}: {value}',
   'ui.dashboard.truncated': 'Only the highest categories are shown.',
   'ui.dashboard.openRecords': 'Open the {label} records',
+  // Print templates (ADR 048).
+  'ui.print.title': 'Print record',
+  'ui.print.description': 'Choose a print template and a document format.',
+  'ui.print.loadFailed': 'Could not load the print templates.',
+  'ui.print.retry': 'Try again',
+  'ui.print.loading': 'Loading templates…',
+  'ui.print.template': 'Print template',
+  'ui.print.format': 'Document format',
+  'ui.print.html': 'Printable page',
+  'ui.print.pdfUnavailable': 'PDF conversion is not enabled; print from the browser.',
+  'ui.print.open': 'Open for printing',
+  'ui.activity.printed': 'Printed with a template',
+  'ui.admin.printTemplates': 'Print templates',
 }

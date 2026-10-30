@@ -1,6 +1,6 @@
 import { Deferred, router } from '@inertiajs/react'
 import { Link } from '@adonisjs/inertia/react'
-import { History, Pencil, Printer } from 'lucide-react'
+import { History, Pencil } from 'lucide-react'
 import type {
   ResourceActivity,
   ResourceChildren as Children,
@@ -19,6 +19,7 @@ import { ResourceValue, formatDatetime, type LookupOptions } from '~/components/
 import { RecordCollaboration } from '~/components/ui/record-collaboration'
 import { RecordAssignments } from '~/components/ui/record-assignments'
 import { RecordWorkflows } from '~/components/ui/record-workflows'
+import { RecordPrint } from '~/components/ui/record-print'
 
 export type ResourceChildren = Children
 const meta = new Set(['id', 'version', 'docStatus', 'orgUnitId'])
@@ -30,6 +31,7 @@ const activityLabels: Record<string, string> = {
   cancel: 'إلغاء الاعتماد',
   amend: 'تعديل بعد الاعتماد',
   assignment_closed: 'إغلاق مهمة مع السجل',
+  printed: 'طباعة السجل بقالب',
 }
 
 export function documentStatus(status: unknown, t: Translate = arabicText) {
@@ -91,12 +93,7 @@ export function ResourceShow({
             </Button>
           )}
         </Can>
-        <Button variant="outline" asChild>
-          <a href={`${base}/print`} target="_blank" rel="noopener">
-            <Printer size={15} />
-            {t('طباعة')}
-          </a>
-        </Button>
+        <RecordPrint resource={resource.name} id={result.data.id as number} />
         <ResourceActions
           resource={resource.name}
           id={result.data.id as number}

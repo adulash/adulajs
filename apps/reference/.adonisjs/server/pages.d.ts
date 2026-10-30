@@ -23,6 +23,7 @@ declare module '@adonisjs/inertia/types' {
     'admin/lookups/index': ExtractProps<(typeof import('../../inertia/pages/admin/lookups/index.tsx'))['default']>
     'admin/notifications/index': ExtractProps<(typeof import('../../inertia/pages/admin/notifications/index.tsx'))['default']>
     'admin/org_units/index': ExtractProps<(typeof import('../../inertia/pages/admin/org_units/index.tsx'))['default']>
+    'admin/print_templates/index': ExtractProps<(typeof import('../../inertia/pages/admin/print_templates/index.tsx'))['default']>
     'admin/roles/index': ExtractProps<(typeof import('../../inertia/pages/admin/roles/index.tsx'))['default']>
     'admin/roles/show': ExtractProps<(typeof import('../../inertia/pages/admin/roles/show.tsx'))['default']>
     'admin/sequences/index': ExtractProps<(typeof import('../../inertia/pages/admin/sequences/index.tsx'))['default']>

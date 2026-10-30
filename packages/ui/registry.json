@@ -596,6 +596,27 @@
       ]
     },
     {
+      "name": "record-print",
+      "type": "registry:ui",
+      "registryDependencies": [
+        "button",
+        "label",
+        "radio-group",
+        "dialog",
+        "messages"
+      ],
+      "dependencies": [
+        "lucide-react@1.47.0",
+        "axios@1.19.0"
+      ],
+      "files": [
+        {
+          "path": "registry/ui/record-print.tsx",
+          "type": "registry:ui"
+        }
+      ]
+    },
+    {
       "name": "resource-show",
       "type": "registry:ui",
       "registryDependencies": [
@@ -609,6 +630,7 @@
         "record-collaboration",
         "record-assignments",
         "record-workflows",
+        "record-print",
         "messages"
       ],
       "dependencies": [

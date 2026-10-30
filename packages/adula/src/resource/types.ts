@@ -101,6 +101,33 @@ export type Field = {
   | { type: 'hasMany'; resource: string; foreignKey: string; inline?: boolean }
   | { type: 'lookup'; group: string }
 )
+export type PrintPaper = 'A4' | 'A5' | 'Letter'
+export type PrintOrientation = 'portrait' | 'landscape'
+/** A total line of a print template: a stored record field, or the sum of a line column. */
+export type PrintTotal =
+  { label: Label; field: string } | { label: Label; lines: string; column: string }
+/**
+ * A print layout declared with the resource (ADR 048). Fields and line columns are
+ * printed only when the reader may read them; `header` and `footer` are plain text that
+ * may use `{{id}}`, `{{company}}` and `{{field.key}}` placeholders.
+ */
+export type PrintTemplate = {
+  /** Stable key used by `?template=<key>`; lower case, not `default`. */
+  key: string
+  label: Label
+  /** Defaults to A4. */
+  paper?: PrintPaper
+  /** Defaults to portrait. */
+  orientation?: PrintOrientation
+  header?: string
+  footer?: string
+  /** Record fields in print order (not hasMany). */
+  fields: readonly string[]
+  /** hasMany fields of the resource and the child columns to print for each. */
+  lines?: Readonly<Record<string, readonly string[]>>
+  /** Money or number totals: a record field, or the sum of a printed line column. */
+  totals?: readonly PrintTotal[]
+}
 export type Resource = {
   name: string
   /** The list heading, usually plural (for example «الحسابات»). */
@@ -153,6 +180,11 @@ export type Resource = {
    * constraints are enforced again when values are stored, whatever the validator returns.
    */
   validator?: { validate(data: unknown): Promise<RecordData> }
+  /**
+   * Printable layouts offered on the record page next to the generic print (ADR 048).
+   * Administrators add more in «قوالب الطباعة»; see PrintTemplates.
+   */
+  printTemplates?: readonly PrintTemplate[]
   hooks?: {
     beforeSave?: (record: RecordData, context: HookContext) => Promise<void>
     afterSave?: (record: RecordData, context: HookContext) => Promise<void>

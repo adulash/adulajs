@@ -91,6 +91,14 @@ export function describe(ctx: ResourceContext, name: string, actor: Actor): Reso
     bulk: (['delete', 'submit', 'cancel', 'update'] as const).some(
       (action) => resource.actions.includes(action) && ability.can(action, name)
     ),
+    ...(resource.printTemplates?.length
+      ? {
+          printTemplates: resource.printTemplates.map((template) => ({
+            key: template.key,
+            label: template.label,
+          })),
+        }
+      : {}),
   }
 }
 
@@ -284,26 +292,54 @@ export async function recordChildren(ctx: ResourceContext, name: string, id: num
   return childrenOf(ctx, resource, record, actor, ability)
 }
 
+/**
+ * The lines of a printed document (ADR 048): the named hasMany fields, up to `limit` rows
+ * each, with the display rows of the lines' own relations. See ResourceService.documentLines.
+ */
+export async function documentLines(
+  ctx: ResourceContext,
+  name: string,
+  id: number,
+  actor: Actor,
+  keys: readonly string[],
+  limit: number
+) {
+  const { resource, ability, record } = await viewable(ctx, name, id, actor)
+  return childrenOf(ctx, resource, record, actor, ability, keys, { limit, related: true })
+}
+
 /** Inline children of an already authorized parent record. */
 async function childrenOf(
   ctx: ResourceContext,
   resource: Resource,
   parent: RecordData,
   actor: Actor,
-  ability: AdulaAbility
+  ability: AdulaAbility,
+  keys: readonly string[] = resource.show,
+  options: { limit?: number; related?: boolean } = {}
 ) {
   const name = resource.name
   const id = Number(parent.id)
-  const result: Record<string, { rows: SerializedRecord[]; hasMore: boolean }> = {}
-  for (const key of resource.show) {
+  const limit = options.limit ?? 100
+  // A line group is readable where the record exposes it (serialize, or list and show),
+  // or where the resource's own code print templates declare it (ADR 048).
+  const exposed = new Set([
+    ...(resource.serialize ?? [...resource.list, ...resource.show]),
+    ...(resource.printTemplates ?? []).flatMap((template) => Object.keys(template.lines ?? {})),
+  ])
+  const result: Record<
+    string,
+    { rows: SerializedRecord[]; hasMore: boolean; related?: Record<string, SerializedRecord[]> }
+  > = {}
+  for (const key of keys) {
     const field = resource.fields[key]
     if (
-      field.type !== 'hasMany' ||
+      field?.type !== 'hasMany' ||
       !ability.can('view', subject(name, parent), key) ||
       actor.permissionLevel < fieldLevel(resource, key)
     )
       continue
-    if (resource.serialize && !resource.serialize.includes(key)) continue
+    if (!exposed.has(key)) continue
     const child = ctx.registry.get(field.resource)
     if (!ability.can('view', child.name) || !child.actions.includes('view')) continue
     const rows = await accessibleBy(
@@ -316,15 +352,16 @@ async function childrenOf(
       .where(`r.${child.fields[field.foreignKey].column ?? columnName(field.foreignKey)}`, id)
       .select([...columns(child, ability), ...(child.scoped ? ['ou.path as org_path'] : [])])
       .orderBy('r.id')
-      .limit(101)
+      .limit(limit + 1)
     const hydrated = await hydrate(
       ctx.db,
       child,
-      rows.slice(0, 100).map((row: RecordData) => fromRow(row, child))
+      rows.slice(0, limit).map((row: RecordData) => fromRow(row, child))
     )
     result[key] = {
       rows: hydrated.map((row) => serialize(child, row, ability, actor)),
-      hasMore: rows.length > 100,
+      hasMore: rows.length > limit,
+      ...(options.related ? { related: await preload(ctx, child, hydrated, actor) } : {}),
     }
   }
   return result

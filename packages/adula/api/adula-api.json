@@ -304,6 +304,10 @@
       "kind": "TypeAliasDeclaration",
       "type": "\"optional\" | \"required\""
     },
+    "codeTemplateVersion": {
+      "kind": "FunctionDeclaration",
+      "type": "(template: PrintTemplate) => string"
+    },
     "columnName": {
       "kind": "FunctionDeclaration",
       "type": "(name: string) => string"
@@ -379,6 +383,10 @@
     "createOutboundPoster": {
       "kind": "FunctionDeclaration",
       "type": "(options?: OutboundOptions | undefined) => (value: string, init: OutboundRequest) => Promise<{ status: number; }>"
+    },
+    "createPrintTemplatesSchema": {
+      "kind": "FunctionDeclaration",
+      "type": "(db: Knex<any, any[]>) => Promise<void>"
     },
     "createResourceController": {
       "kind": "FunctionDeclaration",
@@ -480,6 +488,10 @@
       "kind": "VariableDeclaration",
       "type": "readonly string[]"
     },
+    "DEFAULT_PRINT_TEMPLATE": {
+      "kind": "VariableDeclaration",
+      "type": "\"default\""
+    },
     "DEFAULT_TEMPLATES": {
       "kind": "VariableDeclaration",
       "type": "Record<string, TemplateDefinition>"
@@ -527,6 +539,10 @@
     "diagnoseAttachments": {
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>, now?: number | undefined) => Promise<Finding>"
+    },
+    "DigitsPreference": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"latn\" | \"arab\""
     },
     "DomainEvent": {
       "kind": "TypeAliasDeclaration",
@@ -1080,6 +1096,10 @@
       "kind": "FunctionDeclaration",
       "type": "(text: string) => unknown"
     },
+    "parseTemplate": {
+      "kind": "FunctionDeclaration",
+      "type": "(source: string) => TemplateNode[]"
+    },
     "PENDING_UPLOAD_LIMIT": {
       "kind": "VariableDeclaration",
       "type": "50"
@@ -1092,9 +1112,33 @@
       "kind": "FunctionDeclaration",
       "type": "(value: unknown) => string"
     },
+    "PRINT_HELPERS": {
+      "kind": "VariableDeclaration",
+      "type": "readonly [\"date\", \"money\", \"number\", \"digits\", \"label\", \"total\"]"
+    },
+    "PRINT_LINE_LIMIT": {
+      "kind": "VariableDeclaration",
+      "type": "1000"
+    },
     "PRINT_LOGO_LIMIT": {
       "kind": "VariableDeclaration",
       "type": "number"
+    },
+    "PRINT_ORIENTATIONS": {
+      "kind": "VariableDeclaration",
+      "type": "readonly PrintOrientation[]"
+    },
+    "PRINT_PAPERS": {
+      "kind": "VariableDeclaration",
+      "type": "readonly PrintPaper[]"
+    },
+    "printableGroups": {
+      "kind": "FunctionDeclaration",
+      "type": "(resource: Resource) => string[]"
+    },
+    "PrintedDocument": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ html: string; template: { key: string; version: string; source: PrintTemplateSource; }; }"
     },
     "PrintIdentity": {
       "kind": "TypeAliasDeclaration",
@@ -1103,6 +1147,66 @@
     "PrintInput": {
       "kind": "TypeAliasDeclaration",
       "type": "{ identity: PrintIdentity; resource: ResourceDescription; record: SerializedRecord; related?: Record<string, SerializedRecord[]> | undefined; lookups?: Record<string, { value: string; label: string; }[]> | undefined; children?: Record<string, { rows: SerializedRecord[]; fields: ResourceField[]; }> | undefined; printedBy: string; printedAt?: Date | undefined; }"
+    },
+    "PrintLayout": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ title: string; paper: PrintPaper; orientation: PrintOrientation; header?: string | undefined; footer?: string | undefined; } & ({ body: string; } | { code: PrintTemplate; })"
+    },
+    "PrintOptions": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ identity: PrintIdentity; printedBy: string; printedAt?: Date | undefined; calendar?: CalendarPreference | undefined; digits?: DigitsPreference | undefined; timeZone?: string | undefined; }"
+    },
+    "PrintOrientation": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"portrait\" | \"landscape\""
+    },
+    "PrintPaper": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"A4\" | \"A5\" | \"Letter\""
+    },
+    "PrintSource": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ resource: ResourceDescription; record: SerializedRecord; related?: Record<string, SerializedRecord[]> | undefined; lookups?: Record<string, { value: string; label: string; }[]> | undefined; lines?: Record<string, { label: Label; fields: ResourceField[]; rows: SerializedRecord[]; related?: Record<string, SerializedRecord[]> | undefined; lookups?: Record<string, { value: string; label: string; }[]> | undefined; }> | undefined; }"
+    },
+    "PrintTemplate": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ key: string; label: Label; paper?: PrintPaper | undefined; orientation?: PrintOrientation | undefined; header?: string | undefined; footer?: string | undefined; fields: readonly string[]; lines?: Readonly<Record<string, readonly string[]>> | undefined; totals?: readonly PrintTotal[] | undefined; }"
+    },
+    "PrintTemplateDetail": {
+      "kind": "TypeAliasDeclaration",
+      "type": "PrintTemplateSummary & PrintTemplateDraft"
+    },
+    "PrintTemplateDraft": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ label: string; body: string; paper: PrintPaper; orientation: PrintOrientation; header: string; footer: string; }"
+    },
+    "PrintTemplateInput": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ key?: unknown; label?: unknown; body?: unknown; paper?: unknown; orientation?: unknown; header?: unknown; footer?: unknown; active?: unknown; }"
+    },
+    "PrintTemplateOption": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ key: string; label: Label; source: PrintTemplateSource; }"
+    },
+    "PrintTemplates": {
+      "kind": "ClassDeclaration",
+      "type": "typeof PrintTemplates"
+    },
+    "PrintTemplateSource": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"generic\" | \"code\" | \"custom\""
+    },
+    "PrintTemplateSummary": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ resource: string; resourceLabel: string; key: string; label: string; source: \"code\" | \"custom\"; version: string; active: boolean; paper: PrintPaper; orientation: PrintOrientation; updatedAt: string | null; }"
+    },
+    "PrintTemplateVersion": {
+      "kind": "TypeAliasDeclaration",
+      "type": "PrintTemplateDraft & { version: number; createdBy: string | null; createdAt: string; }"
+    },
+    "PrintTotal": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ label: Label; field: string; } | { label: Label; lines: string; column: string; }"
     },
     "PROTECTED_SETTING_KEYS": {
       "kind": "VariableDeclaration",
@@ -1188,6 +1292,10 @@
       "kind": "FunctionDeclaration",
       "type": "(text: string, variables: Record<string, unknown>) => string"
     },
+    "renderTemplateDocument": {
+      "kind": "FunctionDeclaration",
+      "type": "(source: PrintSource, layout: PrintLayout, options: PrintOptions) => string"
+    },
     "resolveActorConditions": {
       "kind": "FunctionDeclaration",
       "type": "(conditions: Conditions | undefined, actorId: number, accepts?: ((field: string) => boolean) | undefined) => Conditions | undefined"
@@ -1202,7 +1310,7 @@
     },
     "Resource": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ name: string; label: Label; recordLabel?: Label | undefined; createLabel?: Label | undefined; model?: LucidModel | undefined; scoped: boolean; scope?: { from: string; } | undefined; submittable?: boolean | undefined; version?: boolean | undefined; fields: Record<string, Field>; list: readonly string[]; form: readonly string[]; show: readonly string[]; serialize?: readonly string[] | undefined; hidden?: readonly string[] | undefined; title?: readonly string[] | undefined; actions: readonly Action[]; unique?: readonly (readonly string[])[] | undefined; validator?: { validate(data: unknown): Promise<RecordData>; } | undefined; hooks?: { beforeSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; afterSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; } | undefined; }"
+      "type": "{ name: string; label: Label; recordLabel?: Label | undefined; createLabel?: Label | undefined; model?: LucidModel | undefined; scoped: boolean; scope?: { from: string; } | undefined; submittable?: boolean | undefined; version?: boolean | undefined; fields: Record<string, Field>; list: readonly string[]; form: readonly string[]; show: readonly string[]; serialize?: readonly string[] | undefined; hidden?: readonly string[] | undefined; title?: readonly string[] | undefined; actions: readonly Action[]; unique?: readonly (readonly string[])[] | undefined; validator?: { validate(data: unknown): Promise<RecordData>; } | undefined; printTemplates?: readonly PrintTemplate[] | undefined; hooks?: { beforeSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; afterSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; } | undefined; }"
     },
     "ResourceActivity": {
       "kind": "TypeAliasDeclaration",
@@ -1218,7 +1326,7 @@
     },
     "ResourceChildren": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ [x: string]: { rows: SerializedRecord[]; hasMore: boolean; }; }"
+      "type": "{ [x: string]: { rows: SerializedRecord[]; hasMore: boolean; related?: Record<string, SerializedRecord[]> | undefined; }; }"
     },
     "ResourceColumn": {
       "kind": "TypeAliasDeclaration",
@@ -1226,7 +1334,7 @@
     },
     "ResourceDescription": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ name: string; label: string; recordLabel: string | null; createLabel: string | null; fields: ResourceField[]; list: string[]; show: string[]; searchable: boolean; canCreate: boolean; scoped: boolean; submittable: boolean; trash?: boolean | undefined; exportable?: boolean | undefined; bulk?: boolean | undefined; }"
+      "type": "{ name: string; label: string; recordLabel: string | null; createLabel: string | null; fields: ResourceField[]; list: string[]; show: string[]; searchable: boolean; canCreate: boolean; scoped: boolean; submittable: boolean; trash?: boolean | undefined; exportable?: boolean | undefined; bulk?: boolean | undefined; printTemplates?: { key: string; label: Label; }[] | undefined; }"
     },
     "ResourceEditor": {
       "kind": "TypeAliasDeclaration",
@@ -1331,6 +1439,10 @@
     "runWithLanguage": {
       "kind": "FunctionDeclaration",
       "type": "<T>(language: string, callback: () => T) => T"
+    },
+    "sanitizePrintHtml": {
+      "kind": "FunctionDeclaration",
+      "type": "(input: string) => string"
     },
     "SavedView": {
       "kind": "TypeAliasDeclaration",
@@ -1532,6 +1644,14 @@
       "kind": "TypeAliasDeclaration",
       "type": "{ label: string; subject: string; body: string; variables: string[]; mail: boolean; }"
     },
+    "TemplateNode": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ type: \"text\"; value: string; } | { type: \"output\"; helper: string | null; arg: TemplateRef; source: string; } | { type: \"if\"; test: TemplateRef; then: TemplateNode[]; else: TemplateNode[]; source: string; } | { type: \"each\"; group: string; body: TemplateNode[]; source: string; }"
+    },
+    "TemplateRef": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ kind: \"field\"; key: string; } | { kind: \"row\"; key: string; } | { kind: \"lines\"; key: string; column?: string | undefined; } | { kind: \"meta\"; key: string; } | { kind: \"string\"; value: string; }"
+    },
     "TextConstraints": {
       "kind": "TypeAliasDeclaration",
       "type": "{ min?: number | undefined; max?: number | undefined; pattern?: string | undefined; }"
@@ -1594,7 +1714,7 @@
     },
     "UiPreferences": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ calendar: CalendarPreference; confirmDialogClose: boolean; pageTransitions: boolean; }"
+      "type": "{ calendar: CalendarPreference; confirmDialogClose: boolean; pageTransitions: boolean; digits?: DigitsPreference | undefined; }"
     },
     "UNBOUND_UPLOAD_TTL_MS": {
       "kind": "VariableDeclaration",
@@ -1816,13 +1936,29 @@
       "kind": "TypeAliasDeclaration",
       "type": "{ min?: string | number | undefined; max?: string | number | undefined; }"
     },
+    "PrintOrientation": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"portrait\" | \"landscape\""
+    },
+    "PrintPaper": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"A4\" | \"A5\" | \"Letter\""
+    },
+    "PrintTemplate": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ key: string; label: Label; paper?: PrintPaper | undefined; orientation?: PrintOrientation | undefined; header?: string | undefined; footer?: string | undefined; fields: readonly string[]; lines?: Readonly<Record<string, readonly string[]>> | undefined; totals?: readonly PrintTotal[] | undefined; }"
+    },
+    "PrintTotal": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ label: Label; field: string; } | { label: Label; lines: string; column: string; }"
+    },
     "RecordData": {
       "kind": "TypeAliasDeclaration",
       "type": "{ [x: string]: unknown; }"
     },
     "Resource": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ name: string; label: Label; recordLabel?: Label | undefined; createLabel?: Label | undefined; model?: LucidModel | undefined; scoped: boolean; scope?: { from: string; } | undefined; submittable?: boolean | undefined; version?: boolean | undefined; fields: Record<string, Field>; list: readonly string[]; form: readonly string[]; show: readonly string[]; serialize?: readonly string[] | undefined; hidden?: readonly string[] | undefined; title?: readonly string[] | undefined; actions: readonly Action[]; unique?: readonly (readonly string[])[] | undefined; validator?: { validate(data: unknown): Promise<RecordData>; } | undefined; hooks?: { beforeSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; afterSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; } | undefined; }"
+      "type": "{ name: string; label: Label; recordLabel?: Label | undefined; createLabel?: Label | undefined; model?: LucidModel | undefined; scoped: boolean; scope?: { from: string; } | undefined; submittable?: boolean | undefined; version?: boolean | undefined; fields: Record<string, Field>; list: readonly string[]; form: readonly string[]; show: readonly string[]; serialize?: readonly string[] | undefined; hidden?: readonly string[] | undefined; title?: readonly string[] | undefined; actions: readonly Action[]; unique?: readonly (readonly string[])[] | undefined; validator?: { validate(data: unknown): Promise<RecordData>; } | undefined; printTemplates?: readonly PrintTemplate[] | undefined; hooks?: { beforeSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; afterSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; } | undefined; }"
     },
     "ResourceInput": {
       "kind": "TypeAliasDeclaration",

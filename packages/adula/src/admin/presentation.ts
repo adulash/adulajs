@@ -1,4 +1,4 @@
-import type { Action, Field } from '../resource/types.js'
+import type { Action, Field, Label } from '../resource/types.js'
 
 export type ResourceField = Field & { key: string }
 /** Per-record permissions; `restore` appears on rows of a trashed list (ADR 046). */
@@ -27,6 +27,11 @@ export type ResourceDescription = {
   exportable?: boolean
   /** Whether GET …/bulk may offer any action to this actor; the list decides each action. */
   bulk?: boolean
+  /**
+   * Print templates declared in code (ADR 048); present only when the resource has some.
+   * GET …/print-templates also lists administrator templates.
+   */
+  printTemplates?: { key: string; label: Label }[]
 }
 export type ResourceNavigation = {
   name: string

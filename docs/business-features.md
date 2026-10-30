@@ -152,6 +152,28 @@ supported yet ([GAPS](../GAPS.md)).
 `GET /resources/<name>/<id>/print` renders an RTL A4 page with the fields the user
 may see. Set `GOTENBERG_URL` (see `docker-compose.pdf.yml`) to add `?format=pdf`.
 
+### Print templates
+
+`?template=<key>` prints with a template instead of the generic layout (ADR 048). The
+record page's «طباعة» opens a dialog listing the generic print, the resource's code
+templates and the active administrator templates, with HTML or PDF (when configured).
+
+* **In code.** `printTemplates` on a resource declares a layout: `key`, `label`, `paper`
+  (A4, A5, Letter), `orientation`, plain-text `header`/`footer`, the `fields` to print,
+  `lines` (hasMany fields and their columns) and `totals` (a money/number field, or the
+  sum of a line column). Unknown fields are definition errors.
+* **In the administration.** «قوالب الطباعة» (`/admin/print-templates`) creates and edits
+  templates per resource in a safe `{{ }}` language: `{{field.key}}`, `{{label "key"}}`,
+  `{{#each lines.items}}…{{row.column}}…{{/each}}`, `{{#if field.x}}…{{else}}…{{/if}}` and
+  the helpers `date`, `money`, `number`, `digits`, `label`, `total`, plus `{{logo}}`,
+  `{{company}}`, `{{id}}`. Markup is limited to structural tags; scripts, links, images
+  and remote CSS are removed. Each save adds a version; a preview renders the draft on a
+  record the administrator may read.
+* Values are printed only when the reader may read them, exactly as on the record page.
+  Dates follow the calendar preference and digits the new «الأرقام في المستندات المطبوعة»
+  preference (Latin or Arabic-Indic). Every print records a `printed` activity with the
+  template key, version and format.
+
 ## Two-factor authentication
 
 Not available yet (ADR 027); see [GAPS](../GAPS.md).

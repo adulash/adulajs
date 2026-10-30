@@ -32,7 +32,10 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
 * Notification channels are in-app, e-mail and one signed HTTP provider for SMS or
   WhatsApp (a company gateway in front of its vendor); there is no push channel and no
   bundled vendor integration.
-* One generic print layout serves every resource; there are no custom print templates.
+* Print templates (ADR 048) are deployment-wide, not per organization unit, and have no
+  visual designer: administrators write the structural markup and `{{ }}` placeholders.
+  A printed document holds at most 1000 lines per group (longer ones are refused, not
+  cut), and the only image is the embedded logo.
 * An attachment field holds one file; there is no in-page preview of attachments.
 
 ## Workflows

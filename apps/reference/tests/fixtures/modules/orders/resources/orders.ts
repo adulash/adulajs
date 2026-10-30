@@ -112,6 +112,27 @@ export default defineResource({
     ],
     hidden: ['internalNote'],
     actions: ['view', 'create', 'update', 'delete', 'submit', 'cancel', 'amend'],
+    // The code template consumer of ADR 048; internalNote is printed only to readers of it.
+    printTemplates: [
+      {
+        key: 'invoice',
+        label: { ar: 'فاتورة الطلب', en: 'Order invoice' },
+        paper: 'A4',
+        orientation: 'portrait',
+        header: 'فاتورة الطلب {{field.number}}',
+        footer: 'شكرًا لتعاملكم مع {{company}}',
+        fields: ['number', 'customerId', 'issuedAt', 'status', 'notes', 'internalNote'],
+        lines: { lines: ['description', 'quantity'] },
+        totals: [
+          {
+            label: { ar: 'إجمالي الكميات', en: 'Total quantity' },
+            lines: 'lines',
+            column: 'quantity',
+          },
+          { label: { ar: 'إجمالي الطلب', en: 'Order total' }, field: 'total' },
+        ],
+      },
+    ],
   },
   model: Model,
   validator,

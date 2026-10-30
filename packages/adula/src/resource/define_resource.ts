@@ -1,6 +1,7 @@
 import type { Field, Label, Resource, ResourceInput } from './types.js'
 import { assertTitle } from '../admin/record_title.js'
 import { decimalShape, fieldValue } from './values.js'
+import { assertPrintTemplates } from '../integrations/print_templates.js'
 
 export function identifier(value: string): string {
   if (!/^[a-z][a-z0-9_]*$/.test(value)) throw new Error(`Unsafe SQL identifier: ${value}`)
@@ -240,6 +241,7 @@ export function defineResource<const F extends Record<string, Field>>(
       throw new Error(`${input.name}: scope.from must name a required belongsTo field`)
   }
   assertTitle(input)
+  assertPrintTemplates(input)
   if (!input.submittable && input.actions.some((a) => ['submit', 'cancel', 'amend'].includes(a)))
     throw new Error('Document actions require submittable')
   return Object.freeze({ ...input, version: input.version ?? input.submittable ?? false })
