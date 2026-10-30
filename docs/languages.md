@@ -10,10 +10,14 @@ Languages are off by default: only Arabic is offered. To let users choose Englis
 enable it in `config/adula.ts`:
 
 ```ts
-const adulaConfig: { languages: string[] } = {
+const adulaConfig: { languages: string[]; timeZone: string } = {
   languages: ['ar', 'en'],
+  timeZone: 'Asia/Riyadh',
 }
 ```
+
+`timeZone` is not a language setting: it is the system's IANA time zone, in which
+workflow due dates and delegation days are counted (ADR 044). Set it to the company's zone.
 
 Arabic is always available and always first. When more than one language is enabled,
 the profile page shows an «لغة الواجهة» card where each user picks a language (stored in

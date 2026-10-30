@@ -1,6 +1,6 @@
 # ADR 020: Initial setup and receipt evidence
 
-Status: implemented and locally verified, 2026-09-20. Work stays on `codex/initial-setup-readiness`; no merge or external release. See [dated evidence](../evidence/initial-setup-2026-09-20.json). External provider acceptance remains pending.
+Status: implemented and locally verified, 2026-09-20. Work stays on `codex/initial-setup-readiness`; no merge or external release. The dated evidence file `docs/evidence/initial-setup-2026-09-20.json` was removed with the evidence archive (commit 497791f) and remains in the git history. External provider acceptance remains pending.
 
 Provide a resumable administrator-only setup center in generated applications. Reuse project identity, UI preferences, notifications, mail/storage adapters, runtime heartbeats and backup tools. Credentials remain deployment-owned environment configuration; HTTP requests never rewrite `.env`. Dialogs explain required configuration and explicit tests.
 

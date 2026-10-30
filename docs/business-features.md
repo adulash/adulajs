@@ -154,7 +154,8 @@ may see. Set `GOTENBERG_URL` (see `docker-compose.pdf.yml`) to add `?format=pdf`
 
 ## Two-factor authentication
 
-Not available yet (ADR 027); see [GAPS](../GAPS.md).
+TOTP two-factor authentication with recovery codes is available (ADR 042); see
+[Authentication](authentication.md).
 
 ## Documents and workflows
 

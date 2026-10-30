@@ -121,9 +121,11 @@ Japa and `node:test` run more cases than declarations where a helper registers t
 * `adula:resource:migration` adds columns, join tables and unique indexes only; type
   changes and search-vector changes need a hand-written migration.
 * CSV import does not map multiSelect or manyToMany fields.
-* XLSX import, SAML SSO and a typed API client are not available. Two-factor
-  authentication (TOTP) and OAuth/OIDC SSO are described in [authentication.md](authentication.md).
+* XLSX import and SAML SSO are not available. Two-factor authentication (TOTP) and
+  OAuth/OIDC SSO are described in [authentication.md](authentication.md); the typed
+  TypeScript API client in [integration.md](integration.md).
 * Exports are capped at 5000 rows; restore follows the delete permission (ADR 046).
-* The interface is Arabic only.
+* Arabic is the base language; English is optional for the framework's own strings
+  ([languages.md](languages.md)).
 
 The full list is in [GAPS.md](../GAPS.md).

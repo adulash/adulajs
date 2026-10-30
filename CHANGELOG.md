@@ -500,6 +500,34 @@ receive `DATE` columns as `'YYYY-MM-DD'` strings instead of JavaScript `Date` ob
 local midnight, and `date[]` columns as arrays of such strings. Resource values were
 already calendar strings and are unchanged.
 
+### Documentation
+
+Docs only; no code or API change (the TSDoc comments added to
+`packages/adula/src/resource/types.ts` change no type).
+
+* **Tutorial.** docs/tutorial-leave-requests.md builds a leave-requests application from
+  `npm create adulajs`: `adula:app`, a resource with enum, date, decimal, attachment and
+  `visibleWhen` fields, default roles, a workflow with approval, delegation and SLA, list
+  filters and saved views, and a dashboard. Every step was run in a system created from
+  the local creator.
+* **Generated `defineResource` reference.** docs/reference/define-resource.md lists every
+  resource option, field prop and field type with its type, default and description. It is
+  generated from the TSDoc comments of `types.ts` by `pnpm docs:reference`
+  (scripts/define-resource-reference.mjs, TypeScript compiler API). `pnpm check:api` and
+  `tests/release/define-resource-reference.test.mjs` fail when the page is stale or an
+  entry has no description.
+* **Arabic documentation.** docs/ar/ holds Arabic versions of the documentation map,
+  installation, initial setup, applications, resource definitions, languages,
+  authentication and the tutorial.
+* **npm landing pages.** The `adula` and `create-adulajs` READMEs were rewritten with an
+  Arabic summary, a minimal example, the feature list and links to the guides.
+* **Link check.** `tests/release/docs-links.test.mjs` (part of `pnpm test:release`) fails
+  when a relative link or `#anchor` in docs/ or docs/ar/ does not resolve. A stale link in
+  ADR 020 to the removed evidence archive was replaced with a note, and stale statements
+  were corrected: two-factor availability in business-features.md, the typed API client
+  and optional languages in implementation-status.md, and `timeZone` in the languages.md
+  configuration example.
+
 ### Removed
 
 * The `customFields` resource option. It had no screen, no API and no consumer: it only

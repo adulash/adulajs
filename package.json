@@ -25,6 +25,7 @@
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "test:release": "node --test tests/release/*.test.mjs",
     "check:release": "node scripts/check-release.mjs",
-    "check:api": "node scripts/check-api.mjs"
+    "check:api": "node scripts/check-api.mjs",
+    "docs:reference": "node scripts/define-resource-reference.mjs --write"
   }
 }
