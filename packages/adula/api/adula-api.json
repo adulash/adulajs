@@ -1210,7 +1210,7 @@
     },
     "PrintTemplateInput": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ key?: unknown; label?: unknown; body?: unknown; paper?: unknown; orientation?: unknown; header?: unknown; footer?: unknown; active?: unknown; }"
+      "type": "{ key?: unknown; label?: unknown; body?: unknown; paper?: unknown; orientation?: unknown; header?: unknown; footer?: unknown; active?: unknown; expectedVersion?: unknown; }"
     },
     "PrintTemplateOption": {
       "kind": "TypeAliasDeclaration",

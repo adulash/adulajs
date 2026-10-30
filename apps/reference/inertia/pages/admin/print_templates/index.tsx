@@ -54,6 +54,8 @@ type Draft = {
   header: string
   footer: string
   active: boolean
+  /** The version an edit started from; the server refuses the save if it moved on. */
+  expectedVersion?: number
 }
 
 const json = { headers: { Accept: 'application/json' }, withXSRFToken: true }
@@ -160,6 +162,7 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
       header: detail.header,
       footer: detail.footer,
       active: detail.active,
+      expectedVersion: Number(detail.version),
     })
   }
   const openHistory = async (template: PrintTemplateSummary) => {

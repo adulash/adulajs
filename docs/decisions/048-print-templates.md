@@ -47,6 +47,11 @@ script, fetch a URL or print a value the reader may not read. The generic print
 `E_PRINT_TEMPLATE_EXISTS`); `update` needs an existing template (404), inserts version
 `current_version + 1` in one transaction (the template row is locked) and keeps the stored
 `active` flag when the input leaves it out. Deactivation is that flag; nothing is deleted.
+An update carries `expectedVersion`, the version the editor opened; under the row lock it
+must equal `current_version`, otherwise 409 `E_PRINT_TEMPLATE_CONFLICT`
+(«عدّل مسؤول آخر هذا القالب بعد أن فتحته…»). Two administrators who opened version 3
+therefore cannot both save: the second is told to reopen, and the first one's version 4
+is never silently replaced by a version 5 built from version 3.
 
 ### Template language
 
@@ -84,8 +89,8 @@ saved (the stored body is the sanitized one) and again on every render:
   embed, svg, math, template, form, textarea, media and similar tags are removed with
   their contents; other tags (a, img, link, meta, base, …) are removed, text kept.
 * Attributes: `class` (word characters), `colspan`/`rowspan` (1–99), `dir`, and `style`
-  reduced to allowlisted properties with plain values (lengths, keywords, hex,
-  rgb()/hsl()). `url(`, `expression`, `@import`, `//`, `:` in values, comments, quotes,
+  of at most 500 characters reduced to allowlisted properties with plain values (lengths,
+  keywords, hex, rgb()/hsl()). `url(`, `expression`, `@import`, `//`, `:` in values, comments, quotes,
   braces, backslashes and entities are refused. Any value with `&`, `\`, `{{` or `}}` is
   dropped, so neither entities nor template values reach an attribute.
 * Comments, doctype and processing instructions are removed, stray `<` is escaped and
@@ -115,6 +120,8 @@ hidden record is also 404 (the record is authorized first).
 * **No truncation.** `documentLines` reads up to `PRINT_LINE_LIMIT` (1000) lines per group;
   a longer document is 422 `E_PRINT_LINE_LIMIT` («عدد البنود يتجاوز حد الطباعة (1000 بند)»),
   so a table or a total is never silently cut. The generic print uses the same read.
+  This changes the generic print: above 1000 lines in a group it now refuses with 422,
+  where it used to print the first 100 lines without warning.
 * **Labels.** Relation values print the server's `_title` (the UI's relationLabel rule);
   inside `{{#each}}`, lookups and relations resolve from the line resource's own lookup
   labels and related rows.

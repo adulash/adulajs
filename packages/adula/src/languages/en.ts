@@ -133,6 +133,8 @@ export const englishMessages: Readonly<Record<string, string>> = Object.freeze({
   'errors.E_PRINT_TEMPLATE_KEY_TAKEN': 'This key is used by a template defined in the system',
   'errors.E_PRINT_PREVIEW_EMPTY': 'There is no record available to you to preview the template',
   'errors.E_PRINT_LINE_LIMIT': 'The document has more lines than can be printed (1000 lines)',
+  'errors.E_PRINT_TEMPLATE_CONFLICT':
+    'Another administrator changed this template after you opened it. Reopen it and apply your edit again.',
   'errors.E_PRINT_TEMPLATE_EXISTS':
     'A print template with this key already exists for this resource',
   'flash.print_templates.saved': 'Print template saved',

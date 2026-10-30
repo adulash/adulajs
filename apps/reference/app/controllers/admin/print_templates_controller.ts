@@ -6,7 +6,17 @@ import { printIdentity, printableResource } from '#controllers/print_controller'
 import { actorId, knex, mutate, optionalId, wantsJson } from './support.js'
 
 const input = (ctx: HttpContext) =>
-  ctx.request.only(['key', 'label', 'body', 'paper', 'orientation', 'header', 'footer', 'active'])
+  ctx.request.only([
+    'key',
+    'label',
+    'body',
+    'paper',
+    'orientation',
+    'header',
+    'footer',
+    'active',
+    'expectedVersion',
+  ])
 
 /**
  * Administrators manage print templates per resource (ADR 048). Saving always adds a new

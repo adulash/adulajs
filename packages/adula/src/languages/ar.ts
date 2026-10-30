@@ -345,6 +345,8 @@ export const arabicMessages: Readonly<Record<string, string>> = Object.freeze({
   'errors.E_PRINT_TEMPLATE_KEY_TAKEN': 'هذا المفتاح مستخدم لقالب معرّف في النظام',
   'errors.E_PRINT_PREVIEW_EMPTY': 'لا يوجد سجل متاح لك لمعاينة القالب',
   'errors.E_PRINT_LINE_LIMIT': 'عدد البنود يتجاوز حد الطباعة (1000 بند)',
+  'errors.E_PRINT_TEMPLATE_CONFLICT':
+    'عدّل مسؤول آخر هذا القالب بعد أن فتحته. أعد فتحه وطبّق تعديلك مجدداً.',
   'errors.E_PRINT_TEMPLATE_EXISTS': 'يوجد قالب طباعة بهذا المفتاح لهذا الكيان',
   'flash.print_templates.saved': 'تم حفظ قالب الطباعة',
   'flash.print_templates.versioned': 'حُفظت نسخة جديدة من قالب الطباعة',

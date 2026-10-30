@@ -104,6 +104,8 @@ export type PrintTemplateInput = {
   header?: unknown
   footer?: unknown
   active?: unknown
+  /** Update only: the version the editor started from (optimistic lock, 409 on mismatch). */
+  expectedVersion?: unknown
 }
 export type PrintOptions = {
   identity: PrintIdentity
@@ -153,6 +155,12 @@ const lineLimit = () =>
   new AdulaError(422, 'E_PRINT_LINE_LIMIT', 'عدد البنود يتجاوز حد الطباعة (1000 بند)')
 const duplicateKey = () =>
   new AdulaError(409, 'E_PRINT_TEMPLATE_EXISTS', 'يوجد قالب طباعة بهذا المفتاح لهذا الكيان')
+const staleVersion = () =>
+  new AdulaError(
+    409,
+    'E_PRINT_TEMPLATE_CONFLICT',
+    'عدّل مسؤول آخر هذا القالب بعد أن فتحته. أعد فتحه وطبّق تعديلك مجدداً.'
+  )
 const notFound = () => new AdulaError(404, 'E_PRINT_TEMPLATE_NOT_FOUND', 'قالب الطباعة غير موجود')
 const labelOf = (label: Label) => label.ar
 
@@ -1002,7 +1010,8 @@ export class PrintTemplates {
 
   /**
    * Saves a new version of an existing administrator template (404 when there is none).
-   * `active` keeps its stored value when the input leaves it out.
+   * `active` keeps its stored value when the input leaves it out. `expectedVersion` must
+   * equal the current version, so a concurrent edit is refused (409) rather than lost.
    */
   async update(name: string, key: string, input: PrintTemplateInput, actorId: number) {
     return this.save(name, { ...input, key }, actorId, 'update')
@@ -1034,7 +1043,16 @@ export class PrintTemplates {
     const draft = this.validate(name, input)
     return this.db.transaction(async (trx) => {
       let template = await trx('print_templates').where({ resource: name, key }).forUpdate().first()
-      if (mode === 'update' && !template) throw notFound()
+      if (mode === 'update') {
+        if (!template) throw notFound()
+        const expected = input.expectedVersion
+        if (
+          (typeof expected !== 'number' && typeof expected !== 'string') ||
+          !/^\d+$/.test(String(expected)) ||
+          Number(expected) !== Number(template.current_version)
+        )
+          throw staleVersion()
+      }
       if (mode === 'create') {
         if (template) throw duplicateKey()
         ;[template] = await trx('print_templates')
