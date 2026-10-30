@@ -287,6 +287,7 @@ export type {
   AttachmentRecord,
   AttachmentSummary,
   AttachmentPreview,
+  AttachmentPreviewOptions,
   UploadInput,
   ClaimInput,
 } from './src/attachments/attachment_service.js'

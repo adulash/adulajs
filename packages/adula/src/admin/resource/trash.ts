@@ -69,7 +69,12 @@ export async function restore(
     const [row] = await trx(name).where({ id }).update(values).returning('*')
     const saved = fromRow(row, resource)
     await audit(ctx, trx, resource, actor, 'restore', saved, [])
-    return serialize(resource, await hydrateOne(trx, resource, saved), ability, actor)
+    return serialize(
+      resource,
+      await hydrateOne(trx, resource, saved, ctx.attachments),
+      ability,
+      actor
+    )
   }
   return transaction ? work(transaction) : ctx.db.transaction(work)
 }

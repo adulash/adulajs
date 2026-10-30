@@ -12,9 +12,17 @@ export type AttachmentSummary = {
   size: number
   mimeType: string
   url: string
-  /** Set for allow-listed images, PDF and plain text: `${url}?preview=1` renders inline. */
-  preview: AttachmentPreview | null
+  /**
+   * Set for allow-listed images, PDF and plain text: `${url}?preview=1` renders inline.
+   * Missing or null means the file only downloads.
+   */
+  preview?: AttachmentPreview | null
 }
+/**
+ * Deployment settings of attachment previews (ADR 047). `pdfPreview` (default true) turns
+ * inline PDF previews off: PDFs then report no preview and `?preview=1` downloads them.
+ */
+export type AttachmentPreviewOptions = { pdfPreview?: boolean }
 export type AttachmentRecord = {
   id: number
   disk: string
@@ -163,19 +171,23 @@ const PREVIEWABLE: Readonly<
   txt: { preview: 'text', contentType: 'text/plain; charset=utf-8', mimeTypes: ['text/plain'] },
 })
 
-function previewEntry(file: { extname: string; mimeType: string }) {
+function previewEntry(
+  file: { extname: string; mimeType: string },
+  options: AttachmentPreviewOptions = {}
+) {
   const extname = String(file.extname).toLowerCase()
   const entry = Object.hasOwn(PREVIEWABLE, extname) ? PREVIEWABLE[extname] : undefined
   const mimeType = String(file.mimeType).split(';')[0].trim().toLowerCase()
-  return entry && entry.mimeTypes.includes(mimeType) ? entry : undefined
+  if (!entry || !entry.mimeTypes.includes(mimeType)) return undefined
+  return entry.preview === 'pdf' && options.pdfPreview === false ? undefined : entry
 }
 
 /** How a stored file previews inline, or null when it can only be downloaded. */
-export function attachmentPreview(file: {
-  extname: string
-  mimeType: string
-}): AttachmentPreview | null {
-  return previewEntry(file)?.preview ?? null
+export function attachmentPreview(
+  file: { extname: string; mimeType: string },
+  options: AttachmentPreviewOptions = {}
+): AttachmentPreview | null {
+  return previewEntry(file, options)?.preview ?? null
 }
 
 /** RFC 5987: an ASCII fallback plus the UTF-8 name so Arabic titles survive every browser. */
@@ -197,9 +209,9 @@ function disposition(kind: 'inline' | 'attachment', name: string) {
  */
 export function attachmentHeaders(
   file: Pick<AttachmentRecord, 'originalName' | 'mimeType' | 'extname' | 'size'>,
-  options: { preview?: boolean } = {}
+  options: { preview?: boolean } & AttachmentPreviewOptions = {}
 ): Record<string, string> {
-  const entry = options.preview ? previewEntry(file) : undefined
+  const entry = options.preview ? previewEntry(file, options) : undefined
   const common = {
     'Content-Length': String(file.size),
     'X-Content-Type-Options': 'nosniff',
@@ -245,17 +257,20 @@ function text(value: unknown, max: number) {
     typeof value === 'string' && value.length > 0 && value.length <= max && !value.includes('\0')
   )
 }
-export function summarizeAttachment(row: Record<string, unknown>): AttachmentSummary {
+export function summarizeAttachment(
+  row: Record<string, unknown>,
+  options: AttachmentPreviewOptions = {}
+): AttachmentSummary {
   return {
     id: Number(row.id),
     name: String(row.original_name),
     size: Number(row.size),
     mimeType: String(row.mime_type),
     url: attachmentUrl(Number(row.id)),
-    preview: attachmentPreview({
-      extname: String(row.extname ?? ''),
-      mimeType: String(row.mime_type),
-    }),
+    preview: attachmentPreview(
+      { extname: String(row.extname ?? ''), mimeType: String(row.mime_type) },
+      options
+    ),
   }
 }
 function fromRow(row: Record<string, unknown>): AttachmentRecord {
@@ -380,7 +395,11 @@ export async function findAttachment(db: Knex, id: unknown): Promise<AttachmentR
 }
 
 /** One query per resource page: callers collect every attachment id first. */
-export async function loadAttachments(db: Knex, ids: readonly number[]) {
+export async function loadAttachments(
+  db: Knex,
+  ids: readonly number[],
+  options: AttachmentPreviewOptions = {}
+) {
   const summaries = new Map<number, AttachmentSummary>()
   const valid = [...new Set(ids.filter(isAttachmentId))]
   if (!valid.length) return summaries
@@ -388,7 +407,7 @@ export async function loadAttachments(db: Knex, ids: readonly number[]) {
     .whereIn('id', valid)
     .whereNull('deleted_at')
     .select('id', 'original_name', 'size', 'mime_type', 'extname')
-  for (const row of rows) summaries.set(Number(row.id), summarizeAttachment(row))
+  for (const row of rows) summaries.set(Number(row.id), summarizeAttachment(row, options))
   return summaries
 }
 

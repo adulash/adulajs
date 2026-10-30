@@ -4,6 +4,7 @@ import attachmentManager from '@jrmc/adonis-attachment/services/main'
 import drive from '@adonisjs/drive/services/main'
 import db from '@adonisjs/lucid/services/db'
 import env from '#start/env'
+import adulaConfig from '#config/adula'
 import { adula, requestActor } from '#services/adula'
 import {
   AdulaError,
@@ -114,7 +115,7 @@ export default class AttachmentsController {
           size: row.size,
           mimeType: row.mimeType,
           url: attachmentUrl(row.id),
-          preview: attachmentPreview(row),
+          preview: attachmentPreview(row, adulaConfig.attachments),
         },
       })
     } catch (error) {
@@ -126,7 +127,8 @@ export default class AttachmentsController {
   /**
    * Streams an authorized file. `?preview=1` asks for inline display: only allow-listed
    * images, PDF and plain text are sent inline (with their listed type, framed by this origin
-   * only); SVG, HTML and every other type still download. See ADR 047.
+   * only); SVG, HTML and every other type still download, and so do PDFs when
+   * config/adula.ts turns `attachments.pdfPreview` off. See ADR 047.
    */
   async show(ctx: HttpContext) {
     const { params, request, response } = ctx
@@ -143,7 +145,12 @@ export default class AttachmentsController {
     if (!(await disk.exists(row.path)))
       throw new AdulaError(500, 'E_ATTACHMENT_FILE_MISSING', 'ملف المرفق غير متاح على وحدة التخزين')
     const preview = ['1', 'true'].includes(String(request.qs().preview))
-    for (const [name, value] of Object.entries(attachmentHeaders(row, { preview })))
+    for (const [name, value] of Object.entries(
+      attachmentHeaders(row, {
+        preview,
+        ...adulaConfig.attachments,
+      })
+    ))
       response.header(name, value)
     return response.stream(await disk.getStream(row.path))
   }

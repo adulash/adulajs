@@ -13,11 +13,22 @@ import { conditionSql } from '../../auth/sql.js'
 import { fromRow, selectedFields } from '../contracts.js'
 import { AdulaError, forbiddenAction, notFound } from '../errors.js'
 import { fieldValue, isMultipleAttachment } from '../../resource/values.js'
-import { isAttachmentId, loadAttachments } from '../../attachments/attachment_service.js'
+import {
+  isAttachmentId,
+  loadAttachments,
+  type AttachmentPreviewOptions,
+} from '../../attachments/attachment_service.js'
 import type { RecordPermissions } from '../presentation.js'
 
-/** What every resource operation needs: the database and the registered resources. */
-export type ResourceContext = { db: Knex; registry: ResourceRegistry }
+/**
+ * What every resource operation needs: the database and the registered resources, plus
+ * the deployment's attachment preview settings for the summaries readers receive.
+ */
+export type ResourceContext = {
+  db: Knex
+  registry: ResourceRegistry
+  attachments?: AttachmentPreviewOptions
+}
 
 /**
  * The permission level an actor needs to see or write a field: its own permissionLevel,
@@ -231,7 +242,12 @@ export function normalizeValues(resource: Resource, record: RecordData) {
 }
 
 /** Stored attachment ids become summaries for readers; copies keep policy checks on raw rows. */
-export async function hydrate(db: Knex, resource: Resource, records: RecordData[]) {
+export async function hydrate(
+  db: Knex,
+  resource: Resource,
+  records: RecordData[],
+  options: AttachmentPreviewOptions = {}
+) {
   const keys = Object.keys(resource.fields).filter(
     (key) => resource.fields[key].type === 'attachment'
   )
@@ -240,7 +256,7 @@ export async function hydrate(db: Knex, resource: Resource, records: RecordData[
   const ids = records.flatMap((record) =>
     keys.flatMap((key) => (Array.isArray(record[key]) ? record[key] : [record[key]]))
   )
-  const summaries = await loadAttachments(db, ids.filter(isAttachmentId))
+  const summaries = await loadAttachments(db, ids.filter(isAttachmentId), options)
   return records.map((record) => {
     const copy = { ...record }
     for (const key of keys) {
@@ -256,8 +272,13 @@ export async function hydrate(db: Knex, resource: Resource, records: RecordData[
   })
 }
 
-export async function hydrateOne(db: Knex, resource: Resource, record: RecordData) {
-  const [hydrated] = await hydrate(db, resource, [record])
+export async function hydrateOne(
+  db: Knex,
+  resource: Resource,
+  record: RecordData,
+  options: AttachmentPreviewOptions = {}
+) {
+  const [hydrated] = await hydrate(db, resource, [record], options)
   return hydrated
 }
 

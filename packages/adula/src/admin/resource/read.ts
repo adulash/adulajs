@@ -182,7 +182,8 @@ export async function preload(
     const targets = await hydrate(
       db,
       target,
-      rows.map((r: RecordData) => fromRow(r, target))
+      rows.map((r: RecordData) => fromRow(r, target)),
+      ctx.attachments
     )
     const title = await titler(ctx, target)
     related[key] = targets.map((r) => {
@@ -265,7 +266,7 @@ async function presented(
   actor: Actor,
   ability: AdulaAbility
 ) {
-  const [hydrated] = await hydrate(ctx.db, resource, [record])
+  const [hydrated] = await hydrate(ctx.db, resource, [record], ctx.attachments)
   return {
     data: serialize(resource, hydrated, ability, actor),
     permissions: permissions(resource, record, actor, ability),
@@ -320,7 +321,8 @@ async function childrenOf(
     const hydrated = await hydrate(
       ctx.db,
       child,
-      rows.slice(0, 100).map((row: RecordData) => fromRow(row, child))
+      rows.slice(0, 100).map((row: RecordData) => fromRow(row, child)),
+      ctx.attachments
     )
     result[key] = {
       rows: hydrated.map((row) => serialize(child, row, ability, actor)),

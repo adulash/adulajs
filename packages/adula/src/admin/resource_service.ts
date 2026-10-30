@@ -4,6 +4,7 @@ import type { Action, RecordData, SerializedRecord } from '../resource/types.js'
 import type { Actor } from '../auth/ability.js'
 import type { ResourceDescription, ResourceNavigation } from './presentation.js'
 import type { ResourceContext } from './resource/shared.js'
+import type { AttachmentPreviewOptions } from '../attachments/attachment_service.js'
 import * as read from './resource/read.js'
 import * as query from './resource/query.js'
 import * as form from './resource/editor.js'
@@ -34,11 +35,13 @@ export type { SystemSaveOptions } from './resource/write.js'
 export class ResourceService {
   private context: ResourceContext
 
+  /** `attachments.pdfPreview: false` reports PDFs as download-only in summaries (ADR 047). */
   constructor(
     private db: Knex,
-    private registry: ResourceRegistry
+    private registry: ResourceRegistry,
+    options: { attachments?: AttachmentPreviewOptions } = {}
   ) {
-    this.context = { db, registry }
+    this.context = { db, registry, attachments: options.attachments }
   }
 
   /**
