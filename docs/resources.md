@@ -145,8 +145,10 @@ applies. Uploads never bound to a record are pruned after a day, file by file.
 `GET /attachments/:id` downloads a file for a user who can show the record and read the
 field (organization scope included), otherwise 404. `?preview=1` serves png, jpg, gif,
 webp, pdf and txt inline (when the extension and stored type agree) with `nosniff` and a
-script-free CSP; SVG, HTML and other types always download. Summaries carry
-`preview: 'image' | 'pdf' | 'text' | null` for the preview Dialog. Export lists file
+script-free CSP; SVG, HTML and other types always download. A system that does not want
+PDFs shown in the browser sets `attachments: { pdfPreview: false }` in `config/adula.ts`:
+PDFs then only download. Summaries carry `preview: 'image' | 'pdf' | 'text' | null`
+(optional; missing means null) for the preview Dialog. Export lists file
 names joined with «، »; import does not accept attachment columns. See ADR 047.
 
 ### Common field props

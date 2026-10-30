@@ -1,7 +1,7 @@
 # ADR 047 — Multiple attachments per field and file preview
 
-Date: 2026-10-29. Status: proposed (Wave 3 of the post-review programme); the points
-marked «owner» need the owner's confirmation.
+Date: 2026-10-29. Status: accepted (Wave 3 of the post-review programme); the owner
+confirmed the PDF preview and the non-breaking summary type on 2026-10-30.
 
 ## Context
 
@@ -76,10 +76,15 @@ helper `attachmentHeaders(file, { preview })` decides the response:
   `sandbox`ed. Downloads forbid framing; inline previews may be framed by this origin only
   (`frame-ancestors 'self'`, `X-Frame-Options: SAMEORIGIN`).
 * PDFs are not sandboxed because browsers refuse to show a sandboxed PDF; their CSP still
-  allows no page script (`default-src 'none'; object-src 'self'`). «owner»: accept this,
-  or turn PDF previews off and download PDFs.
+  allows no page script (`default-src 'none'; object-src 'self'`). The owner kept inline
+  PDF previews, with a deployment switch to turn them off: `attachments: { pdfPreview:
+  false }` in `config/adula.ts` (default `true`), passed to `ResourceService` as
+  `{ attachments }` and to `attachmentPreview`/`attachmentHeaders`. When it is off, PDF
+  summaries report no preview and `?preview=1` on a PDF downloads it like any type outside
+  the allow-list.
 
-`AttachmentSummary.preview` (`'image' | 'pdf' | 'text' | null`) tells the interface which
+`AttachmentSummary.preview` (optional, `'image' | 'pdf' | 'text' | null`; missing means
+null) tells the interface which
 files can open in the preview Dialog: an `<img>`, a same-origin `<iframe>` for PDF, or the
 text fetched and shown in `<pre>` (never rendered as markup). Every other file shows a
 download link only.
@@ -94,10 +99,13 @@ now with a message telling the user to upload the files from the record page.
 
 ## Consequences
 
-* `AttachmentSummary` gains the required `preview` key, so `pnpm check:api` reports the
-  summary, `Field`, `ResourceEditor` and `createResourceController` as changed. Readers
-  are unaffected; a consumer that deep-compares summaries must add the key. «owner»: the
-  coordinator decides whether the release is minor or major.
+* `AttachmentSummary` gains the optional `preview` key, so the type change is
+  non-breaking and the release is minor (owner, 2026-10-30). `pnpm check:api` still
+  lists the summary, `Field`, `ResourceEditor`, `createResourceController`,
+  `loadAttachments` and `summarizeAttachment` as changed because each gains optional
+  members; the `ResourceService` constructor gains an optional `{ attachments }`. Summaries
+  the server returns always carry the key; consumers that build summaries themselves may
+  leave it out.
 * A multiple field can be filtered only by "has files" / "no files"; it cannot be sorted,
   searched, grouped, totalled or used as a workflow or role condition.
 * The consumer is the `order_documents` fixture resource (ADR 017: fixtures only), which

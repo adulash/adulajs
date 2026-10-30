@@ -134,7 +134,7 @@
     },
     "attachmentHeaders": {
       "kind": "FunctionDeclaration",
-      "type": "(file: Pick<AttachmentRecord, \"originalName\" | \"mimeType\" | \"extname\" | \"size\">, options?: { preview?: boolean | undefined; } | undefined) => Record<string, string>"
+      "type": "(file: Pick<AttachmentRecord, \"originalName\" | \"mimeType\" | \"extname\" | \"size\">, options?: ({ preview?: boolean | undefined; } & AttachmentPreviewOptions) | undefined) => Record<string, string>"
     },
     "attachmentLimit": {
       "kind": "FunctionDeclaration",
@@ -146,11 +146,15 @@
     },
     "attachmentPreview": {
       "kind": "FunctionDeclaration",
-      "type": "(file: { extname: string; mimeType: string; }) => AttachmentPreview | null"
+      "type": "(file: { extname: string; mimeType: string; }, options?: AttachmentPreviewOptions | undefined) => AttachmentPreview | null"
     },
     "AttachmentPreview": {
       "kind": "TypeAliasDeclaration",
       "type": "\"text\" | \"image\" | \"pdf\""
+    },
+    "AttachmentPreviewOptions": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ pdfPreview?: boolean | undefined; }"
     },
     "AttachmentRecord": {
       "kind": "TypeAliasDeclaration",
@@ -158,7 +162,7 @@
     },
     "AttachmentSummary": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ id: number; name: string; size: number; mimeType: string; url: string; preview: AttachmentPreview | null; }"
+      "type": "{ id: number; name: string; size: number; mimeType: string; url: string; preview?: AttachmentPreview | null | undefined; }"
     },
     "attachmentUrl": {
       "kind": "FunctionDeclaration",
@@ -914,7 +918,7 @@
     },
     "loadAttachments": {
       "kind": "FunctionDeclaration",
-      "type": "(db: Knex<any, any[]>, ids: readonly number[]) => Promise<Map<number, AttachmentSummary>>"
+      "type": "(db: Knex<any, any[]>, ids: readonly number[], options?: AttachmentPreviewOptions | undefined) => Promise<Map<number, AttachmentSummary>>"
     },
     "localizeText": {
       "kind": "FunctionDeclaration",
@@ -1602,7 +1606,7 @@
     },
     "summarizeAttachment": {
       "kind": "FunctionDeclaration",
-      "type": "(row: Record<string, unknown>) => AttachmentSummary"
+      "type": "(row: Record<string, unknown>, options?: AttachmentPreviewOptions | undefined) => AttachmentSummary"
     },
     "SYNC_DEFAULT_TIMEOUT_MS": {
       "kind": "VariableDeclaration",

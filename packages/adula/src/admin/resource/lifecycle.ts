@@ -147,7 +147,12 @@ export async function transition(
     // manyToMany links are not columns; the response carries them like show().
     const [saved] = await withLinks(trx, resource, [fromRow(row, resource)])
     await audit(ctx, trx, resource, actor, action, saved, [])
-    return serialize(resource, await hydrateOne(trx, resource, saved), ability, actor)
+    return serialize(
+      resource,
+      await hydrateOne(trx, resource, saved, ctx.attachments),
+      ability,
+      actor
+    )
   }
   return transaction ? work(transaction) : ctx.db.transaction(work)
 }

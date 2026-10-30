@@ -73,11 +73,13 @@ migrations: `1770000000041_import_modes`, `1770000000042_sync_jobs`,
   sync jobs in a lane of their own.
 ### Multiple attachments and preview
 
-Minor (ADR 047), no migration. `pnpm check:api` reports `AttachmentSummary` (new
-`preview` key), `Field`, `ResourceEditor` and `createResourceController` as changed, plus
-new exports (`attachmentPreview`, `attachmentHeaders`, `AttachmentPreview`,
-`MULTIPLE_ATTACHMENT_LIMIT`). A consumer test that deep-compares attachment summaries must
-add `preview`.
+Minor (ADR 047), no migration. `pnpm check:api` reports `AttachmentSummary` (optional
+`preview` key), `Field`, `ResourceEditor`, `createResourceController`, `loadAttachments`
+and `summarizeAttachment` as changed because each gains optional members; the
+`ResourceService` constructor takes an optional `{ attachments }` too. It also adds new
+exports (`attachmentPreview`, `attachmentHeaders`, `AttachmentPreview`,
+`AttachmentPreviewOptions`, `MULTIPLE_ATTACHMENT_LIMIT`). Existing code compiles
+unchanged.
 
 * An attachment field takes `multiple: true` and `max` (1 to 100, default 10): a `jsonb`
   column of ordered attachment ids. `accept` and `maxSize` apply to each file. Added files
@@ -87,7 +89,9 @@ add `preview`.
 * `GET /attachments/:id?preview=1` renders png, jpg, gif, webp, pdf and txt inline when the
   extension and stored type agree, with the listed `Content-Type`, `nosniff` and a CSP
   with `default-src 'none'` (sandboxed except PDF). SVG, HTML and other types always
-  download. The authorization is the download's.
+  download. The authorization is the download's. `config/adula.ts` gains
+  `attachments: { pdfPreview: true }`; set it to `false` to download PDFs instead of
+  previewing them (projects add the key to their own config to change it).
 * `@adula/ui`: new `attachment-preview` Dialog; the attachment control handles several
   files (progress, reorder, remove, preview); record details show preview buttons.
   Regenerate consumer UI through `adula:ui`.

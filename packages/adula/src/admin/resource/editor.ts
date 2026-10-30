@@ -104,7 +104,7 @@ export async function editor(
               .limit(101)
           : []
       const records = rows.slice(0, 100).map((row) => fromRow(row, child))
-      const hydratedRows = await hydrate(db, child, records)
+      const hydratedRows = await hydrate(db, child, records, ctx.attachments)
       // Inline rows do not edit many-to-many links: rows load without them, and an
       // inline payload's manyToMany keys are ignored (write.ts writeInlineRows).
       const childFields = child.form.filter(
@@ -280,7 +280,7 @@ export async function editor(
     /** The belongsTo field whose record decides the unit; the form shows no unit picker. */
     scopeFrom: resource.scope?.from ?? null,
     record: record
-      ? serialize(resource, await hydrateOne(db, resource, record), ability, actor)
+      ? serialize(resource, await hydrateOne(db, resource, record, ctx.attachments), ability, actor)
       : null,
   }
 }

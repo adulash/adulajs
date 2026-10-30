@@ -569,8 +569,13 @@ export async function persist(
     if (!system?.unattributed)
       await audit(ctx, trx, resource, actor, action, saved, Object.keys(form), changes, system)
     await resource.hooks?.afterSave?.(saved, context)
-    if (system) return (await hydrateOne(trx, resource, saved)) as SerializedRecord
-    return serialize(resource, await hydrateOne(trx, resource, saved), ability, actor)
+    if (system) return (await hydrateOne(trx, resource, saved, ctx.attachments)) as SerializedRecord
+    return serialize(
+      resource,
+      await hydrateOne(trx, resource, saved, ctx.attachments),
+      ability,
+      actor
+    )
   }
   return transaction ? work(transaction) : ctx.db.transaction(work)
 }
@@ -759,7 +764,12 @@ export async function amend(
       }
     }
     await audit(ctx, trx, resource, actor, 'amend', saved, copied)
-    return serialize(resource, await hydrateOne(trx, resource, saved), ability, actor)
+    return serialize(
+      resource,
+      await hydrateOne(trx, resource, saved, ctx.attachments),
+      ability,
+      actor
+    )
   }
   return transaction ? work(transaction) : ctx.db.transaction(work)
 }

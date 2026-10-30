@@ -431,7 +431,7 @@ export async function list(
     estimatedTotal =
       !options.cursor && rows.length <= limit ? rows.length : Math.max(estimatedTotal, rows.length)
   }
-  const hydrated = await hydrate(ctx.db, resource, records)
+  const hydrated = await hydrate(ctx.db, resource, records, ctx.attachments)
   return {
     data: hydrated.map((record) => serialize(resource, record, ability, actor)),
     permissions: Object.fromEntries(

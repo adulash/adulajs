@@ -33,7 +33,7 @@ export { IMPERSONATOR_KEY } from '#services/impersonation'
 
 export function adula() {
   const knex = db.connection().getWriteClient()
-  const resources = new ResourceService(knex, registry)
+  const resources = new ResourceService(knex, registry, { attachments: adulaConfig.attachments })
   const actors = new ActorStore(knex, registry, {
     get: async (key) => (await cache.get<Actor>({ key })) ?? undefined,
     set: async (key, value) => {

@@ -270,6 +270,33 @@ test.group('Multiple attachments: writes and reads', (group) => {
     assert.isNull(await stored(forParent.id, 'record_id'))
   })
 
+  test('a deployment that turns PDF previews off reports PDFs as download-only', async ({
+    assert,
+  }) => {
+    const off = new ResourceService(db, registry, { attachments: { pdfPreview: false } })
+    const pdf = await upload('files')
+    const scan = await upload('scans', { extname: 'png', mimeType: 'image/png' })
+    const saved = await off.save('folders', admin, {
+      title: 'بلا معاينة PDF',
+      orgUnitId: 2,
+      files: [pdf.id],
+      scans: [scan.id],
+    })
+    const previews = (record: RecordData) => [
+      (record.files as { preview?: unknown }[])[0].preview,
+      (record.scans as { preview?: unknown }[])[0].preview,
+    ]
+    assert.deepEqual(previews(saved), [null, 'image'])
+    const id = Number(saved.id)
+    const shownOff = await off.show('folders', id, admin)
+    assert.deepEqual(previews(shownOff.data), [null, 'image'])
+    const listed = await off.list('folders', admin, { sort: 'id', direction: 'desc', limit: 5 })
+    assert.deepEqual(previews(listed.data.find((row) => Number(row.id) === id)!), [null, 'image'])
+    // The default deployment previews the same PDF.
+    const shownOn = await service.show('folders', id, admin)
+    assert.deepEqual(previews(shownOn.data), ['pdf', 'image'])
+  })
+
   test('saving binds every file in order and reads hydrate them in that order', async ({
     assert,
   }) => {
@@ -577,6 +604,17 @@ test.group('Attachment preview', () => {
     assert.match(download['Content-Disposition'], /^attachment;/)
     assert.equal(download['Content-Length'], '10')
     assert.equal(download['Cache-Control'], 'private, no-store')
+    // With PDF previews turned off, a PDF downloads like any non-previewable type.
+    assert.isNull(attachmentPreview(file('pdf', 'application/pdf'), { pdfPreview: false }))
+    assert.equal(attachmentPreview(file('png', 'image/png'), { pdfPreview: false }), 'image')
+    const pdfOff = attachmentHeaders(file('pdf', 'application/pdf'), {
+      preview: true,
+      pdfPreview: false,
+    })
+    assert.match(pdfOff['Content-Disposition'], /^attachment;/)
+    assert.equal(pdfOff['X-Frame-Options'], 'DENY')
+    assert.include(pdfOff['Content-Security-Policy'], 'sandbox')
+    assert.notInclude(pdfOff['Content-Security-Policy'], "frame-ancestors 'self'")
     const quoted = attachmentHeaders(file('pdf', 'application/pdf', 'a"b\\c.pdf'))
     assert.include(quoted['Content-Disposition'], 'filename="a_b_c.pdf"')
   })
