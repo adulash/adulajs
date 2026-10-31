@@ -421,7 +421,8 @@ test.group('Outbound target classification', () => {
         throw Object.assign(new Error('nope'), { code: 'ENOTFOUND' })
       },
     })
-    // A short-circuited signal stops allowed targets before any network traffic.
+    // A short-circuited signal stops allowed targets. Where the host has no route to the
+    // address the connection can fail first, which still means the guard let it through.
     const init = () => ({ headers: {}, body: '', signal: AbortSignal.abort() })
     const categories: Record<string, string> = {}
     for (const url of [
@@ -448,7 +449,7 @@ test.group('Outbound target classification', () => {
       )
     for (const [url, category] of Object.entries(categories)) {
       if (url.includes('93.184') || url.includes('2606') || url.includes('hooks.example'))
-        assert.equal(category, 'timeout', `${url} is allowed and only stopped by the signal`)
+        assert.include(['timeout', 'connect'], category, `${url} is allowed by the guard`)
       else if (url.includes('missing.example')) assert.equal(category, 'dns', url)
       else assert.equal(category, 'blocked-target', url)
     }
