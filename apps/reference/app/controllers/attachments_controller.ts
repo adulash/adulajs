@@ -4,11 +4,14 @@ import attachmentManager from '@jrmc/adonis-attachment/services/main'
 import drive from '@adonisjs/drive/services/main'
 import db from '@adonisjs/lucid/services/db'
 import env from '#start/env'
-import { adula } from '#services/adula'
+import adulaConfig from '#config/adula'
+import { adula, requestActor } from '#services/adula'
 import {
   AdulaError,
   PENDING_UPLOAD_LIMIT,
+  attachmentHeaders,
   attachmentPolicy,
+  attachmentPreview,
   attachmentUrl,
   buildAbility,
   findAttachment,
@@ -20,20 +23,11 @@ import type { Actor, AttachmentRecord } from 'adula'
 
 const notFound = () => new AdulaError(404, 'E_NOT_FOUND', 'المرفق غير موجود')
 
-/** RFC 5987: an ASCII fallback plus the UTF-8 name so Arabic titles survive every browser. */
-function contentDisposition(name: string) {
-  const fallback = name.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_') || 'file'
-  const encoded = encodeURIComponent(name).replace(
-    /[!'()*]/g,
-    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`
-  )
-  return `attachment; filename="${fallback}"; filename*=UTF-8''${encoded}`
-}
-
 export default class AttachmentsController {
-  async store({ auth, request, response }: HttpContext) {
+  async store(ctx: HttpContext) {
+    const { request, response } = ctx
     const runtime = adula()
-    const actor = await runtime.actors.load(auth.getUserOrFail().id)
+    const actor = await requestActor(ctx)
     const knex = db.connection().getWriteClient()
     // A grant issued by module code for one record replaces the resource-wide role rule.
     const grantToken = request.input('grant')
@@ -109,6 +103,7 @@ export default class AttachmentsController {
         extname: safeExtname,
         data: { ...attachment.toObject(), path },
         uploadedBy: actor.id,
+        impersonatorId: actor.impersonatorId,
         resource: resource.name,
         field: fieldName,
         grant,
@@ -120,6 +115,7 @@ export default class AttachmentsController {
           size: row.size,
           mimeType: row.mimeType,
           url: attachmentUrl(row.id),
+          preview: attachmentPreview(row, adulaConfig.attachments),
         },
       })
     } catch (error) {
@@ -128,9 +124,16 @@ export default class AttachmentsController {
     }
   }
 
-  async show({ auth, params, response }: HttpContext) {
+  /**
+   * Streams an authorized file. `?preview=1` asks for inline display: only allow-listed
+   * images, PDF and plain text are sent inline (with their listed type, framed by this origin
+   * only); SVG, HTML and every other type still download, and so do PDFs when
+   * config/adula.ts turns `attachments.pdfPreview` off. See ADR 047.
+   */
+  async show(ctx: HttpContext) {
+    const { params, request, response } = ctx
     const runtime = adula()
-    const actor = await runtime.actors.load(auth.getUserOrFail().id)
+    const actor = await requestActor(ctx)
     const id = Number(params.id)
     const row = await findAttachment(
       db.connection().getWriteClient(),
@@ -141,11 +144,14 @@ export default class AttachmentsController {
     const disk = drive.use(row.disk as never)
     if (!(await disk.exists(row.path)))
       throw new AdulaError(500, 'E_ATTACHMENT_FILE_MISSING', 'ملف المرفق غير متاح على وحدة التخزين')
-    response.header('Content-Type', row.mimeType)
-    response.header('Content-Length', String(row.size))
-    response.header('Content-Disposition', contentDisposition(row.originalName))
-    response.header('X-Content-Type-Options', 'nosniff')
-    response.header('Cache-Control', 'private, no-store')
+    const preview = ['1', 'true'].includes(String(request.qs().preview))
+    for (const [name, value] of Object.entries(
+      attachmentHeaders(row, {
+        preview,
+        ...adulaConfig.attachments,
+      })
+    ))
+      response.header(name, value)
     return response.stream(await disk.getStream(row.path))
   }
 
@@ -163,12 +169,18 @@ export default class AttachmentsController {
       if (error instanceof AdulaError && [403, 404].includes(error.status)) throw notFound()
       throw error
     }
+    // The file must still be the field's value (one file, or one of several) as the actor
+    // reads it: a released or hidden file is not found.
     const value = shown.data[row.field]
+    const files = Array.isArray(value) ? value : [value]
     if (
-      !value ||
-      typeof value !== 'object' ||
-      Array.isArray(value) ||
-      Number((value as { id?: unknown }).id) !== row.id
+      !files.some(
+        (file) =>
+          file &&
+          typeof file === 'object' &&
+          !Array.isArray(file) &&
+          Number((file as { id?: unknown }).id) === row.id
+      )
     )
       throw notFound()
   }

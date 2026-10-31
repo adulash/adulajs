@@ -1,5 +1,7 @@
 # ADR 039 — Rename the project to AdulaJS (2.0.0)
 
+The `pnpm check:naming` gate and the 1.x/2.x release guard are superseded by ADR 040; the rename stands.
+
 Date: 2026-10-13. Status: accepted by the owner on 2026-10-13 in conversation: «اريد
 تسمية المشروع الى AdulaJS» (I want to rename the project to AdulaJS), «نعم تغيير جذري،
 يمكن فقط استعمال كلمة adula كاختصار، كلمة kit تحذف بشكل نهائي» (yes, a radical change;

@@ -7,8 +7,9 @@ import {
   createResourceTable,
   defineResource,
 } from '../index.js'
-import type { Actor, RecordData } from '../index.js'
-import { db, setup, admin, reader, customer, order, line } from './helpers.js'
+import type { RecordData } from '../index.js'
+import { db, setup, admin, customer, order, line } from './helpers.js'
+import { ace, powerless } from './helpers/actors.js'
 
 // A shipment belongs to an order and always lives in the order's organization unit (#45).
 // Its validator and hooks prove that system writes keep the resource's own rules (#44).
@@ -67,7 +68,7 @@ const registry = new ResourceRegistry().register([
 ])
 const service = new ResourceService(db, registry)
 // Reader works in unit 1.2 only; an order in unit 3 is outside that scope.
-const outsider: Actor = { ...reader, rules: [{ subject: 'all', action: 'manage' }] }
+const outsider = ace()
 
 async function orderIn(unit: number) {
   return service.save('orders', admin, { notes: `unit ${unit}`, orgUnitId: unit })
@@ -181,7 +182,7 @@ test.group('System writes (#44)', (group) => {
     await setup()
     await createResourceTable(db, shipment)
   })
-  const nobody: Actor = { id: 2, orgPaths: [], permissionLevel: 0, rules: [] }
+  const nobody = powerless({ orgPaths: [] })
 
   test('module code writes without role rules but through validator, hooks and audit', async ({
     assert,

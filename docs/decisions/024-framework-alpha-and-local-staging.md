@@ -1,5 +1,7 @@
 # ADR 024: Framework-only distribution and first alpha
 
+Superseded by ADR 040.
+
 Date: 2026-09-22. Status: owner-authorized scope and publication direction;
 execution evidence remains separate.
 

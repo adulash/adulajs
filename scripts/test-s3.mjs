@@ -2,12 +2,12 @@
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
 import { randomUUID, createHash, randomBytes } from 'node:crypto'
-import { spawn, execFileSync } from 'node:child_process'
-import { readFile, writeFile, mkdir, open, unlink } from 'node:fs/promises'
+import { readFile, writeFile, mkdir, unlink } from 'node:fs/promises'
 import { resolve, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseEnv } from 'node:util'
 import { createServer } from 'node:net'
+import { run } from './lib/run.mjs'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
 const app = join(root, 'apps/reference')
@@ -117,11 +117,7 @@ const backupKeys = []
 const created = []
 const evidence = {
   startedAt: new Date().toISOString(),
-  revision: execFileSync('git', ['rev-parse', 'HEAD'], {
-    cwd: root,
-    encoding: 'utf8',
-    windowsHide: true,
-  }).trim(),
+  revision: (await run('git', ['rev-parse', 'HEAD'], { cwd: root, capture: true })).stdout.trim(),
   source: 'AWS S3',
   result: 'failed',
   checks: [],
@@ -134,23 +130,8 @@ const save = () =>
     JSON.stringify(evidence, null, 2) + '\n'
   )
 async function step(name, command, argv, env = config, cwd = app, expectedCode = 0) {
-  const file = await open(join(directory, `${name}.log`), 'w')
-  let code
-  try {
-    code = await new Promise((done, reject) => {
-      const child = spawn(command, argv, {
-        cwd,
-        env,
-        windowsHide: true,
-        stdio: ['ignore', file.fd, file.fd],
-      })
-      child.once('error', reject)
-      child.once('exit', done)
-    })
-  } finally {
-    await file.close()
-  }
-  assert.equal(code, expectedCode, `${name} failed; see its private log in ${directory}`)
+  // Private logs may contain credentials: never echo their tail to the console.
+  await run(command, argv, { cwd, env, log: join(directory, `${name}.log`), expect: expectedCode, label: `S3 step ${name}`, echo: false })
   console.log(`PASS ${name}`)
 }
 const pgEnv = {

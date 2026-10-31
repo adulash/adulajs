@@ -12,6 +12,8 @@ import {
   line,
   customer as customerResource,
 } from './helpers.js'
+import { failure } from './helpers/failure.js'
+import { powerless } from './helpers/actors.js'
 
 test.group('Transactional resource service', (group) => {
   group.setup(setup)
@@ -52,7 +54,7 @@ test.group('Transactional resource service', (group) => {
       ['2', '4']
     )
     assert.deepEqual(editor.options.status.map((option) => option.value).sort(), ['closed', 'open'])
-    await assert.rejects(() => service.editor('orders', { ...reader, rules: [] }), /صلاحية/)
+    await assert.rejects(() => service.editor('orders', powerless()), /صلاحية/)
   })
   test('editor enforces record policy and preserves a selected relation beyond the first page', async ({
     assert,
@@ -85,19 +87,11 @@ test.group('Transactional resource service', (group) => {
   })
   test('no ability returns 403, out-of-scope record returns 404', async ({ assert }) => {
     const record = await service.save('orders', admin, { orgUnitId: 3, notes: 'hidden' })
-    try {
-      await service.show('orders', Number(record.id), { ...reader, rules: [] })
-      assert.fail('Expected 403')
-    } catch (error) {
-      assert.instanceOf(error, AdulaError)
-      assert.equal((error as AdulaError).status, 403)
-    }
-    try {
-      await service.show('orders', Number(record.id), reader)
-      assert.fail('Expected 404')
-    } catch (error) {
-      assert.equal((error as AdulaError).status, 404)
-    }
+    const forbidden = await failure(() => service.show('orders', Number(record.id), powerless()))
+    assert.instanceOf(forbidden, AdulaError)
+    assert.equal(forbidden.status, 403)
+    const missing = await failure(() => service.show('orders', Number(record.id), reader))
+    assert.equal(missing.status, 404)
   })
   test('forbidden fields and writes to another org fail closed', async ({ assert }) => {
     await assert.rejects(
@@ -145,8 +139,8 @@ test.group('Transactional resource service', (group) => {
       results.filter((r) => r.status === 'fulfilled'),
       1
     )
-    const failure = results.find((r) => r.status === 'rejected') as PromiseRejectedResult
-    assert.equal(failure.reason.status, 409)
+    const rejected = results.find((r) => r.status === 'rejected') as PromiseRejectedResult
+    assert.equal(rejected.reason.status, 409)
   })
   test('submission envelope rolls back with the record and shares the durable event ID', async ({
     assert,
@@ -256,7 +250,8 @@ test.group('Transactional resource service', (group) => {
     const record = await service.save('customers', admin, { name: 'شركة الاختبار' })
     await assert.rejects(
       () => service.save('customers', admin, { name: 'شركة الاختبار' }),
-      /unique/
+      // The unique violation is reported as E_DUPLICATE naming the field (ADR 045).
+      'هذه القيمة مستخدمة في سجل آخر: الاسم'
     )
     await service.transition('customers', Number(record.id), admin, 'delete')
     const replacement = await service.save('customers', admin, { name: 'شركة الاختبار' })

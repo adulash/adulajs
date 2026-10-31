@@ -26,7 +26,10 @@ export function selectedFields(
       ...(options.extra ?? []),
       ...conditionFields(ability, resource),
     ]),
-  ].filter((key) => key !== 'orgPath' && resource.fields[key]?.type !== 'hasMany')
+  ].filter(
+    (key) =>
+      key !== 'orgPath' && !['hasMany', 'manyToMany'].includes(resource.fields[key]?.type ?? '')
+  )
 }
 const rowKeys = new WeakMap<Resource, [key: string, column: string][]>()
 /** Record keys and their columns for a resource, computed once per definition. */

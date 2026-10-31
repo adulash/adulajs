@@ -4,6 +4,7 @@ import order_lines from './resources/order_lines.js'
 import order_receipts from './resources/order_receipts.js'
 import order_deliveries from './resources/order_deliveries.js'
 import order_inspections from './resources/order_inspections.js'
+import order_documents from './resources/order_documents.js'
 import orderApproval from './workflows/order_approval.js'
 // adula:imports
 export default {
@@ -16,7 +17,8 @@ export default {
     order_lines,
     order_receipts,
     order_deliveries,
-    order_inspections /* adula:resources */,
+    order_inspections,
+    order_documents /* adula:resources */,
   ],
   workflows: [orderApproval],
   lookups: {

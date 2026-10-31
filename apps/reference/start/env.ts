@@ -35,6 +35,14 @@ const env = await Env.create(new URL('../', import.meta.url), {
   DB_POOL_MAX: Env.schema.number.optional(),
   // Login attempts per minute from one address (default 100); raise it for large offices behind one NAT.
   LOGIN_ADDRESS_LIMIT: Env.schema.number.optional(),
+  // Self-signup: true/false is obeyed; unset allows it only until an administrator exists.
+  SIGNUP_ENABLED: Env.schema.boolean.optional(),
+  // Reverse proxies whose X-Forwarded-For is believed (comma-separated loopback,
+  // linklocal, uniquelocal, addresses or CIDRs). Unset trusts loopback only.
+  TRUSTED_PROXIES: Env.schema.string.optional(),
+  // Lets outgoing webhooks and workflow HTTP steps reach http:// and private or loopback
+  // addresses. Never enable it where administrators must not reach the internal network.
+  WEBHOOKS_ALLOW_PRIVATE: Env.schema.boolean.optional(),
   REDIS_HOST: Env.schema.string(),
   REDIS_PORT: Env.schema.number(),
   REDIS_PASSWORD: Env.schema.string.optional(),
@@ -78,6 +86,10 @@ const env = await Env.create(new URL('../', import.meta.url), {
   GITHUB_CLIENT_SECRET: Env.schema.string.optional(),
   GOOGLE_CLIENT_ID: Env.schema.string.optional(),
   GOOGLE_CLIENT_SECRET: Env.schema.string.optional(),
+  // Microsoft Entra ID: offered when all three are present. A tenant GUID is recommended.
+  MICROSOFT_CLIENT_ID: Env.schema.string.optional(),
+  MICROSOFT_CLIENT_SECRET: Env.schema.string.optional(),
+  MICROSOFT_TENANT_ID: Env.schema.string.optional(),
 
   /*
   |----------------------------------------------------------

@@ -5,6 +5,7 @@ import { NotificationsAdmin, UserInvitations, buildAbility, isBackupStale } from
 import { IMPERSONATOR_KEY, adula } from '#services/adula'
 import { activeImpersonation } from '#services/impersonation'
 import { setupPending } from '#services/initial_setup'
+import { refuseTwoFactorRequired, twoFactorRequirementUnmet } from '#services/two_factor'
 
 export { IMPERSONATOR_KEY }
 
@@ -68,6 +69,11 @@ export default class AdminMiddleware {
       ctx.response.status(403)
       return ctx.response.send(await ctx.inertia.render('admin/forbidden', {}))
     }
+    // An administrator without a second factor enrols before using the administration.
+    if (await twoFactorRequirementUnmet(user.id, { administrator: true }))
+      return refuseTwoFactorRequired(ctx, {
+        message: 'فعّل التحقق بخطوتين لحسابك قبل استخدام لوحة الإدارة.',
+      })
     return next()
   }
 }

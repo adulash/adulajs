@@ -1,30 +1,16 @@
 import { test } from '@japa/runner'
-import { Assignments, AdulaError, ResourceService } from '../index.js'
-import type { Actor } from '../index.js'
+import { Assignments, ResourceService } from '../index.js'
 import { admin, db, reader, registry, setup } from './helpers.js'
+import { failure } from './helpers/failure.js'
+import {
+  addUserProfileColumns,
+  outsider as anOutsider,
+  seedActor,
+  viewer as aViewer,
+} from './helpers/actors.js'
 
-async function failure(run: () => Promise<unknown>): Promise<AdulaError> {
-  try {
-    await run()
-  } catch (error) {
-    if (error instanceof AdulaError) return error
-    throw error
-  }
-  throw new Error('Expected an AdulaError')
-}
-
-const outsider: Actor = {
-  id: 3,
-  orgPaths: ['1.3'],
-  permissionLevel: 0,
-  rules: [{ subject: 'orders', action: ['view', 'update'] }],
-}
-const viewer: Actor = {
-  id: 4,
-  orgPaths: ['1.2'],
-  permissionLevel: 0,
-  rules: [{ subject: 'orders', action: 'view' }],
-}
+const outsider = anOutsider()
+const viewer = aViewer()
 const actors = new Map([admin, reader, outsider, viewer].map((actor) => [actor.id, actor]))
 
 test.group('Assignments', (group) => {
@@ -34,14 +20,10 @@ test.group('Assignments', (group) => {
 
   group.setup(async () => {
     await setup()
-    await db.raw(
-      'ALTER TABLE users ADD COLUMN full_name varchar, ADD COLUMN disabled_at timestamptz'
-    )
-    await db('users').where('id', 1).update({ full_name: 'مدير النظام' })
-    await db('users').insert([
-      { id: 3, email: 'outsider@example.test', full_name: 'خارجي' },
-      { id: 4, email: 'viewer@example.test', full_name: 'مشاهدة' },
-    ])
+    await addUserProfileColumns()
+    await seedActor(admin, { fullName: 'مدير النظام' })
+    await seedActor(outsider, { email: 'outsider@example.test', fullName: 'خارجي' })
+    await seedActor(viewer, { email: 'viewer@example.test', fullName: 'مشاهدة' })
     const saved = await service().save('orders', admin, { notes: 'طلب للإسناد', orgUnitId: 2 })
     orderId = Number(saved.id)
   })

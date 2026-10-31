@@ -1,4 +1,4 @@
-export { defineResource, columnName } from './src/resource/define_resource.js'
+export { defineResource, columnName, joinTable } from './src/resource/define_resource.js'
 export { configure } from './configure.js'
 export { withAdulaDatabase } from './src/database/configure.js'
 export { createResourceController } from './src/admin/controller.js'
@@ -22,8 +22,77 @@ export { accessibleBy, authorizationSql, conditionSql } from './src/auth/sql.js'
 export { ACTOR_ID, resolveActorConditions } from './src/auth/conditions.js'
 export { ResourceService, canQueryField } from './src/admin/resource_service.js'
 export type { AggregateOptions, AggregateRow, ListOptions } from './src/admin/resource_service.js'
+export { EXPORT_ROW_LIMIT } from './src/admin/resource_service.js'
+export type {
+  CsvExport,
+  ExportOptions,
+  ListFilterScalar,
+  ListFilterValue,
+} from './src/admin/resource_service.js'
+export { BulkActions, defineBulkActions, BULK_ID_LIMIT } from './src/lists/bulk_actions.js'
+export type {
+  BulkActionDefinition,
+  BulkActionOption,
+  BulkActionSet,
+  BulkActionsOptions,
+  BulkFailure,
+  BulkRequest,
+  BulkResult,
+} from './src/lists/bulk_actions.js'
+export { Dashboards, defineDashboard } from './src/lists/dashboards.js'
+export type {
+  DashboardDefinition,
+  DashboardFormat,
+  DashboardGroupRow,
+  DashboardMeasure,
+  DashboardResult,
+  DashboardSummary,
+  DashboardWidgetDefinition,
+  DashboardWidgetResult,
+} from './src/lists/dashboards.js'
 export { serialize, writableInput, selectedFields } from './src/admin/contracts.js'
 export { AdulaError } from './src/admin/errors.js'
+export {
+  BASE_LANGUAGE,
+  registerLanguage,
+  registeredLanguages,
+  enabledLanguages,
+  resolveLanguage,
+  languageDirection,
+  translate,
+  localizeText,
+  messageKeyOf,
+  clientMessages,
+  runWithLanguage,
+  currentLanguage,
+  labelText,
+} from './src/languages/catalog.js'
+export type {
+  MessageCatalog,
+  MessageParams,
+  TextDirection,
+  LanguageInfo,
+  LanguageOptions,
+} from './src/languages/catalog.js'
+export { arabicMessages } from './src/languages/ar.js'
+export { englishMessages } from './src/languages/en.js'
+export { CatalogMessagesProvider, installCatalogMessages } from './src/languages/validation.js'
+export {
+  TwoFactor,
+  normalizeRecoveryCode,
+  RECOVERY_CODE_COUNT,
+  TWO_FACTOR_PERIOD,
+  TWO_FACTOR_DIGITS,
+  TWO_FACTOR_WINDOW,
+  TWO_FACTOR_UNREADABLE,
+} from './src/auth/two_factor.js'
+export type {
+  TwoFactorStatus,
+  TwoFactorEnrolment,
+  TwoFactorResult,
+  TwoFactorOptions,
+  TwoFactorVerifyOptions,
+} from './src/auth/two_factor.js'
 export {
   createCoreSchema,
   createResourceTable,
@@ -40,7 +109,38 @@ export {
   createNotificationTargetsSchema,
   createUploadGrantsSchema,
   createInboundWebhooksSchema,
+  createTwoFactorSchema,
+  createWorkflowDelegationSlaSchema,
+  resourceSchema,
+  alterResourceTable,
+  fieldColumnType,
 } from './src/database/schema.js'
+export type {
+  ResourceSchema,
+  ResourceColumn,
+  ResourceUniqueIndex,
+  ResourceJoinTable,
+  ResourceAddition,
+  ResourceTableDefinition,
+} from './src/database/schema.js'
+export { schemaDrift, resourceAddition, describeDrift } from './src/database/schema_diff.js'
+export type { SchemaDrift } from './src/database/schema_diff.js'
+export {
+  definitionSchema,
+  definitionValidator,
+  resourceValidator,
+  isVisible,
+  applyVisibility,
+} from './src/resource/definition.js'
+export {
+  FieldValueError,
+  canonicalDecimal,
+  decimalShape,
+  isMultipleAttachment,
+  attachmentLimit,
+  MULTIPLE_ATTACHMENT_LIMIT,
+  MULTIPLE_ATTACHMENT_MAX,
+} from './src/resource/values.js'
 export { defineWorkflow, nextStep } from './src/workflows/define_workflow.js'
 export type {
   WorkflowDefinition,
@@ -50,14 +150,26 @@ export type {
   StepContext,
   Recipients,
   DecisionOutcome,
+  StepSla,
+  SlaEscalation,
+  EscalationTarget,
 } from './src/workflows/define_workflow.js'
-export { WorkflowEngine, workflowListeners } from './src/workflows/engine.js'
+export { WorkflowEngine, workflowListeners, slaState } from './src/workflows/engine.js'
 export type {
   WorkflowRun,
   WorkflowRunStatus,
   WorkflowOptions,
   WorkflowDecisionForm,
+  SlaState,
+  WorkflowSlaStatus,
+  SlaEvaluation,
 } from './src/workflows/engine.js'
+export { WorkflowDelegations } from './src/workflows/delegations.js'
+export type {
+  WorkflowDelegation,
+  WorkflowDelegationInput,
+  WorkflowDelegationOptions,
+} from './src/workflows/delegations.js'
 export { ImportBatches, importCell, IMPORT_ROW_LIMIT } from './src/integrations/imports.js'
 export type {
   ImportBatch,
@@ -65,10 +177,69 @@ export type {
   ImportTarget,
   ActorSource,
 } from './src/integrations/imports.js'
+export type {
+  ImportBatchRecord,
+  ImportBatchStatus,
+  ImportTargetField,
+  ImportMode,
+  ImportReportRow,
+  ImportBatchesOptions,
+  ImportCreateInput,
+  ImportStartOptions,
+} from './src/integrations/imports.js'
+export { csvImportAdapter, importFile } from './src/integrations/import_adapters.js'
+export type { ImportAdapter, ImportFile, ImportTable } from './src/integrations/import_adapters.js'
+export { createImportModesSchema, createImportLeasesSchema } from './src/database/schema.js'
 export { openApiDocument } from './src/integrations/openapi.js'
-export { renderPrintHtml, htmlToPdf } from './src/integrations/print.js'
+export { apiClientSource, apiClientDeclarations } from './src/integrations/api_client.js'
+export type { ApiClientDocument, ApiClientOptions } from './src/integrations/api_client.js'
+export {
+  renderPrintHtml,
+  htmlToPdf,
+  imageDataUri,
+  PRINT_LOGO_LIMIT,
+} from './src/integrations/print.js'
 export type { PrintIdentity, PrintInput } from './src/integrations/print.js'
+export {
+  PrintTemplates,
+  DEFAULT_PRINT_TEMPLATE,
+  PRINT_HELPERS,
+  PRINT_PAPERS,
+  PRINT_ORIENTATIONS,
+  codeTemplateVersion,
+  renderTemplateDocument,
+  printableGroups,
+  PRINT_LINE_LIMIT,
+} from './src/integrations/print_templates.js'
+export type {
+  PrintTemplateDetail,
+  PrintTemplateDraft,
+  PrintTemplateInput,
+  PrintTemplateOption,
+  PrintTemplateSource,
+  PrintTemplateSummary,
+  PrintTemplateVersion,
+  PrintedDocument,
+  PrintOptions,
+  PrintSource,
+  PrintLayout,
+} from './src/integrations/print_templates.js'
+export { sanitizePrintHtml } from './src/core/html_sanitizer.js'
+export { parseTemplate } from './src/core/template_language.js'
+export type { TemplateNode, TemplateRef } from './src/core/template_language.js'
+export { createPrintTemplatesSchema } from './src/database/schema.js'
 export { Webhooks, signWebhook, WEBHOOK_MAX_ATTEMPTS } from './src/integrations/webhooks.js'
+export {
+  createOutboundPoster,
+  isBlockedAddress,
+  outboundErrorCategory,
+} from './src/integrations/outbound.js'
+export type {
+  OutboundOptions,
+  OutboundRequest,
+  OutboundTarget,
+  OutboundErrorCategory,
+} from './src/integrations/outbound.js'
 export {
   InboundWebhooks,
   inboundEventName,
@@ -131,6 +302,8 @@ export {
   isAttachmentId,
   isRelativeDiskPath,
   attachmentPolicy,
+  attachmentPreview,
+  attachmentHeaders,
   pendingUploadCount,
   staleUploads,
   forgetUpload,
@@ -141,6 +314,8 @@ export {
 export type {
   AttachmentRecord,
   AttachmentSummary,
+  AttachmentPreview,
+  AttachmentPreviewOptions,
   UploadInput,
   ClaimInput,
 } from './src/attachments/attachment_service.js'
@@ -162,7 +337,7 @@ export type {
   StorageMigrationResult,
 } from './src/attachments/storage_migrate.js'
 export { diagnoseAttachments } from './src/attachments/doctor.js'
-export { Settings, sequence, notify } from './src/services/settings.js'
+export { Settings, sequence, formatSequence, notify } from './src/services/settings.js'
 export type { NotificationTarget } from './src/services/settings.js'
 export {
   uiPreferences,
@@ -174,6 +349,7 @@ export type {
   UiPreferences,
   CalendarSystem,
   CalendarPreference,
+  DigitsPreference,
 } from './src/core/ui_preferences.js'
 export { moveOrgUnit } from './src/org/org_service.js'
 export { publishOutbox, consumeEvent } from './src/events/outbox.js'
@@ -218,6 +394,16 @@ export {
   PROTECTED_SETTING_KEYS,
 } from './src/core/settings.js'
 export type { SettingScope, SettingRow, SettingInput } from './src/core/settings.js'
+export { LookupsAdmin } from './src/core/lookups.js'
+export type {
+  LookupFieldUse,
+  LookupGroupSummary,
+  LookupValue,
+  LookupInput,
+  LookupUpdate,
+} from './src/core/lookups.js'
+export { SequencesAdmin } from './src/core/sequences.js'
+export type { SequenceRow } from './src/core/sequences.js'
 export {
   runtimeHealth,
   isBackupStale,
@@ -235,6 +421,11 @@ export type {
 } from './src/core/health.js'
 export { MailDeliveryTest, MAIL_TEST_KEY, type MailTestState } from './src/core/mail_test.js'
 export { InitialSetup, type SetupCheck } from './src/core/setup.js'
+export {
+  administratorExists,
+  grantInstallAdministrator,
+  resolveInstallAdministrator,
+} from './src/core/administrators.js'
 export { ADULA_VERSION } from './src/version.js'
 export {
   capabilityCatalog,
@@ -242,3 +433,60 @@ export {
   FIELD_TYPES,
   WORKFLOW_STEPS,
 } from './src/commands/capabilities.js'
+export { createSyncJobsSchema } from './src/database/schema.js'
+export {
+  defineSyncJob,
+  SyncJobs,
+  SyncJobError,
+  syncErrorCategory,
+  SYNC_DEFAULT_TIMEOUT_MS,
+} from './src/integrations/sync_jobs.js'
+export type {
+  SyncJobDefinition,
+  SyncJobInput,
+  SyncJobContext,
+  SyncJobSummary,
+  SyncJobsOptions,
+  SyncSaveOptions,
+  SyncRun,
+  SyncRunStatus,
+  SyncTrigger,
+  SyncErrorCategory,
+  SyncStats,
+  SyncLogger,
+} from './src/integrations/sync_jobs.js'
+export {
+  createNotificationChannelsSchema,
+  createChannelConfirmationsSchema,
+} from './src/database/schema.js'
+export {
+  NotificationChannels,
+  HttpChannelSettings,
+  ChannelDeliveryError,
+  inAppChannel,
+  mailChannel,
+  httpNotificationChannel,
+  phoneAddress,
+  IN_APP_CHANNEL,
+  MAIL_CHANNEL,
+  CHANNEL_MAX_ATTEMPTS,
+  HTTP_CHANNEL_SETTING_KEY,
+  HTTP_CHANNEL_KINDS,
+  CHANNEL_KIND_LABELS,
+} from './src/core/notification_channels.js'
+export type {
+  NotificationChannel,
+  ChannelLabel,
+  ChannelMessage,
+  ChannelRecipient,
+  ChannelContext,
+  ChannelDelivery,
+  ChannelPreference,
+  ChannelPreferenceInput,
+  ChannelDispatchResult,
+  HttpChannelOptions,
+  HttpChannelKind,
+  HttpChannelConfig,
+  HttpChannelInput,
+} from './src/core/notification_channels.js'
+export { isSealedSetting } from './src/core/settings.js'

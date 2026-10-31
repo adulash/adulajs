@@ -1,7 +1,30 @@
 import type { ResourceDescription } from '../admin/presentation.js'
 import type { JsonValue, SerializedRecord } from '../resource/types.js'
 
+/**
+ * `logoUrl` must be a base64 image data URI (see imageDataUri). Any other URL is
+ * dropped: the PDF renderer would fetch it from inside the deployment network.
+ */
 export type PrintIdentity = { name: string; logoUrl?: string | null }
+
+const IMAGE_TYPES: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
+}
+const DATA_IMAGE = /^data:image\/(png|jpeg|gif|webp|svg\+xml);base64,[A-Za-z0-9+/]+={0,2}$/
+/** Largest logo inlined into printed documents. */
+export const PRINT_LOGO_LIMIT = 512 * 1024
+
+/** Inlines a logo file as a data URI for printing; null for unknown types or oversize files. */
+export function imageDataUri(bytes: Uint8Array, fileName: string): string | null {
+  const type = IMAGE_TYPES[fileName.split('.').pop()?.toLowerCase() ?? '']
+  if (!type || !bytes.byteLength || bytes.byteLength > PRINT_LOGO_LIMIT) return null
+  return `data:${type};base64,${Buffer.from(bytes).toString('base64')}`
+}
 export type PrintInput = {
   identity: PrintIdentity
   resource: ResourceDescription
@@ -13,13 +36,31 @@ export type PrintInput = {
   printedAt?: Date
 }
 
-const escape = (value: string) =>
+/** HTML-escapes text for printed documents (&, <, >, " and '). */
+export const escapeHtml = (value: string) =>
   value
     .replaceAll('&', '&amp;')
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;')
+
+const RELATION_META = new Set(['id', 'version', 'docStatus', 'orgUnitId'])
+
+/**
+ * The label of a related record, as the UI's relationLabel: the server's `_title`, else
+ * (user rows) the first non-meta text value, else `#id`.
+ */
+export function relationTitle(rows: SerializedRecord[] | undefined, value: JsonValue | undefined) {
+  const fallback = value === null || value === undefined ? '—' : `#${String(value)}`
+  const row = rows?.find((entry) => String(entry.id) === String(value))
+  if (!row) return fallback
+  if ('_title' in row) return typeof row._title === 'string' && row._title ? row._title : fallback
+  const label = Object.entries(row).find(
+    ([key, entry]) => !RELATION_META.has(key) && typeof entry === 'string' && entry
+  )
+  return label ? String(label[1]) : fallback
+}
 
 function text(
   field: ResourceDescription['fields'][number],
@@ -42,15 +83,15 @@ function text(
         input.lookups?.[field.key]?.find((option) => option.value === value)?.label ?? String(value)
       )
     case 'user':
-    case 'belongsTo': {
-      const related = input.related?.[field.key]?.find((row) => row.id === value)
-      const label = related ? Object.entries(related).find(([key]) => key !== 'id')?.[1] : null
-      return label === null || label === undefined ? `#${String(value)}` : String(label)
+    case 'belongsTo':
+      return relationTitle(input.related?.[field.key], value)
+    case 'attachment': {
+      const name = (entry: unknown) =>
+        entry && typeof entry === 'object' && !Array.isArray(entry) && 'name' in entry
+          ? String(entry.name)
+          : 'مرفق'
+      return Array.isArray(value) ? value.map(name).join('، ') : name(value)
     }
-    case 'attachment':
-      return typeof value === 'object' && !Array.isArray(value) && value.name
-        ? String(value.name)
-        : 'مرفق'
     case 'datetime':
       return new Date(String(value)).toLocaleString('ar-u-nu-latn-ca-gregory', { timeZone: 'UTC' })
     case 'json':
@@ -58,6 +99,17 @@ function text(
     default:
       return String(value)
   }
+}
+
+/**
+ * The `<img>` of an inlined logo, or '' for anything that is not a bounded base64 image
+ * data URI: the PDF renderer must never fetch a URL (SSRF from its network).
+ */
+export function printLogoHtml(identity: PrintIdentity) {
+  const logoUrl = identity.logoUrl
+  return logoUrl && logoUrl.length <= PRINT_LOGO_LIMIT * 2 && DATA_IMAGE.test(logoUrl)
+    ? `<img class="logo" src="${escapeHtml(logoUrl)}" alt="">`
+    : ''
 }
 
 /**
@@ -80,31 +132,30 @@ export function renderPrintHtml(input: PrintInput) {
   const rows = fields
     .map(
       (field) =>
-        `<tr><th scope="row">${escape(field.label.ar)}</th><td>${escape(text(field, input.record[field.key], input))}</td></tr>`
+        `<tr><th scope="row">${escapeHtml(field.label.ar)}</th><td>${escapeHtml(text(field, input.record[field.key], input))}</td></tr>`
     )
     .join('')
   const children = Object.entries(input.children ?? {})
     .map(([key, group]) => {
       const label = input.resource.fields.find((field) => field.key === key)?.label.ar ?? key
       const columns = group.fields.filter((field) => field.type !== 'hasMany')
-      return `<section><h2>${escape(label)}</h2><table class="lines"><thead><tr>${columns
-        .map((column) => `<th scope="col">${escape(column.label.ar)}</th>`)
+      return `<section><h2>${escapeHtml(label)}</h2><table class="lines"><thead><tr>${columns
+        .map((column) => `<th scope="col">${escapeHtml(column.label.ar)}</th>`)
         .join('')}</tr></thead><tbody>${group.rows
         .map(
           (row) =>
-            `<tr>${columns.map((column) => `<td>${escape(text(column, row[column.key], input))}</td>`).join('')}</tr>`
+            `<tr>${columns.map((column) => `<td>${escapeHtml(text(column, row[column.key], input))}</td>`).join('')}</tr>`
         )
         .join('')}</tbody></table></section>`
     })
     .join('')
-  const logo = input.identity.logoUrl
-    ? `<img class="logo" src="${escape(input.identity.logoUrl)}" alt="">`
-    : ''
+  const logo = printLogoHtml(input.identity)
   return `<!doctype html>
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
-<title>${escape(input.resource.label)} #${escape(String(input.record.id))}</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:">
+<title>${escapeHtml(input.resource.label)} #${escapeHtml(String(input.record.id))}</title>
 <style>
 @page { size: A4; margin: 18mm 16mm; }
 * { box-sizing: border-box; }
@@ -126,14 +177,14 @@ footer { margin-top: 10mm; color: #78716c; font-size: 9pt; }
 <body>
 <header>
 <div>
-<h1>${escape(input.resource.label)} #${escape(String(input.record.id))}</h1>
-<p>${escape(input.identity.name)}</p>
+<h1>${escapeHtml(input.resource.label)} #${escapeHtml(String(input.record.id))}</h1>
+<p>${escapeHtml(input.identity.name)}</p>
 </div>
-<div>${status ? `<span class="status">${escape(status)}</span>` : ''}${logo}</div>
+<div>${status ? `<span class="status">${escapeHtml(status)}</span>` : ''}${logo}</div>
 </header>
 <table class="fields"><tbody>${rows}</tbody></table>
 ${children}
-<footer>طُبع بواسطة ${escape(input.printedBy)} في ${escape(printedAt.toISOString().slice(0, 16).replace('T', ' '))} UTC</footer>
+<footer>طُبع بواسطة ${escapeHtml(input.printedBy)} في ${escapeHtml(printedAt.toISOString().slice(0, 16).replace('T', ' '))} UTC</footer>
 </body>
 </html>`
 }

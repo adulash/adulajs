@@ -3,7 +3,9 @@ import { AdulaError, OrgUnitsAdmin, RolesAdmin, UsersAdmin, logActivity } from '
 import User from '#models/user'
 import { adula } from '#services/adula'
 import { endSession, recordSession, revokeUserSessions } from '#services/sessions'
+import { listUserTokens, revokeUserTokens } from '#services/access_tokens'
 import { isAdministrator } from '#middleware/admin_middleware'
+import { twoFactor, twoFactorStatus } from '#services/two_factor'
 import {
   activeImpersonation,
   beginImpersonation,
@@ -31,7 +33,17 @@ export default class UsersController {
     const user = await service().get(positiveId(ctx.params.id))
     const roles = await new RolesAdmin(knex(), adula().registry).list()
     const orgUnits = await new OrgUnitsAdmin(knex(), adula().registry).tree()
-    const props = { user, roles, orgUnits }
+    // Metadata only: token secrets are hashed and never leave the server.
+    const tokens = await listUserTokens(await User.findOrFail(user.id))
+    // Status only: the secret and recovery codes never leave the server.
+    const { enabled, enabledAt, recoveryRemaining } = await twoFactorStatus(user.id)
+    const props = {
+      user,
+      roles,
+      orgUnits,
+      tokens,
+      twoFactor: { enabled, enabledAt, recoveryRemaining },
+    }
     if (wantsJson(ctx)) return props
     return ctx.inertia.render('admin/users/show', props)
   }
@@ -116,16 +128,74 @@ export default class UsersController {
         const count = await revokeUserSessions(id, admin, {
           except: id === admin ? ctx.session.sessionId : undefined,
         })
+        // Revoking access also ends the user's API tokens, which outlive any session.
+        const tokens = await revokeUserTokens(id)
         await logActivity(knex(), {
           resource: RESOURCE,
           recordId: id,
           actorId: admin,
           action: 'revoke_sessions',
+          changes: { count, tokens },
+        })
+        return { count, tokens }
+      },
+      'تم إنهاء جلسات المستخدم ورموز الوصول'
+    )
+  }
+
+  async revokeTokens(ctx: HttpContext) {
+    const id = positiveId(ctx.params.id)
+    const admin = actorId(ctx)
+    return mutate(
+      ctx,
+      async () => {
+        await service().get(id)
+        const count = await revokeUserTokens(id)
+        await logActivity(knex(), {
+          resource: RESOURCE,
+          recordId: id,
+          actorId: admin,
+          action: 'revoke_tokens',
           changes: { count },
         })
         return { count }
       },
-      'تم إنهاء جلسات المستخدم'
+      'تم إلغاء رموز الوصول'
+    )
+  }
+
+  /**
+   * Removes a user's authenticator and recovery codes (a lost device) and ends every
+   * session and API token, so the next sign-in starts from the password. Administrators
+   * reset their own second factor through self-service instead.
+   */
+  async resetTwoFactor(ctx: HttpContext) {
+    const id = positiveId(ctx.params.id)
+    const admin = actorId(ctx)
+    return mutate(
+      ctx,
+      async () => {
+        if (id === admin)
+          throw new AdulaError(
+            409,
+            'E_SELF_TWO_FACTOR_RESET',
+            'لا يمكنك إعادة ضبط التحقق بخطوتين لحسابك؛ استخدم صفحة الملف الشخصي'
+          )
+        await service().get(id)
+        const twoFactorService = await twoFactor()
+        const { removed, recoveryCodes } = await twoFactorService.reset(id)
+        const sessions = await revokeUserSessions(id, admin)
+        const tokens = await revokeUserTokens(id)
+        await logActivity(knex(), {
+          resource: RESOURCE,
+          recordId: id,
+          actorId: admin,
+          action: 'two_factor_reset',
+          changes: { removed, recoveryCodes, sessions, tokens },
+        })
+        return { removed, sessions, tokens }
+      },
+      'تمت إعادة ضبط التحقق بخطوتين وإنهاء جلسات المستخدم ورموز الوصول'
     )
   }
 

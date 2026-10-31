@@ -1,7 +1,11 @@
 import { BaseCommand, args, flags } from '@adonisjs/core/ace'
 import { mkdir, readFile, writeFile, access } from 'node:fs/promises'
 import { identifier } from '../src/resource/define_resource.js'
-import { appendMarkedItem, moduleSource } from '../src/commands/source_markers.js'
+import {
+  MODULE_DIRECTORIES,
+  moduleSource,
+  registerModuleSource,
+} from '../src/commands/source_markers.js'
 
 export default class ModuleAdd extends BaseCommand {
   static commandName = 'adula:module:add'
@@ -20,31 +24,8 @@ export default class ModuleAdd extends BaseCommand {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     }
     const indexPath = this.app.makePath('start/modules.ts')
-    const source = await readFile(indexPath, 'utf8')
-    if (!source.includes('// adula:imports'))
-      throw new Error('Module index registration markers are missing')
-    const alias = `module_${this.name}`
-    const next = appendMarkedItem(
-      source.replace(
-        '// adula:imports',
-        `import ${alias} from '#modules/${this.name}/module'\n// adula:imports`
-      ),
-      '/* adula:modules */',
-      alias
-    )
-    for (const directory of [
-      'models',
-      'resources',
-      'validators',
-      'migrations',
-      'factories',
-      'listeners',
-      'jobs',
-      'workflows',
-      'reports',
-      'pages',
-      'tests',
-    ])
+    const next = registerModuleSource(await readFile(indexPath, 'utf8'), this.name)
+    for (const directory of MODULE_DIRECTORIES)
       await mkdir(this.app.makePath('app/modules', this.name, directory), { recursive: true })
     await writeFile(
       this.app.makePath('app/modules', this.name, 'module.ts'),
@@ -53,7 +34,7 @@ export default class ModuleAdd extends BaseCommand {
     )
     await writeFile(indexPath, next)
     this.logger.success(
-      `Created ${this.name}. Fill bilingual labels and declare dependencies before adding resources.`
+      `Created ${this.name}. Fill the Arabic labels (other languages are optional) and declare dependencies before adding resources.`
     )
   }
 }

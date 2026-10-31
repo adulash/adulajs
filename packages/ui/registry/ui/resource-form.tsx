@@ -15,7 +15,9 @@ import {
   type InlineRow,
 } from '~/components/ui/resource-field'
 import { Label } from '~/components/ui/label'
+import { useMessages } from '~/components/ui/messages'
 import { inputValue, isAttachment, parseValue } from '~/components/ui/resource-value'
+import { hiddenFields, listInput } from '~/components/ui/field_values'
 
 type Failure = { message: string; conflict: boolean }
 type RowErrors = Record<string, Record<string, Record<string, string>>>
@@ -42,6 +44,7 @@ export function ResourceForm({
   /** Called after a record action (submit, delete...) instead of visiting a page. */
   onAction?: (action: string) => void
 }) {
+  const { t, label } = useMessages()
   const base = `/resources/${editor.name}`
   const scalar = editor.fields.filter((field) => field.type !== 'hasMany')
   const inlineFields = editor.fields.filter(
@@ -82,6 +85,26 @@ export function ResourceForm({
   const [rowErrors, setRowErrors] = useState<RowErrors>({})
   const [sectionErrors, setSectionErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
+  const multiValued = new Set(
+    editor.fields
+      .filter((field) => field.type === 'multiSelect' || field.type === 'manyToMany')
+      .map((field) => field.key)
+  )
+  // visibleWhen reads the live form values; siblings outside the form keep their stored
+  // value. A field whose sibling is hidden is evaluated with that sibling empty.
+  const current = { ...values }
+  for (const field of scalar)
+    for (const key of Object.keys(field.visibleWhen ?? {}))
+      if (!(key in current)) {
+        const stored = editor.record?.[key] ?? editor.defaults?.[key]
+        current[key] = Array.isArray(stored)
+          ? listInput(stored)
+          : stored === null || stored === undefined
+            ? ''
+            : String(stored)
+      }
+  const hidden = hiddenFields(scalar, current)
+  const applies = (field: Field) => !hidden.has(field.key)
 
   const inlinePayload = (field: Field, collected: RowErrors) => {
     const definition = editor.inline[field.key]
@@ -97,8 +120,10 @@ export function ResourceForm({
           : (definition.updateFields[String(row.id)] ?? [])
       const entry: Record<string, unknown> =
         row.id === undefined ? {} : { id: row.id, version: row.version }
+      // A child field whose visibleWhen does not hold in its row is hidden and not submitted.
+      const rowHidden = hiddenFields(definition.fields, row.values)
       for (const child of definition.fields) {
-        if (!allowed.includes(child.key)) continue
+        if (!allowed.includes(child.key) || rowHidden.has(child.key)) continue
         const raw = row.values[child.key] ?? ''
         if (raw === '' && !child.required && row.id === undefined) continue
         try {
@@ -108,7 +133,7 @@ export function ResourceForm({
         } catch (error) {
           collected[field.key] ??= {}
           collected[field.key][row.key] ??= {}
-          collected[field.key][row.key][child.key] = (error as Error).message
+          collected[field.key][row.key][child.key] = t((error as Error).message)
         }
       }
       return entry
@@ -136,7 +161,7 @@ export function ResourceForm({
           (candidate) => candidate.key === key || key.endsWith(`.${candidate.key}`)
         )
         // Nested validators report the child field only, never which row; surface it on the section.
-        sections[section.key] = `${child?.label.ar ?? key}: ${entry.message}`
+        sections[section.key] = `${child ? label(child.label) : key}: ${entry.message}`
         continue
       }
       unknown.push(key ? `${key}: ${entry.message}` : entry.message)
@@ -162,22 +187,28 @@ export function ResourceForm({
         if (inline) payload[field.key] = inline
         continue
       }
+      // A field whose visibleWhen does not hold is hidden and not submitted; the server
+      // stores null for it whatever was typed before it was hidden.
+      if (!applies(field)) continue
       const raw = values[field.key] ?? ''
+      const multiple = multiValued.has(field.key)
       // Updates submit the whole form: the resource validator checks the submitted
       // document, and `version` — not a partial payload — protects concurrent edits.
-      if (editor.mode === 'create' && raw === '' && !field.required) continue
+      // A cleared multi-value field is still submitted so its declared default is not applied.
+      if (editor.mode === 'create' && raw === '' && !field.required && !multiple) continue
       try {
         const parsed = parseValue(field, raw)
-        if (parsed === null && field.required) throw new Error('هذا الحقل مطلوب')
+        const empty = parsed === null || (Array.isArray(parsed) && parsed.length === 0)
+        if (empty && field.required) throw new Error('هذا الحقل مطلوب')
         payload[field.key] = parsed
       } catch (error) {
-        fieldErrors[field.key] = (error as Error).message
+        fieldErrors[field.key] = t((error as Error).message)
       }
     }
     if (Object.keys(fieldErrors).length || Object.keys(collected).length) {
       setErrors(fieldErrors)
       setRowErrors(collected)
-      setFailure({ message: 'راجع الحقول المحددة ثم أعد المحاولة.', conflict: false })
+      setFailure({ message: t('راجع الحقول المحددة ثم أعد المحاولة.'), conflict: false })
       return
     }
     if (editor.scoped && !editor.scopeFrom) payload.orgUnitId = Number(unit)
@@ -195,9 +226,9 @@ export function ResourceForm({
       toast.success(
         editor.mode === 'create'
           ? editor.recordLabel
-            ? `تمت إضافة ${editor.recordLabel}`
-            : 'تمت إضافة السجل'
-          : 'تم حفظ التعديلات'
+            ? t('تمت إضافة {record}', { record: editor.recordLabel })
+            : t('تمت إضافة السجل')
+          : t('تم حفظ التعديلات')
       )
       if (onSaved) onSaved(response.data.data.id)
       // The details replace the form in the same dialog instead of closing and reopening.
@@ -211,27 +242,32 @@ export function ResourceForm({
       setFailure({
         conflict,
         message: conflict
-          ? 'تغير السجل منذ فتحه. احتفظ بتعديلاتك ثم أعد تحميل الصفحة.'
+          ? t('تغير السجل منذ فتحه. احتفظ بتعديلاتك ثم أعد تحميل الصفحة.')
           : unknown.length
             ? unknown.join(' · ')
-            : failureMessage(error, 'تعذر الحفظ. راجع البيانات وحاول مجدداً.'),
+            : failureMessage(error, t('تعذر الحفظ. راجع البيانات وحاول مجدداً.'), t),
       })
     } finally {
       setBusy(false)
     }
   }
 
+  // The required mark sits inside the sentence: «… المعلّمة بـ * مطلوبة».
+  const requiredHint = t('الحقول المتاحة بحسب صلاحياتك · الحقول المعلّمة بـ {mark} مطلوبة').split(
+    '{mark}'
+  )
+
   return (
     <form onSubmit={submit} noValidate className="max-w-4xl space-y-6" aria-busy={busy}>
       {failure && (
         <Alert variant="destructive" role="alert">
-          <AlertTitle>{failure.conflict ? 'تعارض في الإصدار' : 'تعذر الحفظ'}</AlertTitle>
+          <AlertTitle>{failure.conflict ? t('تعارض في الإصدار') : t('تعذر الحفظ')}</AlertTitle>
           <AlertDescription className="flex flex-wrap items-center gap-3">
             {failure.message}
             {failure.conflict && (
               <Button type="button" variant="outline" size="sm" onClick={() => router.reload()}>
                 <RefreshCw size={14} />
-                إعادة التحميل
+                {t('إعادة التحميل')}
               </Button>
             )}
           </AlertDescription>
@@ -239,17 +275,18 @@ export function ResourceForm({
       )}
       <section className="rounded-xl border bg-white">
         <div className="border-b px-7 py-5">
-          <h2 className="text-sm font-semibold">تفاصيل السجل</h2>
+          <h2 className="text-sm font-semibold">{t('تفاصيل السجل')}</h2>
           <p className="mt-2 text-xs text-muted-foreground">
-            الحقول المتاحة بحسب صلاحياتك · الحقول المعلّمة بـ{' '}
-            <span className="text-destructive">*</span> مطلوبة
+            {requiredHint[0]}
+            <span className="text-destructive">*</span>
+            {requiredHint[1]}
           </p>
         </div>
         <div className="grid gap-6 p-7 md:grid-cols-2">
           {editor.scoped && !editor.scopeFrom && (
             <div className="min-w-0 space-y-2">
               <Label htmlFor="orgUnitId" className="flex items-center gap-2 text-sm font-medium">
-                الوحدة التنظيمية
+                {t('الوحدة التنظيمية')}
                 <span className="text-destructive" aria-hidden="true">
                   *
                 </span>
@@ -264,7 +301,7 @@ export function ResourceForm({
               />
             </div>
           )}
-          {scalar.map((field) => {
+          {scalar.filter(applies).map((field) => {
             const stored = editor.record?.[field.key]
             return (
               <ResourceField
@@ -278,9 +315,14 @@ export function ResourceForm({
                 disabled={busy}
                 resource={editor.name}
                 attachment={field.type === 'attachment' && isAttachment(stored) ? stored : null}
+                attachments={
+                  field.type === 'attachment' && Array.isArray(stored)
+                    ? stored.filter(isAttachment)
+                    : undefined
+                }
                 onChange={(value) => setValues((current) => ({ ...current, [field.key]: value }))}
                 relation={
-                  field.type === 'belongsTo'
+                  field.type === 'belongsTo' || field.type === 'manyToMany'
                     ? {
                         url: `${base}/options/${field.key}${editor.record ? `?id=${editor.record.id}` : ''}`,
                         searchable: editor.relationSearch[field.key] ?? false,
@@ -338,16 +380,16 @@ export function ResourceForm({
         <div className="flex gap-3">
           {onCancel ? (
             <Button type="button" variant="outline" onClick={onCancel}>
-              إلغاء
+              {t('إلغاء')}
             </Button>
           ) : (
             <Button type="button" variant="outline" asChild>
-              <Link href={editor.record ? `${base}/${editor.record.id}` : base}>إلغاء</Link>
+              <Link href={editor.record ? `${base}/${editor.record.id}` : base}>{t('إلغاء')}</Link>
             </Button>
           )}
           <Button type="submit" disabled={busy}>
             <Save size={16} />
-            {busy ? 'جارٍ الحفظ...' : 'حفظ السجل'}
+            {busy ? t('جارٍ الحفظ...') : t('حفظ السجل')}
           </Button>
         </div>
       </div>

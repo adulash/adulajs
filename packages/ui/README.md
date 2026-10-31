@@ -1,12 +1,22 @@
 # @adula/ui
 
-Version 2.1.0. For complete consumer setup, use the canonical [installation guide](https://github.com/adulash/adulajs/blob/main/docs/installation.md).
+Version 2.2.0. For complete consumer setup, use the canonical [installation guide](https://github.com/adulash/adulajs/blob/main/docs/installation.md).
 
 Arabic RTL shadcn registry for project-owned React components. This package ships JSON assets, not a runtime React component library. Install with `node ace adula:ui add all` or `node ace adula:ui add dialog`. The command invokes the pinned shadcn CLI and records each generated file hash in `ui.lock.json`. Project modifications are preserved; use `--preview` to review upstream differences before merging an update.
 
 The 25 primitives are based on the official shadcn new-york-v4 registry. See LICENSE.shadcn.md and UPSTREAM.json for attribution and source hashes. Adaptations include logical spacing, Arabic labels, RTL keyboard direction, Arabic calendar defaults, RTL notifications and switch movement. Visual acceptance of the application remains a separate check.
 
-Build with `pnpm --filter @adula/ui build`. Refreshing upstream sources is an explicit maintenance task: run scripts/sync-ui-registry.mjs, review changes, run scripts/prepare-ui-registry.mjs to recheck dependency metadata and adapt sources, then build and visually test.
+Build with `pnpm --filter @adula/ui build`. `registry/ui` is the single source of copied UI in this repository: `scripts/ui-registry.mjs` maintains it with one subcommand per step.
+
+| Command | Effect |
+|---|---|
+| `node scripts/ui-registry.mjs sync` | Fetches the upstream new-york-v4 primitives, `UPSTREAM.json` and the shadcn license (network; explicit maintenance). |
+| `node scripts/ui-registry.mjs prepare` | Adapts sources for Arabic RTL and refreshes the pinned versions in `dependencies.json` and `registry.json` (npm). `--sources-only` skips npm. |
+| `node scripts/ui-registry.mjs register` | Registers the AdulaJS resource components in `registry.json`. |
+| `node scripts/ui-registry.mjs build` | Writes `build/` (what `pnpm --filter @adula/ui build` runs). |
+| `node scripts/ui-registry.mjs reference` | Regenerates the reference application's `inertia/components/ui` and `ui.lock.json`. Both are untracked; the root `build`, `dev`, `typecheck` and `test` scripts run it first. Never edit the generated copy; change `registry/ui` instead. Because the directory is gitignored, `apps/reference/inertia/css/adula.css` registers it with `@source "../components/ui"`; Tailwind 4 skips ignored paths otherwise. |
+
+Refreshing upstream sources: run `sync`, review the changes, run `prepare`, then build and visually test. `prepare` is idempotent. Its last step is the direction transform that `shadcn add` itself applies when `components.json` sets `"rtl": true`, so the stored file is what an application installs, byte for byte. Two rules keep it a fixed point of that transform. First, every horizontal translate is stored as an explicit `ltr:`/`rtl:` pair, because shadcn appends a second `rtl:` class to a plain one on every install. The pairing covers only the `translate-x-*` family, with any variants. Any other class the transform keeps appending to, such as `space-x-*` (it re-adds `rtl:space-x-reverse`), fails the drift gate and needs a reviewed source edit. Second, no file keeps a `"use client"` directive. Applications use `"rsc": false`, and Inertia does not use it. shadcn 4.21.0 strips the directive inconsistently: its global regular expression keeps `lastIndex` between files, so only every other file in a multi-file install loses it. `pnpm --filter @adula/ui test` fails when a registry file is not prepared, when installing it would change it, or when the generated reference copy differs from the registry.
 
 Required host tooling: Node 24, React 19, shadcn 4.21.0, Tailwind CSS 4.3.3 and @tailwindcss/vite 4.3.3. AdulaJS installer supports the official AdonisJS React starter layout. The registry is unpublished until explicitly authorized.
 
@@ -16,7 +26,7 @@ Components merge `className` with `cn` (shadcn's clsx + tailwind-merge replaceme
 
 ## Resource components
 
-Nine AdulaJS components sit on top of the primitives and are registered by `scripts/register-resource-ui.mjs`. They consume the `ResourceDescription`, `ResourceList`, `ResourceEditor`, `ResourceShow`, `ResourceChildren`, `ResourceLookups` and `ResourceActivity` contracts exported by `adula`; the copied files are project-owned like every other registry item.
+Nine AdulaJS components sit on top of the primitives and are registered by `node scripts/ui-registry.mjs register`. They consume the `ResourceDescription`, `ResourceList`, `ResourceEditor`, `ResourceShow`, `ResourceChildren`, `ResourceLookups` and `ResourceActivity` contracts exported by `adula`; the copied files are project-owned like every other registry item.
 
 | Component | Role |
 |---|---|
@@ -29,6 +39,7 @@ Nine AdulaJS components sit on top of the primitives and are registered by `scri
 | `resource-show` | Field cards, status badge, actions by permission, deferred `childrenData` tables described by `childResources`, and the deferred `activity` list, each behind a skeleton. |
 | `resource-actions` | Confirmation dialog and versioned `DELETE`/`submit`/`cancel` requests shared by the table and the show page. |
 | `can` | Renders children only when the server-computed record permission allows the action. |
+| `messages` | `useMessages()` returns `{ t, label, locale, dir }` from the shared `locale`, `dir` and `messages` props. Arabic is the base language: `t('نص عربي', { name })` returns the translation of that exact Arabic text or the text itself, filling `{name}` placeholders; `label(field.label)` returns `label.<locale>` or `label.ar`. Without the shared props every component renders Arabic. Helpers outside components (`failureMessage`, `documentStatus`, `displayValue`, `fileSize`) take an optional `t`. |
 
 Override rule: a page file at `inertia/pages/<resource>/{index,form,show}.tsx` replaces the generic page for that resource and mode; there is no setting or hook. See docs/decisions/015-generic-resource-ui.md.
 

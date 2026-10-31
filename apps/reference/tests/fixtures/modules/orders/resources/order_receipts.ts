@@ -4,12 +4,13 @@ import { validator } from '#tests/fixtures/modules/orders/validators/order_recei
 
 // A narrow resource: records are logged once and never edited, and the scan accepts
 // images and PDF only. The generated security contract must accept it as declared.
+// It is also the Arabic-only consumer: the resource and its scan have no label.en and
+// show their Arabic label in every interface language (docs/languages.md).
 export default defineResource({
   ...{
     name: 'order_receipts',
     label: {
       ar: 'إيصالات الطلبات',
-      en: 'Order receipts',
     },
     scoped: true,
     fields: {
@@ -27,7 +28,6 @@ export default defineResource({
         accept: ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
         label: {
           ar: 'صورة الإيصال',
-          en: 'Scan',
         },
       },
     },

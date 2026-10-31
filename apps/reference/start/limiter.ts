@@ -12,6 +12,8 @@
 import env from '#start/env'
 import limiter from '@adonisjs/limiter/services/main'
 import type { HttpContext } from '@adonisjs/core/http'
+import { trustedProxy } from '#config/app'
+import { isDirectProxyRequest } from '#services/trusted_proxies'
 
 const message = 'محاولات كثيرة في وقت قصير. انتظر دقيقة ثم حاول مجدداً.'
 const withMessage = (error: { setMessage(value: string): unknown }) => {
@@ -46,14 +48,36 @@ export const loginAddressThrottle = limiter.define('login_address', (ctx) =>
 )
 
 /**
- * Login: failed attempts per account from any address. Only failures count and a
- * success clears the counter; the controller applies it with `penalize`.
+ * Login: failed attempts per account and address. Only failures count and a success
+ * clears the counter; the controller applies it with `penalize`. Keying by address
+ * too means a stranger's guesses cannot lock the owner out from their own device.
  */
 export const loginAccountLimiter = limiter.use({
-  requests: 10,
+  requests: 5,
   duration: '15 minutes',
-  blockDuration: '15 minutes',
+  blockDuration: '1 minute',
 })
+/** Lockouts of one account and address within a day; each one doubles the wait. */
+export const loginLockoutLimiter = limiter.use({ requests: 1000, duration: '24 hours' })
+/** Waits after consecutive lockouts: 1, 2, 4 … minutes, capped at one hour. */
+export const LOCKOUT_MAX_MINUTES = 60
+export const lockoutMinutes = (lockouts: number) =>
+  Math.min(2 ** Math.max(lockouts - 1, 0), LOCKOUT_MAX_MINUTES)
+export const loginAccountKey = (email: string, ip: string) => `login_account:${email}:${ip}`
+
+/** Public health probe: 60 per minute per address, ample for orchestrators polling it. */
+export const HEALTH_LIMIT = 60
+export const healthThrottle = limiter.define('health', (ctx) =>
+  // The reverse proxy's own probe (trusted peer, nothing forwarded) is never starved
+  // by clients; relayed requests always carry X-Forwarded-For and are throttled.
+  isDirectProxyRequest(ctx.request.request, trustedProxy)
+    ? limiter.noLimit()
+    : limiter
+        .allowRequests(HEALTH_LIMIT)
+        .every('1 minute')
+        .usingKey(ctx.request.ip())
+        .limitExceeded(withMessage)
+)
 
 /** Password change: 5 attempts per minute per signed-in user. */
 export const passwordChangeThrottle = limiter.define('password_change', (ctx) =>
@@ -88,6 +112,19 @@ export const apiThrottle = limiter.define('api', (ctx) =>
     .limitExceeded(withMessage)
 )
 
+/**
+ * CSV exports (ADR 046): 10 per minute per user, beside the resource API limit. One
+ * export reads up to 5000 rows, so it is far heavier than a list page.
+ */
+export const EXPORT_LIMIT = 10
+export const exportThrottle = limiter.define('export', (ctx) =>
+  limiter
+    .allowRequests(EXPORT_LIMIT)
+    .every('1 minute')
+    .usingKey(ctx.auth.user ? `user:${ctx.auth.user.id}` : `ip:${ctx.request.ip()}`)
+    .limitExceeded(withMessage)
+)
+
 /** Signed inbound webhooks: 300 deliveries per minute per source and sender address. */
 export const inboundThrottle = limiter.define('inbound_webhooks', (ctx) =>
   limiter
@@ -100,4 +137,65 @@ export const inboundThrottle = limiter.define('inbound_webhooks', (ctx) =>
 /** Inbound webhooks per sender address across all sources, so path keys cannot be rotated. */
 export const inboundAddressThrottle = limiter.define('inbound_webhooks_address', (ctx) =>
   limiter.allowRequests(600).every('1 minute').usingKey(ctx.request.ip()).limitExceeded(withMessage)
+)
+
+/**
+ * Second-factor codes: failed attempts per account and address, with the login rules
+ * (5 failures in 15 minutes, then escalating blocks of `lockoutMinutes` tracked by
+ * `loginLockoutLimiter` under `twoFactorLockoutKey`). Only failures count.
+ */
+export const twoFactorAttemptLimiter = limiter.use({ requests: 5, duration: '15 minutes' })
+export const twoFactorAttemptKey = (userId: number, ip: string) => `two_factor:${userId}:${ip}`
+export const twoFactorLockoutKey = (userId: number, ip: string) =>
+  `two_factor_lockout:${userId}:${ip}`
+/**
+ * Second-factor failures per account across all addresses. The attacker already holds
+ * the password, so rotating addresses must not multiply guesses; a success does not reset it.
+ */
+export const TWO_FACTOR_ACCOUNT_LIMIT = 20
+export const twoFactorAccountLimiter = limiter.use({
+  requests: TWO_FACTOR_ACCOUNT_LIMIT,
+  duration: '1 hour',
+})
+export const twoFactorAccountKey = (userId: number) => `two_factor_account:${userId}`
+
+/** Second-factor submissions: 10 per minute per address (beside the address-wide login cap). */
+export const twoFactorThrottle = limiter.define('two_factor', (ctx) =>
+  limiter.allowRequests(10).every('1 minute').usingKey(ctx.request.ip()).limitExceeded(withMessage)
+)
+
+/** Phone confirmation codes cost a message each: 3 per 15 minutes per signed-in user. */
+export const channelCodeThrottle = limiter.define('channel_code', (ctx) =>
+  limiter
+    .allowRequests(3)
+    .every('15 minutes')
+    .usingKey(`user:${ctx.auth.user?.id ?? ctx.request.ip()}`)
+    .limitExceeded(withMessage)
+)
+
+/** Confirming a code and saving channel choices: 10 per 15 minutes per signed-in user. */
+export const channelChangeThrottle = limiter.define('channel_change', (ctx) =>
+  limiter
+    .allowRequests(10)
+    .every('15 minutes')
+    .usingKey(`user:${ctx.auth.user?.id ?? ctx.request.ip()}`)
+    .limitExceeded(withMessage)
+)
+
+/** Provider test messages from the settings screen: 5 per 15 minutes per administrator. */
+export const channelTestThrottle = limiter.define('channel_test', (ctx) =>
+  limiter
+    .allowRequests(5)
+    .every('15 minutes')
+    .usingKey(`user:${ctx.auth.user?.id ?? ctx.request.ip()}`)
+    .limitExceeded(withMessage)
+)
+
+/** Disabling 2FA and regenerating recovery codes: 5 per 15 minutes per signed-in user. */
+export const twoFactorManageThrottle = limiter.define('two_factor_manage', (ctx) =>
+  limiter
+    .allowRequests(5)
+    .every('15 minutes')
+    .usingKey(`user:${ctx.auth.user?.id ?? ctx.request.ip()}`)
+    .limitExceeded(withMessage)
 )

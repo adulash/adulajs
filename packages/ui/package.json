@@ -1,6 +1,6 @@
 {
   "name": "@adula/ui",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "license": "MIT",
   "type": "module",
   "description": "Arabic RTL shadcn registry copied into AdonisJS applications",
@@ -17,7 +17,10 @@
   },
   "scripts": {
     "test": "node --test tests/*.test.mjs",
-    "build": "node ../../scripts/build-ui-registry.mjs"
+    "build": "node ../../scripts/ui-registry.mjs build"
+  },
+  "devDependencies": {
+    "shadcn": "4.21.0"
   },
   "publishConfig": {
     "access": "public",

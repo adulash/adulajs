@@ -32,8 +32,11 @@ export class UserInvitations {
   async invite(
     actorId: number,
     input: { email: string; fullName: string },
-    send: (invitation: InvitationDelivery) => Promise<void>
+    send: (invitation: InvitationDelivery) => Promise<void>,
+    /** The administrator impersonating actorId; recorded in each activity entry. */
+    context: { impersonatorId?: number | null } = {}
   ) {
+    const impersonatorId = context.impersonatorId ?? null
     const email = typeof input.email === 'string' ? input.email.trim().toLowerCase() : ''
     const fullName = typeof input.fullName === 'string' ? input.fullName.trim() : ''
     if (
@@ -73,6 +76,7 @@ export class UserInvitations {
         resource: INVITATIONS,
         recordId: row.id,
         actorId,
+        impersonatorId,
         action: 'invitation_created',
         changes: { email },
       })
@@ -90,6 +94,7 @@ export class UserInvitations {
         resource: INVITATIONS,
         recordId: id,
         actorId,
+        impersonatorId,
         action: 'invitation_delivery_failed',
         changes: { email },
       })
@@ -103,6 +108,7 @@ export class UserInvitations {
       resource: INVITATIONS,
       recordId: id,
       actorId,
+      impersonatorId,
       action: 'invitation_sent',
       changes: { email },
     })

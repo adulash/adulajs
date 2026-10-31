@@ -33,7 +33,10 @@ export function HijriCalendar({
   value: string
   onSelect: (iso: string) => void
 }) {
-  const initial = calendarInput(value || new Date().toISOString().slice(0, 10), 'islamic-umalqura')
+  // Today is the viewer's local day; its UTC date is yesterday shortly after midnight east of UTC.
+  const now = new Date()
+  const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  const initial = calendarInput(value || today, 'islamic-umalqura')
   const [year, setYear] = useState(Math.max(1300, Math.min(1600, Number(initial.slice(0, 4)))))
   const [month, setMonth] = useState(Number(initial.slice(5, 7)))
   const first = calendarIso(`${year}-${pad(month)}-01`, 'islamic-umalqura')

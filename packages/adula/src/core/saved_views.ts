@@ -4,12 +4,15 @@ import type { Resource } from '../resource/types.js'
 import { buildAbility, type Actor, type AdulaAbility } from '../auth/ability.js'
 import { AdulaError } from '../admin/errors.js'
 import { canQueryField } from '../admin/resource_service.js'
+import { logActivity } from './activity.js'
+import { filterCondition, type ListFilterValue } from '../admin/resource/query.js'
 
 export type SavedViewQuery = {
   search?: string
   sort?: string
   direction?: 'asc' | 'desc'
-  filters?: Record<string, string | number | boolean | null>
+  /** Equality values or the operator objects of ADR 046 ({ in }, { gte, lte }, { empty }). */
+  filters?: Record<string, ListFilterValue>
 }
 export type SavedView = {
   id: number
@@ -23,6 +26,7 @@ const NAME_LIMIT = 60
 const VIEW_LIMIT = 50
 /** Shared views are visible to every viewer of a resource; cap them per resource. */
 const SHARED_LIMIT = 100
+const ACTIVITY_RESOURCE = 'core.saved_views'
 
 /**
  * A saved view is stored user input that later drives a list query, so every key
@@ -113,6 +117,11 @@ export class SavedViews {
     const [row] = existing
       ? await this.db('saved_views').where('id', existing.id).update(values).returning('*')
       : await this.db('saved_views').insert(values).returning('*')
+    await this.auditImpersonation(actor, Number(row.id), 'saved_view_saved', {
+      resource: resource.name,
+      name: label,
+      shared,
+    })
     return { id: Number(row.id), name: label, query, shared, own: true }
   }
 
@@ -122,6 +131,28 @@ export class SavedViews {
       .where({ id, resource: resource.name, user_id: actor.id })
       .del()
     if (!removed) throw new AdulaError(404, 'E_VIEW_NOT_FOUND', 'العرض المحفوظ غير موجود')
+    await this.auditImpersonation(actor, id, 'saved_view_removed', { resource: resource.name })
+  }
+
+  /**
+   * Saved views are personal preferences and are not audited for their owner; a change
+   * made by an administrator impersonating the owner is recorded with both identities.
+   */
+  private async auditImpersonation(
+    actor: Actor,
+    viewId: number,
+    action: string,
+    changes: Record<string, unknown>
+  ) {
+    if (!actor.impersonatorId) return
+    await logActivity(this.db, {
+      resource: ACTIVITY_RESOURCE,
+      recordId: viewId,
+      actorId: actor.id,
+      impersonatorId: actor.impersonatorId,
+      action,
+      changes,
+    })
   }
 
   private authorize(name: string, actor: Actor): { resource: Resource; ability: AdulaAbility } {
@@ -166,7 +197,7 @@ export class SavedViews {
     if (input.filters !== undefined && input.filters !== null) {
       if (typeof input.filters !== 'object' || Array.isArray(input.filters))
         return reject('E_VIEW_QUERY', 'تصفية العرض غير صالحة')
-      const filters: Record<string, string | number | boolean | null> = {}
+      const filters: Record<string, ListFilterValue> = {}
       for (const [key, entry] of Object.entries(input.filters as Record<string, unknown>)) {
         if (!resource.fields[key]?.filterable)
           return reject('E_VIEW_QUERY', `حقل التصفية غير مدعوم: ${key}`)
@@ -176,8 +207,16 @@ export class SavedViews {
           typeof entry !== 'string' &&
           typeof entry !== 'number' &&
           typeof entry !== 'boolean'
-        )
-          return reject('E_VIEW_QUERY', `قيمة التصفية غير صالحة: ${key}`)
+        ) {
+          // An operator object is checked exactly as the list will check it.
+          try {
+            filterCondition(key, resource.fields[key], entry)
+          } catch {
+            return reject('E_VIEW_QUERY', `قيمة التصفية غير صالحة: ${key}`)
+          }
+          filters[key] = JSON.parse(JSON.stringify(entry)) as ListFilterValue
+          continue
+        }
         filters[key] = entry
       }
       if (Object.keys(filters).length) query.filters = filters

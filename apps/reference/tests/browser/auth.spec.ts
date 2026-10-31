@@ -9,7 +9,7 @@ test.group('Browser authentication lifecycle', () => {
   test('the guest home page has no links to removed educational modules', async ({ visit }) => {
     const page = await visit('/')
     await page.getByRole('heading', { name: 'مساحة العمل', exact: true }).waitFor()
-    for (const name of ['customers', 'orders', 'tasks']) {
+    for (const name of ['customers', 'orders', 'tasks', 'leave_requests']) {
       await page.assertElementsCount(`a[href="/resources/${name}"]`, 0)
     }
     await page.assertVisible(page.getByRole('link', { name: 'تسجيل الدخول', exact: true }))

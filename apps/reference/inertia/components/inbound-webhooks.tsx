@@ -106,7 +106,7 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
             يستقبل النظام طلبات موقّعة من الأنظمة الخارجية، ويتحقق من التوقيع، ويسجّل كل استلام
-            مرة واحدة ثم يطلق حدثاً تعالجه الوحدات.
+            مرة واحدة ثم يطلق حدثاً تعالجه التطبيقات.
           </p>
         </div>
         <Button variant="outline" onClick={() => open('new')}>

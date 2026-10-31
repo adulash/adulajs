@@ -3,6 +3,7 @@ import { AdulaError } from 'adula'
 import { adula, requestActor } from '#services/adula'
 import { positiveId } from '#controllers/admin/support'
 import { childDescriptions, pageFor } from '#controllers/resources_controller'
+import { localizeResource, requestLanguage } from '#services/languages'
 
 /**
  * A record's view or edit form as JSON, so the generic list opens it in a dialog over
@@ -27,21 +28,31 @@ export default class RecordViewsController {
       if (edit) {
         const editor = await runtime.resources.editor(resource.name, actor, id)
         const shown = await runtime.resources.show(resource.name, id, actor)
-        return { view: { mode: 'form' as const, editor, permissions: shown.permissions } }
+        return {
+          view: {
+            mode: 'form' as const,
+            editor: localizeResource(editor, requestLanguage(ctx)),
+            permissions: shown.permissions,
+          },
+        }
       }
       const { children, activity, ...result } = await runtime.resources.record(
         resource.name,
         id,
         actor
       )
-      const description = runtime.resources.describe(resource.name, actor)
+      const language = requestLanguage(ctx)
+      const description = localizeResource(
+        runtime.resources.describe(resource.name, actor),
+        language
+      )
       return {
         view: {
           mode: 'show' as const,
           resource: description,
           result,
           lookups: await runtime.resources.lookups(resource.name, actor),
-          childResources: childDescriptions(description, actor),
+          childResources: childDescriptions(description, actor, language),
         },
         childrenData: children,
         activity,

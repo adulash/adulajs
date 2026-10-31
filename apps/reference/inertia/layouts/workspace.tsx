@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 import { usePage } from '@inertiajs/react'
 import { Link } from '@adonisjs/inertia/react'
 import {
+  ChartColumn,
   ChevronDown,
   ClipboardList,
   LayoutDashboard,
@@ -9,7 +10,7 @@ import {
   FileUp,
   UserPlus,
 } from 'lucide-react'
-import type { ResourceNavigation } from 'adula'
+import type { DashboardSummary, ResourceNavigation } from 'adula'
 import { Toaster } from '~/components/ui/sonner'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
@@ -17,6 +18,7 @@ import { AccountMenu } from '~/components/account-menu'
 import { AdminNav, ImpersonationBar, adminLinks } from '~/components/admin-nav'
 import { FlashMessages } from '~/components/flash-messages'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
+import { useMessages } from '~/components/ui/messages'
 import { BackupBanner } from '~/components/backup-banner'
 import { NotificationBell } from '~/components/notification-bell'
 
@@ -49,6 +51,7 @@ const navLinkClass = (active: boolean) =>
 
 export default function Workspace({ children }: { children: ReactNode }) {
   const preferences = useUiPreferences()
+  const { t, dir } = useMessages()
   const page = usePage<{
     user?: { fullName: string | null; email: string }
     navigation: ResourceNavigation
@@ -56,16 +59,28 @@ export default function Workspace({ children }: { children: ReactNode }) {
     canImport?: boolean
     openTasks?: number
     isAdmin?: boolean
+    dashboards?: DashboardSummary[]
   }>()
   const { collapsed, toggle } = useCollapsedModules()
   const openTasks = page.props.openTasks ?? 0
   // Daily work first: the overview, one list of everything waiting for the user, and imports
   // only for users who can create records (#34, #35).
   const work = [
-    { href: '/', label: 'نظرة عامة', icon: LayoutDashboard, badge: 0 },
-    { href: '/my-tasks', label: 'مهامي', icon: ListChecks, badge: openTasks },
+    { href: '/', label: t('نظرة عامة'), icon: LayoutDashboard, badge: 0 },
+    { href: '/my-tasks', label: t('مهامي'), icon: ListChecks, badge: openTasks },
+    // /dashboards opens the first dashboard the viewer may see; it links to the others (ADR 046).
+    ...(page.props.dashboards?.length
+      ? [
+          {
+            href: '/dashboards',
+            label: t('لوحات المؤشرات'),
+            icon: ChartColumn,
+            badge: 0,
+          },
+        ]
+      : []),
     ...(page.props.canImport
-      ? [{ href: '/imports', label: 'الاستيراد', icon: FileUp, badge: 0 }]
+      ? [{ href: '/imports', label: t('الاستيراد'), icon: FileUp, badge: 0 }]
       : []),
   ]
   const modules = [
@@ -85,12 +100,13 @@ export default function Workspace({ children }: { children: ReactNode }) {
     ...(page.props.navigation ?? []).map((entry) => ({ ...entry, icon: ClipboardList, badge: 0 })),
   ]
   const isActive = (href: string) => (href !== '/' ? page.url.startsWith(href) : page.url === '/')
+  // Server navigation labels arrive localized; the administration labels are interface text.
   const current =
-    [...navigation, ...adminLinks].find(
+    [...navigation, ...adminLinks.map((entry) => ({ ...entry, label: t(entry.label) }))].find(
       (entry) => entry.href !== '/' && page.url.startsWith(entry.href)
-    )?.label ?? (page.url.startsWith('/admin') ? 'الإدارة' : 'نظرة عامة')
+    )?.label ?? (page.url.startsWith('/admin') ? t('الإدارة') : t('نظرة عامة'))
   return (
-    <div dir="rtl" className="min-h-screen bg-background text-foreground" data-workspace-shell>
+    <div dir={dir} className="min-h-screen bg-background text-foreground" data-workspace-shell>
       <FlashMessages />
       <aside className="fixed inset-y-0 start-0 z-30 hidden w-[244px] flex-col overflow-y-auto border-e border-border bg-white lg:flex [&>*]:shrink-0">
         <Link href="/" className="flex h-24 items-center gap-3 px-7">
@@ -99,11 +115,15 @@ export default function Workspace({ children }: { children: ReactNode }) {
           </span>
           <span>
             <strong className="block text-xl tracking-tight">عدولة</strong>
-            <span className="text-[11px] text-muted-foreground">مساحة أعمالك، بوضوح</span>
+            <span className="text-[11px] text-muted-foreground">
+              {t('مساحة أعمالك، بوضوح')}
+            </span>
           </span>
         </Link>
-        <p className="mb-3 px-7 text-[11px] font-semibold text-muted-foreground">العمل اليومي</p>
-        <nav aria-label="التنقل الرئيسي" className="space-y-5 px-4">
+        <p className="mb-3 px-7 text-[11px] font-semibold text-muted-foreground">
+          {t('العمل اليومي')}
+        </p>
+        <nav aria-label={t('التنقل الرئيسي')} className="space-y-5 px-4">
           <div className="space-y-1">
             {work.map(({ href, label, icon: Icon, badge }) => (
               <Link
@@ -115,7 +135,7 @@ export default function Workspace({ children }: { children: ReactNode }) {
                 <Icon size={19} strokeWidth={1.6} />
                 {label}
                 {badge > 0 && (
-                  <Badge className="ms-auto px-1.5" aria-label={`${badge} مفتوحة`}>
+                  <Badge className="ms-auto px-1.5" aria-label={t('{count} مفتوحة', { count: badge })}>
                     {badge}
                   </Badge>
                 )}
@@ -167,7 +187,7 @@ export default function Workspace({ children }: { children: ReactNode }) {
               className="mb-4 flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground"
             >
               <UserPlus size={14} />
-              دعوة مستخدم
+              {t('دعوة مستخدم')}
             </Link>
           )}
           <AccountMenu />
@@ -177,20 +197,20 @@ export default function Workspace({ children }: { children: ReactNode }) {
         <div className="flex h-[72px] items-center justify-between border-b border-border bg-white/80 px-5 lg:px-10">
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
             <span className="font-semibold text-foreground lg:hidden">عدولة</span>
-            <span>مساحة العمل</span>
+            <span>{t('مساحة العمل')}</span>
             <span>/</span>
             <span className="text-foreground">{current}</span>
           </div>
           <span className="flex items-center gap-3 text-[11px] text-muted-foreground">
             <NotificationBell />
             <span className="size-1.5 rounded-full bg-primary" />
-            بيئة التجربة
+            {t('بيئة التجربة')}
           </span>
         </div>
         <BackupBanner />
         <ImpersonationBar />
         <nav
-          aria-label="التنقل على الجوال"
+          aria-label={t('التنقل على الجوال')}
           className="flex gap-5 overflow-auto border-b border-border bg-white px-5 py-3 text-xs lg:hidden"
         >
           {navigation.map((item) => (
@@ -200,7 +220,7 @@ export default function Workspace({ children }: { children: ReactNode }) {
             </Link>
           ))}
           {/* The administration area stays one entry on small screens too. */}
-          {page.props.isAdmin && <Link href="/admin">الإدارة</Link>}
+          {page.props.isAdmin && <Link href="/admin">{t('الإدارة')}</Link>}
         </nav>
         <main className="mx-auto max-w-[1440px] p-5 lg:px-10 lg:py-9">
           <div

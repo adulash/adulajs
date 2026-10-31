@@ -171,7 +171,8 @@
       ],
       "type": "registry:ui",
       "registryDependencies": [
-        "ui-preferences"
+        "ui-preferences",
+        "messages"
       ]
     },
     {
@@ -337,7 +338,8 @@
         "lucide-react@1.47.0"
       ],
       "registryDependencies": [
-        "button"
+        "button",
+        "messages"
       ],
       "files": [
         {
@@ -406,12 +408,32 @@
       ]
     },
     {
+      "name": "attachment-preview",
+      "type": "registry:ui",
+      "registryDependencies": [
+        "button",
+        "dialog",
+        "messages"
+      ],
+      "dependencies": [
+        "lucide-react@1.47.0"
+      ],
+      "files": [
+        {
+          "path": "registry/ui/attachment-preview.tsx",
+          "type": "registry:ui"
+        }
+      ]
+    },
+    {
       "name": "resource-value",
       "type": "registry:ui",
       "registryDependencies": [
         "badge",
+        "attachment-preview",
         "calendar-date",
-        "ui-preferences"
+        "ui-preferences",
+        "messages"
       ],
       "dependencies": [
         "lucide-react@1.47.0"
@@ -419,6 +441,10 @@
       "files": [
         {
           "path": "registry/ui/resource-value.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/ui/field_values.ts",
           "type": "registry:ui"
         }
       ]
@@ -430,6 +456,8 @@
         "input",
         "textarea",
         "button",
+        "checkbox",
+        "badge",
         "label",
         "select",
         "switch",
@@ -437,9 +465,11 @@
         "calendar",
         "command",
         "resource-value",
+        "attachment-preview",
         "hijri-calendar",
         "calendar-date",
-        "ui-preferences"
+        "ui-preferences",
+        "messages"
       ],
       "dependencies": [
         "axios@1.19.0",
@@ -467,7 +497,12 @@
         "ui-preferences",
         "command",
         "popover",
-        "resource-surface"
+        "resource-surface",
+        "messages",
+        "alert",
+        "checkbox",
+        "list-filters",
+        "resource-bulk"
       ],
       "dependencies": [
         "@tanstack/react-table@9.2.4",
@@ -491,7 +526,8 @@
         "label",
         "resource-actions",
         "resource-field",
-        "resource-value"
+        "resource-value",
+        "messages"
       ],
       "dependencies": [
         "axios@1.19.0",
@@ -517,7 +553,8 @@
         "command",
         "tabs",
         "ui-preferences",
-        "resource-value"
+        "resource-value",
+        "messages"
       ],
       "dependencies": [
         "lucide-react@1.47.0",
@@ -579,6 +616,27 @@
       ]
     },
     {
+      "name": "record-print",
+      "type": "registry:ui",
+      "registryDependencies": [
+        "button",
+        "label",
+        "radio-group",
+        "dialog",
+        "messages"
+      ],
+      "dependencies": [
+        "lucide-react@1.47.0",
+        "axios@1.19.0"
+      ],
+      "files": [
+        {
+          "path": "registry/ui/record-print.tsx",
+          "type": "registry:ui"
+        }
+      ]
+    },
+    {
       "name": "resource-show",
       "type": "registry:ui",
       "registryDependencies": [
@@ -591,7 +649,9 @@
         "ui-preferences",
         "record-collaboration",
         "record-assignments",
-        "record-workflows"
+        "record-workflows",
+        "record-print",
+        "messages"
       ],
       "dependencies": [
         "lucide-react@1.47.0"
@@ -607,11 +667,14 @@
       "name": "resource-import",
       "type": "registry:ui",
       "registryDependencies": [
+        "badge",
         "button",
         "input",
         "label",
+        "radio-group",
         "dialog",
-        "select"
+        "select",
+        "table"
       ],
       "dependencies": [
         "lucide-react@1.47.0",
@@ -633,7 +696,8 @@
         "resource-form",
         "resource-show",
         "resource-surface",
-        "resource-import"
+        "resource-import",
+        "messages"
       ],
       "dependencies": [
         "lucide-react@1.47.0"
@@ -651,7 +715,8 @@
       "registryDependencies": [
         "button",
         "dialog",
-        "can"
+        "can",
+        "messages"
       ],
       "dependencies": [
         "axios@1.19.0",
@@ -669,7 +734,8 @@
       "type": "registry:ui",
       "registryDependencies": [
         "button",
-        "dialog"
+        "dialog",
+        "messages"
       ],
       "dependencies": [],
       "files": [
@@ -704,6 +770,22 @@
       ]
     },
     {
+      "name": "messages",
+      "type": "registry:ui",
+      "registryDependencies": [],
+      "dependencies": [],
+      "files": [
+        {
+          "path": "registry/ui/messages.ts",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/ui/message_format.ts",
+          "type": "registry:ui"
+        }
+      ]
+    },
+    {
       "name": "hijri-calendar",
       "type": "registry:ui",
       "registryDependencies": [
@@ -724,12 +806,88 @@
       "type": "registry:ui",
       "registryDependencies": [
         "dialog",
-        "button"
+        "button",
+        "messages"
       ],
       "dependencies": [],
       "files": [
         {
           "path": "registry/ui/confirm-action.tsx",
+          "type": "registry:ui"
+        }
+      ]
+    },
+    {
+      "name": "list-filters",
+      "type": "registry:ui",
+      "registryDependencies": [
+        "badge",
+        "button",
+        "checkbox",
+        "command",
+        "input",
+        "popover",
+        "resource-field",
+        "resource-value",
+        "messages"
+      ],
+      "dependencies": [
+        "axios@1.19.0",
+        "lucide-react@1.47.0"
+      ],
+      "files": [
+        {
+          "path": "registry/ui/list-filters.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/ui/list_query.ts",
+          "type": "registry:ui"
+        }
+      ]
+    },
+    {
+      "name": "resource-bulk",
+      "type": "registry:ui",
+      "registryDependencies": [
+        "alert",
+        "button",
+        "dialog",
+        "resource-actions",
+        "resource-value",
+        "list-filters",
+        "messages"
+      ],
+      "dependencies": [
+        "axios@1.19.0",
+        "sonner@2.0.8",
+        "lucide-react@1.47.0"
+      ],
+      "files": [
+        {
+          "path": "registry/ui/resource-bulk.tsx",
+          "type": "registry:ui"
+        }
+      ]
+    },
+    {
+      "name": "resource-dashboard",
+      "type": "registry:ui",
+      "registryDependencies": [
+        "card",
+        "resource-value",
+        "messages"
+      ],
+      "dependencies": [
+        "lucide-react@1.47.0"
+      ],
+      "files": [
+        {
+          "path": "registry/ui/resource-dashboard.tsx",
+          "type": "registry:ui"
+        },
+        {
+          "path": "registry/ui/dashboard_data.ts",
           "type": "registry:ui"
         }
       ]

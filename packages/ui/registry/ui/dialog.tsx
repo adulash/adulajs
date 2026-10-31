@@ -1,11 +1,10 @@
-'use client'
-
 import * as React from 'react'
 import { cn } from 'cn'
 import { XIcon } from 'lucide-react'
 import { Dialog as DialogPrimitive } from 'radix-ui'
 
 import { Button } from '~/components/ui/button'
+import { useMessages } from '~/components/ui/messages'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
 
 const DialogContentContext = React.createContext<React.RefObject<HTMLDivElement | null> | null>(
@@ -22,6 +21,7 @@ function Dialog({
   const [confirming, setConfirming] = React.useState(false)
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(props.defaultOpen ?? false)
   const preferences = useUiPreferences()
+  const { t, dir } = useMessages()
   const open = props.open ?? uncontrolledOpen
   const commit = (next: boolean) => {
     setUncontrolledOpen(next)
@@ -39,16 +39,16 @@ function Dialog({
       </DialogPrimitive.Root>
       {confirming && open && (
         <Dialog mode="confirm" open onOpenChange={(next) => !next && setConfirming(false)}>
-          <DialogContent showCloseButton={false} className="z-[70] sm:max-w-md" dir="rtl">
+          <DialogContent showCloseButton={false} className="z-[70] sm:max-w-md" dir={dir}>
             <DialogHeader>
-              <DialogTitle>إغلاق النموذج؟</DialogTitle>
+              <DialogTitle>{t('إغلاق النموذج؟')}</DialogTitle>
               <DialogDescription>
-                قد تفقد التغييرات التي لم تحفظها. يمكنك متابعة التحرير أو إغلاق النموذج.
+                {t('قد تفقد التغييرات التي لم تحفظها. يمكنك متابعة التحرير أو إغلاق النموذج.')}
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setConfirming(false)}>
-                متابعة التحرير
+                {t('متابعة التحرير')}
               </Button>
               <Button
                 type="button"
@@ -58,7 +58,7 @@ function Dialog({
                   commit(false)
                 }}
               >
-                إغلاق دون حفظ
+                {t('إغلاق دون حفظ')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -106,6 +106,7 @@ function DialogContent({
   showCloseButton?: boolean
 }) {
   const content = React.useContext(DialogContentContext)
+  const { t } = useMessages()
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
@@ -117,7 +118,7 @@ function DialogContent({
         }}
         data-slot="dialog-content"
         className={cn(
-          'fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border bg-background p-6 shadow-lg duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg',
+          'fixed top-[50%] start-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] ltr:translate-x-[-50%] rtl:-translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border bg-background p-6 shadow-lg duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg',
           className
         )}
         {...props}
@@ -129,7 +130,7 @@ function DialogContent({
             className="absolute top-4 end-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
           >
             <XIcon />
-            <span className="sr-only">إغلاق</span>
+            <span className="sr-only">{t('إغلاق')}</span>
           </DialogPrimitive.Close>
         )}
       </DialogPrimitive.Content>
@@ -155,6 +156,7 @@ function DialogFooter({
 }: React.ComponentProps<'div'> & {
   showCloseButton?: boolean
 }) {
+  const { t } = useMessages()
   return (
     <div
       data-slot="dialog-footer"
@@ -164,7 +166,7 @@ function DialogFooter({
       {children}
       {showCloseButton && (
         <DialogPrimitive.Close asChild>
-          <Button variant="outline">إغلاق</Button>
+          <Button variant="outline">{t('إغلاق')}</Button>
         </DialogPrimitive.Close>
       )}
     </div>

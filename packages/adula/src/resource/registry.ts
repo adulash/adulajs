@@ -1,5 +1,6 @@
 import type { Module, Resource } from './types.js'
-import { identifier } from './define_resource.js'
+import { assertLabel, identifier, joinTable } from './define_resource.js'
+import { assertPrintTemplateColumns } from '../integrations/print_templates.js'
 
 export class ResourceRegistry {
   #resources = new Map<string, Resource>()
@@ -30,10 +31,7 @@ export class ResourceRegistry {
         for (const row of rows) {
           if (typeof row.key !== 'string' || !row.key.trim() || row.key.length > 255)
             throw new Error(`Module ${module.name}: invalid lookup key in ${group}`)
-          if (!row.label?.ar || !row.label?.en)
-            throw new Error(
-              `Module ${module.name}: lookup ${group}.${row.key} needs bilingual labels`
-            )
+          assertLabel(row.label, `Module ${module.name}: lookup ${group}.${row.key}`)
           if (lookupKeys.has(`${group}\u0000${row.key}`))
             throw new Error(`Duplicate lookup: ${group}.${row.key}`)
           lookupKeys.add(`${group}\u0000${row.key}`)
@@ -48,6 +46,14 @@ export class ResourceRegistry {
         roleKeys.add(role.key)
       }
     }
+    const tables = new Set(next.all().map((resource) => resource.name))
+    for (const resource of next.all())
+      for (const [key, field] of Object.entries(resource.fields)) {
+        if (field.type !== 'manyToMany') continue
+        const { table } = joinTable(resource.name, key, field)
+        if (tables.has(table)) throw new Error(`Duplicate table name: ${table}`)
+        tables.add(table)
+      }
     for (const resource of next.all()) {
       if (resource.scope) {
         const field = resource.fields[resource.scope.from]
@@ -55,7 +61,8 @@ export class ResourceRegistry {
           throw new Error(`${resource.name}: scope.from must reference a scoped resource`)
       }
       for (const field of Object.values(resource.fields)) {
-        if (field.type !== 'belongsTo' && field.type !== 'hasMany') continue
+        if (field.type !== 'belongsTo' && field.type !== 'hasMany' && field.type !== 'manyToMany')
+          continue
         const target = next.get(field.resource)
         const owner = next.owner(resource.name)
         const targetOwner = next.owner(target.name)
@@ -66,6 +73,7 @@ export class ResourceRegistry {
         if (field.type === 'hasMany' && !(field.foreignKey in target.fields))
           throw new Error(`Missing child foreign key: ${field.foreignKey}`)
       }
+      assertPrintTemplateColumns(resource, next)
     }
     this.#resources = next.#resources
     this.#owners = next.#owners

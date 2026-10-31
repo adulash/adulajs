@@ -11,7 +11,7 @@ test.group('Educational fixture isolation', () => {
   }) => {
     assert.includeMembers(
       modules.map((module) => module.name),
-      ['customers', 'orders', 'tasks']
+      ['customers', 'orders', 'tasks', 'leave_requests']
     )
     const { stdout } = await promisify(execFile)(
       process.execPath,
@@ -28,13 +28,20 @@ test.group('Educational fixture isolation', () => {
     const probe = JSON.parse(line!.slice('FIXTURE_PROBE:'.length))
     assert.deepEqual(probe.modules, [])
     assert.deepEqual(probe.resources, [])
+    // Fixture sync jobs (tests/fixtures/sync_jobs.ts) are never scheduled outside tests.
+    assert.deepEqual(probe.syncJobs, [])
+    // Fixture dashboards and bulk actions (ADR 046) stay test-only too.
+    assert.deepEqual(probe.dashboards, [])
+    assert.deepEqual(probe.bulkActions, [])
     // Framework listeners (webhooks, followers) are not example code; none may be educational.
     assert.deepEqual(
       probe.listeners.filter((name: string) => !name.startsWith('adula.')),
       []
     )
     assert.isFalse(
-      probe.migrations.some((path: string) => /fixtures|customers|orders|tasks/.test(path))
+      probe.migrations.some((path: string) =>
+        /fixtures|customers|orders|tasks|leave_requests/.test(path)
+      )
     )
   })
 

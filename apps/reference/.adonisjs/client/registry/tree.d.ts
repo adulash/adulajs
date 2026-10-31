@@ -9,10 +9,19 @@ export interface ApiDefinition {
   mcp: {
     post: typeof routes['mcp.post']
   }
+  inboundWebhooks: {
+    receive: typeof routes['inbound_webhooks.receive']
+  }
   resources: {
     index: typeof routes['resources.index']
     create: typeof routes['resources.create']
     options: typeof routes['resources.options']
+    aggregate: typeof routes['resources.aggregate']
+    export: typeof routes['resources.export']
+    trash: typeof routes['resources.trash']
+    bulkActions: typeof routes['resources.bulk_actions']
+    bulk: typeof routes['resources.bulk']
+    restore: typeof routes['resources.restore']
     edit: typeof routes['resources.edit']
     show: typeof routes['resources.show']
     store: typeof routes['resources.store']
@@ -21,6 +30,10 @@ export interface ApiDefinition {
     submit: typeof routes['resources.submit']
     cancel: typeof routes['resources.cancel']
     amend: typeof routes['resources.amend']
+  }
+  dashboards: {
+    index: typeof routes['dashboards.index']
+    show: typeof routes['dashboards.show']
   }
   imports: {
     store: typeof routes['imports.store']
@@ -53,6 +66,9 @@ export interface ApiDefinition {
     failed: typeof routes['workflows.failed']
     retry: typeof routes['workflows.retry']
   }
+  recordViews: {
+    show: typeof routes['record_views.show']
+  }
   savedViews: {
     store: typeof routes['saved_views.store']
     destroy: typeof routes['saved_views.destroy']
@@ -65,6 +81,12 @@ export interface ApiDefinition {
     openApi: typeof routes['api.open_api']
     resources: {
       index: typeof routes['api.resources.index']
+      aggregate: typeof routes['api.resources.aggregate']
+      export: typeof routes['api.resources.export']
+      trash: typeof routes['api.resources.trash']
+      bulkActions: typeof routes['api.resources.bulk_actions']
+      bulk: typeof routes['api.resources.bulk']
+      restore: typeof routes['api.resources.restore']
       show: typeof routes['api.resources.show']
       store: typeof routes['api.resources.store']
       update: typeof routes['api.resources.update']
@@ -89,6 +111,14 @@ export interface ApiDefinition {
     store: typeof routes['session.store']
     destroy: typeof routes['session.destroy']
   }
+  twoFactor: {
+    challenge: typeof routes['two_factor.challenge']
+    verify: typeof routes['two_factor.verify']
+    begin: typeof routes['two_factor.begin']
+    confirm: typeof routes['two_factor.confirm']
+    regenerate: typeof routes['two_factor.regenerate']
+    destroy: typeof routes['two_factor.destroy']
+  }
   passwordReset: {
     forgot: typeof routes['password_reset.forgot']
     send: typeof routes['password_reset.send']
@@ -98,11 +128,16 @@ export interface ApiDefinition {
   oauth: {
     redirect: typeof routes['oauth.redirect']
     callback: typeof routes['oauth.callback']
+    link: typeof routes['oauth.link']
+    unlink: typeof routes['oauth.unlink']
   }
   profile: {
     show: typeof routes['profile.show']
     update: typeof routes['profile.update']
     password: typeof routes['profile.password']
+  }
+  language: {
+    update: typeof routes['language.update']
   }
   apiTokens: {
     index: typeof routes['api_tokens.index']
@@ -122,6 +157,7 @@ export interface ApiDefinition {
     index: typeof routes['notifications.index']
     readAll: typeof routes['notifications.read_all']
     read: typeof routes['notifications.read']
+    open: typeof routes['notifications.open']
   }
   adminUsers: {
     stopImpersonation: typeof routes['admin_users.stop_impersonation']
@@ -134,6 +170,8 @@ export interface ApiDefinition {
     disable: typeof routes['admin_users.disable']
     enable: typeof routes['admin_users.enable']
     revokeSessions: typeof routes['admin_users.revoke_sessions']
+    revokeTokens: typeof routes['admin_users.revoke_tokens']
+    resetTwoFactor: typeof routes['admin_users.reset_two_factor']
     impersonate: typeof routes['admin_users.impersonate']
   }
   adminRoles: {
@@ -178,11 +216,33 @@ export interface ApiDefinition {
     destroy: typeof routes['admin_webhooks.destroy']
     deliveries: typeof routes['admin_webhooks.deliveries']
     retry: typeof routes['admin_webhooks.retry']
+    storeInbound: typeof routes['admin_webhooks.store_inbound']
+    updateInbound: typeof routes['admin_webhooks.update_inbound']
+    rotateInbound: typeof routes['admin_webhooks.rotate_inbound']
+    destroyInbound: typeof routes['admin_webhooks.destroy_inbound']
+    inboundDeliveries: typeof routes['admin_webhooks.inbound_deliveries']
+    redispatchInbound: typeof routes['admin_webhooks.redispatch_inbound']
   }
   setup: {
     index: typeof routes['setup.index']
     check: typeof routes['setup.check']
     confirmIdentity: typeof routes['setup.confirm_identity']
     notification: typeof routes['setup.notification']
+  }
+  adminAuthenticationSettings: {
+    update: typeof routes['admin_authentication_settings.update']
+  }
+  adminLookups: {
+    index: typeof routes['admin_lookups.index']
+    store: typeof routes['admin_lookups.store']
+    reorder: typeof routes['admin_lookups.reorder']
+    update: typeof routes['admin_lookups.update']
+    disable: typeof routes['admin_lookups.disable']
+    enable: typeof routes['admin_lookups.enable']
+    destroy: typeof routes['admin_lookups.destroy']
+  }
+  adminSequences: {
+    index: typeof routes['admin_sequences.index']
+    update: typeof routes['admin_sequences.update']
   }
 }

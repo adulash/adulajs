@@ -1,7 +1,7 @@
 {
   "name": "adula",
   "description": "Resource-driven business applications for AdonisJS 7",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "engines": {
     "node": ">=24.0.0"
   },
@@ -53,6 +53,7 @@
     "@poppinss/ts-exec": "1.4.4",
     "@types/node": "26.2.0",
     "@types/papaparse": "5.5.2",
+    "@vinejs/vine": "4.4.0",
     "eslint": "10.9.0",
     "pg": "8.16.3",
     "typescript": "6.0.3"
@@ -62,7 +63,8 @@
     "@adonisjs/core": "^7.0.0",
     "@adonisjs/drive": "^4.0.0",
     "@adonisjs/lucid": "^22.0.0",
-    "@jrmc/adonis-mcp": "^2.0.0"
+    "@jrmc/adonis-mcp": "^2.0.0",
+    "@vinejs/vine": "^4.0.0"
   },
   "peerDependenciesMeta": {
     "@jrmc/adonis-mcp": {
@@ -83,6 +85,7 @@
   "dependencies": {
     "@casl/ability": "7.0.1",
     "knex": "3.3.0",
+    "otpauth": "9.5.2",
     "papaparse": "5.7.0",
     "xstate": "5.33.2"
   },

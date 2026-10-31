@@ -7,8 +7,10 @@ import type { DomainEvent, Listener } from '../events/outbox.js'
 import { jsonValue } from '../admin/contracts.js'
 import { AdulaError } from '../admin/errors.js'
 import { notifyWithTemplate } from '../core/message_templates.js'
+import { escapeLike } from '../core/like.js'
+import { canView, resourceLabel, type ActorLoader } from './shared.js'
 
-export type ActorLoader = { load(id: number): Promise<Actor> }
+export type { ActorLoader } from './shared.js'
 
 export type CommentEntry = {
   id: number
@@ -354,9 +356,13 @@ export class RecordCollaboration {
         .offset(offset)
         .limit(page)
         .select('id', 'full_name')
+      // Names match by substring; e-mail only by exact (case-insensitive) equality so
+      // the picker cannot be used to enumerate addresses prefix by prefix.
       if (term)
         query.where((where) =>
-          where.whereILike('full_name', `%${term}%`).orWhereILike('email', `${term}%`)
+          where
+            .whereILike('full_name', `%${escapeLike(term)}%`)
+            .orWhereRaw('lower(email) = lower(?)', [term])
         )
       const users = await query
       for (const user of users) {
@@ -375,8 +381,7 @@ export class RecordCollaboration {
    */
   followerListener(module: string, resource: string, event: string): Listener {
     return {
-      name: `adula.followers.${module}.${resource}.${event}`,
-      event: `${module}.${resource}.${event}`,
+      ...followerKey(module, resource, event),
       handle: async (domainEvent: DomainEvent, trx: Knex.Transaction) => {
         const id = Number(domainEvent.payload.id)
         const actorId = Number(domainEvent.payload.actorId)
@@ -407,17 +412,11 @@ export class RecordCollaboration {
   }
 
   private label(name: string) {
-    try {
-      return this.resources.label(name)
-    } catch {
-      return name
-    }
+    return resourceLabel(this.resources, name)
   }
 
-  private async canView(name: string, id: number, userId: number) {
-    const disabled = await this.db('users').where('id', userId).first('disabled_at')
-    if (!disabled || disabled.disabled_at) return false
-    return this.resources.permits(name, id, await this.actors.load(userId))
+  private canView(name: string, id: number, userId: number) {
+    return canView(this.db, this.resources, this.actors, name, id, userId)
   }
 
   /** Parsed after the record is authorized, so malformed ids never bypass the 403. */
@@ -445,6 +444,14 @@ export class RecordCollaboration {
   }
 }
 
+/** The listener name and domain event of a follower notification. */
+function followerKey(module: string, resource: string, event: string) {
+  return {
+    name: `adula.followers.${module}.${resource}.${event}`,
+    event: `${module}.${resource}.${event}`,
+  }
+}
+
 /** Follower notifications for every registered resource's update and document events. */
 export function followerListeners(
   registry: { all(): Resource[]; owner(name: string): string },
@@ -454,8 +461,7 @@ export function followerListeners(
     ['updated', 'submitted', 'cancelled', 'deleted'].map((event) => {
       const module = registry.owner(resource.name)
       return {
-        name: `adula.followers.${module}.${resource.name}.${event}`,
-        event: `${module}.${resource.name}.${event}`,
+        ...followerKey(module, resource.name, event),
         handle: (domainEvent: DomainEvent, trx: Knex.Transaction) =>
           collaboration().followerListener(module, resource.name, event).handle(domainEvent, trx),
       }

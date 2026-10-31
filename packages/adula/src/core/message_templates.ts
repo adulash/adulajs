@@ -1,6 +1,8 @@
+import { randomUUID } from 'node:crypto'
 import type { Knex } from 'knex'
 import { AdulaError } from '../admin/errors.js'
 import { targetColumns, type NotificationTarget } from '../services/settings.js'
+import { PLACEHOLDER } from './template_language.js'
 
 export type TemplateDefinition = {
   label: string
@@ -86,6 +88,34 @@ export const DEFAULT_TEMPLATES: Record<string, TemplateDefinition> = {
     variables: ['workflow', 'resource', 'id', 'error'],
     mail: true,
   },
+  'workflow.delegated': {
+    label: 'تفويض موافقات إليك',
+    subject: 'فوّض إليك {{delegator}} موافقاته',
+    body: 'من {{from}} إلى {{to}}. تظهر الموافقات المفوّضة في مهامي.',
+    variables: ['delegator', 'from', 'to'],
+    mail: true,
+  },
+  'workflow.sla_due_soon': {
+    label: 'اقتراب موعد موافقة',
+    subject: 'يقترب موعد موافقة مطلوبة منك',
+    body: '{{title}} — {{resource}} #{{id}}، الموعد {{due}}',
+    variables: ['title', 'resource', 'id', 'due'],
+    mail: true,
+  },
+  'workflow.sla_overdue': {
+    label: 'تأخر موافقة',
+    subject: 'تأخرت موافقة مطلوبة منك',
+    body: '{{title}} — {{resource}} #{{id}}، كان الموعد {{due}}',
+    variables: ['title', 'resource', 'id', 'due'],
+    mail: true,
+  },
+  'workflow.sla_escalated': {
+    label: 'تصعيد موافقة متأخرة',
+    subject: 'صُعّدت إليك موافقة متأخرة',
+    body: '{{title}} — {{resource}} #{{id}}، المكلّف {{assignee}}، كان الموعد {{due}}',
+    variables: ['title', 'resource', 'id', 'assignee', 'due'],
+    mail: true,
+  },
   'webhook.failed': {
     label: 'تعطل Webhook',
     subject: 'تعذّر تسليم Webhook: {{name}}',
@@ -102,7 +132,6 @@ export const DEFAULT_TEMPLATES: Record<string, TemplateDefinition> = {
   },
 }
 
-const PLACEHOLDER = /\{\{\s*([a-zA-Z][a-zA-Z0-9_]*)\s*\}\}/g
 const SUBJECT_LIMIT = 200
 const BODY_LIMIT = 4000
 
@@ -199,9 +228,15 @@ export class MessageTemplates {
   }
 }
 
+/** The built-in channels: the notification row itself and the mail_state e-mail queue. */
+export const IN_APP_CHANNEL = 'in_app'
+export const MAIL_CHANNEL = 'mail'
+
 /**
- * Inserts a templated notification in the caller's transaction. Templates with
- * mail enabled mark the row for the mail delivery worker (deliverNotificationMail).
+ * Inserts a templated notification in the caller's transaction. A template with mail
+ * (external delivery) enabled marks the row for the mail worker (deliverNotificationMail)
+ * unless the user turned e-mail off, and queues one notification_deliveries row per
+ * other channel the user enabled with an address (see core/notification_channels.ts).
  */
 export async function notifyWithTemplate(
   db: Knex,
@@ -212,14 +247,49 @@ export async function notifyWithTemplate(
   target?: NotificationTarget | null
 ) {
   const message = await templates.render(key, variables, db)
-  await db('notifications').insert({
-    user_id: userId,
-    title: message.subject,
-    body: message.body,
-    template_key: key,
-    mail_state: message.mail ? 'pending' : null,
-    ...targetColumns(target),
-  })
+  const preferences: {
+    channel: string
+    enabled: boolean
+    address: string | null
+    confirmed_at: Date | null
+  }[] = message.mail
+    ? await db('user_notification_channels')
+        .where('user_id', userId)
+        .select('channel', 'enabled', 'address', 'confirmed_at')
+    : []
+  const mailOff = preferences.some((row) => row.channel === MAIL_CHANNEL && !row.enabled)
+  const external = preferences.filter(
+    (row) =>
+      row.enabled &&
+      row.address &&
+      // Only a number confirmed by its one-time code receives messages.
+      row.confirmed_at &&
+      row.channel !== MAIL_CHANNEL &&
+      row.channel !== IN_APP_CHANNEL
+  )
+  const insert = async (trx: Knex) => {
+    const [row] = await trx('notifications')
+      .insert({
+        user_id: userId,
+        title: message.subject,
+        body: message.body,
+        template_key: key,
+        mail_state: message.mail ? (mailOff ? 'skipped' : 'pending') : null,
+        ...targetColumns(target),
+      })
+      .returning('id')
+    if (external.length)
+      await trx('notification_deliveries').insert(
+        external.map((preference) => ({
+          id: randomUUID(),
+          notification_id: row.id,
+          channel: preference.channel,
+        }))
+      )
+  }
+  // The row and its deliveries commit together; a caller's transaction is used as-is.
+  if (!external.length || (db as Knex.Transaction).isTransaction) await insert(db)
+  else await db.transaction(insert)
 }
 
 export type MailSender = (message: {

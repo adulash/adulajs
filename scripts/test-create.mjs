@@ -11,10 +11,11 @@ import {
   createDatabases,
   npmEntry,
   pingRedis,
-} from '../packages/create-adula-app/src/system.mjs'
-import { dockerBackend } from '../packages/create-adula-app/src/docker-runtime.mjs'
-import { holdDockerSession } from '../packages/create-adula-app/src/docker-session.mjs'
+} from '../packages/create-adulajs/src/system.mjs'
+import { dockerBackend } from '../packages/create-adulajs/src/docker-runtime.mjs'
+import { holdDockerSession } from '../packages/create-adulajs/src/docker-session.mjs'
 import { packageNames, tarballName } from './check-release.mjs'
+import { nonZero, run } from './lib/run.mjs'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
 const work = join(root, '.work')
@@ -31,28 +32,14 @@ assert(
 )
 await mkdir(work, { recursive: true })
 async function step(name, command, args, cwd = root, env = process.env, failure = false) {
-  const path = join(work, `create-${name}.log`)
-  const log = await open(path, 'w')
-  let code
-  try {
-    code = await new Promise((done, reject) => {
-      const child = spawn(command, args, {
-        cwd,
-        env,
-        stdio: ['ignore', log.fd, log.fd],
-        shell: false,
-        windowsHide: true,
-      })
-      child.once('error', reject)
-      child.once('exit', (code) => done(code))
-    })
-  } finally {
-    await log.close()
-  }
-  if (failure ? code === 0 : code !== 0) {
-    console.error((await readFile(path, 'utf8')).split(/\r?\n/).slice(-65).join('\n'))
-    throw new Error(`Creator check failed: ${name} (exit ${code}, ${path})`)
-  }
+  await run(command, args, {
+    cwd,
+    env,
+    log: join(work, `create-${name}.log`),
+    expect: failure ? nonZero : 0,
+    label: `Creator check ${name}`,
+    tail: 65,
+  })
   console.log(`PASS ${name}`)
 }
 for (const name of packageNames) {
@@ -109,7 +96,7 @@ await writeFile(
   })
 )
 const version = JSON.parse(
-  await readFile(join(root, 'packages/create-adula-app/package.json'), 'utf8')
+  await readFile(join(root, 'packages/create-adulajs/package.json'), 'utf8')
 ).version
 const target = join(work, `created-app-${Date.now()}`)
 const npm = await npmEntry()
@@ -148,9 +135,9 @@ try {
       npm,
       'exec',
       '--yes',
-      `--package=${join(work, tarballName('create-adula-app', version))}`,
+      `--package=${join(work, tarballName('create-adulajs', version))}`,
       '--',
-      'create-adula-app',
+      'create-adulajs',
       target,
       '--company',
       'شركة الاختبار',
@@ -170,7 +157,7 @@ try {
   )
   await writeFile(join(work, 'create-latest.json'), JSON.stringify({ root: target }, null, 2))
   const installationOutput = await readFile(join(work, 'create-from-zero.log'), 'utf8')
-  assert.match(installationOutput, /OK \[6\/6\] Typecheck and build the application/)
+  assert.match(installationOutput, /OK \[6\/6\] Typecheck and build the system/)
   assert.match(installationOutput, /Administrator credentials: tmp\/dev-admin.txt/)
   assert(
     !installationOutput.includes('\u001b'),
@@ -220,7 +207,7 @@ try {
   assert.match(await readFile(join(target, 'inertia/components/ui/dialog.tsx'), 'utf8'), /Dialog/)
   assert(
     !JSON.stringify(
-      JSON.parse(await readFile(join(root, 'packages/create-adula-app/build/template.json'), 'utf8'))
+      JSON.parse(await readFile(join(root, 'packages/create-adulajs/build/template.json'), 'utf8'))
         .files
     ).includes('#tests/fixtures')
   )
@@ -274,7 +261,7 @@ try {
     'refuse-overwrite',
     process.execPath,
     [
-      join(root, 'packages/create-adula-app/build/cli.mjs'),
+      join(root, 'packages/create-adulajs/build/cli.mjs'),
       target,
       '--company',
       'Changed',
@@ -345,6 +332,17 @@ try {
       }),
       'rgb(20, 83, 45)'
     )
+    // A new application requires administrators to enrol a second factor first.
+    await page.goto(`${appEnv.APP_URL}/admin/users`)
+    assert.equal(page.url(), `${appEnv.APP_URL}/account/profile?enrol=two-factor`)
+    // The rest of this smoke test drives the administration without an authenticator app,
+    // so it switches the rule off the way an owner would (system setting, audited elsewhere).
+    const settings = new Client({ ...generatedConnection, database: appEnv.DB_DATABASE })
+    await settings.connect()
+    await settings.query(
+      "INSERT INTO settings (key, scope, scope_id, value) VALUES ('auth.twoFactorRequiredForAdministrators', 'system', '0', 'false')"
+    )
+    await settings.end()
     const response = await page.goto(`${appEnv.APP_URL}/admin/users`)
     assert.equal(response.status(), 200)
     await page
@@ -400,7 +398,7 @@ try {
       !(await readFile(join(work, name), 'utf8')).includes(password),
       'Administrator password leaked to a log'
     )
-  console.log(`Verified new application from packed creator: ${target}`)
+  console.log(`Verified new system from packed creator: ${target}`)
 } finally {
   if (docker) {
     try {

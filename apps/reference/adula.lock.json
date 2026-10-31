@@ -1,9 +1,9 @@
 {
-  "version": "2.1.0",
-  "managedRules": "6373f9a406ebaf179acccd3d6c888656cd0cd4e7a4ee3082df72571d2a9138c0",
+  "version": "2.2.0",
+  "managedRules": "920724ea5700d4596d97309a25cabbb289b3bf6cdb902c1ef8121d29d81a982a",
   "skills": {
-    ".agents/skills/adula-idea-review/SKILL.md": "bdbb4839b57d38143a614ed258af602044e1fdd763b190685e46ea0c29a27b47",
-    ".agents/skills/adula-frontend-design/SKILL.md": "aae92f3ce03c005cd9fade41818c4e41d33d8117786974edf793acc3f48270e2",
+    ".agents/skills/adula-idea-review/SKILL.md": "c4c455bad8e8b181c7d3fb85ad89e25266c799eeb9d487372b0c595b17030514",
+    ".agents/skills/adula-frontend-design/SKILL.md": "e5e85a6793db729b2060b8999c3ba6c8d8c25f4a3a1616f4700473cca16c1f57",
     ".agents/skills/adula-module-review/SKILL.md": "ab891bef3d2bd521195066ed2da9f71104ab65468ad33e3210459080f2c2fa8f",
     ".agents/skills/adula-security-review/SKILL.md": "3b391571f23c1fb9672dec6370a7b658c6c682fdac5181beae5d24e366e8e925",
     ".agents/skills/adula-schema-review/SKILL.md": "382a714a2926ef4cfaf629d1b89f378af565bb62f6fa7c5b54b40ddf54aac4c7",

@@ -29,7 +29,8 @@ export default class Seed extends BaseCommand {
       this.logger.info('Development credentials saved to the ignored tmp/dev-admin.txt file')
     }
     process.env.ADULA_ADMIN_EMAIL = email
-    const installed = await this.kernel.exec('adula:install', [])
+    // This command created the account (or the developer already owns it): keep its password.
+    const installed = await this.kernel.exec('adula:install', ['--keep-password'])
     if (installed.exitCode) throw new Error('Core installation failed')
     if (testFixturesEnabled) {
       const { seedData } = await import('#tests/fixtures/seed_data')

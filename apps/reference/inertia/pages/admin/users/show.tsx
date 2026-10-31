@@ -1,7 +1,17 @@
 import { useState, type FormEvent, type ReactElement } from 'react'
-import { Head, router } from '@inertiajs/react'
+import { Head, router, usePage } from '@inertiajs/react'
 import { Link } from '@adonisjs/inertia/react'
-import { ArrowRight, KeyRound, UserCog, UserMinus, UserCheck, X } from 'lucide-react'
+import {
+  ArrowRight,
+  Ban,
+  KeyRound,
+  ShieldCheck,
+  ShieldOff,
+  UserCog,
+  UserMinus,
+  UserCheck,
+  X,
+} from 'lucide-react'
 import type { OrgUnitNode, RoleSummary, UserSummary } from 'adula'
 import Workspace from '~/layouts/workspace'
 import { AdminHeader, useDateTimeFormatter } from '~/components/admin-nav'
@@ -20,14 +30,31 @@ import {
   TableRow,
 } from '~/components/ui/table'
 
-type Props = { user: UserSummary; roles: RoleSummary[]; orgUnits: OrgUnitNode[] }
+/** Token metadata from the server; the secret is never sent. */
+type TokenSummary = {
+  id: number
+  name: string | null
+  access: 'read' | 'write'
+  createdAt: string
+  lastUsedAt: string | null
+  expiresAt: string | null
+}
+type Props = {
+  user: UserSummary
+  roles: RoleSummary[]
+  orgUnits: OrgUnitNode[]
+  tokens: TokenSummary[]
+  /** Status only: the secret and recovery codes never leave the server. */
+  twoFactor: { enabled: boolean; enabledAt: string | null; recoveryRemaining: number }
+}
 /** Indents nested units in a flat list so the hierarchy stays readable. */
 const unitOption = (unit: OrgUnitNode) => ({
   value: String(unit.id),
   label: `${'· '.repeat(unit.depth - 1)}${unit.name}`,
 })
 
-export default function UserShow({ user, roles, orgUnits }: Props) {
+export default function UserShow({ user, roles, orgUnits, tokens, twoFactor }: Props) {
+  const self = usePage<{ user?: { id: number } }>().props.user?.id === user.id
   const formatDateTime = useDateTimeFormatter()
   const { confirm, confirmation } = useConfirmAction()
   const [roleId, setRoleId] = useState(roles[0] ? String(roles[0].id) : '')
@@ -86,7 +113,8 @@ export default function UserShow({ user, roles, orgUnits }: Props) {
           onClick={() =>
             confirm({
               title: 'إنهاء جميع الجلسات؟',
-              description: 'سيُطلب من هذا المستخدم تسجيل الدخول مجددًا.',
+              description:
+                'سيُطلب من هذا المستخدم تسجيل الدخول مجددًا، وتُلغى رموز الوصول الخاصة به.',
               destructive: true,
               action: () => post(`${base}/revoke-sessions`),
             })
@@ -244,6 +272,118 @@ export default function UserShow({ user, roles, orgUnits }: Props) {
           </CardContent>
         </Card>
       </div>
+      <Card className="mt-6">
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <CardTitle>رموز الوصول البرمجي</CardTitle>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={tokens.length === 0}
+            onClick={() =>
+              confirm({
+                title: 'إلغاء جميع رموز الوصول؟',
+                description: `ستتوقف ${tokens.length} من الرموز عن العمل فورًا، ولا يمكن التراجع.`,
+                destructive: true,
+                action: () => post(`${base}/revoke-tokens`),
+              })
+            }
+          >
+            <Ban size={16} />
+            إلغاء جميع الرموز
+          </Button>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>الاسم</TableHead>
+                <TableHead>الصلاحية</TableHead>
+                <TableHead>أُنشئ</TableHead>
+                <TableHead>آخر استخدام</TableHead>
+                <TableHead>ينتهي</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {tokens.map((token) => (
+                <TableRow key={token.id}>
+                  <TableCell>{token.name ?? 'بلا اسم'}</TableCell>
+                  <TableCell>
+                    <Badge variant={token.access === 'write' ? 'default' : 'secondary'}>
+                      {token.access === 'write' ? 'قراءة وكتابة' : 'قراءة فقط'}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="tabular-nums">{formatDateTime(token.createdAt)}</TableCell>
+                  <TableCell className="tabular-nums text-muted-foreground">
+                    {token.lastUsedAt ? formatDateTime(token.lastUsedAt) : 'لم يُستخدم'}
+                  </TableCell>
+                  <TableCell className="tabular-nums text-muted-foreground">
+                    {token.expiresAt ? formatDateTime(token.expiresAt) : 'بلا انتهاء'}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {tokens.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                    لا رموز وصول لهذا المستخدم.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+      <Card className="mt-6">
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <CardTitle className="flex items-center gap-2">
+            <ShieldCheck size={16} />
+            التحقق بخطوتين
+          </CardTitle>
+          {twoFactor.enabled && !self && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                confirm({
+                  title: 'إعادة ضبط التحقق بخطوتين؟',
+                  description:
+                    'يُحذف تطبيق المصادقة ورموز الاسترداد لهذا المستخدم، وتنتهي جميع جلساته ورموز الوصول البرمجي الخاصة به فورًا. سيدخل بعدها بكلمة المرور وحدها ثم يفعّل التحقق من جديد. استخدمها فقط بعد التأكد من هويته.',
+                  destructive: true,
+                  label: 'إعادة الضبط وإنهاء الجلسات',
+                  action: () => post(`${base}/reset-two-factor`),
+                })
+              }
+            >
+              <ShieldOff size={16} />
+              إعادة ضبط التحقق
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-8 gap-y-3 text-sm">
+            <dt className="text-muted-foreground">الحالة</dt>
+            <dd>
+              {twoFactor.enabled ? (
+                <Badge>مفعّل</Badge>
+              ) : (
+                <Badge variant="secondary">غير مفعّل</Badge>
+              )}
+            </dd>
+            {twoFactor.enabled && (
+              <>
+                <dt className="text-muted-foreground">فُعّل في</dt>
+                <dd className="tabular-nums">{formatDateTime(twoFactor.enabledAt)}</dd>
+                <dt className="text-muted-foreground">رموز الاسترداد المتبقية</dt>
+                <dd className="tabular-nums">{twoFactor.recoveryRemaining} من 10</dd>
+              </>
+            )}
+          </dl>
+          {twoFactor.enabled && self && (
+            <p className="mt-4 text-xs text-muted-foreground">
+              هذا حسابك؛ أدِر التحقق بخطوتين من صفحة الملف الشخصي.
+            </p>
+          )}
+        </CardContent>
+      </Card>
       {confirmation}
     </>
   )

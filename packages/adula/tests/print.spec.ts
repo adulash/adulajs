@@ -1,7 +1,13 @@
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { test } from '@japa/runner'
-import { ResourceService, htmlToPdf, renderPrintHtml } from '../index.js'
+import {
+  PRINT_LOGO_LIMIT,
+  ResourceService,
+  htmlToPdf,
+  imageDataUri,
+  renderPrintHtml,
+} from '../index.js'
 import { admin, db, reader, registry, setup } from './helpers.js'
 
 test.group('Printing', (group) => {
@@ -62,5 +68,38 @@ test.group('Printing', (group) => {
     } finally {
       server.close()
     }
+  })
+
+  test('the logo is printed only as an inline image so the PDF renderer fetches no URL', async ({
+    assert,
+  }) => {
+    const service = new ResourceService(db, registry)
+    const saved = await service.save('orders', admin, { notes: 'شعار', orgUnitId: 2 })
+    const shown = await service.show('orders', Number(saved.id), admin)
+    const render = (logoUrl: string | null) =>
+      renderPrintHtml({
+        identity: { name: 'شركة الاختبار', logoUrl },
+        resource: service.describe('orders', admin),
+        record: shown.data,
+        printedBy: 'المختبر',
+      })
+    const png = imageDataUri(Buffer.from([0x89, 0x50, 0x4e, 0x47]), 'brand/logo.PNG')
+    assert.equal(png, 'data:image/png;base64,iVBORw==')
+    const inline = render(png)
+    assert.include(inline, '<img class="logo" src="data:image/png;base64,iVBORw==" alt="">')
+    assert.include(inline, "default-src 'none'; img-src data:")
+    for (const url of [
+      'http://169.254.169.254/latest/meta-data',
+      'http://redis:6379/',
+      'https://example.com/logo.png',
+      'file:///etc/passwd',
+      '/brand/logo.png',
+      'data:text/html;base64,PHNjcmlwdD4=',
+      'data:image/png;base64,AAAA" onerror="x',
+    ])
+      assert.notInclude(render(url), '<img', url)
+    assert.isNull(imageDataUri(Buffer.from('x'), 'logo.html'))
+    assert.isNull(imageDataUri(Buffer.alloc(PRINT_LOGO_LIMIT + 1), 'logo.png'))
+    assert.isNull(imageDataUri(Buffer.alloc(0), 'logo.png'))
   })
 })

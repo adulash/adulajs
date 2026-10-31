@@ -18,9 +18,15 @@ import {
   createNotificationTargetsSchema,
   createUploadGrantsSchema,
   createInboundWebhooksSchema,
+  createTwoFactorSchema,
+  createWorkflowDelegationSlaSchema,
   createResourceTable,
 } from '../index.js'
 import type { Actor, RecordData } from '../index.js'
+import { createImportModesSchema, createImportLeasesSchema } from '../index.js'
+import { createSyncJobsSchema } from '../index.js'
+import { createPrintTemplatesSchema } from '../index.js'
+import { createNotificationChannelsSchema, createChannelConfirmationsSchema } from '../index.js'
 
 export const customer = defineResource({
   name: 'customers',
@@ -114,7 +120,7 @@ export const registry = new ResourceRegistry().register([
   { name: 'customers', label: customer.label, dependsOn: [], resources: [customer] },
   { name: 'orders', label: order.label, dependsOn: ['customers'], resources: [order, line] },
 ])
-const local = process.env.TEST_DATABASE_URL
+export const testConnection = process.env.TEST_DATABASE_URL
   ? process.env.TEST_DATABASE_URL
   : {
       ...JSON.parse(
@@ -125,7 +131,7 @@ const local = process.env.TEST_DATABASE_URL
     }
 export const db = knex({
   client: 'pg',
-  connection: local,
+  connection: testConnection,
   pool: { min: 0, max: 8 },
   searchPath: ['adula_test', 'public'],
 })
@@ -176,6 +182,14 @@ export async function setup() {
   await createNotificationTargetsSchema(db)
   await createUploadGrantsSchema(db)
   await createInboundWebhooksSchema(db)
+  await createTwoFactorSchema(db)
+  await createImportModesSchema(db)
+  await createImportLeasesSchema(db)
+  await createSyncJobsSchema(db)
+  await createNotificationChannelsSchema(db)
+  await createChannelConfirmationsSchema(db)
+  await createWorkflowDelegationSlaSchema(db)
+  await createPrintTemplatesSchema(db)
   await db('org_units').insert([
     { id: 1, name: 'Root', type: 'root', path: '1' },
     { id: 2, parent_id: 1, name: 'A', type: 'unit', path: '1.2' },

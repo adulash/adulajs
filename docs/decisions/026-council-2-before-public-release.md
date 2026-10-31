@@ -1,5 +1,7 @@
 # ADR 026 — Council 2: does the framework work outside its owner's head?
 
+Superseded by ADR 040.
+
 Date: 2026-09-25. Status: **accepted** by the owner on 2026-09-25 (ADR 028).
 
 Plan rule 8 calls the council twice: after phase 2 (ADR 025) and before public

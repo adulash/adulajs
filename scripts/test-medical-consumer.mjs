@@ -7,9 +7,10 @@ import { dirname, join, resolve, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseEnv } from 'node:util'
 import { setTimeout as delay } from 'node:timers/promises'
-import { childEnvironment } from '../packages/create-adula-app/src/system.mjs'
+import { childEnvironment } from '../packages/create-adulajs/src/system.mjs'
 import { resources } from '../tests/medical-consumer/resources.mjs'
 import { installMedicalModule } from '../tests/medical-consumer/install.mjs'
+import { run } from './lib/run.mjs'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
 const work = join(root, '.work')
@@ -42,16 +43,8 @@ assert(profile.database.endsWith('_test'))
 const reference = process.env.TEST_DATABASE_URL ? process.env : parseEnv(await readFile(join(root, 'apps/reference/.env.test'), 'utf8'))
 const hash = async (path) => createHash('sha256').update(await readFile(path)).digest('hex')
 async function step(name, executable, argv, { cwd = target, env = environment, expected = 0 } = {}) {
-  const file = await open(join(directory, `${name}.log`), 'w')
-  let code
-  try {
-    code = await new Promise((done, reject) => {
-      const child = spawn(executable, argv, { cwd, env, windowsHide: true, stdio: ['ignore', file.fd, file.fd] })
-      child.once('error', reject)
-      child.once('exit', (status, signal) => signal ? reject(new Error(`${name} stopped by ${signal}`)) : done(status))
-    })
-  } finally { await file.close() }
-  assert([expected].flat().includes(code), `${name} failed (exit ${code}); private log: ${join(directory, `${name}.log`)}`)
+  // Private logs may contain credentials: never echo their tail to the console.
+  const { code } = await run(executable, argv, { cwd, env, log: join(directory, `${name}.log`), expect: expected, label: `Medical step ${name}`, echo: false })
   state.checks.push({ name, exitCode: code, at: new Date().toISOString() })
   await save()
   console.log(`${code === 0 ? 'PASS' : 'THRESHOLD FAILURE'} ${name}`)
@@ -71,7 +64,7 @@ await stage('create', async () => {
     postgres: { host: profile.host, port: profile.port, user: profile.user, password: profile.password },
     redis: { host: reference.REDIS_HOST, port: Number(reference.REDIS_PORT), ...(reference.REDIS_PASSWORD ? { password: reference.REDIS_PASSWORD } : {}) },
   }), { mode: 0o600 })
-  await step('create', process.execPath, [join(root, 'packages/create-adula-app/build/cli.mjs'), target,
+  await step('create', process.execPath, [join(root, 'packages/create-adulajs/build/cli.mjs'), target,
     '--company', 'شريحة الأصول الطبية التجريبية', '--admin-email', 'owner@example.test',
     '--services', 'existing', '--connection', join(directory, 'services.json'),
     '--database', `adula_medical_${stamp}_test`, '--packages', work, '--yes'], { cwd: root })
@@ -83,7 +76,7 @@ await stage('create', async () => {
 })
 
 await stage('module', async () => {
-  for (const resource of resources) await ace(`generate-${resource.name}`, ['adula:resource', resource.name, '--module=medical'])
+  for (const resource of resources) await ace(`generate-${resource.name}`, ['adula:resource', resource.name, '--module=medical', '--validator', '--model'])
   await installMedicalModule(target)
   // Application-owned Drive configuration makes isolated recovery use a separate disk root.
   const drivePath = join(target, 'config/drive.ts')

@@ -8,6 +8,8 @@ pnpm --filter adula build
 pnpm --filter @adula/ui build
 ```
 
+The reference application's `inertia/components/ui` and `ui.lock.json` are generated from `packages/ui/registry` and not tracked. On a fresh clone, run `pnpm build` or `node scripts/ui-registry.mjs reference` before filtered reference commands (`pnpm --filter @adula/reference …`) and `pnpm lint`. The root `build`, `dev`, `typecheck` and `test` scripts regenerate them.
+
 Copy `apps/reference/.env.example` into local `.env` and `.env.test` files. Generate separate APP_KEY values with `node ace generate:key`, set database/Redis connections, and use `DRIVE_DISK=local` unless a real S3 disk is configured. Tests require a dedicated database ending in `_test`; set `TEST_DATABASE_URL` for core tests. Never commit credentials.
 
 On the original Windows workstation, `pwsh -File scripts/local-postgres.ps1` and `node scripts/setup-local.mjs` provision the isolated loopback PostgreSQL profile on port 55432. Run Redis separately with `wsl -d Ubuntu --exec sh scripts/local-redis.sh` (port 16379), then run:
@@ -17,7 +19,7 @@ pnpm --filter @adula/reference exec node ace migration:run
 pnpm dev
 ```
 
-Open `http://127.0.0.1:3333`, create an account, set `ADULA_ADMIN_EMAIL` and run `pnpm --filter @adula/reference exec node ace adula:install`. Local `adula:seed` can create an administrator with random credentials saved to ignored `tmp/dev-admin.txt`; normal mode creates no educational business records. Signup itself grants no roles or organizational access.
+Set `ADULA_ADMIN_EMAIL` and run `pnpm --filter @adula/reference exec node ace adula:install`; when that account does not exist and no administrator does, it is created and its one-time password is printed on the terminal. If you registered that account yourself first, its password is replaced (printed once) and its sessions and tokens end unless you pass `--keep-password`. Open `http://127.0.0.1:3333` and sign in. With `SIGNUP_ENABLED` unset, self-signup closes (404) once an administrator exists; set it to `true` to keep it open locally. Local `adula:seed` can create an administrator with random credentials saved to ignored `tmp/dev-admin.txt`; normal mode creates no educational business records. Signup itself grants no roles or organizational access.
 
 Run the worker with `pnpm --filter @adula/reference exec node ace adula:worker` and exactly one scheduler with `pnpm --filter @adula/reference exec node ace scheduler:run`.
 
@@ -50,7 +52,7 @@ After the fixture-path relocation, use a fresh dedicated test database if an old
 
 Supply `ADULA_STARTER_PATH` or checkout `adonisjs/starter-kits` revision `7e1c7930ec260ea38c3eb394eb192e05c12d3f7b` into `.work/starter-kits-main`. Database credentials come from `TEST_DATABASE_URL` or ignored `.work/test-database.json`. The harness creates its own `adula_consumer_<timestamp>_test` database and overrides inherited database variables.
 
-`pnpm test:upgrade:synthetic` is a local compatibility rehearsal with a synthetic baseline, not proof of a genuine published minor-version upgrade. Acceptance still requires a separately released predecessor and a customized independent consumer. `pnpm test:upgrade` refuses ambiguous use, and synthetic mode rejects `ADULA_PREVIOUS_VERSION`. See the [acceptance runbook](release-acceptance-runbook.md).
+`pnpm test:upgrade:synthetic` is a local compatibility rehearsal with a synthetic baseline, not proof of a genuine published minor-version upgrade. The genuine upgrade is `pnpm test:upgrade --published=<version>`, which installs that published version first; CI runs it. `pnpm test:upgrade` refuses ambiguous use, and synthetic mode rejects `ADULA_PREVIOUS_VERSION`. See [releasing](releasing.md).
 
 CI builds/packs the creator once and uses `test:create --reuse-packages` for both service modes, retaining the exact core/UI archives exercised by `test:consumer`. This flag skips only rebuilding/repacking; it still creates and verifies a fresh independent application.
 
@@ -76,4 +78,4 @@ Source credentials require read access for backups and write/read/delete access 
 
 For recovery from offsite storage, download the complete snapshot prefix into the backups volume, including its manifest, checksums and marker. Run `make restore FILE=/backups/<UTC timestamp>` with the original disk configuration. This stops traffic, verifies snapshot integrity, restores the database, restores and reads back every original attachment key, and reconciles queue/cache state before restarting services. A failure leaves services stopped; inspect the error before retrying. `backup:restore-files --snapshot=<directory> --apply` is the explicit file-only recovery command after the database has been restored. Do not use it against a running application or a different database snapshot. Legacy archives lack a manifest and remain local-only.
 
-Local Compose application services and the backup/restore shell passed Docker acceptance; see [Docker operations](docker-operations.md) and [dated evidence](evidence/docker-backup-2026-09-22.json). Caddy/TLS, `make deploy`, natural scheduled execution and staging supervision remain pending. Production requires database sessions and real `BACKUP_S3_*` configuration. `backup:verify` checks objects; `backup:restore-test` separately restores a record and attachment. See [gaps](../GAPS.md).
+Docker Compose services, backups and restores are described in [operations](operations.md). Caddy/TLS, `make deploy`, natural scheduled execution and staging supervision remain pending. Production requires database sessions and real `BACKUP_S3_*` configuration. `backup:verify` checks objects; `backup:restore-test` separately restores a record and attachment. See [gaps](../GAPS.md).

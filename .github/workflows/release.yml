@@ -1,22 +1,9 @@
 name: Release npm packages
+# Pushing a v<version> tag that points into main releases that version on `latest`.
+# The `npm` environment's required reviewer is the owner's authorization (ADR 040).
 on:
-  workflow_dispatch:
-    inputs:
-      version:
-        description: Exact version in the reviewed v-prefixed tag
-        required: true
-        type: string
-      channel:
-        description: alpha for the authorized experimental release; next/latest remain acceptance-gated
-        required: true
-        default: alpha
-        type: choice
-        options: [alpha, next, latest]
-      bootstrap:
-        description: Sign alpha archives for the owner's first authenticated publication
-        required: true
-        default: false
-        type: boolean
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
 permissions:
   contents: read
 concurrency:
@@ -24,10 +11,11 @@ concurrency:
   cancel-in-progress: false
 jobs:
   prepare:
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       sha: ${{ steps.release.outputs.sha }}
+      version: ${{ steps.release.outputs.version }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -36,33 +24,32 @@ jobs:
       # Release jobs never restore a package cache (setup-node v5+ enables one by default).
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with: { node-version: 24, package-manager-cache: false }
-      - name: Verify destination, tag and acceptance
+      - name: Verify the tag, its place on main and the package versions
         id: release
         env:
-          VERSION: ${{ inputs.version }}
-          RELEASE_CHANNEL: ${{ inputs.channel }}
+          TAG: ${{ github.ref_name }}
           REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
         shell: bash
         run: |
           set -euo pipefail
           test "$REPOSITORY_PRIVATE" = false
-          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-(next|alpha|beta|rc)\.[0-9]+)?$ ]]
-          sha=$(git rev-parse "refs/tags/v${VERSION}^{commit}")
+          version="${TAG#v}"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Only stable vX.Y.Z tags are released, got $TAG"; exit 1; }
+          sha=$(git rev-parse "refs/tags/${TAG}^{commit}")
           git merge-base --is-ancestor "$sha" origin/main
-          git checkout --detach "$sha"
-          node --input-type=module -e "import fs from 'node:fs'; if (JSON.parse(fs.readFileSync('packages/adula/package.json')).version !== process.env.VERSION) throw new Error('Tag/version mismatch')"
-          node scripts/check-release.mjs --channel="$RELEASE_CHANNEL"
+          VERSION="$version" node --input-type=module -e "import fs from 'node:fs'; if (JSON.parse(fs.readFileSync('packages/adula/package.json')).version !== process.env.VERSION) throw new Error('Tag/version mismatch')"
+          node scripts/check-release.mjs
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
   verify:
     needs: prepare
     uses: ./.github/workflows/ci.yml
     with:
       ref: ${{ needs.prepare.outputs.sha }}
-      release-channel: ${{ inputs.channel }}
   publish:
-    if: inputs.bootstrap != true
     needs: [prepare, verify]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     environment: npm
     permissions:
       contents: read
@@ -84,57 +71,20 @@ jobs:
           name: npm-packages-${{ github.run_id }}
           path: .work/release
       - name: Verify the downloaded consumer-tested archives
-        env:
-          RELEASE_CHANNEL: ${{ inputs.channel }}
         run: |
           cd .work/release
           sha256sum --check SHA256SUMS
           cd ../..
-          node scripts/check-release.mjs --artifacts=.work/release --channel="$RELEASE_CHANNEL"
+          node scripts/check-release.mjs --artifacts=.work/release
       - name: Publish through npm trusted publishing
         env:
-          VERSION: ${{ inputs.version }}
-          RELEASE_CHANNEL: ${{ inputs.channel }}
+          VERSION: ${{ needs.prepare.outputs.version }}
         run: |
-          npm publish ".work/release/adula-${VERSION}.tgz" --access public --provenance --tag "$RELEASE_CHANNEL" --ignore-scripts
-          npm publish ".work/release/adula-ui-${VERSION}.tgz" --access public --provenance --tag "$RELEASE_CHANNEL" --ignore-scripts
-          npm publish ".work/release/create-adula-app-${VERSION}.tgz" --access public --provenance --tag "$RELEASE_CHANNEL" --ignore-scripts
-  bootstrap:
-    if: inputs.bootstrap == true && inputs.channel == 'alpha'
-    needs: [prepare, verify]
-    runs-on: ubuntu-latest
-    environment: npm
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ needs.prepare.outputs.sha }}
-          persist-credentials: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with: { node-version: 24, package-manager-cache: false }
-      - run: npm install --global npm@11.19.1
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: npm-packages-${{ github.run_id }}
-          path: .work/release
-      - name: Verify and sign the exact consumer-tested alpha archives
-        env:
-          RELEASE_SHA: ${{ needs.prepare.outputs.sha }}
-        run: |
-          cd .work/release
-          sha256sum --check SHA256SUMS
-          cd ../..
-          node scripts/check-release.mjs --artifacts=.work/release --channel=alpha
-          node scripts/sign-bootstrap.mjs "$(npm root -g)/npm"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: signed-alpha-${{ github.run_id }}
-          path: |
-            .work/release/*.tgz
-            .work/release/*.sigstore
-            .work/release/SHA256SUMS
-          include-hidden-files: true
-          if-no-files-found: error
-          retention-days: 14
+          npm publish ".work/release/adula-${VERSION}.tgz" --access public --provenance --tag latest --ignore-scripts
+          npm publish ".work/release/adula-ui-${VERSION}.tgz" --access public --provenance --tag latest --ignore-scripts
+          # A new package name has no trusted publisher until its first manual publication.
+          if npm view create-adulajs version > /dev/null 2>&1; then
+            npm publish ".work/release/create-adulajs-${VERSION}.tgz" --access public --provenance --tag latest --ignore-scripts
+          else
+            echo "::warning::create-adulajs is not on npm yet; publish create-adulajs-${VERSION}.tgz from this run's artifact by hand (docs/releasing.md)"
+          fi

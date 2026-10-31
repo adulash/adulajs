@@ -75,7 +75,7 @@ async function main() {
     const body = [
       'This issue does not follow AdulaJS issue forms (`.github/ISSUE_TEMPLATE/gap.yml` or `bug.yml`).',
       `Missing or empty in the closest form (${result.closest}): ${result.missing.join(', ')}.`,
-      'Edit the issue to add these sections as `### <label>` headings. Describe AdulaJS, not a project, and reproduce on a new application from create-app. `node ace adula:gaps report` prints a prefilled form link for each GAPS.md entry.',
+      'Edit the issue to add these sections as `### <label>` headings. Describe AdulaJS, not a project, and reproduce on a new system from create-adulajs. `node ace adula:gaps report` prints a prefilled form link for each GAPS.md entry.',
     ].join('\n\n')
     await github(`/issues/${issue.number}/comments`, { method: 'POST', body: JSON.stringify({ body }) })
     console.log(`#${issue.number}: missing ${result.missing.join(', ')}`)

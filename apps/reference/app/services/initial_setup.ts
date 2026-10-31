@@ -42,12 +42,20 @@ export const infrastructureFingerprint = () =>
     env.get('REDIS_PORT'),
     env.get('REDIS_PASSWORD'),
   ])
-export const oauthFingerprint = (provider: 'github' | 'google') =>
-  fingerprint(
-    provider === 'github'
-      ? [env.get('GITHUB_CLIENT_ID'), env.get('GITHUB_CLIENT_SECRET'), env.get('APP_URL')]
-      : [env.get('GOOGLE_CLIENT_ID'), env.get('GOOGLE_CLIENT_SECRET'), env.get('APP_URL')]
-  )
+type OauthProvider = 'github' | 'google' | 'microsoft'
+/** Credentials that make each provider usable; mirrors app/services/social_accounts.ts. */
+const oauthCredentials = (provider: OauthProvider) =>
+  provider === 'github'
+    ? [env.get('GITHUB_CLIENT_ID'), env.get('GITHUB_CLIENT_SECRET')]
+    : provider === 'google'
+      ? [env.get('GOOGLE_CLIENT_ID'), env.get('GOOGLE_CLIENT_SECRET')]
+      : [
+          env.get('MICROSOFT_CLIENT_ID'),
+          env.get('MICROSOFT_CLIENT_SECRET'),
+          env.get('MICROSOFT_TENANT_ID'),
+        ]
+export const oauthFingerprint = (provider: OauthProvider) =>
+  fingerprint([...oauthCredentials(provider), env.get('APP_URL')])
 
 export async function identity() {
   try {
@@ -59,7 +67,7 @@ export async function identity() {
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
     const root = await database()('org_units').whereNull('parent_id').orderBy('id').first('name')
-    return { company: root?.name ?? 'التطبيق المرجعي', logo: null }
+    return { company: root?.name ?? 'النظام المرجعي', logo: null }
   }
 }
 
@@ -136,11 +144,8 @@ export async function setupSnapshot(user: { id: number; email: string }) {
     : null
   const mail = await mailTest().current(user.id, user.email, mailFingerprint())
   const oauth = await Promise.all(
-    (['github', 'google'] as const).map(async (provider) => {
-      const configured =
-        provider === 'github'
-          ? Boolean(env.get('GITHUB_CLIENT_ID') && env.get('GITHUB_CLIENT_SECRET'))
-          : Boolean(env.get('GOOGLE_CLIENT_ID') && env.get('GOOGLE_CLIENT_SECRET'))
+    (['github', 'google', 'microsoft'] as const).map(async (provider) => {
+      const configured = oauthCredentials(provider).every(Boolean)
       const proof = await settings.get<{ fingerprint: string; at: string }>(
         `setup.oauth.${provider}`
       )

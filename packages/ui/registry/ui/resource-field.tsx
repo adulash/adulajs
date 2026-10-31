@@ -3,6 +3,8 @@ import { useHttp } from '@inertiajs/react'
 import axios from 'axios'
 import { format } from 'date-fns'
 import {
+  ArrowDown,
+  ArrowUp,
   CalendarDays,
   Check,
   ChevronsUpDown,
@@ -14,11 +16,15 @@ import {
   X,
 } from 'lucide-react'
 import type { CalendarSystem, ResourceEditor, ResourceField as Field } from 'adula'
+import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
+import { Checkbox } from '~/components/ui/checkbox'
 import { Calendar } from '~/components/ui/calendar'
 import { HijriCalendar } from '~/components/ui/hijri-calendar'
 import { calendarInput, calendarIso } from '~/components/ui/calendar_date'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
+import { useMessages } from '~/components/ui/messages'
+import { AttachmentPreviewButton } from '~/components/ui/attachment-preview'
 import {
   Command,
   CommandEmpty,
@@ -29,7 +35,12 @@ import {
 } from '~/components/ui/command'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
-import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
+import {
+  Popover,
+  PopoverAnchor,
+  PopoverContent,
+  PopoverTrigger,
+} from '~/components/ui/popover'
 import { Switch } from '~/components/ui/switch'
 import { Textarea } from '~/components/ui/textarea'
 import {
@@ -40,8 +51,19 @@ import {
   SelectValue,
 } from '~/components/ui/select'
 import {
+  decimalScale,
+  hiddenFields,
+  listInput,
+  listValue,
+  orderedSelection,
+  parseDecimal,
+} from '~/components/ui/field_values'
+import {
   CURRENCY_LABEL,
+  PERCENT_LABEL,
+  fieldOptions,
   fileSize,
+  isAttachment,
   moneyDisplay,
   moneyInput,
   parseMoney,
@@ -70,6 +92,8 @@ export type FieldProps = {
   options?: Option[]
   relation?: RelationSource
   attachment?: AttachmentValue | null
+  /** The stored files of a multiple attachment field, in order (ADR 047). */
+  attachments?: AttachmentValue[]
   /** Resource name; attachment uploads are claimed against it. */
   resource?: string
   /** Accessible name when the visible label lives elsewhere, e.g. inline rows. */
@@ -79,7 +103,7 @@ export function ResourceSelect({
   value,
   onChange,
   options,
-  placeholder = 'اختر قيمة',
+  placeholder,
   required,
   disabled,
   className = 'h-10 w-full',
@@ -97,6 +121,8 @@ export function ResourceSelect({
   /** Trigger size and width; forms keep the default, toolbars pass a compact size. */
   className?: string
 }) {
+  const { t } = useMessages()
+  const empty = placeholder ?? t('اختر قيمة')
   // Encode values so an empty selection cannot collide with a business lookup key.
   return (
     <Select
@@ -106,10 +132,10 @@ export function ResourceSelect({
       disabled={disabled}
     >
       <SelectTrigger {...trigger} className={className} aria-required={required}>
-        <SelectValue placeholder={placeholder} />
+        <SelectValue placeholder={empty} />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="value:">{placeholder}</SelectItem>
+        <SelectItem value="value:">{empty}</SelectItem>
         {options
           .filter((option) => String(option.value) !== '')
           .map((option) => (
@@ -124,13 +150,16 @@ export function ResourceSelect({
 
 export function ResourceField(props: FieldProps) {
   const { field, id, error } = props
+  const { label } = useMessages()
   return (
     <div
-      className={`min-w-0 space-y-2 ${['text', 'json'].includes(field.type) ? 'md:col-span-2' : ''}`}
+      className={`min-w-0 space-y-2 ${['text', 'json', 'manyToMany'].includes(field.type) ? 'md:col-span-2' : ''}`}
     >
       {/* The marker stays outside the label so the field's accessible name is the label alone. */}
       <div className="flex items-center gap-1">
-        <Label htmlFor={id}>{field.label.ar}</Label>
+        <Label id={`${id}-label`} htmlFor={id}>
+          {label(field.label)}
+        </Label>
         {field.required && (
           <span className="text-destructive" aria-hidden="true">
             *
@@ -149,6 +178,7 @@ export function ResourceField(props: FieldProps) {
 
 export function FieldControl(props: FieldProps) {
   const { field, id, value, onChange, disabled, error, label } = props
+  const { t, locale } = useMessages()
   const shared = {
     id,
     disabled,
@@ -161,6 +191,46 @@ export function FieldControl(props: FieldProps) {
     case 'belongsTo':
     case 'user':
       return <RelationCombobox {...props} />
+    case 'manyToMany':
+      return <RelationMultiPicker {...props} />
+    case 'multiSelect':
+      return <MultiSelectControl {...props} />
+    case 'enum':
+      return (
+        <ResourceSelect
+          {...shared}
+          value={value}
+          onChange={onChange}
+          options={props.options ?? fieldOptions(field, locale)}
+        />
+      )
+    case 'decimal':
+    case 'percent':
+      return <DecimalControl {...props} />
+    case 'email':
+    case 'phone':
+    case 'url':
+    case 'string': {
+      // A string with `format` uses the same control as the dedicated type.
+      const kind = field.type === 'string' ? field.format : field.type
+      if (!kind) break
+      return (
+        <Input
+          {...shared}
+          type={kind === 'phone' ? 'tel' : kind}
+          inputMode={kind === 'phone' ? 'tel' : kind}
+          autoComplete={kind === 'url' ? 'url' : kind === 'email' ? 'email' : 'tel'}
+          dir="ltr"
+          spellCheck={false}
+          placeholder={
+            kind === 'url' ? 'https://' : kind === 'email' ? 'name@example.com' : '+966 5x xxx xxxx'
+          }
+          className="h-10 text-start"
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      )
+    }
     case 'lookup':
       return (
         <ResourceSelect
@@ -179,11 +249,17 @@ export function FieldControl(props: FieldProps) {
             checked={value === 'true'}
             onCheckedChange={(checked) => onChange(checked ? 'true' : 'false')}
           />
-          <span className="text-sm text-muted-foreground">{value === 'true' ? 'نعم' : 'لا'}</span>
+          <span className="text-sm text-muted-foreground">
+            {value === 'true' ? t('نعم') : t('لا')}
+          </span>
         </div>
       )
     case 'attachment':
-      return <AttachmentControl {...props} />
+      return field.multiple ? (
+        <MultipleAttachmentControl {...props} />
+      ) : (
+        <AttachmentControl {...props} />
+      )
     case 'text':
       return (
         <Textarea
@@ -214,20 +290,20 @@ export function FieldControl(props: FieldProps) {
           onChange={(event) => onChange(event.target.value)}
         />
       )
-    default:
-      return (
-        <Input
-          {...shared}
-          type="text"
-          className="h-10"
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-        />
-      )
   }
+  return (
+    <Input
+      {...shared}
+      type="text"
+      className="h-10"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+    />
+  )
 }
 
 function MoneyControl({ id, value, onChange, disabled, error, field, label }: FieldProps) {
+  const { t } = useMessages()
   let preview = ''
   try {
     if (value) preview = moneyDisplay(parseMoney(value))
@@ -236,7 +312,8 @@ function MoneyControl({ id, value, onChange, disabled, error, field, label }: Fi
   }
   return (
     <div className="space-y-1">
-      <div className="relative">
+      {/* LTR like the input, so the suffix and its padding share one physical side. */}
+      <div className="relative" dir="ltr">
         <Input
           id={id}
           type="text"
@@ -260,20 +337,129 @@ function MoneyControl({ id, value, onChange, disabled, error, field, label }: Fi
           }}
         />
         <span className="pointer-events-none absolute inset-y-0 end-3 flex items-center text-xs text-muted-foreground">
-          {CURRENCY_LABEL}
+          {t(CURRENCY_LABEL)}
         </span>
       </div>
       {preview && (
         <p className="text-xs text-muted-foreground" dir="ltr">
-          {preview} {CURRENCY_LABEL}
+          {preview} {t(CURRENCY_LABEL)}
         </p>
       )}
     </div>
   )
 }
 
+/**
+ * Decimal and percent entry: Arabic-Indic digits and the Arabic decimal separator are
+ * accepted and normalized to the field's scale on blur; percent shows the ٪ suffix.
+ */
+function DecimalControl({ id, value, onChange, disabled, error, field, label }: FieldProps) {
+  const { t } = useMessages()
+  const scale = decimalScale(field)
+  const percent = field.type === 'percent'
+  const hint = `${id}-hint`
+  return (
+    <div className="space-y-1">
+      {/* LTR like the input, so the suffix and its padding share one physical side. */}
+      <div className="relative" dir="ltr">
+        <Input
+          id={id}
+          type="text"
+          inputMode="decimal"
+          dir="ltr"
+          placeholder={scale ? `0.${'0'.repeat(scale)}` : '0'}
+          className={`h-10 text-end tabular-nums ${percent ? 'pe-9' : ''}`}
+          value={value}
+          disabled={disabled}
+          required={field.required}
+          aria-label={label}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${id}-error ${hint}` : hint}
+          onChange={(event) => onChange(event.target.value)}
+          onBlur={() => {
+            try {
+              if (value) onChange(parseDecimal(value, scale))
+            } catch {
+              // Keep the typed text so the submit error can point at it.
+            }
+          }}
+        />
+        {percent && (
+          <span className="pointer-events-none absolute inset-y-0 end-3 flex items-center text-sm text-muted-foreground">
+            {t(PERCENT_LABEL)}
+          </span>
+        )}
+      </div>
+      <p id={hint} className="text-xs text-muted-foreground">
+        {scale
+          ? t('المنازل العشرية: {scale} على الأكثر', { scale })
+          : t('عدد صحيح بلا منازل عشرية')}
+      </p>
+    </div>
+  )
+}
+
+/** Every option as a checkbox in definition order; the value is stored in that order. */
+function MultiSelectControl({
+  id,
+  value,
+  onChange,
+  disabled,
+  error,
+  field,
+  label,
+  options,
+}: FieldProps) {
+  const { t, label: localized, locale } = useMessages()
+  const choices = options ?? fieldOptions(field, locale)
+  const selected = listValue(value)
+  const toggle = (option: string, checked: boolean) => {
+    const next = checked ? [...selected, option] : selected.filter((entry) => entry !== option)
+    onChange(listInput(orderedSelection(choices, next)))
+  }
+  const described = [error ? `${id}-error` : '', field.required ? `${id}-required` : '']
+    .filter(Boolean)
+    .join(' ')
+  return (
+    <div
+      id={id}
+      role="group"
+      // Named by the visible field label (ResourceField); inline rows pass their own name.
+      aria-labelledby={label ? undefined : `${id}-label`}
+      aria-label={label ?? localized(field.label)}
+      aria-invalid={error ? true : undefined}
+      aria-describedby={described || undefined}
+      className="flex min-h-10 flex-wrap items-center gap-x-5 gap-y-2 rounded-md border px-3 py-2"
+    >
+      {field.required && (
+        <span id={`${id}-required`} className="sr-only">
+          {t('مطلوب')}
+        </span>
+      )}
+      {choices.map((option) => {
+        const optionId = `${id}-${option.value}`
+        return (
+          <div key={option.value} className="flex items-center gap-2">
+            <Checkbox
+              id={optionId}
+              checked={selected.includes(option.value)}
+              disabled={disabled}
+              onCheckedChange={(checked) => toggle(option.value, checked === true)}
+            />
+            <Label htmlFor={optionId} className="font-normal">
+              {option.label}
+            </Label>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 function DateControl({ id, value, onChange, disabled, error, field, label }: FieldProps) {
   const { calendar: preference } = useUiPreferences()
+  const { t, label: localized } = useMessages()
+  const name = label ?? localized(field.label)
   const [entryCalendar, setEntryCalendar] = useState<CalendarSystem>('gregory')
   const calendar = preference === 'both' ? entryCalendar : preference
   const [open, setOpen] = useState(false)
@@ -299,7 +485,7 @@ function DateControl({ id, value, onChange, disabled, error, field, label }: Fie
         <div
           className="flex gap-1"
           role="group"
-          aria-label={`تقويم الإدخال: ${label ?? field.label.ar}`}
+          aria-label={t('تقويم الإدخال: {field}', { field: name })}
         >
           <Button
             type="button"
@@ -308,7 +494,7 @@ function DateControl({ id, value, onChange, disabled, error, field, label }: Fie
             aria-pressed={calendar === 'gregory'}
             onClick={() => setEntryCalendar('gregory')}
           >
-            إدخال ميلادي
+            {t('إدخال ميلادي')}
           </Button>
           <Button
             type="button"
@@ -317,7 +503,7 @@ function DateControl({ id, value, onChange, disabled, error, field, label }: Fie
             aria-pressed={calendar === 'islamic-umalqura'}
             onClick={() => setEntryCalendar('islamic-umalqura')}
           >
-            إدخال هجري
+            {t('إدخال هجري')}
           </Button>
         </div>
       )}
@@ -350,7 +536,7 @@ function DateControl({ id, value, onChange, disabled, error, field, label }: Fie
               variant="outline"
               size="icon-lg"
               disabled={disabled}
-              aria-label={`التقويم: ${label ?? field.label.ar}`}
+              aria-label={t('التقويم: {field}', { field: name })}
             >
               <CalendarDays />
             </Button>
@@ -380,12 +566,14 @@ function DateControl({ id, value, onChange, disabled, error, field, label }: Fie
       </div>
       {calendar === 'islamic-umalqura' && (
         <p className="text-xs text-muted-foreground">
-          هجري · أم القرى {valid && <span dir="ltr">({normalized} ميلادي)</span>}
+          {t('هجري · أم القرى')}{' '}
+          {valid && <span dir="ltr">{t('({date} ميلادي)', { date: normalized })}</span>}
         </p>
       )}
       {preference === 'both' && calendar === 'gregory' && valid && (
         <p className="text-xs text-muted-foreground" aria-live="polite">
-          الموافق هجريًا: <span dir="ltr">{calendarInput(normalized, 'islamic-umalqura')}</span> هـ
+          {t('الموافق هجريًا:')}{' '}
+          <span dir="ltr">{calendarInput(normalized, 'islamic-umalqura')}</span> {t('هـ')}
         </p>
       )}
     </div>
@@ -394,6 +582,7 @@ function DateControl({ id, value, onChange, disabled, error, field, label }: Fie
 
 function DatetimeControl(props: FieldProps) {
   const { calendar } = useUiPreferences()
+  const { t, label } = useMessages()
   if (calendar === 'gregory')
     return (
       <Input
@@ -420,7 +609,7 @@ function DatetimeControl(props: FieldProps) {
       <Input
         type="time"
         dir="ltr"
-        aria-label={`الوقت: ${props.label ?? props.field.label.ar}`}
+        aria-label={t('الوقت: {field}', { field: props.label ?? label(props.field.label) })}
         value={time}
         disabled={props.disabled}
         onChange={(event) => props.onChange(`${date}T${event.target.value}`)}
@@ -430,6 +619,7 @@ function DatetimeControl(props: FieldProps) {
 }
 
 function JsonControl({ id, value, onChange, disabled, error, field, label }: FieldProps) {
+  const { t } = useMessages()
   const [invalid, setInvalid] = useState('')
   const check = () => {
     if (!value.trim()) return setInvalid('')
@@ -437,7 +627,7 @@ function JsonControl({ id, value, onChange, disabled, error, field, label }: Fie
       JSON.parse(value)
       setInvalid('')
     } catch {
-      setInvalid('أدخل بيانات JSON صحيحة')
+      setInvalid(t('أدخل بيانات JSON صحيحة'))
     }
   }
   return (
@@ -468,11 +658,11 @@ function JsonControl({ id, value, onChange, disabled, error, field, label }: Fie
               onChange(JSON.stringify(JSON.parse(value), null, 2))
               setInvalid('')
             } catch {
-              setInvalid('أدخل بيانات JSON صحيحة')
+              setInvalid(t('أدخل بيانات JSON صحيحة'))
             }
           }}
         >
-          تنسيق JSON
+          {t('تنسيق JSON')}
         </Button>
         {invalid && !error && (
           <p role="alert" className="text-xs text-destructive">
@@ -496,6 +686,7 @@ function AttachmentControl({
   attachment,
   resource,
 }: FieldProps) {
+  const { t, label: localized } = useMessages()
   const [current, setCurrent] = useState<AttachmentValue | null>(attachment ?? null)
   const [progress, setProgress] = useState<number | null>(null)
   const [failure, setFailure] = useState('')
@@ -519,8 +710,8 @@ function AttachmentControl({
     } catch (caught) {
       setFailure(
         axios.isAxiosError(caught)
-          ? (caught.response?.data?.error?.message ?? 'تعذر رفع الملف. حاول مجدداً.')
-          : 'تعذر الاتصال بالخادم.'
+          ? (caught.response?.data?.error?.message ?? t('تعذر رفع الملف. حاول مجدداً.'))
+          : t('تعذر الاتصال بالخادم.')
       )
     } finally {
       setProgress(null)
@@ -553,8 +744,9 @@ function AttachmentControl({
           >
             {shown.name}
           </a>
-          <span className="text-xs text-muted-foreground">{fileSize(shown.size)}</span>
+          <span className="text-xs text-muted-foreground">{fileSize(shown.size, t)}</span>
           <span className="ms-auto flex gap-1">
+            <AttachmentPreviewButton file={shown} disabled={disabled} />
             <Button
               type="button"
               variant="ghost"
@@ -563,7 +755,7 @@ function AttachmentControl({
               onClick={() => input.current?.click()}
             >
               <Upload size={14} />
-              استبدال
+              {t('استبدال')}
             </Button>
             <Button
               type="button"
@@ -574,7 +766,7 @@ function AttachmentControl({
               onClick={() => onChange('')}
             >
               <X size={14} />
-              إزالة
+              {t('إزالة')}
             </Button>
           </span>
         </div>
@@ -586,7 +778,7 @@ function AttachmentControl({
           onClick={() => input.current?.click()}
         >
           <Upload size={15} />
-          {progress === null ? 'اختيار ملف' : `جارٍ الرفع ${progress}%`}
+          {progress === null ? t('اختيار ملف') : t('جارٍ الرفع {progress}%', { progress })}
         </Button>
       )}
       {progress !== null && (
@@ -595,7 +787,7 @@ function AttachmentControl({
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={progress}
-          aria-label={`رفع ${label ?? field.label.ar}`}
+          aria-label={t('رفع {field}', { field: label ?? localized(field.label) })}
           className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
         >
           <div className="h-full bg-primary transition-all" style={{ width: `${progress}%` }} />
@@ -610,9 +802,20 @@ function AttachmentControl({
   )
 }
 
-type OptionPage = { data: Option[]; nextCursor: string | null }
-/** Server-side search through the authorized options route; keyset "more" keeps large relations usable. */
-function RelationCombobox({
+/** The upload failure as the server worded it, or a generic Arabic message. */
+function uploadFailure(caught: unknown, t: ReturnType<typeof useMessages>['t']) {
+  return axios.isAxiosError(caught)
+    ? (caught.response?.data?.error?.message ?? t('تعذر رفع الملف. حاول مجدداً.'))
+    : t('تعذر الاتصال بالخادم.')
+}
+
+/**
+ * Several files for one field: each selected file uploads on its own (with its own
+ * progress) and joins the ordered list; files can be moved, removed and previewed. The
+ * value is the JSON array of attachment ids the record saves; the server checks every
+ * limit again.
+ */
+function MultipleAttachmentControl({
   id,
   value,
   onChange,
@@ -620,10 +823,247 @@ function RelationCombobox({
   error,
   field,
   label,
-  options = [],
-  relation,
+  attachments,
+  resource,
 }: FieldProps) {
-  const [open, setOpen] = useState(false)
+  const { t, label: localized } = useMessages()
+  // The editor sends the resolved limit; 10 is AdulaJS's default for older payloads.
+  const max = field.type === 'attachment' ? (field.max ?? 10) : 10
+  const [known, setKnown] = useState<AttachmentValue[]>(attachments ?? [])
+  const [uploads, setUploads] = useState<{ key: string; name: string; progress: number }[]>([])
+  const [failures, setFailures] = useState<{ key: string; text: string }[]>([])
+  const [announcement, setAnnouncement] = useState('')
+  const input = useRef<HTMLInputElement>(null)
+  // The latest value, so uploads finishing one after another append to each other.
+  const latest = useRef(value)
+  latest.current = value
+  // A reloaded record brings its stored files; keep summaries of files uploaded here too.
+  const storedIds = (attachments ?? []).map((file) => file.id).join(',')
+  useEffect(() => {
+    if (!attachments?.length) return
+    setKnown((current) => [
+      ...attachments,
+      ...current.filter((file) => !attachments.some((stored) => stored.id === file.id)),
+    ])
+    // The stored ids decide a re-sync; a new array with the same files changes nothing.
+  }, [storedIds])
+  const ids = listValue(value).map(Number)
+  const fileOf = (fileId: number) => known.find((file) => file.id === fileId)
+  const nameOf = (fileId: number) => fileOf(fileId)?.name ?? t('ملف رقم {id}', { id: fileId })
+  const save = (next: number[]) => {
+    latest.current = listInput(next)
+    onChange(latest.current)
+  }
+  const fail = (text: string) =>
+    setFailures((current) => [...current, { key: `${Date.now()}-${current.length}`, text }])
+  const upload = async (file: File, key: string) => {
+    const body = new FormData()
+    body.append('file', file)
+    if (resource) body.append('resource', resource)
+    body.append('field', field.key)
+    try {
+      const response = await axios.post<{ data: AttachmentValue }>('/attachments', body, {
+        headers: { Accept: 'application/json' },
+        withXSRFToken: true,
+        onUploadProgress: (event) =>
+          setUploads((current) =>
+            current.map((entry) =>
+              entry.key === key
+                ? {
+                    ...entry,
+                    progress: event.total ? Math.round((event.loaded / event.total) * 100) : 50,
+                  }
+                : entry
+            )
+          ),
+      })
+      const stored = response.data.data
+      setKnown((current) => [...current, stored])
+      save([...listValue(latest.current).map(Number), stored.id])
+      setAnnouncement(t('أُضيف الملف {name}', { name: stored.name }))
+    } catch (caught) {
+      fail(`${file.name}: ${uploadFailure(caught, t)}`)
+    } finally {
+      setUploads((current) => current.filter((entry) => entry.key !== key))
+    }
+  }
+  const choose = async (chosen: File[]) => {
+    setFailures([])
+    if (input.current) input.current.value = ''
+    const room = max - ids.length - uploads.length
+    if (chosen.length > room) {
+      fail(t('يمكن إرفاق {max} ملفات على الأكثر', { max }))
+      return
+    }
+    const batch = chosen.map((file, index) => ({
+      file,
+      key: `${Date.now()}-${index}-${file.name}`,
+    }))
+    setUploads((current) => [
+      ...current,
+      ...batch.map(({ file, key }) => ({ key, name: file.name, progress: 0 })),
+    ])
+    // One after another, so the files keep the order they were chosen in.
+    for (const { file, key } of batch) await upload(file, key)
+  }
+  // Moves and removals address the file by id, never by its position in a filtered list.
+  const move = (fileId: number, offset: number) => {
+    const from = ids.indexOf(fileId)
+    const to = from + offset
+    if (from < 0 || to < 0 || to >= ids.length) return
+    const next = [...ids]
+    next.splice(from, 1)
+    next.splice(to, 0, fileId)
+    save(next)
+    setAnnouncement(
+      t('نُقل الملف {name} إلى الموضع {position}', { name: nameOf(fileId), position: to + 1 })
+    )
+  }
+  const remove = (fileId: number) => {
+    save(ids.filter((entry) => entry !== fileId))
+    setAnnouncement(t('أُزيل الملف {name}', { name: nameOf(fileId) }))
+  }
+  const busy = disabled || uploads.length > 0
+  const name = label ?? localized(field.label)
+  return (
+    <div className="space-y-2">
+      <input
+        ref={input}
+        id={id}
+        type="file"
+        multiple
+        className="sr-only"
+        disabled={busy || ids.length >= max}
+        aria-label={label}
+        aria-describedby={error ? `${id}-error` : undefined}
+        onChange={(event) => {
+          const chosen = [...(event.target.files ?? [])]
+          if (chosen.length) void choose(chosen)
+        }}
+      />
+      {ids.length > 0 && (
+        <ol className="divide-y rounded-md border bg-white text-sm" aria-label={name}>
+          {ids.map((fileId, index) => {
+            const file = fileOf(fileId)
+            const fileName = nameOf(fileId)
+            return (
+              <li key={fileId} className="flex flex-wrap items-center gap-2 px-3 py-2">
+                <Paperclip size={15} className="text-muted-foreground" />
+                {file ? (
+                  <>
+                    <a
+                      href={file.url}
+                      download={file.name}
+                      className="min-w-0 truncate text-primary underline-offset-4 hover:underline"
+                    >
+                      {file.name}
+                    </a>
+                    <span className="text-xs text-muted-foreground">
+                      {fileSize(file.size, t)}
+                    </span>
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">{fileName}</span>
+                )}
+                <span className="ms-auto flex gap-1">
+                  {file && <AttachmentPreviewButton file={file} disabled={disabled} />}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-8"
+                    disabled={busy || index === 0}
+                    aria-label={t('تقديم {name}', { name: fileName })}
+                    onClick={() => move(fileId, -1)}
+                  >
+                    <ArrowUp size={14} />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-8"
+                    disabled={busy || index === ids.length - 1}
+                    aria-label={t('تأخير {name}', { name: fileName })}
+                    onClick={() => move(fileId, 1)}
+                  >
+                    <ArrowDown size={14} />
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    disabled={busy}
+                    className="text-destructive"
+                    aria-label={t('إزالة {name}', { name: fileName })}
+                    onClick={() => remove(fileId)}
+                  >
+                    <X size={14} />
+                    {t('إزالة')}
+                  </Button>
+                </span>
+              </li>
+            )
+          })}
+        </ol>
+      )}
+      {uploads.map((entry) => (
+        <div key={entry.key} className="space-y-1">
+          <p className="truncate text-xs text-muted-foreground">
+            {t('جارٍ رفع {name} {progress}%', { name: entry.name, progress: entry.progress })}
+          </p>
+          <div
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={entry.progress}
+            aria-label={t('رفع {field}', { field: entry.name })}
+            className="h-1.5 w-full overflow-hidden rounded-full bg-muted"
+          >
+            <div
+              className="h-full bg-primary transition-all"
+              style={{ width: `${entry.progress}%` }}
+            />
+          </div>
+        </div>
+      ))}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          type="button"
+          variant="outline"
+          disabled={busy || ids.length >= max}
+          onClick={() => input.current?.click()}
+        >
+          <Upload size={15} />
+          {t('إضافة ملفات')}
+        </Button>
+        <span className="text-xs text-muted-foreground">
+          {t('{count} من {max} ملفات', { count: ids.length, max })}
+        </span>
+      </div>
+      <p role="status" aria-live="polite" className="sr-only">
+        {announcement}
+      </p>
+      {failures.map((failure) => (
+        <p key={failure.key} role="alert" className="text-xs text-destructive">
+          {failure.text}
+        </p>
+      ))}
+    </div>
+  )
+}
+
+type OptionPage = { data: Option[]; nextCursor: string | null }
+/**
+ * Server-side search through the authorized options route; keyset "more" keeps large
+ * relations usable. A new search keeps the chosen records so their titles stay known.
+ */
+function useRelationOptions(
+  options: Option[],
+  relation: RelationSource | undefined,
+  chosen: string[]
+) {
+  const { t } = useMessages()
   const [search, setSearch] = useState('')
   const [loaded, setLoaded] = useState<Option[]>(options)
   const [cursor, setCursor] = useState<string | null>(null)
@@ -631,10 +1071,6 @@ function RelationCombobox({
   const [failure, setFailure] = useState('')
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const http = useHttp<Record<string, never>, OptionPage>({})
-  const listId = useId()
-  const current =
-    loaded.find((option) => option.value === value) ??
-    options.find((option) => option.value === value)
   const load = async (more: boolean, term = search) => {
     if (!relation) return
     setFailure('')
@@ -647,23 +1083,54 @@ function RelationCombobox({
       setFetched(true)
       setCursor(page.nextCursor)
       setLoaded((previous) => {
-        const keep = more ? previous : previous.filter((option) => option.value === value)
+        const keep = more ? previous : previous.filter((option) => chosen.includes(option.value))
         return [
           ...new Map([...keep, ...page.data].map((option) => [option.value, option])).values(),
         ]
       })
     } catch {
-      setFailure('تعذر تحميل الخيارات')
+      setFailure(t('تعذر تحميل الخيارات'))
     }
   }
   useEffect(() => () => clearTimeout(timer.current), [])
   const searchable = Boolean(relation?.searchable)
+  const find = (key: string) =>
+    loaded.find((option) => option.value === key) ?? options.find((option) => option.value === key)
+  const typed = (term: string) => {
+    setSearch(term)
+    if (!searchable) return
+    clearTimeout(timer.current)
+    timer.current = setTimeout(() => void load(false, term), 300)
+  }
+  const opened = () => {
+    if (relation && !fetched) void load(false, '')
+  }
+  return { search, typed, loaded, cursor, failure, http, load, find, opened, searchable }
+}
+
+function RelationCombobox({
+  id,
+  value,
+  onChange,
+  disabled,
+  error,
+  field,
+  label,
+  options = [],
+  relation,
+}: FieldProps) {
+  const { t, label: localized } = useMessages()
+  const [open, setOpen] = useState(false)
+  const listId = useId()
+  const { search, typed, loaded, cursor, failure, http, load, find, opened, searchable } =
+    useRelationOptions(options, relation, value ? [value] : [])
+  const current = find(value)
   return (
     <Popover
       open={open}
       onOpenChange={(next) => {
         setOpen(next)
-        if (next && relation && !fetched) void load(false, '')
+        if (next) opened()
       }}
     >
       <PopoverTrigger asChild>
@@ -682,7 +1149,7 @@ function RelationCombobox({
         >
           <span className="truncate">
             {current?.label ??
-              (value ? `#${value}` : field.type === 'user' ? 'اختر مستخدماً' : 'اختر سجلاً')}
+              (value ? `#${value}` : field.type === 'user' ? t('اختر مستخدماً') : t('اختر سجلاً'))}
           </span>
           <ChevronsUpDown className="opacity-50" />
         </Button>
@@ -692,23 +1159,18 @@ function RelationCombobox({
           <CommandInput
             placeholder={
               field.type === 'user'
-                ? 'ابحث بالاسم'
+                ? t('ابحث بالاسم')
                 : searchable
-                  ? 'ابحث في السجلات المرتبطة'
-                  : 'تصفية الخيارات'
+                  ? t('ابحث في السجلات المرتبطة')
+                  : t('تصفية الخيارات')
             }
-            aria-label={`البحث في ${label ?? field.label.ar}`}
+            aria-label={t('البحث في {field}', { field: label ?? localized(field.label) })}
             value={search}
-            onValueChange={(term) => {
-              setSearch(term)
-              if (!searchable) return
-              clearTimeout(timer.current)
-              timer.current = setTimeout(() => void load(false, term), 300)
-            }}
+            onValueChange={typed}
           />
           <CommandList id={listId}>
             <CommandEmpty>
-              {http.processing ? 'جارٍ البحث...' : 'لا توجد سجلات مطابقة'}
+              {http.processing ? t('جارٍ البحث...') : t('لا توجد سجلات مطابقة')}
             </CommandEmpty>
             <CommandGroup>
               {value && !field.required && (
@@ -720,7 +1182,7 @@ function RelationCombobox({
                   }}
                 >
                   <X />
-                  بدون اختيار
+                  {t('بدون اختيار')}
                 </CommandItem>
               )}
               {loaded.map((option) => (
@@ -748,7 +1210,152 @@ function RelationCombobox({
                   disabled={http.processing}
                   onClick={() => void load(true)}
                 >
-                  {http.processing ? 'جارٍ التحميل...' : 'المزيد'}
+                  {http.processing ? t('جارٍ التحميل...') : t('المزيد')}
+                </Button>
+              </div>
+            )}
+            {failure && (
+              <p role="alert" className="p-2 text-xs text-destructive">
+                {failure}
+              </p>
+            )}
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  )
+}
+
+/**
+ * manyToMany: the same authorized options search as belongsTo, choosing several records.
+ * Chosen records show as removable badges; the list stays open while picking.
+ */
+function RelationMultiPicker({
+  id,
+  value,
+  onChange,
+  disabled,
+  error,
+  field,
+  label,
+  options = [],
+  relation,
+}: FieldProps) {
+  const { t, label: localized } = useMessages()
+  const [open, setOpen] = useState(false)
+  const listId = useId()
+  const selected = listValue(value)
+  const { search, typed, loaded, cursor, failure, http, load, find, opened, searchable } =
+    useRelationOptions(options, relation, selected)
+  const name = label ?? localized(field.label)
+  const toggle = (key: string) =>
+    onChange(
+      listInput(
+        selected.includes(key) ? selected.filter((entry) => entry !== key) : [...selected, key]
+      )
+    )
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (next) opened()
+      }}
+    >
+      {/* The list anchors below the chosen badges, so it never covers them. */}
+      <PopoverAnchor asChild>
+        <div className="space-y-2">
+          <PopoverTrigger asChild>
+            <Button
+              id={id}
+              type="button"
+              role="combobox"
+              variant="outline"
+              aria-expanded={open}
+              aria-controls={listId}
+              aria-label={label}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? `${id}-error` : undefined}
+              disabled={disabled}
+              className={`h-10 w-full justify-between font-normal ${selected.length ? '' : 'text-muted-foreground'}`}
+            >
+              <span className="truncate">
+                {selected.length
+                  ? t('{count} محدد', { count: selected.length })
+                  : t('اختر سجلاً أو أكثر')}
+              </span>
+              <ChevronsUpDown className="opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          {selected.length > 0 && (
+            <ul
+              className="flex flex-wrap gap-1.5"
+              aria-label={t('المحدد في {field}', { field: name })}
+            >
+              {selected.map((key) => {
+                const title = find(key)?.label ?? `#${key}`
+                return (
+                  <li key={key}>
+                    <Badge variant="secondary" className="gap-1 py-0.5 pe-0.5 font-normal">
+                      {title}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        className="size-5"
+                        disabled={disabled}
+                        aria-label={t('إزالة {record}', { record: title })}
+                        onClick={() => toggle(key)}
+                      >
+                        <X />
+                      </Button>
+                    </Badge>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+      </PopoverAnchor>
+      <PopoverContent className="w-(--radix-popper-anchor-width) min-w-64 p-0" align="start">
+        <Command shouldFilter={!searchable}>
+          <CommandInput
+            placeholder={searchable ? t('ابحث في السجلات المرتبطة') : t('تصفية الخيارات')}
+            aria-label={t('البحث في {field}', { field: name })}
+            value={search}
+            onValueChange={typed}
+          />
+          <CommandList id={listId}>
+            <CommandEmpty>
+              {http.processing ? t('جارٍ البحث...') : t('لا توجد سجلات مطابقة')}
+            </CommandEmpty>
+            <CommandGroup>
+              {loaded.map((option) => (
+                <CommandItem
+                  key={option.value}
+                  value={option.value}
+                  keywords={[option.label]}
+                  aria-checked={selected.includes(option.value)}
+                  onSelect={() => toggle(option.value)}
+                >
+                  <Check
+                    className={selected.includes(option.value) ? 'opacity-100' : 'opacity-0'}
+                  />
+                  {option.label}
+                </CommandItem>
+              ))}
+            </CommandGroup>
+            {cursor && (
+              <div className="border-t p-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="w-full"
+                  disabled={http.processing}
+                  onClick={() => void load(true)}
+                >
+                  {http.processing ? t('جارٍ التحميل...') : t('المزيد')}
                 </Button>
               </div>
             )}
@@ -803,15 +1410,23 @@ export function InlineRows({
       ? inline.createFields.includes(key)
       : Boolean(inline.permissions[String(row.id)]?.update) &&
         (inline.updateFields[String(row.id)] ?? []).includes(key)
+  const { t, label } = useMessages()
   const live = rows.filter((row) => !row.deleted)
+  // Row files upload for the child resource and field, which is what the child's own
+  // write claims; a saved row shows its stored files (ADR 047).
+  const childResource = (field as { resource?: string }).resource ?? resource
+  const storedValue = (row: InlineRow, key: string) =>
+    row.id === undefined
+      ? undefined
+      : inline.rows.find((entry) => String(entry.id) === String(row.id))?.[key]
   return (
-    <section aria-label={field.label.ar} className="rounded-xl border bg-white">
+    <section aria-label={label(field.label)} className="rounded-xl border bg-white">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b px-7 py-4">
         <div>
-          <h2 className="text-sm font-semibold">{field.label.ar}</h2>
+          <h2 className="text-sm font-semibold">{label(field.label)}</h2>
           <p className="mt-1 text-xs text-muted-foreground">
-            {live.length ? `${live.length} بند` : 'لا توجد بنود بعد'}
-            {inline.hasMore && ' · تظهر أول 100 بند فقط'}
+            {live.length ? t('{count} بند', { count: live.length }) : t('لا توجد بنود بعد')}
+            {inline.hasMore && ` · ${t('تظهر أول 100 بند فقط')}`}
           </p>
         </div>
         {inline.canCreate && (
@@ -823,7 +1438,7 @@ export function InlineRows({
             onClick={() => onChange([...rows, newInlineRow(inline.fields)])}
           >
             <Plus size={15} />
-            إضافة بند
+            {t('إضافة بند')}
           </Button>
         )}
       </div>
@@ -840,7 +1455,7 @@ export function InlineRows({
                 <th className="w-12 px-4 py-3 text-start font-medium">#</th>
                 {inline.fields.map((child) => (
                   <th key={child.key} className="px-3 py-3 text-start font-medium">
-                    {child.label.ar}
+                    {label(child.label)}
                     {child.required && (
                       <span className="text-destructive" aria-hidden="true">
                         {' '}
@@ -850,7 +1465,7 @@ export function InlineRows({
                   </th>
                 ))}
                 <th className="w-24 px-4 py-3 text-start font-medium">
-                  <span className="sr-only">الإجراء</span>
+                  <span className="sr-only">{t('الإجراء')}</span>
                 </th>
               </tr>
             </thead>
@@ -858,39 +1473,59 @@ export function InlineRows({
               {rows.map((row, index) => {
                 const number = index + 1
                 const rowErrors = errors[row.key] ?? {}
+                // A child whose visibleWhen does not hold in this row shows no control.
+                const rowHidden = hiddenFields(inline.fields, row.values)
                 return (
                   <tr
                     key={row.key}
-                    aria-label={`بند ${number}`}
+                    aria-label={t('بند {number}', { number })}
                     className={`border-b align-top last:border-0 ${row.deleted ? 'bg-destructive/5 opacity-60' : ''}`}
                   >
                     <td className="px-4 py-3 tabular-nums text-muted-foreground">{number}</td>
                     {inline.fields.map((child) => (
                       <td key={child.key} className="min-w-40 px-3 py-2">
-                        <FieldControl
-                          field={child}
-                          id={`${field.key}-${row.key}-${child.key}`}
-                          label={`${child.label.ar} للبند ${number}`}
-                          value={row.values[child.key] ?? ''}
-                          disabled={disabled || row.deleted || !editable(row, child.key)}
-                          error={rowErrors[child.key]}
-                          resource={resource}
-                          relation={
-                            child.type === 'belongsTo' || child.type === 'user'
-                              ? {
-                                  url: `/resources/${(field as { resource?: string }).resource}/options/${child.key}`,
-                                  searchable: child.type === 'user',
-                                }
-                              : undefined
-                          }
-                          onChange={(value) =>
-                            update(row.key, {
-                              values: { ...row.values, [child.key]: value },
-                              dirty: true,
-                            })
-                          }
-                        />
-                        {rowErrors[child.key] && (
+                        {rowHidden.has(child.key) ? (
+                          <span className="text-muted-foreground" aria-hidden="true">
+                            —
+                          </span>
+                        ) : (
+                          <FieldControl
+                            field={child}
+                            id={`${field.key}-${row.key}-${child.key}`}
+                            label={t('{field} للبند {number}', { field: label(child.label), number })}
+                            value={row.values[child.key] ?? ''}
+                            disabled={disabled || row.deleted || !editable(row, child.key)}
+                            error={rowErrors[child.key]}
+                            resource={childResource}
+                            attachment={
+                              child.type === 'attachment' &&
+                              isAttachment(storedValue(row, child.key))
+                                ? (storedValue(row, child.key) as AttachmentValue)
+                                : null
+                            }
+                            attachments={
+                              child.type === 'attachment' &&
+                              Array.isArray(storedValue(row, child.key))
+                                ? (storedValue(row, child.key) as unknown[]).filter(isAttachment)
+                                : undefined
+                            }
+                            relation={
+                              child.type === 'belongsTo' || child.type === 'user'
+                                ? {
+                                    url: `/resources/${(field as { resource?: string }).resource}/options/${child.key}`,
+                                    searchable: child.type === 'user',
+                                  }
+                                : undefined
+                            }
+                            onChange={(value) =>
+                              update(row.key, {
+                                values: { ...row.values, [child.key]: value },
+                                dirty: true,
+                              })
+                            }
+                          />
+                        )}
+                        {!rowHidden.has(child.key) && rowErrors[child.key] && (
                           <p role="alert" className="mt-1 text-xs text-destructive">
                             {rowErrors[child.key]}
                           </p>
@@ -904,7 +1539,7 @@ export function InlineRows({
                           variant="ghost"
                           size="icon-sm"
                           disabled={disabled}
-                          aria-label={`إزالة البند ${number}`}
+                          aria-label={t('إزالة البند {number}', { number })}
                           onClick={() => onChange(rows.filter((entry) => entry.key !== row.key))}
                         >
                           <Trash2 className="text-destructive" />
@@ -916,7 +1551,9 @@ export function InlineRows({
                           size="icon-sm"
                           disabled={disabled}
                           aria-label={
-                            row.deleted ? `التراجع عن حذف البند ${number}` : `حذف البند ${number}`
+                            row.deleted
+                              ? t('التراجع عن حذف البند {number}', { number })
+                              : t('حذف البند {number}', { number })
                           }
                           onClick={() => update(row.key, { deleted: !row.deleted })}
                         >

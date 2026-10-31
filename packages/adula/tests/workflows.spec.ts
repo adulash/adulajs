@@ -3,7 +3,6 @@ import type { AddressInfo } from 'node:net'
 import { test } from '@japa/runner'
 import {
   Assignments,
-  AdulaError,
   ResourceService,
   RolesAdmin,
   WorkflowEngine,
@@ -19,16 +18,8 @@ import type {
   WorkflowOptions,
 } from '../index.js'
 import { admin, db, reader, registry, setup } from './helpers.js'
-
-async function failure(run: () => Promise<unknown>): Promise<AdulaError> {
-  try {
-    await run()
-  } catch (error) {
-    if (error instanceof AdulaError) return error
-    throw error
-  }
-  throw new Error('Expected an AdulaError')
-}
+import { failure } from './helpers/failure.js'
+import { addUserProfileColumns, seedActor } from './helpers/actors.js'
 
 const manager: Actor = {
   id: 3,
@@ -137,13 +128,9 @@ test.group('Workflow engine', (group) => {
 
   group.setup(async () => {
     await setup()
-    await db.raw(
-      'ALTER TABLE users ADD COLUMN full_name varchar, ADD COLUMN disabled_at timestamptz'
-    )
-    await db('users').insert([
-      { id: 3, email: 'manager@example.test', full_name: 'مدير القسم' },
-      { id: 4, email: 'director@example.test', full_name: 'المدير العام' },
-    ])
+    await addUserProfileColumns()
+    await seedActor({ id: 3 }, { email: 'manager@example.test', fullName: 'مدير القسم' })
+    await seedActor({ id: 4 }, { email: 'director@example.test', fullName: 'المدير العام' })
   })
   group.each.setup(async () => {
     await db('workflow_events').del()

@@ -10,7 +10,14 @@ import User from '#models/user'
 import { PENDING_UPLOAD_LIMIT, UNBOUND_UPLOAD_TTL_MS, grantUpload } from 'adula'
 import { adula } from '#services/adula'
 
-type UploadedFile = { id: number; name: string; size: number; mimeType: string; url: string }
+type UploadedFile = {
+  id: number
+  name: string
+  size: number
+  mimeType: string
+  url: string
+  preview: string | null
+}
 
 function ace(args: string[]) {
   return new Promise<{ code: number | null; output: string }>((resolve, reject) => {
@@ -170,7 +177,9 @@ test.group('Attachment upload, download and storage migration', (group) => {
     const created = await upload(writer)(client)
     created.assertStatus(201)
     const file: UploadedFile = created.body().data
-    assert.deepEqual(Object.keys(file).sort(), ['id', 'mimeType', 'name', 'size', 'url'])
+    assert.deepEqual(Object.keys(file).sort(), ['id', 'mimeType', 'name', 'preview', 'size', 'url'])
+    // Plain text previews inline as text (ADR 047).
+    assert.equal(file.preview, 'text')
     assert.equal(file.name, 'عقد التوريد.txt')
     assert.equal(file.size, content.length)
     assert.equal(file.mimeType, 'text/plain')

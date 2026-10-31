@@ -42,7 +42,9 @@ export default function Layout({ children }: { children: ReactElement<Data.Share
                 </>
               ) : (
                 <>
-                  <Link route="new_account.create">إنشاء حساب</Link>
+                  {children.props.signupEnabled && (
+                    <Link route="new_account.create">إنشاء حساب</Link>
+                  )}
                   <Link route="session.create">الدخول</Link>
                 </>
               )}

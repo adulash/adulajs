@@ -1,7 +1,5 @@
 @layer theme, base, legacy, components, utilities;
 @import './app.css';
-@layer theme, base, legacy, components, utilities;
-@import './app.css';
 @import 'tailwindcss' source(none);
 @import 'tw-animate-css';
 @import '@fontsource/ibm-plex-sans-arabic/400.css';
@@ -9,6 +7,9 @@
 @import '@fontsource/ibm-plex-sans-arabic/600.css';
 @import '@fontsource/ibm-plex-sans-arabic/700.css';
 @source "../";
+/* inertia/components/ui is generated from @adula/ui and gitignored; Tailwind skips ignored
+   paths during source detection unless they are registered explicitly. */
+@source "../components/ui";
 
 @theme inline {
   --font-sans: var(--brand-font, 'IBM Plex Sans Arabic'), sans-serif;

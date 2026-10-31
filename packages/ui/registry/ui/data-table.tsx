@@ -1,12 +1,4 @@
-import {
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type ComponentRef,
-  type MouseEvent,
-  type ReactNode,
-} from 'react'
+import { useEffect, useRef, useState, type ComponentRef, type MouseEvent } from 'react'
 import { InfiniteScroll, router, usePage } from '@inertiajs/react'
 import { Link } from '@adonisjs/inertia/react'
 import { tableFeatures, useTable } from '@tanstack/react-table'
@@ -16,15 +8,15 @@ import {
   ArrowDown,
   ArrowDownUp,
   ArrowUp,
-  Check,
-  ChevronsUpDown,
   Download,
   Inbox,
+  ListChecks,
   Loader2,
   Bookmark,
   BookmarkPlus,
   Search,
   SlidersHorizontal,
+  Trash2,
   X,
 } from 'lucide-react'
 import type {
@@ -35,57 +27,101 @@ import type {
   SavedViewQuery,
   SerializedRecord,
 } from 'adula'
+import { Alert, AlertDescription } from '~/components/ui/alert'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
+import { Checkbox } from '~/components/ui/checkbox'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
+import { useMessages } from '~/components/ui/messages'
 import { Can } from '~/components/ui/can'
 import { Input } from '~/components/ui/input'
 import { ResourceActions } from '~/components/ui/resource-actions'
 import { openRecord, rememberListView } from '~/components/ui/resource-surface'
-import { FieldControl, ResourceSelect } from '~/components/ui/resource-field'
+import { displayValue, type LookupOptions, type Option } from '~/components/ui/resource-value'
 import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from '~/components/ui/command'
-import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
+  FilterControl,
+  describeFilter,
+  filterValueLabel,
+  type FilterLabels,
+} from '~/components/ui/list-filters'
+import { BulkBar, RestoreAction, actionScope, useBulkActions } from '~/components/ui/resource-bulk'
 import {
-  csvCell,
-  displayValue,
-  parseValue,
-  relationLabel,
-  type LookupOptions,
-  type Option,
-} from '~/components/ui/resource-value'
+  clearFilter,
+  exportHref,
+  fromSavedFilter,
+  readFilters,
+  selectionState,
+  serverMessage,
+  toSavedFilter,
+  toggleSelection,
+  writeFilter,
+  type FieldFilter,
+} from '~/components/ui/list_query'
 
 /** Rows above this count render through the virtualizer (plan section 13). */
 export const VIRTUAL_ROWS = 200
 const ROW_HEIGHT = 52
 const PAGE_SIZE = 100
 const features = tableFeatures({})
-type Query = Record<string, string | undefined>
+
+/**
+ * List-layer keys of the description (ADR 046). Older servers omit them: no «المحذوفات»
+ * toggle, and the server export stays available.
+ */
+type ListDescription = ResourceDescription & {
+  trash?: boolean
+  exportable?: boolean
+  bulk?: boolean
+}
+
+/** The file name from `Content-Disposition`, or null. */
+function attachmentName(header: unknown) {
+  if (typeof header !== 'string') return null
+  const encoded = header.match(/filename\*=UTF-8''([^;]+)/i)
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded[1])
+    } catch {
+      // Fall through to the plain name.
+    }
+  }
+  return header.match(/filename="?([^";]+)"?/i)?.[1] ?? null
+}
 
 export function DataTable({
   resource,
   result,
   lookups = {},
   savedViews = [],
+  trashed = false,
 }: {
   resource: ResourceDescription
   result: ResourceList
   lookups?: LookupOptions
   savedViews?: SavedView[]
+  /** The «المحذوفات» list of `/resources/:name/trash`: rows offer restore only. */
+  trashed?: boolean
 }) {
   const { calendar } = useUiPreferences()
+  const { t, label, locale } = useMessages()
   const { url } = usePage()
+  const description = resource as ListDescription
   const query = new URL(url, 'http://localhost').searchParams
+  const listPath = `/resources/${resource.name}${trashed ? '/trash' : ''}`
   const [search, setSearch] = useState(query.get('search') ?? '')
   const [failure, setFailure] = useState('')
+  const [queryFailure, setQueryFailure] = useState('')
+  const [exporting, setExporting] = useState(false)
+  const [exportFailure, setExportFailure] = useState('')
+  const [selected, setSelected] = useState<Set<string>>(() => new Set())
+  const labels = useRef<FilterLabels>({})
   const container = useRef<HTMLDivElement>(null)
   const scroller = useRef<ComponentRef<typeof InfiniteScroll>>(null)
+  const offered = useBulkActions(resource.name, description.bulk !== false)
+  // The «المحذوفات» list offers restore only; the active list everything else.
+  const bulkActions = offered.filter(
+    (action) => actionScope(action) === (trashed ? 'trash' : 'records')
+  )
   // Opening one of this list's records remembers the view, so closing the dialog returns to it.
   useEffect(
     () =>
@@ -118,6 +154,11 @@ export function DataTable({
     (field) => resource.list.includes(field.key) && field.type !== 'hasMany'
   )
   const filterable = fields.filter((field) => field.filterable)
+  const filters = readFilters(
+    query,
+    filterable.map((field) => field.key)
+  )
+  const activeFilters = filterable.filter((field) => filters[field.key])
   const table = useTable({
     features,
     data: result.data,
@@ -125,6 +166,9 @@ export function DataTable({
     getRowId: (row) => String(row.id),
   })
   const rows = table.getRowModel().rows
+  const loadedIds = rows.map((row) => row.id)
+  const selectable = bulkActions.length > 0
+  const columns = fields.length + 1 + (selectable ? 1 : 0)
   const virtualized = rows.length > VIRTUAL_ROWS
   const virtual = useVirtualizer({
     count: rows.length,
@@ -137,38 +181,84 @@ export function DataTable({
   const items = virtualized
     ? virtual.getVirtualItems()
     : rows.map((_, index) => ({ index, start: 0, end: 0 }))
-  const navigate = (changes: Query) => {
-    const next = new URLSearchParams(query)
+  const go = (next: URLSearchParams) => {
     next.delete('cursor')
-    for (const [key, value] of Object.entries(changes))
-      value ? next.set(key, value) : next.delete(key)
+    setQueryFailure('')
+    setSelected(new Set())
     const suffix = next.toString()
     router.get(
-      `/resources/${resource.name}${suffix ? `?${suffix}` : ''}`,
+      `${listPath}${suffix ? `?${suffix}` : ''}`,
       {},
-      { preserveScroll: true }
+      {
+        preserveScroll: true,
+        // An invalid filter is 422 E_FILTER; show the server's message instead of the error page.
+        onHttpException: (response) => {
+          if (response.status !== 422) return
+          setQueryFailure(
+            serverMessage(response.data) ?? t('تعذر تطبيق التصفية. راجع القيم ثم أعد المحاولة.')
+          )
+          return false
+        },
+      }
     )
+  }
+  const navigate = (changes: Record<string, string | undefined>) => {
+    const next = new URLSearchParams(query)
+    for (const [key, value] of Object.entries(changes))
+      value ? next.set(key, value) : next.delete(key)
+    go(next)
+  }
+  const applyFilter = (key: string, filter: FieldFilter | null) => {
+    const next = new URLSearchParams(query)
+    writeFilter(next, key, filter)
+    go(next)
+  }
+  const clearFilters = () => {
+    const next = new URLSearchParams(query)
+    for (const field of activeFilters) clearFilter(next, field.key)
+    go(next)
   }
   const sort = query.get('sort')
   const direction = query.get('direction') === 'desc' ? 'desc' : 'asc'
-  const activeFilters = filterable.filter((field) => query.get(`filters[${field.key}]`))
-  const csv = () => {
-    const content = [
-      fields.map((field) => field.label.ar),
-      ...result.data.map((row) =>
-        fields.map((field) => displayValue(field, row, related, lookups, calendar))
-      ),
-    ]
-    const href = URL.createObjectURL(
-      new Blob(['﻿' + content.map((row) => row.map(csvCell).join(',')).join('\r\n')], {
-        type: 'text/csv;charset=utf-8',
+  const valueLabel = (field: ResourceField) => (raw: string) =>
+    filterValueLabel(field, raw, {
+      options: lookups[field.key],
+      related: related[field.key],
+      labels: labels.current[field.key],
+      calendar,
+      t,
+      language: locale,
+    })
+  const remember = (key: string) => (choices: Option[]) => {
+    labels.current[key] = {
+      ...labels.current[key],
+      ...Object.fromEntries(choices.map((choice) => [choice.value, choice.label])),
+    }
+  }
+  // The server export reads the same filtered set as this list, page by page, up to its limit.
+  const exportResults = async () => {
+    setExporting(true)
+    setExportFailure('')
+    try {
+      const response = await axios.get<Blob>(exportHref(resource.name, query), {
+        responseType: 'blob',
+        headers: { Accept: 'text/csv, application/json' },
       })
-    )
-    const link = document.createElement('a')
-    link.href = href
-    link.download = `${resource.label}.csv`
-    link.click()
-    URL.revokeObjectURL(href)
+      const href = URL.createObjectURL(response.data)
+      const link = document.createElement('a')
+      link.href = href
+      link.download =
+        attachmentName(response.headers['content-disposition']) ?? `${resource.label}.csv`
+      link.click()
+      // Revoking right after click can cancel the download in some browsers.
+      setTimeout(() => URL.revokeObjectURL(href), 60_000)
+    } catch (error) {
+      const body = axios.isAxiosError(error) ? error.response?.data : null
+      const message = body instanceof Blob ? serverMessage(await body.text().catch(() => '')) : null
+      setExportFailure(message ?? t('تعذر تصدير النتائج. حاول مجدداً.'))
+    } finally {
+      setExporting(false)
+    }
   }
   const refresh = () => router.visit(url, { preserveScroll: true })
   // Records open in a dialog over this list, which stays mounted (#31); modified clicks
@@ -187,12 +277,10 @@ export function DataTable({
       view.sort = sort
       view.direction = direction
     }
-    const filters: Record<string, string> = {}
-    for (const field of filterable) {
-      const value = query.get(`filters[${field.key}]`)
-      if (value) filters[field.key] = value
-    }
-    if (Object.keys(filters).length) view.filters = filters
+    const saved: Record<string, unknown> = {}
+    for (const field of activeFilters) saved[field.key] = toSavedFilter(filters[field.key])
+    // Saved views store operator objects too (ADR 046); older type declarations list scalars.
+    if (Object.keys(saved).length) view.filters = saved as SavedViewQuery['filters']
     return view
   }
   const applyView = (view: SavedView) => {
@@ -203,38 +291,73 @@ export function DataTable({
       next.set('direction', view.query.direction ?? 'asc')
     }
     for (const [key, value] of Object.entries(view.query.filters ?? {}))
-      if (value !== null) next.set(`filters[${key}]`, String(value))
+      writeFilter(next, key, fromSavedFilter(value))
     setSearch(view.query.search ?? '')
-    const suffix = next.toString()
-    router.get(
-      `/resources/${resource.name}${suffix ? `?${suffix}` : ''}`,
-      {},
-      { preserveScroll: true }
-    )
+    go(next)
   }
+  const allState = selectionState(selected, loadedIds)
+  const chosen = loadedIds.filter((id) => selected.has(id))
   return (
     <section
-      aria-label={`قائمة ${resource.label}`}
+      aria-label={t('قائمة {resource}', { resource: resource.label })}
       className="min-w-0 overflow-hidden rounded-xl border border-border bg-white shadow-[0_2px_10px_#1c302804]"
     >
       <div className="flex flex-wrap items-center justify-between gap-4 border-b px-5 py-4">
         <div className="flex flex-wrap items-center gap-3">
-          <h2 className="text-sm font-semibold">سجل {resource.label}</h2>
+          <h2 className="text-sm font-semibold">
+            {trashed
+              ? t('المحذوفات من {resource}', { resource: resource.label })
+              : t('سجل {resource}', { resource: resource.label })}
+          </h2>
           <Badge variant="secondary" className="font-normal tabular-nums">
-            {rows.length} معروض
+            {t('{count} معروض', { count: rows.length })}
           </Badge>
           <span className="text-xs text-muted-foreground">
             {result.meta.estimatedTotal !== undefined
-              ? `نحو ${result.meta.estimatedTotal} سجل ضمن نطاقك`
-              : 'حسب نطاق صلاحياتك'}
+              ? t('نحو {count} سجل ضمن نطاقك', {
+                  count: result.meta.estimatedTotal,
+                })
+              : t('حسب نطاق صلاحياتك')}
           </span>
         </div>
-        <Button variant="outline" size="sm" onClick={csv} disabled={!rows.length}>
-          <Download size={15} />
-          تصدير المعروض
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {description.trash && (
+            <Button variant="outline" size="sm" asChild>
+              <Link
+                href={trashed ? `/resources/${resource.name}` : `/resources/${resource.name}/trash`}
+              >
+                {trashed ? <ListChecks size={15} /> : <Trash2 size={15} />}
+                {trashed ? t('السجلات النشطة') : t('المحذوفات')}
+              </Link>
+            </Button>
+          )}
+          {!trashed && description.exportable !== false && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void exportResults()}
+              disabled={!rows.length || exporting}
+            >
+              {exporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+              {exporting ? t('جارٍ التصدير...') : t('تصدير النتائج')}
+            </Button>
+          )}
+        </div>
       </div>
-      {(resource.searchable || filterable.length > 0) && (
+      {exportFailure && (
+        <div className="border-b px-5 py-3">
+          <Alert variant="destructive">
+            <AlertDescription className="flex flex-wrap items-center justify-between gap-2">
+              {exportFailure}
+              <Button variant="ghost" size="sm" onClick={() => setExportFailure('')}>
+                {t('إغلاق')}
+              </Button>
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
+      {/* Saved views belong to the active list; «المحذوفات» has none. */}
+      {!trashed && (resource.searchable || filterable.length > 0) && (
         <SavedViewsBar
           resource={resource}
           views={savedViews}
@@ -245,63 +368,104 @@ export function DataTable({
         />
       )}
       {(resource.searchable || filterable.length > 0) && (
-        <div className="flex flex-wrap items-end gap-3 border-b px-5 py-4">
-          {resource.searchable && (
-            <form
-              role="search"
-              className="relative w-full max-w-sm"
-              onSubmit={(event) => {
-                event.preventDefault()
-                navigate({ search })
-              }}
-            >
-              <Search
-                className="pointer-events-none absolute start-3 top-2.5 text-muted-foreground"
-                size={16}
+        <div className="grid gap-3 border-b px-5 py-4">
+          <div className="flex flex-wrap items-center gap-3">
+            {resource.searchable && (
+              <form
+                role="search"
+                className="relative w-full max-w-sm"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  navigate({ search })
+                }}
+              >
+                <Search
+                  className="pointer-events-none absolute start-3 top-2.5 text-muted-foreground"
+                  size={16}
+                />
+                <Input
+                  aria-label={t('البحث في {field}', { field: resource.label })}
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder={t('ابحث في السجلات...')}
+                  className="h-9 bg-background/60 ps-10 text-xs"
+                />
+              </form>
+            )}
+            {filterable.length > 0 && (
+              <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                <SlidersHorizontal size={15} />
+                {t('تصفية')}
+              </span>
+            )}
+            {filterable.map((field) => (
+              <FilterControl
+                key={field.key}
+                resource={resource.name}
+                field={field}
+                filter={filters[field.key]}
+                options={lookups[field.key]}
+                related={related[field.key]}
+                labels={labels.current[field.key]}
+                onRemember={remember(field.key)}
+                onApply={(filter) => applyFilter(field.key, filter)}
               />
-              <Input
-                aria-label={`البحث في ${resource.label}`}
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="ابحث في السجلات..."
-                className="h-9 bg-background/60 ps-10 text-xs"
-              />
-            </form>
-          )}
-          {filterable.length > 0 && (
-            <span className="flex items-center gap-2 text-xs text-muted-foreground">
-              <SlidersHorizontal size={15} />
-              تصفية
-            </span>
-          )}
-          {filterable.map((field) => (
-            <Filter
-              key={field.key}
-              resource={resource.name}
-              field={field}
-              value={query.get(`filters[${field.key}]`) ?? ''}
-              options={lookups[field.key]}
-              related={related[field.key]}
-              onApply={(value) => navigate({ [`filters[${field.key}]`]: value })}
-            />
-          ))}
+            ))}
+          </div>
           {activeFilters.length > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() =>
-                navigate(
-                  Object.fromEntries(
-                    activeFilters.map((field) => [`filters[${field.key}]`, undefined])
-                  )
-                )
-              }
-            >
-              <X size={14} />
-              مسح التصفية
-            </Button>
+            <ul aria-label={t('التصفية المطبقة')} className="flex flex-wrap items-center gap-2">
+              {activeFilters.map((field) => (
+                <li key={field.key}>
+                  <Badge
+                    variant="secondary"
+                    className="h-7 gap-1.5 ps-3 pe-1.5 text-xs font-normal"
+                  >
+                    <span className="font-medium">{label(field.label)}:</span>
+                    <span className="max-w-[260px] truncate">
+                      {describeFilter(filters[field.key], valueLabel(field), t)}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={t('إزالة تصفية {field}', {
+                        field: label(field.label),
+                      })}
+                      className="rounded-full p-0.5 text-muted-foreground hover:bg-background hover:text-foreground"
+                      onClick={() => applyFilter(field.key, null)}
+                    >
+                      <X size={13} />
+                    </button>
+                  </Badge>
+                </li>
+              ))}
+              <li>
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={clearFilters}>
+                  <X size={14} />
+                  {t('مسح التصفية')}
+                </Button>
+              </li>
+            </ul>
+          )}
+          {queryFailure && (
+            <Alert variant="destructive">
+              <AlertDescription>{queryFailure}</AlertDescription>
+            </Alert>
           )}
         </div>
+      )}
+      {selectable && (
+        <BulkBar
+          resource={resource.name}
+          actions={bulkActions}
+          selected={chosen}
+          rows={result.data}
+          onClear={() => setSelected(new Set())}
+          onDone={(outcome) => {
+            // Refused rows stay selected so they can be reviewed or retried.
+            const failed = new Set(outcome.failed.map((entry) => String(entry.id)))
+            setSelected((current) => new Set([...current].filter((id) => failed.has(id))))
+            refresh()
+          }}
+        />
       )}
       <InfiniteScroll
         ref={(instance) => {
@@ -317,11 +481,11 @@ export function DataTable({
             setFailure('')
           },
           onHttpException: () => {
-            setFailure('تعذر تحميل السجلات التالية. أعد المحاولة.')
+            setFailure(t('تعذر تحميل السجلات التالية. أعد المحاولة.'))
             return false
           },
           onNetworkError: () => {
-            setFailure('تعذر الاتصال بالخادم. تحقق من الاتصال ثم أعد المحاولة.')
+            setFailure(t('تعذر الاتصال بالخادم. تحقق من الاتصال ثم أعد المحاولة.'))
             return false
           },
         }}
@@ -335,14 +499,14 @@ export function DataTable({
             {loading ? (
               <span role="status" className="inline-flex items-center gap-2">
                 <Loader2 size={14} className="animate-spin" />
-                جارٍ تحميل المزيد...
+                {t('جارٍ تحميل المزيد...')}
               </span>
             ) : hasMore ? (
               <Button variant="ghost" size="sm" onClick={fetch}>
-                تحميل المزيد
+                {t('تحميل المزيد')}
               </Button>
             ) : (
-              <span>{rows.length ? 'نهاية السجلات' : ''}</span>
+              <span>{rows.length ? t('نهاية السجلات') : ''}</span>
             )}
           </div>
         )}
@@ -368,6 +532,18 @@ export function DataTable({
           >
             <thead className="sticky top-0 z-10 bg-muted text-xs text-muted-foreground">
               <tr>
+                {selectable && (
+                  <th scope="col" className="h-11 w-10 ps-5 pe-1 text-start">
+                    <Checkbox
+                      aria-label={t('تحديد كل السجلات المعروضة')}
+                      checked={allState}
+                      disabled={!rows.length}
+                      onCheckedChange={(value) =>
+                        setSelected(value === true ? new Set(loadedIds) : new Set())
+                      }
+                    />
+                  </th>
+                )}
                 {fields.map((field) => (
                   <th
                     key={field.key}
@@ -392,7 +568,7 @@ export function DataTable({
                           })
                         }
                       >
-                        {field.label.ar}
+                        {label(field.label)}
                         {sort === field.key ? (
                           direction === 'desc' ? (
                             <ArrowDown size={12} />
@@ -404,7 +580,7 @@ export function DataTable({
                         )}
                       </button>
                     ) : (
-                      field.label.ar
+                      label(field.label)
                     )}
                   </th>
                 ))}
@@ -412,26 +588,39 @@ export function DataTable({
                   scope="col"
                   className="sticky end-0 border-s bg-muted px-5 text-start font-medium"
                 >
-                  الإجراءات
+                  {t('الإجراءات')}
                 </th>
               </tr>
             </thead>
             <tbody>
               {virtualized && items[0] && items[0].start > 0 && (
                 <tr aria-hidden="true">
-                  <td colSpan={fields.length + 1} style={{ height: items[0].start }} />
+                  <td colSpan={columns} style={{ height: items[0].start }} />
                 </tr>
               )}
               {items.map(({ index }) => {
                 const row = rows[index].original
                 const id = String(row.id)
+                const checked = selected.has(id)
                 return (
                   <tr
                     key={id}
                     aria-rowindex={index + 2}
-                    className="group border-b last:border-0 hover:bg-background"
+                    aria-selected={selectable ? checked : undefined}
+                    className={`group border-b last:border-0 hover:bg-background ${checked ? 'bg-accent/40' : ''}`}
                     style={{ height: ROW_HEIGHT }}
                   >
+                    {selectable && (
+                      <td className="w-10 ps-5 pe-1">
+                        <Checkbox
+                          aria-label={t('تحديد السجل {id}', { id })}
+                          checked={checked}
+                          onCheckedChange={(value) =>
+                            setSelected((current) => toggleSelection(current, id, value === true))
+                          }
+                        />
+                      </td>
+                    )}
                     {fields.map((field) => (
                       <Cell
                         key={field.key}
@@ -444,36 +633,52 @@ export function DataTable({
                     {/* Pinned at the inline end so wide tables keep their row actions in view. */}
                     <td className="sticky end-0 whitespace-nowrap border-s bg-card px-5 text-xs group-hover:bg-background">
                       <span className="inline-flex items-center gap-1">
-                        <Button variant="ghost" size="sm" asChild>
-                          <Link
-                            href={`/resources/${resource.name}/${id}`}
-                            aria-label={`عرض السجل ${id}`}
-                            onClick={(event) => overlay(event, id, 'show')}
-                          >
-                            عرض
-                          </Link>
-                        </Button>
-                        <Can permissions={permissions[id] ?? {}} action="update">
-                          <Button variant="ghost" size="sm" asChild>
-                            <Link
-                              href={`/resources/${resource.name}/${id}/edit`}
-                              aria-label={`تعديل السجل ${id}`}
-                              onClick={(event) => overlay(event, id, 'edit')}
-                            >
-                              تعديل
-                            </Link>
-                          </Button>
-                        </Can>
-                        <ResourceActions
-                          resource={resource.name}
-                          id={id}
-                          version={row.version ?? undefined}
-                          permissions={permissions[id] ?? {}}
-                          label={`السجل ${id}`}
-                          size="sm"
-                          variant="ghost"
-                          onDone={refresh}
-                        />
+                        {trashed ? (
+                          // Restore is authorized by the delete rule on the deleted record (ADR 046).
+                          (permissions[id] as Record<string, boolean | undefined> | undefined)
+                            ?.restore === true && (
+                            <RestoreAction
+                              resource={resource.name}
+                              id={id}
+                              version={row.version ?? undefined}
+                              label={t('السجل {id}', { id })}
+                              onDone={refresh}
+                            />
+                          )
+                        ) : (
+                          <>
+                            <Button variant="ghost" size="sm" asChild>
+                              <Link
+                                href={`/resources/${resource.name}/${id}`}
+                                aria-label={t('عرض السجل {id}', { id })}
+                                onClick={(event) => overlay(event, id, 'show')}
+                              >
+                                {t('عرض')}
+                              </Link>
+                            </Button>
+                            <Can permissions={permissions[id] ?? {}} action="update">
+                              <Button variant="ghost" size="sm" asChild>
+                                <Link
+                                  href={`/resources/${resource.name}/${id}/edit`}
+                                  aria-label={t('تعديل السجل {id}', { id })}
+                                  onClick={(event) => overlay(event, id, 'edit')}
+                                >
+                                  {t('تعديل')}
+                                </Link>
+                              </Button>
+                            </Can>
+                            <ResourceActions
+                              resource={resource.name}
+                              id={id}
+                              version={row.version ?? undefined}
+                              permissions={permissions[id] ?? {}}
+                              label={t('السجل {id}', { id })}
+                              size="sm"
+                              variant="ghost"
+                              onDone={refresh}
+                            />
+                          </>
+                        )}
                       </span>
                     </td>
                   </tr>
@@ -482,7 +687,7 @@ export function DataTable({
               {virtualized && (
                 <tr aria-hidden="true">
                   <td
-                    colSpan={fields.length + 1}
+                    colSpan={columns}
                     style={{
                       height: Math.max(0, virtual.getTotalSize() - (items.at(-1)?.end ?? 0)),
                     }}
@@ -491,17 +696,31 @@ export function DataTable({
               )}
               {!rows.length && (
                 <tr>
-                  <td colSpan={fields.length + 1} className="py-16 text-center">
-                    <Inbox
-                      className="mx-auto mb-3 text-muted-foreground"
-                      size={30}
-                      strokeWidth={1.3}
-                    />
-                    <p className="text-sm font-medium">لا توجد سجلات مطابقة</p>
+                  <td colSpan={columns} className="py-16 text-center">
+                    {trashed ? (
+                      <Trash2
+                        className="mx-auto mb-3 text-muted-foreground"
+                        size={30}
+                        strokeWidth={1.3}
+                      />
+                    ) : (
+                      <Inbox
+                        className="mx-auto mb-3 text-muted-foreground"
+                        size={30}
+                        strokeWidth={1.3}
+                      />
+                    )}
+                    <p className="text-sm font-medium">
+                      {trashed && !query.get('search') && !activeFilters.length
+                        ? t('لا توجد سجلات محذوفة')
+                        : t('لا توجد سجلات مطابقة')}
+                    </p>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {query.get('search') || activeFilters.length
-                        ? 'غيّر البحث أو التصفية لعرض سجلات أخرى.'
-                        : 'لم تُضف سجلات ضمن نطاقك بعد.'}
+                        ? t('غيّر البحث أو التصفية لعرض سجلات أخرى.')
+                        : trashed
+                          ? t('تظهر هنا السجلات المحذوفة ضمن نطاقك لتستعيدها.')
+                          : t('لم تُضف سجلات ضمن نطاقك بعد.')}
                     </p>
                   </td>
                 </tr>
@@ -530,6 +749,7 @@ function SavedViewsBar({
   onChanged: () => void
   onFailure: (message: string) => void
 }) {
+  const { t } = useMessages()
   const [naming, setNaming] = useState(false)
   const [name, setName] = useState('')
   const [shared, setShared] = useState(false)
@@ -553,7 +773,7 @@ function SavedViewsBar({
       onFailure(
         axios.isAxiosError(error) && error.response?.data?.error?.message
           ? String(error.response.data.error.message)
-          : 'تعذر حفظ العرض.'
+          : t('تعذر حفظ العرض.')
       )
     } finally {
       setBusy(false)
@@ -569,7 +789,7 @@ function SavedViewsBar({
       })
       onChanged()
     } catch {
-      onFailure('تعذر حذف العرض.')
+      onFailure(t('تعذر حذف العرض.'))
     } finally {
       setBusy(false)
     }
@@ -578,9 +798,11 @@ function SavedViewsBar({
     <div className="flex flex-wrap items-center gap-2 border-b px-5 py-3">
       <span className="flex items-center gap-2 text-xs text-muted-foreground">
         <Bookmark size={15} />
-        العروض المحفوظة
+        {t('العروض المحفوظة')}
       </span>
-      {views.length === 0 && <span className="text-xs text-muted-foreground">لا عروض بعد</span>}
+      {views.length === 0 && (
+        <span className="text-xs text-muted-foreground">{t('لا عروض بعد')}</span>
+      )}
       {views.map((view) => (
         <span
           key={view.id}
@@ -593,12 +815,12 @@ function SavedViewsBar({
             onClick={() => onApply(view)}
           >
             {view.name}
-            {!view.own && <span className="text-muted-foreground"> · مشترك</span>}
+            {!view.own && <span className="text-muted-foreground"> · {t('مشترك')}</span>}
           </Button>
           {view.own && (
             <button
               type="button"
-              aria-label={`حذف العرض ${view.name}`}
+              aria-label={t('حذف العرض {name}', { name: view.name })}
               disabled={busy}
               onClick={() => remove(view)}
               className="text-muted-foreground transition-colors hover:text-destructive"
@@ -611,24 +833,20 @@ function SavedViewsBar({
       {naming ? (
         <form onSubmit={save} className="flex flex-wrap items-center gap-2">
           <Input
-            aria-label="اسم العرض"
+            aria-label={t('اسم العرض')}
             value={name}
             autoFocus
             maxLength={60}
             onChange={(event) => setName(event.target.value)}
-            placeholder="اسم العرض"
+            placeholder={t('اسم العرض')}
             className="h-8 w-44 text-xs"
           />
           <label className="flex items-center gap-1 text-xs text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={shared}
-              onChange={(event) => setShared(event.target.checked)}
-            />
-            مشترك
+            <Checkbox checked={shared} onCheckedChange={(value) => setShared(value === true)} />
+            {t('مشترك')}
           </label>
           <Button type="submit" size="sm" className="h-8" disabled={busy || !name.trim()}>
-            حفظ
+            {t('حفظ')}
           </Button>
           <Button
             type="button"
@@ -637,13 +855,13 @@ function SavedViewsBar({
             className="h-8"
             onClick={() => setNaming(false)}
           >
-            إلغاء
+            {t('إلغاء')}
           </Button>
         </form>
       ) : (
         <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setNaming(true)}>
           <BookmarkPlus size={14} />
-          حفظ العرض الحالي
+          {t('حفظ العرض الحالي')}
         </Button>
       )}
     </div>
@@ -662,8 +880,11 @@ function Cell({
   lookups: LookupOptions
 }) {
   const { calendar } = useUiPreferences()
-  const text = displayValue(field, row, related, lookups, calendar)
-  const numeric = ['money', 'integer', 'date', 'datetime'].includes(field.type)
+  const { t, locale } = useMessages()
+  const text = displayValue(field, row, related, lookups, calendar, t, locale)
+  const numeric = ['money', 'integer', 'decimal', 'percent', 'date', 'datetime'].includes(
+    field.type
+  )
   return (
     <td
       className={`max-w-[280px] truncate px-5 ${numeric ? 'tabular-nums' : ''}`}
@@ -676,215 +897,5 @@ function Cell({
         text
       )}
     </td>
-  )
-}
-
-function Filter({
-  resource,
-  field,
-  value,
-  options,
-  related,
-  onApply,
-}: {
-  resource: string
-  field: ResourceField
-  value: string
-  options?: Option[]
-  related?: SerializedRecord[]
-  onApply: (value: string | undefined) => void
-}): ReactNode {
-  const [draft, setDraft] = useState(value)
-  const id = `filter-${field.key}`
-  const select = (choices: Option[]) => (
-    <ResourceSelect
-      id={id}
-      className="h-9 w-44 text-xs"
-      value={value}
-      placeholder="الكل"
-      options={choices}
-      onChange={(next) => onApply(next || undefined)}
-    />
-  )
-  return (
-    <label htmlFor={id} className="flex flex-col gap-1 text-xs text-muted-foreground">
-      {field.label.ar}
-      {field.type === 'lookup' ? (
-        select(options ?? [])
-      ) : field.type === 'boolean' ? (
-        select([
-          { value: 'true', label: 'نعم' },
-          { value: 'false', label: 'لا' },
-        ])
-      ) : field.type === 'belongsTo' || field.type === 'user' ? (
-        <RelationFilter
-          resource={resource}
-          field={field}
-          value={value}
-          related={related}
-          onApply={onApply}
-        />
-      ) : field.type === 'date' ? (
-        <div className="w-56">
-          <FieldControl
-            field={field}
-            id={id}
-            value={draft}
-            label={`تصفية ${field.label.ar}`}
-            onChange={(next) => {
-              setDraft(next)
-              try {
-                const parsed = parseValue(field, next)
-                onApply(parsed ? String(parsed) : undefined)
-              } catch {
-                // Keep partial or invalid input without issuing an invalid date query.
-              }
-            }}
-          />
-        </div>
-      ) : (
-        <Input
-          id={id}
-          className="h-9 w-44 text-xs"
-          value={draft}
-          placeholder="اضغط Enter للتطبيق"
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') {
-              event.preventDefault()
-              onApply(draft || undefined)
-            }
-          }}
-        />
-      )}
-    </label>
-  )
-}
-
-/**
- * Filters by a related record through the target list route, which enforces the target's
- * own rules. User fields list users through the field's options route instead.
- */
-function RelationFilter({
-  resource,
-  field,
-  value,
-  related = [],
-  onApply,
-}: {
-  resource: string
-  field: ResourceField & { type: 'belongsTo' | 'user' }
-  value: string
-  /** Related rows already loaded with the list; they label the active filter after a reload. */
-  related?: SerializedRecord[]
-  onApply: (value: string | undefined) => void
-}) {
-  const [open, setOpen] = useState(false)
-  const [term, setTerm] = useState('')
-  const [choices, setChoices] = useState<Option[]>([])
-  const [selected, setSelected] = useState<Option | null>(null)
-  const [busy, setBusy] = useState(false)
-  const timer = useRef<ReturnType<typeof setTimeout>>(undefined)
-  const listId = useId()
-  const load = async (search: string) => {
-    setBusy(true)
-    try {
-      if (field.type === 'user') {
-        const users = await axios.get<{ data: Option[] }>(
-          `/resources/${resource}/options/${field.key}`,
-          {
-            params: { purpose: 'filter', ...(search ? { search } : {}) },
-            headers: { Accept: 'application/json' },
-          }
-        )
-        setChoices(users.data.data)
-        return
-      }
-      const response = await axios.get<ResourceList>(`/resources/${field.resource}`, {
-        params: {
-          limit: 50,
-          estimate: 'false',
-          ...(search ? { search } : {}),
-        },
-        headers: { Accept: 'application/json' },
-      })
-      setChoices(
-        response.data.data.map((row) => ({
-          value: String(row.id),
-          label: relationLabel(row, row.id),
-        }))
-      )
-    } catch {
-      setChoices([])
-    } finally {
-      setBusy(false)
-    }
-  }
-  const loaded = related.find((row) => String(row.id) === value)
-  const current =
-    choices.find((choice) => choice.value === value) ??
-    (selected?.value === value ? selected : null) ??
-    (loaded ? { value, label: relationLabel(loaded, value) } : null)
-  const choose = (option: Option | null) => {
-    setSelected(option)
-    setOpen(false)
-    onApply(option?.value)
-  }
-  return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next)
-        if (next && !choices.length) void load(term)
-      }}
-    >
-      <PopoverTrigger asChild>
-        <Button
-          id={`filter-${field.key}`}
-          type="button"
-          role="combobox"
-          variant="outline"
-          aria-expanded={open}
-          aria-controls={listId}
-          className={`h-9 w-44 justify-between bg-transparent text-xs font-normal ${value ? '' : 'text-muted-foreground'}`}
-        >
-          <span className="truncate">{value ? (current?.label ?? `#${value}`) : 'الكل'}</span>
-          <ChevronsUpDown className="opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="w-64 p-0" align="start">
-        <Command shouldFilter={false}>
-          <CommandInput
-            placeholder="ابحث في السجلات المرتبطة"
-            aria-label={`البحث في ${field.label.ar}`}
-            value={term}
-            onValueChange={(next) => {
-              setTerm(next)
-              clearTimeout(timer.current)
-              timer.current = setTimeout(() => void load(next), 300)
-            }}
-          />
-          <CommandList id={listId}>
-            <CommandEmpty>{busy ? 'جارٍ البحث...' : 'لا توجد سجلات مطابقة'}</CommandEmpty>
-            <CommandGroup>
-              <CommandItem value="__all__" onSelect={() => choose(null)}>
-                <Check className={value ? 'opacity-0' : 'opacity-100'} />
-                الكل
-              </CommandItem>
-              {choices.map((choice) => (
-                <CommandItem
-                  key={choice.value}
-                  value={choice.value}
-                  onSelect={() => choose(choice)}
-                >
-                  <Check className={choice.value === value ? 'opacity-100' : 'opacity-0'} />
-                  {choice.label}
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
   )
 }

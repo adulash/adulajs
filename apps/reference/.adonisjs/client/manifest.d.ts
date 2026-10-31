@@ -4,6 +4,7 @@
  */
 
 /// <reference path="../../adonisrc.ts" />
+/// <reference path="../../config/adula.ts" />
 /// <reference path="../../config/ally.ts" />
 /// <reference path="../../config/attachment.ts" />
 /// <reference path="../../config/auth.ts" />

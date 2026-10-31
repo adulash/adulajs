@@ -1,8 +1,10 @@
-# Business features (phases 3 and 4)
+# Business features
 
-How to use AdulaJS's business features in an application. Every feature is an AdulaJS
-service plus an additive migration; the reference application shows the wiring
-(routes, controllers, pages) that `create-adula-app` copies into new projects.
+How to use AdulaJS's business features in a system and its applications (an application
+is a business area such as assets or HR, implemented as a module under `app/modules`).
+Every feature is an AdulaJS service plus an additive migration; the reference system
+(`apps/reference`) shows the wiring (routes, controllers, pages) that `create-adulajs`
+copies into new systems.
 All record features call `ResourceService.access`, so they can never reach a
 record the user could not open.
 
@@ -33,7 +35,8 @@ create assignments of kind `approval`.
   message template. Defaults live in AdulaJS (`DEFAULT_TEMPLATES`); administrators
   edit wording at `/admin/templates` (placeholders are validated).
 - Templates with mail enabled are e-mailed by the worker
-  (`deliverNotificationMail`, three attempts).
+  (`deliverNotificationMail`, three attempts), and sent to the SMS/WhatsApp provider
+  for users who enabled it ([notification channels](integration.md#notification-channels)).
 - A database trigger NOTIFYs on commit; each web process forwards the signal over
   SSE (`@adonisjs/transmit`, channel `notifications/<userId>`), and the bell
   refreshes without a page reload.
@@ -67,7 +70,7 @@ X-GitHub-Delivery: <id>               # deduplicated per source
 
 A missing or wrong signature is refused before anything is stored. Each delivery
 is stored once and raised through the outbox as `inbound.<key>.<event>` with the
-payload `{ source, delivery, event, body }`. Modules react with an idempotent
+payload `{ source, delivery, event, body }`. Applications react with an idempotent
 listener in `start/listeners.ts`, for example:
 
 ```ts
@@ -88,32 +91,101 @@ The delivery log shows every stored delivery and can raise it again.
 Users create read or read-write tokens under their account menu. `/api/v1`
 accepts `Authorization: Bearer <token>` only (no cookies, no CSRF) and exposes the
 same resource operations with the token owner's current permissions.
-`GET /api/v1/openapi.json` describes the resources and actions the caller may use.
+`GET /api/v1/openapi.json` describes the resources and actions the caller may use, and
+`GET /api/v1/client.ts` returns a typed TypeScript client generated from it
+([Integration](integration.md#resource-api-and-the-generated-client)).
+
+## Lists: filters, export, bulk actions and deleted records
+
+Generic index pages filter each filterable field by its type: «أيٌّ من» (several values)
+for lookups, texts and relations, «من / إلى» for numbers, amounts and dates, and
+«فارغ / غير فارغ» for every field. Saved views keep these filters. The URL form is
+`filters[status][in]=open,closed`, `filters[total][gte]=1000`, `filters[notes][empty]=true`.
+
+«تصدير النتائج» downloads a CSV of every record matching the current search and filters,
+not just the loaded rows, with the columns the user may read. Exports above 5000 rows are
+refused with a request to narrow the filters.
+
+Selecting rows shows a bulk bar with the actions the user may take: delete, submit,
+cancel, restore in «المحذوفات», and actions the application defines in `start/bulk_actions.ts`:
+
+```ts
+defineBulkActions('tasks', [
+  { key: 'markDone', label: { ar: 'تعليم كمنجزة' }, values: { done: true } },
+])
+```
+
+Each selected record is checked separately against the user's permissions; the result
+lists the records that could not be changed and why. Users who may delete a resource see
+«المحذوفات» and can restore deleted records (ADR 046).
+
+## Dashboards
+
+`start/dashboards.ts` declares indicator pages served at `/dashboards/:name`:
+
+```ts
+defineDashboard({
+  name: 'orders_overview',
+  label: { ar: 'لوحة الطلبات' },
+  widgets: [
+    { key: 'orders', label: { ar: 'عدد الطلبات' }, resource: 'orders', measure: 'count' },
+    { key: 'total', label: { ar: 'الإجمالي' }, resource: 'orders', measure: { sum: 'total' } },
+    { key: 'byStatus', label: { ar: 'حسب الحالة' }, resource: 'orders', measure: 'count', groupBy: 'status' },
+  ],
+})
+```
+
+Every number is computed as the viewer through `aggregate()`, within the viewer's scope;
+a widget over data the viewer cannot read is not shown.
 
 ## CSV import
 
 Generic index pages offer "استيراد CSV" to users who may create records. Columns
 are matched to writable fields, the worker saves each row through
 `ResourceService` with the importer's permissions, and `/imports` shows progress
-and row errors. XLSX is not supported yet (GAP-006).
+and row errors. Templates, dry-run checks, upsert by a unique field, the import API and
+format adapters are described in [Integration](integration.md#imports). XLSX is not
+supported yet ([GAPS](../GAPS.md)).
 
 ## Printing
 
 `GET /resources/<name>/<id>/print` renders an RTL A4 page with the fields the user
 may see. Set `GOTENBERG_URL` (see `docker-compose.pdf.yml`) to add `?format=pdf`.
 
+### Print templates
+
+`?template=<key>` prints with a template instead of the generic layout (ADR 048). The
+record page's «طباعة» opens a dialog listing the generic print, the resource's code
+templates and the active administrator templates, with HTML or PDF (when configured).
+
+* **In code.** `printTemplates` on a resource declares a layout: `key`, `label`, `paper`
+  (A4, A5, Letter), `orientation`, plain-text `header`/`footer`, the `fields` to print,
+  `lines` (hasMany fields and their columns) and `totals` (a money/number field, or the
+  sum of a line column). Unknown fields are definition errors.
+* **In the administration.** «قوالب الطباعة» (`/admin/print-templates`) creates and edits
+  templates per resource in a safe `{{ }}` language: `{{field.key}}`, `{{label "key"}}`,
+  `{{#each lines.items}}…{{row.column}}…{{/each}}`, `{{#if field.x}}…{{else}}…{{/if}}` and
+  the helpers `date`, `money`, `number`, `digits`, `label`, `total`, plus `{{logo}}`,
+  `{{company}}`, `{{id}}`. Markup is limited to structural tags; scripts, links, images
+  and remote CSS are removed. Each save adds a version; a preview renders the draft on a
+  record the administrator may read.
+* Values are printed only when the reader may read them, exactly as on the record page.
+  Dates follow the calendar preference and digits the new «الأرقام في المستندات المطبوعة»
+  preference (Latin or Arabic-Indic). Every print records a `printed` activity with the
+  template key, version and format.
+
 ## Two-factor authentication
 
-Not part of 1.0. The owner moved 2FA to 2.0 (ADR 027); it returns there with a
-human ASVS review.
+TOTP two-factor authentication with recovery codes is available (ADR 042); see
+[Authentication](authentication.md).
 
 ## Documents and workflows
 
 Submittable resources support submit, cancel and amend-by-copy (a cancelled
 document is copied with its inline lines into a new draft).
 
-Workflows are code in `app/modules/<module>/workflows/` and are listed in the
-module's `workflows` array:
+Workflows are code in the application's `app/modules/<module>/workflows/` and are
+listed in its module's `workflows` array:
 
 ```ts
 export default defineWorkflow({
@@ -133,7 +205,7 @@ export default defineWorkflow({
 })
 ```
 
-Step types: `condition`, `update`, `notify`, `approval`, `delay`, `http`, `end`.
+Step types: `condition`, `update`, `notify`, `approval`, `decision`, `delay`, `http`, `end`.
 `{ role }` recipients name the role's stable key (`roles.key`, set when the role is
 created or once in the roles screen). Administrators can rename the Arabic display
 name without detaching approvers. A role without a key is still matched by its
@@ -142,4 +214,63 @@ Submitting a document starts the newest version; the run keeps that version.
 Change a workflow by adding a new version; move unfinished runs explicitly with
 `WorkflowEngine.migrateRuns`. The worker advances due runs; approvers decide in
 `/approvals`; failed runs are retried from `/admin/workflows`. HTTP steps send a
-stable `Idempotency-Key` because a crash may repeat the call.
+stable `Idempotency-Key` because a crash may repeat the call. Transitions are resolved
+from the step table itself (ADR 044); `WorkflowDefinition.machine` is deprecated.
+
+### Delegation while out of office
+
+A user delegates their workflow approvals to a colleague for a date range in
+`/account/delegations` («التفويض أثناء الغياب»); administrators manage anyone's in
+`/admin/delegations`. While the delegation is in force:
+
+* new approvals for the user open for the delegate («نيابة عن ...»), provided the
+  delegate can view the record; the user still sees and can decide them;
+* the user's pending approvals appear in the delegate's My tasks and can be decided
+  there;
+* the run's history names who decided and on whose behalf.
+
+Delegation never widens record access (the delegate's own rights still apply), never
+covers manual tasks, and never lets anyone approve a request they submitted. It ends at
+its last date or when revoked; revoking returns the routed approvals to the approver.
+Routing is one hop: if the delegate is away too, the approval stays with its approver.
+Ranges are inclusive calendar days of the system time zone (`timeZone` in
+`config/adula.ts`, an IANA name such as `Asia/Riyadh`; UTC when unset). With
+`Asia/Riyadh`, a delegation dated 1 to 3 November runs from local midnight on
+1 November to the end of 3 November. One delegation per user at a time. Code:
+`WorkflowDelegations`.
+
+Due dates (`dueInDays`, and the date of an SLA deadline) are calendar days of the same
+zone. Pass the zone to `WorkflowEngine`, `Assignments` and `WorkflowDelegations`
+(`timeZone` option); the reference `app/services/adula.ts` does.
+
+### SLA deadlines and escalation
+
+Approval and decision steps may declare a deadline in hours and what happens when it
+passes:
+
+```ts
+manager: {
+  type: 'approval',
+  label: 'موافقة مدير القسم',
+  assignees: { role: 'department_manager' },
+  sla: {
+    hours: 48,
+    dueSoonHours: 8, // reminder; default a quarter of hours, 0 for none
+    // 'overdue' (default) tells the approvers; 'notify' also tells the target;
+    // 'reassign' moves the approval to the target.
+    escalate: { action: 'notify', to: { manager: 'general_manager' } },
+  },
+  approve: 'director',
+  reject: 'rejected',
+},
+```
+
+`to` is any recipient (`{ role }`, `{ users }`, `'submitter'`, a function) or
+`{ manager: roleKey }`: holders of that role scoped to the approver's organizational
+unit, or to the nearest ancestor unit. Schedule the `sla:` job family
+(`node ace sla:evaluate`, every minute; the reference `start/scheduler.ts` does).
+Each pass sends one reminder per approval and escalates each overdue step once
+(`workflow_escalations`), through the message templates `workflow.sla_due_soon`,
+`workflow.sla_overdue` and `workflow.sla_escalated`. My tasks and the record's
+workflow panel show the state: «في الموعد»، «يقترب الموعد»، «متأخر». SLA hours are
+wall-clock hours (no business calendar).

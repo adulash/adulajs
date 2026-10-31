@@ -1,6 +1,5 @@
 import { test } from '@japa/runner'
 import {
-  AdulaError,
   MessageTemplates,
   deliverNotificationMail,
   notifyWithTemplate,
@@ -8,24 +7,14 @@ import {
   listenForNotifications,
 } from '../index.js'
 import { db, setup } from './helpers.js'
-
-async function failure(run: () => Promise<unknown>): Promise<AdulaError> {
-  try {
-    await run()
-  } catch (error) {
-    if (error instanceof AdulaError) return error
-    throw error
-  }
-  throw new Error('Expected an AdulaError')
-}
+import { failure } from './helpers/failure.js'
+import { addUserProfileColumns, seedActor } from './helpers/actors.js'
 
 test.group('Message templates and notification delivery', (group) => {
   group.setup(async () => {
     await setup()
-    await db.raw(
-      'ALTER TABLE users ADD COLUMN full_name varchar, ADD COLUMN disabled_at timestamptz'
-    )
-    await db('users').insert({ id: 3, email: 'off@example.test', disabled_at: db.fn.now() })
+    await addUserProfileColumns()
+    await seedActor({ id: 3 }, { email: 'off@example.test', disabled: true })
   })
   group.each.setup(async () => {
     await db('message_templates').del()

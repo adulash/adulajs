@@ -7,6 +7,7 @@ import env from '#start/env'
 import { ValidationError } from '@vinejs/vine'
 import UserInvitationNotification from '#mails/user_invitation_notification'
 import { invitationValidator, acceptInvitationValidator } from '#validators/user'
+import { requestActor } from '#services/adula'
 
 const service = () => new UserInvitations(db.connection().getWriteClient())
 
@@ -18,19 +19,25 @@ export default class UserInvitationsController {
   }
 
   async store(ctx: HttpContext) {
-    const id = ctx.auth.getUserOrFail().id
+    const actor = await requestActor(ctx)
+    const id = actor.id
     if (!(await service().canInvite(id)))
       throw new AdulaError(403, 'E_FORBIDDEN', 'ليس لديك صلاحية دعوة المستخدمين')
     try {
       const input = await ctx.request.validateUsing(invitationValidator)
-      const data = await service().invite(id, input, async ({ email, token }) => {
-        await mail.send(
-          new UserInvitationNotification(
-            email,
-            `${env.get('APP_URL').replace(/\/$/, '')}/invitations/${token}`
+      const data = await service().invite(
+        id,
+        input,
+        async ({ email, token }) => {
+          await mail.send(
+            new UserInvitationNotification(
+              email,
+              `${env.get('APP_URL').replace(/\/$/, '')}/invitations/${token}`
+            )
           )
-        )
-      })
+        },
+        { impersonatorId: actor.impersonatorId }
+      )
       if (ctx.request.accepts(['html', 'json']) === 'json') return { data }
       ctx.session.flash(
         'success',

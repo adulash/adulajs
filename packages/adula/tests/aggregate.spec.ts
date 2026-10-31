@@ -1,17 +1,9 @@
 import { test } from '@japa/runner'
-import { AdulaError, ResourceService, buildAbility, canQueryField } from '../index.js'
+import { ResourceService, buildAbility, canQueryField } from '../index.js'
 import type { Actor } from '../index.js'
 import { admin, db, order, reader, registry, setup } from './helpers.js'
-
-async function failure(run: () => Promise<unknown>): Promise<AdulaError> {
-  try {
-    await run()
-  } catch (error) {
-    if (error instanceof AdulaError) return error
-    throw error
-  }
-  throw new Error('Expected an AdulaError')
-}
+import { failure } from './helpers/failure.js'
+import { powerless } from './helpers/actors.js'
 
 test.group('Authorized aggregates', (group) => {
   const service = () => new ResourceService(db, registry)
@@ -113,7 +105,7 @@ test.group('Authorized aggregates', (group) => {
       canQueryField(order, conditional, buildAbility(conditional.rules, registry.all()), 'status')
     )
     const denied = await failure(() =>
-      service().aggregate('customers', { ...reader, rules: [] }, { groupBy: ['name'] })
+      service().aggregate('customers', powerless(), { groupBy: ['name'] })
     )
     assert.equal(denied.status, 403)
   })

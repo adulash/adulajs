@@ -75,10 +75,8 @@ test.group('Outgoing webhooks over HTTP', (group) => {
         .first()
       const event: DomainEvent = { id: row.id, event: row.event, payload: row.payload }
       for (const listener of listeners) await consumeEvent(knex(), listener, event)
-      await adula().webhooks.deliver(async (url, init) => {
-        const response = await fetch(url, { method: 'POST', ...init })
-        return { status: response.status }
-      })
+      // The guarded, address-pinned client the worker uses (private targets allowed in tests).
+      await adula().webhooks.deliver()
       assert.lengthOf(bodies, 1)
       assert.equal(
         bodies[0].signature,

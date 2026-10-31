@@ -1,11 +1,18 @@
 import { createHmac, randomBytes, randomUUID } from 'node:crypto'
-import { lookup } from 'node:dns/promises'
-import { isIP } from 'node:net'
 import type { Knex } from 'knex'
 import type { ResourceRegistry } from '../resource/registry.js'
 import type { DomainEvent, Listener } from '../events/outbox.js'
 import { AdulaError } from '../admin/errors.js'
 import { notifyWithTemplate } from '../core/message_templates.js'
+import {
+  OutboundTargetError,
+  createOutboundPoster,
+  outboundErrorCategory,
+  resolveOutboundTarget,
+  type OutboundOptions,
+  type OutboundRequest,
+  type OutboundTarget,
+} from './outbound.js'
 
 /** Seals webhook secrets at rest; hosts pass their framework encryption service. */
 export type SecretBox = { seal(value: string): string; open(value: string): string | null }
@@ -31,16 +38,13 @@ export type WebhookDelivery = {
   deliveredAt: string | null
   nextAttemptAt: string | null
 }
-export type WebhookOptions = {
-  /** Allow http:// and private or loopback addresses (development and tests only). */
-  allowPrivateTargets?: boolean
-  /** Hostname resolution; replaceable in tests. */
-  resolve?: (host: string) => Promise<string[]>
-}
-export type HttpPoster = (
-  url: string,
-  init: { headers: Record<string, string>; body: string; signal: AbortSignal }
-) => Promise<{ status: number }>
+/** Outbound target policy; private targets need an explicit opt-in. */
+export type WebhookOptions = OutboundOptions
+/**
+ * Sends one POST. `init.target` is the address validated for this delivery;
+ * a poster must connect to it (createOutboundPoster does) to defeat DNS rebinding.
+ */
+export type HttpPoster = (url: string, init: OutboundRequest) => Promise<{ status: number }>
 
 const EVENT_VERBS = ['created', 'updated', 'deleted', 'submitted', 'cancelled', 'amended']
 const BACKOFF_MINUTES = [1, 5, 30, 120, 720]
@@ -50,34 +54,6 @@ const NAME_LIMIT = 100
 /** Signature receivers verify: hex HMAC-SHA256 over `${timestamp}.${body}`. */
 export function signWebhook(secret: string, timestamp: string, body: string) {
   return createHmac('sha256', secret).update(`${timestamp}.${body}`).digest('hex')
-}
-
-function privateAddress(address: string) {
-  if (isIP(address) === 6) {
-    const lower = address.toLowerCase()
-    if (lower.startsWith('::ffff:')) return privateAddress(lower.slice(7))
-    return (
-      lower === '::1' ||
-      lower === '::' ||
-      lower.startsWith('fc') ||
-      lower.startsWith('fd') ||
-      lower.startsWith('fe8') ||
-      lower.startsWith('fe9') ||
-      lower.startsWith('fea') ||
-      lower.startsWith('feb')
-    )
-  }
-  const [a, b] = address.split('.').map(Number)
-  return (
-    a === 10 ||
-    a === 127 ||
-    a === 0 ||
-    (a === 169 && b === 254) ||
-    (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 168) ||
-    (a === 100 && b >= 64 && b <= 127) ||
-    a >= 224
-  )
 }
 
 /**
@@ -210,7 +186,7 @@ export class Webhooks {
    * Sends due deliveries. Each row is claimed with SKIP LOCKED; a crash after the
    * HTTP call may repeat a delivery, so receivers deduplicate on X-Adula-Delivery.
    */
-  async deliver(post: HttpPoster, limit = 20) {
+  async deliver(post: HttpPoster = createOutboundPoster(this.options), limit = 20) {
     const claimed = await this.db.transaction(async (trx) => {
       const rows = await trx('webhook_deliveries as d')
         .join('webhooks as w', 'w.id', 'd.webhook_id')
@@ -242,8 +218,12 @@ export class Webhooks {
       let error: string | null = null
       try {
         const secret = this.secrets.open(String(row.secret))
-        if (!secret) throw new Error('Webhook secret cannot be opened with the current key')
-        await this.assertTarget(String(row.url))
+        if (!secret) {
+          error = 'secret'
+          throw new Error('Webhook secret cannot be opened with the current key')
+        }
+        // Resolve once; the poster connects to this validated address only.
+        const target = await this.resolveTarget(String(row.url))
         const response = await post(String(row.url), {
           headers: {
             'Content-Type': 'application/json',
@@ -255,11 +235,13 @@ export class Webhooks {
           },
           body,
           signal: AbortSignal.timeout(10000),
+          target,
         })
         status = response.status
-        if (status < 200 || status >= 300) error = `HTTP ${status}`
+        if (status < 200 || status >= 300) error = `http-status:${status}`
       } catch (caught) {
-        error = String((caught as Error)?.message ?? caught).slice(0, 500)
+        // Store a category only; raw messages may echo internal hosts or bodies.
+        error ??= outboundErrorCategory(caught)
       }
       if (!error) {
         await this.db('webhook_deliveries').where('id', row.id).update({
@@ -326,6 +308,27 @@ export class Webhooks {
 
   /** Refuses non-HTTPS URLs and hosts resolving to private addresses (SSRF). */
   private async assertTarget(value: string) {
+    const url = this.parseTarget(value)
+    if (this.options.allowPrivateTargets === true) return
+    try {
+      await resolveOutboundTarget(url, this.options)
+    } catch {
+      throw new AdulaError(422, 'E_WEBHOOK_URL', 'لا يُسمح بعناوين الشبكة الداخلية')
+    }
+  }
+
+  /** Re-validates a stored URL at delivery time and returns the address to pin. */
+  private async resolveTarget(value: string): Promise<OutboundTarget> {
+    let url: URL
+    try {
+      url = this.parseTarget(value)
+    } catch {
+      throw new OutboundTargetError('blocked-target')
+    }
+    return resolveOutboundTarget(url, this.options)
+  }
+
+  private parseTarget(value: string) {
     let url: URL
     try {
       url = new URL(value)
@@ -337,19 +340,7 @@ export class Webhooks {
       throw new AdulaError(422, 'E_WEBHOOK_URL', 'يجب أن يبدأ العنوان بـ https://')
     if (url.username || url.password || value.length > 2000)
       throw new AdulaError(422, 'E_WEBHOOK_URL', 'عنوان URL غير مسموح')
-    if (allowPrivate) return
-    const host = url.hostname.replace(/^\[|\]$/g, '')
-    const addresses = isIP(host)
-      ? [host]
-      : await (
-          this.options.resolve ??
-          (async (name: string) => {
-            const entries = await lookup(name, { all: true })
-            return entries.map((entry) => entry.address)
-          })
-        )(host).catch(() => [])
-    if (!addresses.length || addresses.some(privateAddress))
-      throw new AdulaError(422, 'E_WEBHOOK_URL', 'لا يُسمح بعناوين الشبكة الداخلية')
+    return url
   }
 
   private present(row: Record<string, any>): Webhook {

@@ -59,8 +59,14 @@ export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
       await cache.clear()
       await testUtils.db().migrate()
       await db.rawQuery(
-        'TRUNCATE users, user_sessions, password_reset_tokens, social_accounts, org_units, roles, settings, lookups, sequences, activities, outbox, processed_events, notifications, workflow_runs, attachments, saved_views, tags, taggables, assignments, message_templates, webhooks, auth_access_tokens, import_batches, workflow_events RESTART IDENTITY CASCADE'
+        'TRUNCATE users, user_sessions, password_reset_tokens, social_accounts, org_units, roles, settings, lookups, sequences, activities, outbox, processed_events, notifications, workflow_runs, attachments, saved_views, tags, taggables, assignments, message_templates, webhooks, auth_access_tokens, import_batches, workflow_events, user_two_factor, user_two_factor_recovery_codes RESTART IDENTITY CASCADE'
       )
+      // Suites create administrators without a second factor. Enforcement is switched off
+      // here; tests/functional/two_factor.spec.ts restores the default (required) and covers it.
+      await db.from('settings').where('key', 'auth.twoFactorRequiredForAdministrators').delete()
+      await db
+        .table('settings')
+        .insert({ key: 'auth.twoFactorRequiredForAdministrators', value: JSON.stringify(false) })
     },
   ],
   teardown: [

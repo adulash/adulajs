@@ -1,10 +1,12 @@
 // Public API contract of adula: every export of the built entry points and its
 // declared type. Removing or changing an entry is a breaking change (major); adding
 // one is a minor change. Run with --update after an intentional, reviewed change.
+// It also fails when docs/reference/define-resource.md no longer matches types.ts.
 import { readFile, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
+import { referenceIsCurrent } from './define-resource-reference.mjs'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
 const core = join(root, 'packages/adula')
@@ -79,5 +81,10 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       process.exit(1)
     }
     console.log(`Public API matches (${Object.values(current).reduce((sum, e) => sum + Object.keys(e).length, 0)} exports)`)
+    if (!(await referenceIsCurrent())) {
+      console.error('docs/reference/define-resource.md is stale. Run pnpm docs:reference and commit the page.')
+      process.exit(1)
+    }
+    console.log('defineResource reference is current')
   }
 }

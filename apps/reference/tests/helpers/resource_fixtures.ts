@@ -45,6 +45,7 @@ async function uploadContract(
         size: row.size,
         mimeType: 'application/pdf',
         url: attachmentUrl(row.id),
+        preview: 'pdf',
       },
     }
   } finally {
@@ -129,6 +130,22 @@ export const resourceFixtures: Record<string, ResourceFixture> = {
       stored: { scan: scan.id },
     }
   },
+  order_documents: async ({ userId, unique }) => {
+    // Several files in order: the update reorders, removes one and adds another (ADR 047).
+    const target = { resource: 'order_documents', field: 'files' }
+    const first = await uploadContract(userId, `${unique}-1`, target)
+    const second = await uploadContract(userId, `${unique}-2`, target)
+    const third = await uploadContract(userId, `${unique}-3`, target)
+    const values = { title: `مستند ${unique}` }
+    return {
+      input: { ...values, files: [first.id, second.id] },
+      expected: { ...values, files: [first.summary, second.summary] },
+      stored: { files: [first.id, second.id] },
+      update: { ...values, files: [third.id, second.id] },
+      updated: { ...values, files: [third.summary, second.summary] },
+      updatedStored: { files: [third.id, second.id] },
+    }
+  },
   order_deliveries: async (context) => {
     const order = await parentOrder(context)
     const values = { orderId: order.id, recipient: `مستلم ${context.unique}` }
@@ -159,4 +176,98 @@ export const resourceFixtures: Record<string, ResourceFixture> = {
       updated: { ...values, done: true },
     }
   },
+  leave_requests: async (context) => {
+    // adula:install seeds the module lookups; the contract adds the row it needs itself.
+    await db
+      .connection()
+      .getWriteClient()('lookups')
+      .insert({
+        group: 'leave_request_status',
+        key: 'pending',
+        label_ar: 'قيد المراجعة',
+        label_en: 'Pending',
+      })
+      .onConflict(['group', 'key'])
+      .ignore()
+    const values = {
+      employee: context.userId,
+      startDate: '2026-11-01',
+      endDate: '2026-11-05',
+      reason: `إجازة سنوية ${context.unique}`,
+      status: 'pending',
+    }
+    return {
+      input: values,
+      expected: values,
+      update: { ...values, endDate: '2026-11-07' },
+      updated: { ...values, endDate: '2026-11-07' },
+    }
+  },
+  supply_categories: ({ unique }) => ({
+    input: { name: `فئة ${unique}` },
+    expected: { name: `فئة ${unique}` },
+    update: { name: `فئة محدثة ${unique}` },
+    updated: { name: `فئة محدثة ${unique}` },
+  }),
+  // Every 2.2 field type: canonical values are what the server stores and returns (ADR 045).
+  suppliers: async ({ userId, orgUnitId, unique }) => {
+    const runtime = adula()
+    const actor = await runtime.actors.load(userId)
+    const category = await runtime.resources.save('supply_categories', actor, {
+      name: `فئة المورد ${unique}`,
+      orgUnitId,
+    })
+    const code = `SUP-${String(++supplierCodes % 10000).padStart(4, '0')}`
+    const common = { code, name: `مورد ${unique}`, website: 'https://supplier.example' }
+    return {
+      input: {
+        ...common,
+        kind: 'local',
+        commercialRegister: '1010123456',
+        country: 'ألمانيا',
+        email: ' Sales@Supplier.Example ',
+        phone: '٠٥٠ ١٢٣-٤٥٦٧',
+        creditLimit: '250000',
+        paymentTermsDays: 45,
+        discountRate: 2.5,
+        rating: '4',
+        paymentMethods: ['cheque', 'bank', 'cheque'],
+        categories: [Number(category.id)],
+      },
+      expected: {
+        ...common,
+        kind: 'local',
+        commercialRegister: '1010123456',
+        // Hidden for a local supplier: ignored and stored as null.
+        country: null,
+        email: 'sales@supplier.example',
+        phone: '0501234567',
+        creditLimit: '250000',
+        paymentTermsDays: 45,
+        discountRate: '2.50',
+        rating: '4.0',
+        paymentMethods: ['bank', 'cheque'],
+        categories: [Number(category.id)],
+      },
+      update: {
+        ...common,
+        kind: 'international',
+        country: 'ألمانيا',
+        commercialRegister: '1010123456',
+        paymentMethods: ['cash'],
+        categories: [],
+      },
+      updated: {
+        ...common,
+        kind: 'international',
+        country: 'ألمانيا',
+        // Hidden by visibleWhen: stored as null whatever was submitted.
+        commercialRegister: null,
+        paymentMethods: ['cash'],
+        categories: [],
+      },
+    }
+  },
 }
+/** Supplier codes are unique per unit; the contract creates several in one unit. */
+let supplierCodes = Math.floor(Math.random() * 5000)

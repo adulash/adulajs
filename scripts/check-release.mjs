@@ -6,8 +6,8 @@ import { dirname, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const repository = 'git+https://github.com/adulash/adulajs.git'
-export const packageNames = ['adula', '@adula/ui', 'create-adula-app']
-export const packageDirectories = ['adula', 'ui', 'create-adula-app']
+export const packageNames = ['adula', '@adula/ui', 'create-adulajs']
+export const packageDirectories = ['adula', 'ui', 'create-adulajs']
 /** The archive name pnpm pack writes for a package: @adula/ui -> adula-ui-<version>.tgz. */
 export const tarballName = (name, version) => `${name.replace(/^@/, '').replace('/', '-')}-${version}.tgz`
 export function validateManifest(pkg, name, version) {
@@ -49,55 +49,10 @@ export function validateContents(pkg, files) {
   }
 }
 
-export function validateReadiness(readiness, version, channel) {
-  assert(['alpha', 'next', 'latest'].includes(channel), 'Channel must be alpha, next or latest')
-  assert.equal(readiness.target, '1.0.0', 'This release track targets the approved 1.0 plan')
-  assert.equal(readiness.version, version, 'Readiness record must match the package version')
-  assert.deepEqual(readiness.phases.map((phase) => phase.id).sort(), [0, 1, 2, 3, 4, 5, 6, 7], 'Every acceptance phase must be recorded once')
-  if (channel === 'alpha') {
-    assert.match(version, /^\d+\.\d+\.\d+-alpha\.\d+$/, 'alpha requires an explicit alpha version')
-    const preview = readiness.alpha
-    assert.equal(preview?.version, version, 'Alpha authorization must match the exact version')
-    assert.equal(preview?.authorized, true, 'Alpha requires explicit owner authorization')
-    assert(preview.reviewedBy?.trim() && /^\d{4}-\d{2}-\d{2}$/.test(preview.reviewedAt ?? ''), 'Alpha needs a dated owner decision')
-    assert(Array.isArray(preview.evidence) && preview.evidence.length, 'Alpha needs evidence')
-    for (const path of preview.evidence) assert(/^docs\/evidence\/[a-zA-Z0-9_./-]+$/.test(path) && !path.includes('..'), `Invalid evidence path: ${path}`)
-    return preview.evidence
-  }
-  // A stable release after 1.0.0 is a 1.x release (ADR 038) or a 2.x release, the AdulaJS
-  // rename that adds no scope (ADR 039): the accepted 1.0 phases still apply, and the
-  // owner authorizes that exact version.
-  const later = channel === 'latest' && version !== readiness.target
-  if (later) {
-    assert.match(version, /^[12]\.\d+\.\d+$/, 'The stable track after 1.0.0 accepts 1.x and 2.x releases only')
-    const release = (readiness.releases ?? []).find((entry) => entry.version === version)
-    assert(release, 'A stable release after 1.0.0 needs a record in releases')
-    assert.equal(release.authorized, true, 'A stable release after 1.0.0 requires explicit owner authorization')
-    assert(release.reviewedBy?.trim() && /^\d{4}-\d{2}-\d{2}$/.test(release.reviewedAt ?? ''), 'The release needs a dated owner decision')
-    assert(Array.isArray(release.evidence) && release.evidence.length, 'The release needs evidence')
-    for (const path of release.evidence) assert(/^docs\/evidence\/[a-zA-Z0-9_./-]+$/.test(path) && !path.includes('..'), `Invalid evidence path: ${path}`)
-  } else if (channel !== 'latest') assert.match(version, /^\d+\.\d+\.\d+-(?:next|alpha|beta|rc)\.\d+$/, 'next requires an explicit prerelease version')
-  const required = channel === 'latest' ? readiness.phases : readiness.phases.filter((phase) => phase.id <= 1)
-  for (const phase of required) {
-    assert.equal(phase.status, 'accepted', `Phase ${phase.id} acceptance is incomplete`)
-    assert(phase.reviewedBy?.trim() && /^\d{4}-\d{2}-\d{2}$/.test(phase.reviewedAt ?? ''), `Phase ${phase.id} needs a dated reviewer`)
-    assert(Array.isArray(phase.evidence) && phase.evidence.length, `Phase ${phase.id} needs evidence`)
-    for (const path of phase.evidence) assert(/^docs\/evidence\/[a-zA-Z0-9_./-]+$/.test(path) && !path.includes('..'), `Invalid evidence path: ${path}`)
-  }
-  const evidence = required.flatMap((phase) => phase.evidence)
-  return later ? [...evidence, ...readiness.releases.find((entry) => entry.version === version).evidence] : evidence
-}
-
-export async function checkRelease({ root = fileURLToPath(new URL('../', import.meta.url)), artifacts, channel } = {}) {
+export async function checkRelease({ root = fileURLToPath(new URL('../', import.meta.url)), artifacts } = {}) {
   const manifests = await Promise.all(packageDirectories.map(async (name) => JSON.parse(await readFile(resolve(root, `packages/${name}/package.json`), 'utf8'))))
   const version = manifests[0].version
   manifests.forEach((pkg, index) => validateManifest(pkg, packageNames[index], version))
-  if (channel) {
-    const readiness = JSON.parse(await readFile(resolve(root, 'docs/release-readiness.json'), 'utf8'))
-    for (const path of validateReadiness(readiness, version, channel)) {
-      assert((await readFile(resolve(root, path), 'utf8')).trim().length > 0, `Empty acceptance evidence: ${path}`)
-    }
-  }
   if (artifacts) {
     const sums = []
     for (const source of manifests) {
@@ -116,7 +71,7 @@ export async function checkRelease({ root = fileURLToPath(new URL('../', import.
         assert.equal(registry.version, version, 'Registry was not rebuilt')
         for (const item of registry.items) assert(files.includes(`package/build/${item.name}.json`), `Missing registry item: ${item.name}`)
       }
-      if (source.name === 'create-adula-app') {
+      if (source.name === 'create-adulajs') {
         const template = JSON.parse(tar(['-xOf', filename, 'package/build/template.json']))
         assert.equal(template.version, version, 'Creator template was not rebuilt')
         const app = JSON.parse(template.files['package.json'])
@@ -137,11 +92,11 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   try {
     const options = {}
     for (const arg of process.argv.slice(2)) {
-      assert(/^--(?:artifacts|channel)=.+$/.test(arg), 'Usage: pnpm check:release [--artifacts=.work] [--channel=alpha|next|latest]')
+      assert(/^--artifacts=.+$/.test(arg), 'Usage: pnpm check:release [--artifacts=.work]')
       const separator = arg.indexOf('=')
       options[arg.slice(2, separator)] = arg.slice(separator + 1)
     }
-    console.log(`Release package checks passed (${await checkRelease(options)}${options.channel ? `, ${options.channel}` : ', packaging only; acceptance not asserted'}).`)
+    console.log(`Release package checks passed (${await checkRelease(options)}${options.artifacts ? ', archives and SHA256SUMS' : ', manifests only'}).`)
   } catch (error) {
     console.error(`Release blocked: ${error.message}`)
     process.exitCode = 1

@@ -10,6 +10,7 @@ import {
   DEFAULT_UI_PREFERENCES,
 } from '../index.js'
 import { db, registry, setup } from './helpers.js'
+import { addUserProfileColumns } from './helpers/actors.js'
 
 test.group('Administrator access safety and UI preferences', (group) => {
   const roles = new RolesAdmin(db, registry)
@@ -19,9 +20,7 @@ test.group('Administrator access safety and UI preferences', (group) => {
   let assignmentId: number
   group.each.setup(async () => {
     await setup()
-    await db.raw(
-      'ALTER TABLE users ADD COLUMN full_name varchar, ADD COLUMN disabled_at timestamptz'
-    )
+    await addUserProfileColumns()
     const [role] = await db('roles').insert({ name: 'administrator' }).returning('id')
     roleId = role.id
     const [rule] = await db('role_rules')

@@ -1,24 +1,19 @@
 import { test } from '@japa/runner'
-import { ImportBatches, AdulaError, ResourceService, importCell } from '../index.js'
-import type { Actor } from '../index.js'
+import { BaseModel } from '@adonisjs/lucid/orm'
+import {
+  ImportBatches,
+  ResourceRegistry,
+  ResourceService,
+  createResourceTable,
+  defineResource,
+  importCell,
+} from '../index.js'
+import type { Actor, ActorSource, ImportAdapter, RecordData } from '../index.js'
 import { admin, db, reader, registry, setup } from './helpers.js'
+import { failure } from './helpers/failure.js'
+import { addUserProfileColumns, viewer as aViewer } from './helpers/actors.js'
 
-async function failure(run: () => Promise<unknown>): Promise<AdulaError> {
-  try {
-    await run()
-  } catch (error) {
-    if (error instanceof AdulaError) return error
-    throw error
-  }
-  throw new Error('Expected an AdulaError')
-}
-
-const viewer: Actor = {
-  id: 2,
-  orgPaths: ['1.2'],
-  permissionLevel: 0,
-  rules: [{ subject: 'orders', action: 'view' }],
-}
+const viewer = aViewer({ id: 2 })
 
 test.group('CSV import batches', (group) => {
   const service = () => new ResourceService(db, registry)
@@ -28,9 +23,7 @@ test.group('CSV import batches', (group) => {
     })
   group.setup(async () => {
     await setup()
-    await db.raw(
-      'ALTER TABLE users ADD COLUMN full_name varchar, ADD COLUMN disabled_at timestamptz'
-    )
+    await addUserProfileColumns()
   })
   group.each.setup(async () => {
     await db('import_batches').del()
@@ -61,6 +54,21 @@ test.group('CSV import batches', (group) => {
     )
   })
 
+  test('decimal cells accept thousands grouping but never a comma as the decimal point', ({
+    assert,
+  }) => {
+    const lookups = new Map<string, string>()
+    const rate = { type: 'decimal', label: { ar: 'السعر' } } as const
+    assert.equal(importCell(rate, '1,234.5', lookups), '1234.5')
+    assert.equal(importCell(rate, '12,345,678.25', lookups), '12345678.25')
+    assert.equal(importCell(rate, '١٢٫٥', lookups), '12.5')
+    assert.equal(importCell(rate, '١٬٢٣٤٫٥', lookups), '1234.5')
+    assert.equal(importCell({ type: 'percent', label: rate.label }, '12.5 %', lookups), '12.5')
+    // "12,5" is 12.5 in a comma-decimal locale and 125 with grouping: refused, never guessed.
+    for (const cell of ['12,5', '1,23', '1,2345.5', ',5', '1.2.3', 'abc'])
+      assert.throws(() => importCell(rate, cell, lookups), /رقم عشري غير صالح/, cell)
+  })
+
   test('maps columns, imports valid rows and reports the failed ones by line', async ({
     assert,
   }) => {
@@ -82,7 +90,7 @@ test.group('CSV import batches', (group) => {
     const started = await imports().start(batch.id, reader, batch.mapping)
     assert.equal(started.status, 'queued')
     const result = await imports().process()
-    assert.deepEqual(result, { id: batch.id, processed: 3, created: 1, failed: 2 })
+    assert.deepEqual(result, { id: batch.id, processed: 3, created: 1, updated: 0, failed: 2 })
     const done = await imports().show(batch.id, reader)
     assert.equal(done.status, 'done')
     assert.deepEqual(
@@ -135,5 +143,461 @@ test.group('CSV import batches', (group) => {
     assert.isNull(await imports().process(2))
     const [{ count }] = await db('orders').whereLike('notes', 'دفعة %').count('* as count')
     assert.equal(Number(count), 5)
+  })
+})
+
+/** A JSON-lines format: one object per line, keys of the first line are the headers. */
+const jsonLines: ImportAdapter = {
+  name: 'jsonl',
+  extensions: ['jsonl'],
+  detect: (file) => file.fileName.endsWith('.jsonl'),
+  async parse(file) {
+    const objects = file.text
+      .split('\n')
+      .filter((line) => line.trim())
+      .map((line) => JSON.parse(line) as Record<string, unknown>)
+    const headers = Object.keys(objects[0] ?? {})
+    return { headers, rows: objects.map((entry) => headers.map((key) => String(entry[key] ?? ''))) }
+  },
+}
+/** A binary-flagged pipe-separated format detected by its content, not its name. */
+const pipes: ImportAdapter = {
+  name: 'pipes',
+  extensions: ['psv'],
+  binary: true,
+  detect: (file) => file.bytes[0] === 0x23 && file.text.startsWith('#PSV'),
+  async parse(file) {
+    const [, header, ...lines] = file.text.split(/\r?\n/).filter(Boolean)
+    return { headers: header.split('|'), rows: lines.map((line) => line.split('|')) }
+  },
+}
+const count = async (table: string) => {
+  const [row] = await db(table).count('* as c')
+  return Number(row.c)
+}
+
+test.group('Import formats and templates', (group) => {
+  const imports = () =>
+    new ImportBatches(
+      db,
+      registry,
+      new ResourceService(db, registry),
+      { load: async (id) => (id === admin.id ? admin : reader) },
+      { adapters: [jsonLines] }
+    ).registerAdapter(pipes)
+  group.setup(async () => {
+    await setup()
+    await addUserProfileColumns()
+  })
+
+  test('registered adapters are detected and import end to end', async ({ assert }) => {
+    const batches = imports()
+    assert.deepEqual(batches.extensions(), ['csv', 'txt', 'jsonl', 'psv'])
+    const lines = '{"الاسم":"عميل سطري"}\n{"الاسم":"عميل ثان"}\n'
+    const batch = await batches.create('customers', admin, {
+      fileName: 'customers.jsonl',
+      content: Buffer.from(lines),
+    })
+    assert.deepEqual(batch.headers, ['الاسم'])
+    assert.deepEqual(batch.mapping, { 0: 'name' })
+    await batches.start(batch.id, admin, batch.mapping)
+    assert.deepEqual(await batches.process(), {
+      id: batch.id,
+      processed: 2,
+      created: 2,
+      updated: 0,
+      failed: 0,
+    })
+    assert.exists(await db('customers').where('name', 'عميل سطري').first())
+    // Detection by signature; a binary format arrives as base64 in a JSON body.
+    const piped = await batches.create('customers', admin, {
+      fileName: 'export.dat',
+      content: Buffer.from('#PSV\nname|x\nبالأنابيب|1\n').toString('base64'),
+      encoding: 'base64',
+    })
+    assert.deepEqual(piped.mapping, { 0: 'name' })
+    assert.equal(piped.total, 1)
+    const named = await batches.create('customers', admin, {
+      fileName: 'anything',
+      content: '{"name":"بالاسم"}',
+      format: 'jsonl',
+    })
+    assert.deepEqual(named.sample, [['بالاسم']])
+    const unknown = await failure(() =>
+      batches.create('customers', admin, { fileName: 'book.xlsx', content: Buffer.from('PK') })
+    )
+    assert.equal(unknown.code, 'E_IMPORT_FORMAT')
+    const broken = await failure(() =>
+      batches.create('customers', admin, { fileName: 'bad.csv', content: 'name\n"x\n' })
+    )
+    assert.include(broken.message, 'تعذر قراءة CSV')
+  })
+
+  test('the CSV template lists the actor fields in Arabic and maps back on upload', async ({
+    assert,
+  }) => {
+    const template = imports().template('orders', reader)
+    assert.equal(template.fileName, 'orders-template.csv')
+    assert.isTrue(template.content.startsWith('\uFEFF'))
+    const headers = template.content.slice(1).trim().split(',')
+    assert.include(headers, 'ملاحظات')
+    assert.include(headers, 'الوحدة التنظيمية (رقم) *')
+    // Level-1 and hidden fields stay out for the reader.
+    assert.notInclude(headers, 'الإجمالي')
+    assert.notInclude(headers, 'ملاحظة داخلية')
+    const values = headers.map((header) => (header.includes('الوحدة') ? '2' : ''))
+    const batch = await imports().create('orders', reader, {
+      fileName: 't.csv',
+      content: `${template.content}${values.join(',')}\n`,
+    })
+    assert.equal(Object.keys(batch.mapping).length, headers.length)
+    assert.include(Object.values(batch.mapping), 'orgUnitId')
+    const denied = await failure(async () => imports().template('orders', viewer))
+    assert.equal(denied.status, 403)
+    const noUpdate = await failure(async () => imports().template('customers', reader, 'upsert'))
+    assert.equal(noUpdate.status, 403)
+  })
+
+  test('a dry run validates every row without leaving any trace, then imports for real', async ({
+    assert,
+  }) => {
+    const counts = async () => {
+      const sequence = await db('sequences').where('key', 'ORD').first()
+      return {
+        orders: await count('orders'),
+        activities: await count('activities'),
+        outbox: await count('outbox'),
+        notifications: await count('notifications'),
+        sequence: sequence?.value ?? null,
+      }
+    }
+    const before = await counts()
+    const csv =
+      'notes,status,orgUnitId\nتجربة جافة,open,2\nحالة خاطئة,غير موجود,2\nخارج النطاق,open,3\n'
+    const batch = await imports().create('orders', reader, {
+      fileName: 'dry.csv',
+      content: csv,
+      dryRun: true,
+    })
+    assert.isTrue(batch.dryRun)
+    await imports().start(batch.id, reader, batch.mapping)
+    // Dry-run progress and report are stored once per chunk.
+    await imports().process(2)
+    const halfway = await imports().show(batch.id, reader)
+    assert.equal(halfway.status, 'running')
+    assert.equal(halfway.processed, 2)
+    assert.lengthOf(halfway.report, 2)
+    await imports().process(2)
+    const validated = await imports().show(batch.id, reader)
+    assert.equal(validated.status, 'validated')
+    assert.deepEqual(
+      validated.report.map(({ row, ok, action }) => ({ row, ok, action })),
+      [
+        { row: 2, ok: true, action: 'create' },
+        { row: 3, ok: false, action: undefined },
+        { row: 4, ok: false, action: undefined },
+      ]
+    )
+    assert.include(validated.report[1].message, 'الحالة')
+    assert.equal(validated.created, 1)
+    assert.equal(validated.failed, 2)
+    assert.deepEqual(await counts(), before)
+    assert.isNull(await imports().process())
+
+    // The same batch then runs for real.
+    const started = await imports().start(batch.id, reader, validated.mapping)
+    assert.isFalse(started.dryRun)
+    await imports().process()
+    const done = await imports().show(batch.id, reader)
+    assert.equal(done.status, 'done')
+    assert.equal(done.created, 1)
+    assert.deepEqual(done.report, [])
+    const after = await counts()
+    assert.equal(after.orders, before.orders + 1)
+    assert.isAbove(after.outbox, before.outbox)
+    assert.equal(after.notifications, before.notifications + 1)
+    const saved = await db('orders').where('notes', 'تجربة جافة').first()
+    assert.match(saved.number, /^ORD/)
+  })
+})
+
+const item = defineResource({
+  name: 'import_items',
+  label: { ar: 'الأصناف', en: 'Items' },
+  model: BaseModel,
+  scoped: false,
+  version: true,
+  fields: {
+    code: { type: 'string', required: true, unique: true, label: { ar: 'الرمز', en: 'Code' } },
+    title: { type: 'string', label: { ar: 'العنوان', en: 'Title' } },
+    qty: { type: 'integer', label: { ar: 'الكمية', en: 'Quantity' } },
+  },
+  list: ['code', 'title', 'qty'],
+  form: ['code', 'title', 'qty'],
+  show: ['code', 'title', 'qty'],
+  actions: ['view', 'create', 'update', 'delete'],
+  validator: { validate: async (data) => data as RecordData },
+})
+
+test.group('Upsert imports by a unique field', (group) => {
+  const items = new ResourceRegistry().register([
+    { name: 'inventory', label: item.label, dependsOn: [], resources: [item] },
+  ])
+  const service = new ResourceService(db, items)
+  const creator: Actor = {
+    id: 2,
+    orgPaths: ['1'],
+    permissionLevel: 0,
+    rules: [{ subject: 'import_items', action: ['view', 'create'] }],
+  }
+  const imports = () =>
+    new ImportBatches(db, items, service, {
+      load: async (id) => (id === admin.id ? admin : creator),
+    })
+  group.setup(async () => {
+    await setup()
+    await createResourceTable(db, item)
+  })
+
+  test('updates matched live records with their version and creates the rest', async ({
+    assert,
+  }) => {
+    const first = await service.save('import_items', admin, { code: 'A1', title: 'قديم', qty: 7 })
+    await service.save('import_items', admin, { title: 'قديم', version: 1 }, Number(first.id))
+    const removed = await service.save('import_items', admin, { code: 'C3', title: 'محذوف' })
+    await service.transition('import_items', Number(removed.id), admin, 'delete', 1)
+
+    // Upsert needs update permission as well as create.
+    const refused = await failure(() =>
+      imports().create('import_items', creator, {
+        fileName: 'x.csv',
+        content: 'code\nA1\n',
+        mode: 'upsert',
+      })
+    )
+    assert.equal(refused.status, 403)
+
+    const csv = 'الرمز *,العنوان,الكمية\nA1,محدث,\nB2,جديد,3\nC3,بديل,1\nB2,مكرر,4\n'
+    const batch = await imports().create('import_items', admin, {
+      fileName: 'items.csv',
+      content: csv,
+      mode: 'upsert',
+      matchField: 'code',
+      dryRun: true,
+    })
+    assert.deepEqual(batch.mapping, { 0: 'code', 1: 'title', 2: 'qty' })
+    assert.equal(batch.matchField, 'code')
+    const notUnique = await failure(() =>
+      imports().start(batch.id, admin, batch.mapping, { matchField: 'title' })
+    )
+    assert.equal(notUnique.code, 'E_IMPORT_MATCH')
+    const unmapped = await failure(() =>
+      imports().start(batch.id, admin, { 1: 'title', 2: 'qty' }, { matchField: 'code' })
+    )
+    assert.equal(unmapped.code, 'E_IMPORT_MAPPING')
+
+    await imports().start(batch.id, admin, batch.mapping)
+    await imports().process()
+    const validated = await imports().show(batch.id, admin)
+    assert.equal(validated.status, 'validated')
+    assert.deepEqual(
+      validated.report.map(({ action }) => action),
+      ['update', 'create', 'create', 'update']
+    )
+    const unchanged = await db('import_items').where('code', 'A1').first()
+    assert.equal(unchanged.title, 'قديم')
+    assert.notExists(await db('import_items').where('code', 'B2').first())
+
+    await imports().start(batch.id, admin, batch.mapping)
+    const result = await imports().process()
+    assert.deepEqual(result, { id: batch.id, processed: 4, created: 2, updated: 2, failed: 0 })
+    const a1 = await db('import_items').where('code', 'A1').first()
+    assert.equal(a1.title, 'محدث')
+    assert.equal(a1.version, 3)
+    // The empty quantity cell kept the stored value of the matched record.
+    assert.equal(a1.qty, 7)
+    const b2 = await db('import_items').where('code', 'B2').first()
+    assert.equal(b2.qty, 4)
+    const c3 = await db('import_items').where('code', 'C3').orderBy('id')
+    assert.lengthOf(c3, 2)
+    assert.isNotNull(c3[0].deleted_at)
+    assert.equal(c3[1].title, 'بديل')
+  })
+
+  test('create mode reports duplicates in the file and against stored records', async ({
+    assert,
+  }) => {
+    const batch = await imports().create('import_items', creator, {
+      fileName: 'dupes.csv',
+      content: 'code,title\nZ9,أول\nZ9,ثان\nA1,موجود\n',
+      dryRun: true,
+    })
+    await imports().start(batch.id, creator, batch.mapping)
+    await imports().process()
+    const validated = await imports().show(batch.id, creator)
+    assert.deepEqual(
+      validated.report.map(({ ok }) => ok),
+      [true, false, false]
+    )
+    assert.include(validated.report[1].message, 'مكررة في الملف (الصف 2)')
+    // Duplicate errors name the unique field since ADR 045.
+    assert.equal(validated.report[2].message, 'هذه القيمة مستخدمة في سجل آخر: الرمز')
+    await imports().start(batch.id, creator, batch.mapping)
+    const result = await imports().process()
+    assert.deepEqual(result, { id: batch.id, processed: 3, created: 1, updated: 0, failed: 2 })
+  })
+})
+
+test.group('Import worker leases', (group) => {
+  const worker = (actors: ActorSource = { load: async () => admin }) =>
+    new ImportBatches(db, registry, new ResourceService(db, registry), actors)
+  const queue = async (prefix: string, total: number) => {
+    const lines = Array.from({ length: total }, (_, index) => `${prefix} ${index}`).join('\n')
+    const batch = await worker().create('customers', admin, {
+      fileName: `${prefix}.csv`,
+      content: `name\n${lines}\n`,
+    })
+    await worker().start(batch.id, admin, batch.mapping)
+    return batch
+  }
+  const imported = async (prefix: string) => {
+    const [row] = await db('customers').whereLike('name', `${prefix} %`).count('* as c')
+    return Number(row.c)
+  }
+  group.setup(async () => {
+    await setup()
+    await addUserProfileColumns()
+  })
+
+  test('two concurrent workers import every row exactly once', async ({ assert }) => {
+    const batch = await queue('متزامن', 30)
+    const first = worker()
+    const second = worker()
+    for (let round = 0; round < 20; round++) {
+      const results = await Promise.all([first.process(4), second.process(4)])
+      if (results.every((result) => result === null)) break
+    }
+    assert.equal(await imported('متزامن'), 30)
+    const done = await worker().show(batch.id, admin)
+    assert.equal(done.status, 'done')
+    assert.equal(done.processed, 30)
+    assert.equal(done.created, 30)
+    const stored = await db('import_batches').where('id', batch.id).first()
+    assert.isNull(stored.lease_id)
+    const [notices] = await db('notifications')
+      .where('user_id', admin.id)
+      .whereLike('body', '%30%')
+      .count('* as c')
+    assert.equal(Number(notices.c), 1)
+  })
+
+  test('a worker whose lease expired and was taken over writes nothing further', async ({
+    assert,
+  }) => {
+    const batch = await queue('مستولى', 5)
+    // The stalled worker claims the batch; before its first row the lease expires and
+    // another worker takes the batch over and finishes it.
+    const takeover = worker()
+    const stalled = worker({
+      load: async () => {
+        await db('import_batches')
+          .where('id', batch.id)
+          .update({ lease_expires_at: db.raw("now() - interval '1 second'") })
+        assert.deepEqual(await takeover.process(100), {
+          id: batch.id,
+          processed: 5,
+          created: 5,
+          updated: 0,
+          failed: 0,
+        })
+        return admin
+      },
+    })
+    assert.isNull(await stalled.process(100))
+    assert.equal(await imported('مستولى'), 5)
+    const done = await worker().show(batch.id, admin)
+    assert.equal(done.status, 'done')
+    assert.equal(done.processed, 5)
+    assert.equal(done.created, 5)
+  })
+
+  test('processing resumes after an expired lease of a crashed worker', async ({ assert }) => {
+    const batch = await queue('مستأنف', 6)
+    const partial = await worker().process(2)
+    assert.equal(partial?.processed, 2)
+    // A worker crashed mid-chunk: its lease stays until it expires.
+    await db('import_batches')
+      .where('id', batch.id)
+      .update({
+        lease_id: '00000000-0000-4000-8000-000000000001',
+        lease_expires_at: db.raw("now() + interval '5 minutes'"),
+      })
+    assert.isNull(await worker().process())
+    await db('import_batches')
+      .where('id', batch.id)
+      .update({ lease_expires_at: db.raw("now() - interval '1 second'") })
+    assert.deepEqual(await worker().process(), {
+      id: batch.id,
+      processed: 6,
+      created: 6,
+      updated: 0,
+      failed: 0,
+    })
+    assert.equal(await imported('مستأنف'), 6)
+  })
+})
+
+test.group('Import start races', (group) => {
+  const imports = () =>
+    new ImportBatches(db, registry, new ResourceService(db, registry), {
+      load: async () => admin,
+    })
+  group.setup(async () => {
+    await setup()
+    await addUserProfileColumns()
+  })
+
+  test('of two concurrent starts of a validated batch exactly one queues it', async ({
+    assert,
+  }) => {
+    const batch = await imports().create('customers', admin, {
+      fileName: 'race.csv',
+      content: 'name\nسباق 1\nسباق 2\nسباق 3\n',
+      dryRun: true,
+    })
+    await imports().start(batch.id, admin, batch.mapping)
+    await imports().process()
+    const validated = await imports().show(batch.id, admin)
+    assert.equal(validated.status, 'validated')
+    const results = await Promise.allSettled([
+      imports().start(batch.id, admin, batch.mapping),
+      imports().start(batch.id, admin, batch.mapping),
+    ])
+    assert.lengthOf(
+      results.filter((result) => result.status === 'fulfilled'),
+      1
+    )
+    const rejected = results.find((result) => result.status === 'rejected')
+    assert.equal((rejected as PromiseRejectedResult).reason.status, 409)
+    assert.equal((rejected as PromiseRejectedResult).reason.code, 'E_IMPORT_STATE')
+    while (await imports().process(1)) {}
+    const [row] = await db('customers').whereLike('name', 'سباق %').count('* as c')
+    assert.equal(Number(row.c), 3)
+  })
+
+  test('a running batch cannot be started again', async ({ assert }) => {
+    const batch = await imports().create('customers', admin, {
+      fileName: 'running.csv',
+      content: 'name\nجار 1\nجار 2\nجار 3\n',
+    })
+    await imports().start(batch.id, admin, batch.mapping)
+    const partial = await imports().process(1)
+    assert.equal(partial?.processed, 1)
+    const refused = await failure(() => imports().start(batch.id, admin, batch.mapping))
+    assert.equal(refused.status, 409)
+    assert.equal(refused.code, 'E_IMPORT_STATE')
+    const stored = await imports().show(batch.id, admin)
+    assert.equal(stored.status, 'running')
+    assert.equal(stored.processed, 1)
   })
 })

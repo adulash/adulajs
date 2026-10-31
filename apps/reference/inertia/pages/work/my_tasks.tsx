@@ -21,7 +21,7 @@ import { Textarea } from '~/components/ui/textarea'
 import { Tabs, TabsList, TabsTrigger } from '~/components/ui/tabs'
 import { formatDate } from '~/components/ui/resource-value'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
-import { WorkflowDecision } from '~/components/ui/record-workflows'
+import { OnBehalfOf, SlaBadge, WorkflowDecision } from '~/components/ui/record-workflows'
 
 type Tab = 'all' | 'approvals' | 'assigned' | 'closed'
 /** Approval runs waiting for this user's decision, by workflow run id. */
@@ -154,6 +154,7 @@ export default function MyTasks({ assignments, tab, decisions }: Props) {
                   {statusLabel[item.status]}
                 </Badge>
                 {item.kind === 'approval' && <Badge variant="outline">موافقة</Badge>}
+                {item.onBehalfOf && <OnBehalfOf name={item.onBehalfOf.name} />}
                 {item.managed && <Badge variant="outline">تُغلق مع السجل</Badge>}
               </p>
               <Link
@@ -177,7 +178,9 @@ export default function MyTasks({ assignments, tab, decisions }: Props) {
                   {item.kind === 'approval' ? 'طلبها' : 'أسندها'}: {item.assignedByName ?? 'النظام'}
                 </span>
                 <span>{formatDateTime(item.createdAt)}</span>
-                {item.dueOn && (
+                {item.status === 'open' && item.sla && item.dueAt ? (
+                  <SlaBadge state={item.sla} dueAt={item.dueAt} />
+                ) : item.dueOn && (
                   <span
                     className={
                       item.status === 'open' && item.dueOn < today

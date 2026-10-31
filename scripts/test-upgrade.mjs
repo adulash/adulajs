@@ -1,12 +1,12 @@
 // Synthetic migration/customization regression only. This does not satisfy plan section 17.
 import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
-import { mkdir, open, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
-import { basename, join } from 'node:path'
+import { join } from 'node:path'
 import { prepareConsumer, repo, work } from './prepare-consumer.mjs'
 import { upgradeMode } from './upgrade-mode.mjs'
+import { nonZero, pnpmCommand, run } from './lib/run.mjs'
 
 /**
  * 0.1.0 was never tagged, so the baseline is reconstructed from the current source by
@@ -22,40 +22,18 @@ const WITHHELD_FROM_BASELINE = [
 const current = JSON.parse(await readFile(join(repo, 'packages/adula/package.json'), 'utf8')).version
 const { mode, previous } = upgradeMode(process.argv.slice(2), process.env, current)
 const genuine = mode === 'published'
-const pnpmEntry = process.env.npm_execpath
-assert(
-  pnpmEntry && basename(pnpmEntry).includes('pnpm'),
-  'Run this harness through pnpm test:upgrade'
-)
-const pnpm = /\.(?:c?js|mjs)$/.test(pnpmEntry) ? [process.execPath, pnpmEntry] : [pnpmEntry]
+const pnpm = pnpmCommand('Run this harness through pnpm test:upgrade')
 await mkdir(work, { recursive: true })
 
 async function step(name, command, argv, { cwd = repo, env = process.env, failure = false } = {}) {
-  const logPath = join(work, `upgrade-${name}.log`)
-  const log = await open(logPath, 'w')
-  let code
-  try {
-    code = await new Promise((done, reject) => {
-      const child = spawn(command, argv, {
-        cwd,
-        env,
-        stdio: ['ignore', log.fd, log.fd],
-        shell: false,
-        windowsHide: true,
-      })
-      child.once('error', reject)
-      child.once('exit', (status, signal) =>
-        signal ? reject(new Error(`${name} stopped by ${signal}`)) : done(status)
-      )
-    })
-  } finally {
-    await log.close()
-  }
-  const output = await readFile(logPath, 'utf8')
-  if (failure ? code === 0 : code !== 0) {
-    console.error(output.split(/\r?\n/).slice(-45).join('\n'))
-    throw new Error(`Upgrade step failed: ${name} (exit ${code}; ${logPath})`)
-  }
+  const { output } = await run(command, argv, {
+    cwd,
+    env,
+    log: join(work, `upgrade-${name}.log`),
+    expect: failure ? nonZero : 0,
+    label: `Upgrade step ${name}`,
+    tail: 45,
+  })
   console.log(`PASS ${name}`)
   return output
 }
@@ -240,12 +218,12 @@ try {
   if (renamed) {
     // Step 1 of the documented 2.0 upgrade: the creator rewrites the application
     // without booting AdonisJS, here from the local archives instead of the registry.
-    await runPnpm('creator-build', ['--filter', 'create-adula-app', 'build'])
+    await runPnpm('creator-build', ['--filter', 'create-adulajs', 'build'])
     const rewrite = await step(
       'creator-upgrade',
       process.execPath,
       [
-        join(repo, 'packages/create-adula-app/build/cli.mjs'),
+        join(repo, 'packages/create-adulajs/build/cli.mjs'),
         'upgrade',
         target,
         '--packages',

@@ -68,5 +68,5 @@ export async function configure(command: Configure) {
     ['authApiClient', '@adonisjs/auth/plugins/api_client', 'app'],
     ['shieldApiClient', '@adonisjs/shield/plugins/api_client', ''],
   ]) await codemods.registerJapaPlugin(`${name}(${args})`, [{ module: path!, isNamed: true, identifier: name! }])
-  command.logger.success('AdulaJS configured. Run migration:run, create your user using the official auth flow, then ADULA_ADMIN_EMAIL=<email> node ace adula:install.')
+  command.logger.success('AdulaJS configured. Run migration:run, then ADULA_ADMIN_EMAIL=<email> node ace adula:install (it creates the first administrator when that user does not exist).')
 }

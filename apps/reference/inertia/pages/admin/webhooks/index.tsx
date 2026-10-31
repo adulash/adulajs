@@ -38,6 +38,22 @@ const deliveryLabel: Record<WebhookDelivery['status'], string> = {
   delivered: 'سُلّم',
   failed: 'فشل',
 }
+const errorLabel: Record<string, string> = {
+  'dns': 'تعذّر العثور على العنوان',
+  'connect': 'تعذّر الاتصال',
+  'tls': 'خطأ في شهادة الاتصال الآمن',
+  'timeout': 'انتهت مهلة الاتصال',
+  'blocked-target': 'العنوان غير مسموح',
+  'secret': 'تعذّر فتح مفتاح التوقيع',
+}
+
+/** Stored delivery errors are categories; older rows may still hold free text. */
+function deliveryError(error: string | null) {
+  if (!error) return '—'
+  const status = error.match(/^http-status:(\d+)$/)
+  if (status) return `استجابة HTTP ${status[1]}`
+  return errorLabel[error] ?? error
+}
 
 function message(error: unknown, fallback: string) {
   return axios.isAxiosError(error) && error.response?.data?.error?.message
@@ -296,7 +312,7 @@ export default function WebhooksIndex({ webhooks, events, inbound }: Props) {
                     <td className="px-3 py-2">{deliveryLabel[row.status]}</td>
                     <td className="px-3 py-2 tabular-nums">{row.attempts}</td>
                     <td className="px-3 py-2 text-xs text-muted-foreground">
-                      {row.lastError ?? '—'}
+                      {deliveryError(row.lastError)}
                     </td>
                     <td className="px-3 py-2">
                       {row.status === 'failed' && log && (

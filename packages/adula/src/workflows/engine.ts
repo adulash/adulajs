@@ -6,19 +6,28 @@ import type { JsonValue, RecordData } from '../resource/types.js'
 import type { DomainEvent, Listener } from '../events/outbox.js'
 import type { HttpPoster } from '../integrations/webhooks.js'
 import type { Assignments } from '../collaboration/assignments.js'
+import { canView, resourceLabel, type ActorLoader } from '../collaboration/shared.js'
 import { AdulaError } from '../admin/errors.js'
 import { fromRow } from '../admin/contracts.js'
-import { columnName } from '../resource/define_resource.js'
-import { recordMutation, type FieldChange } from '../events/record_mutation.js'
+import { withLinks } from '../admin/resource/shared.js'
+import { recordMutation } from '../events/record_mutation.js'
 import { notifyWithTemplate } from '../core/message_templates.js'
+import { WorkflowDelegations, actionableBy } from './delegations.js'
+import { addDays, assertTimeZone, calendarDate } from './calendar.js'
 import {
   nextStep,
+  type EscalationTarget,
   type Recipients,
   type StepContext,
   type WorkflowDefinition,
   type WorkflowEvent,
   type WorkflowStep,
 } from './define_workflow.js'
+
+import { slaState, type SlaEvaluation, type WorkflowSlaStatus } from './sla.js'
+
+export { slaState } from './sla.js'
+export type { SlaEvaluation, SlaState, WorkflowSlaStatus } from './sla.js'
 
 export type WorkflowRunStatus =
   'pending_definition' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled'
@@ -45,6 +54,8 @@ export type WorkflowRun = {
     step: string | null
     event: string
     actorName: string | null
+    /** Set when the actor decided as a delegate (ADR 044). */
+    onBehalfOfName?: string | null
     detail: { [key: string]: JsonValue }
     at: string
   }[]
@@ -54,7 +65,11 @@ export type WorkflowRun = {
     title: string
     /** Set at a decision step: its outcomes in declaration order (#42). */
     decision?: WorkflowDecisionForm
+    /** The approver the viewer decides for as their delegate; null for their own approval. */
+    onBehalfOf?: { id: number; name: string | null } | null
   } | null
+  /** The current step's SLA deadline while the run waits on approvers; null without one. */
+  sla?: WorkflowSlaStatus | null
 }
 /** What an approver needs to take a decision at a decision step. */
 export type WorkflowDecisionForm = {
@@ -65,10 +80,34 @@ export type WorkflowOptions = {
   /** Test hook simulating a crash after a step's effect and before its commit. */
   beforeCommit?: (run: { id: string; step: string }) => void | Promise<void>
   now?: () => Date
+  /**
+   * The system time zone (IANA name, default UTC). Due dates (dueOn) and delegation
+   * ranges are calendar days in this zone (ADR 044).
+   */
+  timeZone?: string
 }
 
 const MAX_STEPS_PER_TICK = 25
+const HOUR = 3600000
+type ApprovalStep = Extract<WorkflowStep, { type: 'approval' | 'decision' }>
+type Deadline = { dueAt: Date; dueSoonAt: Date | null; escalatedAt?: Date }
 const BACKOFF_SECONDS = [30, 120, 600, 1800, 7200]
+/** Orders an actor's actionable rows: their own, then those routed for them, then delegated. */
+const MINE_FIRST =
+  '(a.assignee_id = ? AND a.delegation_id IS NULL) DESC, coalesce(a.on_behalf_of = ?, false) DESC, a.id'
+
+/**
+ * Whose approval an actor decides as a delegate: the delegator of an approval routed to
+ * them, the delegator's own approval, or one routed earlier through a delegation that has
+ * ended (its approver is on_behalf_of). Null when it is the actor's own.
+ */
+function onBehalfOf(row: Record<string, any>, actorId: number): number | null {
+  const routedFor =
+    row.on_behalf_of === null || row.on_behalf_of === undefined ? null : Number(row.on_behalf_of)
+  if (Number(row.assignee_id) === actorId) return routedFor
+  if (routedFor === actorId) return null
+  return row.delegation_id ? routedFor : Number(row.assignee_id)
+}
 
 class StepFailure extends Error {
   /** A permanent failure stops the run now instead of retrying a configuration error. */
@@ -88,16 +127,22 @@ class StepFailure extends Error {
  */
 export class WorkflowEngine {
   #definitions = new Map<string, Map<number, WorkflowDefinition>>()
+  #delegations: WorkflowDelegations
 
   constructor(
     private db: Knex,
     private registry: ResourceRegistry,
     private resources: ResourceService,
-    private actors: { load(id: number): Promise<Actor> },
+    private actors: ActorLoader,
     private assignments: Assignments,
     definitions: readonly WorkflowDefinition[],
     private options: WorkflowOptions = {}
   ) {
+    if (options.timeZone) assertTimeZone(options.timeZone)
+    this.#delegations = new WorkflowDelegations(db, {
+      now: () => this.now(),
+      timeZone: options.timeZone,
+    })
     for (const definition of definitions) this.register(definition)
   }
 
@@ -135,16 +180,13 @@ export class WorkflowEngine {
   listeners(): Listener[] {
     return this.registry.all().flatMap((resource) => {
       if (!resource.submittable) return []
-      const module = this.registry.owner(resource.name)
       return [
         {
-          name: `adula.workflows.start.${resource.name}`,
-          event: `${module}.${resource.name}.submitted`,
+          ...workflowKey(this.registry, resource.name, 'start'),
           handle: (event: DomainEvent, trx: Knex.Transaction) => this.start(trx, event),
         },
         {
-          name: `adula.workflows.cancel.${resource.name}`,
-          event: `${module}.${resource.name}.cancelled`,
+          ...workflowKey(this.registry, resource.name, 'cancel'),
           handle: (event: DomainEvent, trx: Knex.Transaction) =>
             this.cancelRuns(
               trx,
@@ -267,6 +309,9 @@ export class WorkflowEngine {
     const step = definition.steps[stepName]
     const move = async (event: WorkflowEvent, detail: Record<string, unknown> = {}) => {
       const target = nextStep(definition, stepName, event)
+      // A definition built without defineWorkflow could still loop; stop it here.
+      if (target === stepName)
+        throw new StepFailure(`Step ${stepName} cannot name itself as its next step`, true)
       await trx('workflow_runs')
         .where('id', run.id)
         .update({
@@ -333,22 +378,11 @@ export class WorkflowEngine {
               `No eligible approver for ${stepName}: ${users.length ? `${users.length} recipients cannot view the record` : 'the recipients resolve to no active user'}. Fix the recipients, then retry the run.`,
               true
             )
-          const due = step.dueInDays
-            ? new Date(this.now().getTime() + step.dueInDays * 86400000).toISOString().slice(0, 10)
-            : null
-          for (const userId of eligible)
-            await this.assignments.create(trx, {
-              resource: run.resource,
-              recordId: Number(run.record_id),
-              assigneeId: userId,
-              assignedBy: run.started_by,
-              title: step.label,
-              kind: 'approval',
-              dueOn: due,
-              workflowRunId: run.id,
-              workflowStep: stepName,
-            })
-          await this.log(trx, run.id, stepName, 'approval_requested', null, { approvers: eligible })
+          const delegated = await this.openApprovals(trx, run, stepName, step, eligible)
+          await this.log(trx, run.id, stepName, 'approval_requested', null, {
+            approvers: eligible,
+            ...(delegated.length ? { delegated } : {}),
+          })
         }
         await trx('workflow_runs').where('id', run.id).update({
           status: 'waiting',
@@ -429,14 +463,17 @@ export class WorkflowEngine {
       if (!run) throw new AdulaError(404, 'E_WORKFLOW_NOT_FOUND', 'التدفق غير موجود')
       if (!(await this.resources.permits(run.resource, Number(run.record_id), actor)))
         throw new AdulaError(404, 'E_WORKFLOW_NOT_FOUND', 'التدفق غير موجود')
-      const assignment = await trx('assignments')
+      // The actor's own approval first, then one they hold for a delegator (ADR 044).
+      const assignment = await trx('assignments as a')
         .where({
-          workflow_run_id: run.id,
-          workflow_step: run.current_step,
-          assignee_id: actor.id,
-          status: 'open',
+          'a.workflow_run_id': run.id,
+          'a.workflow_step': run.current_step,
+          'a.status': 'open',
         })
-        .first()
+        .modify(actionableBy(trx, actor.id, this.today()))
+        .orderByRaw(MINE_FIRST, [actor.id, actor.id])
+        .forUpdate()
+        .first('a.*')
       if (run.status !== 'waiting' || !assignment)
         throw new AdulaError(409, 'E_WORKFLOW_STATE', 'لا توجد موافقة مطلوبة منك في هذه الخطوة')
       const definition = this.definition(run.definition, run.definition_version)
@@ -478,9 +515,11 @@ export class WorkflowEngine {
           last_error: null,
           updated_at: trx.fn.now(),
         })
+      const behalf = onBehalfOf(assignment, actor.id)
       await this.log(trx, run.id, run.current_step, logged, actor.id, {
         ...(logged === 'decided' ? { outcome: decision } : {}),
         ...(note ? { comment: note } : {}),
+        ...(behalf ? { onBehalfOf: behalf, onBehalfOfName: await this.userName(trx, behalf) } : {}),
         next: target,
       })
       await this.advance(trx, run.id)
@@ -499,6 +538,217 @@ export class WorkflowEngine {
     if (!updated)
       throw new AdulaError(404, 'E_WORKFLOW_NOT_FOUND', 'لا يوجد تدفق فاشل بهذا المعرّف')
     await this.log(this.db, runId, null, 'retried', actorId, {})
+  }
+
+  /**
+   * One pass of the `sla:` job family (ADR 044). Approvers whose deadline is near get one
+   * reminder; overdue approvals run their step's escalation policy once: mark overdue
+   * (tell the approvers), notify a target, or reassign to it. Every action happens under
+   * the run's row lock and is recorded in workflow_escalations, whose unique key per
+   * assignment and level makes a repeated or concurrent pass a no-op.
+   */
+  async evaluateSla(options: { limit?: number } = {}): Promise<SlaEvaluation> {
+    const limit = Math.max(1, Math.min(500, Math.floor(Number(options.limit) || 100)))
+    const now = this.now()
+    const pending = () =>
+      this.db('assignments as a')
+        .join('workflow_runs as r', 'r.id', 'a.workflow_run_id')
+        .where({ 'a.status': 'open', 'r.status': 'waiting' })
+        .whereRaw('a.workflow_step = r.current_step')
+    const reminders = await pending()
+      .whereNull('a.reminded_at')
+      .whereNull('a.escalated_at')
+      .where('a.due_soon_at', '<=', now)
+      .where('a.due_at', '>', now)
+      .orderBy('a.due_at')
+      .limit(limit)
+      .select('a.id', 'a.workflow_run_id')
+    let reminded = 0
+    for (const due of reminders)
+      if (await this.db.transaction((trx) => this.remind(trx, due.workflow_run_id, due.id, now)))
+        reminded++
+    const late = await pending()
+      .whereNull('a.escalated_at')
+      .where('a.due_at', '<=', now)
+      .groupBy('a.workflow_run_id')
+      .orderByRaw('min(a.due_at)')
+      .limit(limit)
+      .select('a.workflow_run_id')
+    let escalated = 0
+    for (const due of late)
+      if (await this.db.transaction((trx) => this.escalate(trx, due.workflow_run_id, now)))
+        escalated++
+    return { reminded, escalated }
+  }
+
+  private async remind(trx: Knex.Transaction, runId: string, assignmentId: number, now: Date) {
+    const run = await trx('workflow_runs').where('id', runId).forUpdate().skipLocked().first()
+    if (!run || run.status !== 'waiting') return false
+    const row = await trx('assignments')
+      .where({ id: assignmentId, status: 'open', workflow_step: run.current_step })
+      .whereNull('reminded_at')
+      .whereNull('escalated_at')
+      .forUpdate()
+      .first()
+    if (!row) return false
+    await trx('assignments').where('id', row.id).update({ reminded_at: now })
+    const holder = await this.holder(trx, run, row)
+    const recorded = await this.record(trx, run, row, 'due_soon', 'remind', [holder])
+    if (!recorded) return false
+    await this.notifyDeadline(trx, run, row, holder, 'workflow.sla_due_soon')
+    await this.log(trx, run.id, run.current_step, 'sla_reminded', null, {
+      assignee: holder,
+      dueAt: new Date(row.due_at).toISOString(),
+    })
+    return true
+  }
+
+  private async escalate(trx: Knex.Transaction, runId: string, now: Date) {
+    const run = await trx('workflow_runs').where('id', runId).forUpdate().skipLocked().first()
+    if (!run || run.status !== 'waiting') return false
+    const rows = await trx('assignments')
+      .where({ workflow_run_id: run.id, workflow_step: run.current_step, status: 'open' })
+      .whereNull('escalated_at')
+      .where('due_at', '<=', now)
+      .orderBy('id')
+      .forUpdate()
+    if (!rows.length) return false
+    await trx('assignments')
+      .whereIn(
+        'id',
+        rows.map((row) => row.id)
+      )
+      .update({ escalated_at: now, reminded_at: trx.raw('coalesce(reminded_at, ?)', [now]) })
+    let step: WorkflowStep | undefined
+    try {
+      step = this.definition(run.definition, run.definition_version).steps[run.current_step]
+    } catch {}
+    const policy =
+      step && (step.type === 'approval' || step.type === 'decision')
+        ? step.sla?.escalate
+        : undefined
+    let action: 'overdue' | 'notify' | 'reassign' = policy?.action ?? 'overdue'
+    let targets: number[] = []
+    let reason: string | undefined
+    if (policy && policy.action !== 'overdue') {
+      try {
+        const context = await this.context(trx, run)
+        const late = new Set<number>()
+        for (const row of rows) {
+          late.add(Number(row.assignee_id))
+          if (row.on_behalf_of) late.add(Number(row.on_behalf_of))
+        }
+        for (const userId of await this.escalationTargets(trx, run, context, policy.to, rows))
+          // The requester never receives their own request (ADR 044, no self-approval).
+          if (
+            !late.has(userId) &&
+            userId !== Number(run.started_by) &&
+            (await this.canView(run.resource, run.record_id, userId))
+          )
+            targets.push(userId)
+      } catch (error) {
+        reason = String((error as Error)?.message ?? error).slice(0, 300)
+      }
+      // A policy that finds nobody still marks the approval overdue, never silently waits.
+      if (!targets.length) {
+        reason ??= 'no eligible escalation target'
+        action = 'overdue'
+      }
+    }
+    let recorded = 0
+    for (const row of rows)
+      if (await this.record(trx, run, row, 'overdue', action, targets)) recorded++
+    if (!recorded) return false
+    // Late approvers are told at their current holder: the approver again once the
+    // delegation that routed the approval has ended.
+    const holders: number[] = []
+    for (const row of rows) holders.push(await this.holder(trx, run, row))
+    for (const [index, row] of rows.entries())
+      await this.notifyDeadline(trx, run, row, holders[index], 'workflow.sla_overdue')
+    if (action === 'notify') {
+      const names: string[] = []
+      for (const row of rows) {
+        const name = await this.userName(trx, Number(row.on_behalf_of ?? row.assignee_id))
+        if (name && !names.includes(name)) names.push(name)
+      }
+      for (const userId of targets)
+        await this.notifyDeadline(trx, run, rows[0], userId, 'workflow.sla_escalated', {
+          assignee: names.join('، '),
+        })
+    }
+    if (action === 'reassign' && step && (step.type === 'approval' || step.type === 'decision')) {
+      await trx('assignments')
+        .whereIn(
+          'id',
+          rows.map((row) => row.id)
+        )
+        .update({
+          status: 'cancelled',
+          completed_at: trx.fn.now(),
+          close_reason: 'أُعيد الإسناد بعد تجاوز المهلة',
+        })
+      const dueAt = new Date(Math.min(...rows.map((row) => new Date(row.due_at).getTime())))
+      await this.openApprovals(trx, run, run.current_step, step, targets, {
+        dueAt,
+        dueSoonAt: null,
+        escalatedAt: now,
+      })
+    }
+    await this.log(trx, run.id, run.current_step, 'sla_escalated', null, {
+      action,
+      late: holders,
+      targets,
+      ...(reason ? { reason } : {}),
+    })
+    return true
+  }
+
+  /** Records one SLA action per assignment and level; false when it was already recorded. */
+  private async record(
+    trx: Knex.Transaction,
+    run: Record<string, any>,
+    row: Record<string, any>,
+    level: 'due_soon' | 'overdue',
+    action: string,
+    targets: number[]
+  ) {
+    const inserted = await trx('workflow_escalations')
+      .insert({
+        run_id: run.id,
+        step: run.current_step,
+        assignment_id: row.id,
+        level,
+        action,
+        targets: JSON.stringify(targets),
+      })
+      .onConflict(['assignment_id', 'level'])
+      .ignore()
+      .returning('id')
+    return inserted.length > 0
+  }
+
+  private async notifyDeadline(
+    trx: Knex.Transaction,
+    run: Record<string, any>,
+    row: Record<string, any>,
+    userId: number,
+    template: string,
+    extra: Record<string, unknown> = {}
+  ) {
+    await notifyWithTemplate(
+      trx,
+      userId,
+      template,
+      {
+        title: String(row.title),
+        resource: this.resources.label(run.resource),
+        id: run.record_id,
+        due: new Date(row.due_at).toISOString().slice(0, 16).replace('T', ' ') + ' UTC',
+        ...extra,
+      },
+      undefined,
+      { resource: String(run.resource), recordId: Number(run.record_id) }
+    )
   }
 
   /**
@@ -553,16 +803,22 @@ export class WorkflowEngine {
    */
   async inbox(actor: Actor, options: { runIds?: readonly string[] } = {}) {
     if (options.runIds && !options.runIds.length) return []
+    // Delegated approvals count too, so one run may match twice (ADR 044).
     const query = this.db('workflow_runs as r')
       .join('assignments as a', 'a.workflow_run_id', 'r.id')
-      .where({ 'a.assignee_id': actor.id, 'a.status': 'open', 'r.status': 'waiting' })
+      .where({ 'a.status': 'open', 'r.status': 'waiting' })
       .whereRaw('a.workflow_step = r.current_step')
+      .modify(actionableBy(this.db, actor.id, this.today()))
     if (options.runIds) query.whereIn('r.id', [...new Set(options.runIds)].slice(0, 100))
-    const rows = await query.orderBy('a.id', 'desc').limit(100).select('r.*')
+    const rows = await query.orderBy('a.id', 'desc').limit(200).select('r.*')
     const runs: WorkflowRun[] = []
-    for (const row of rows)
+    const seen = new Set<string>()
+    for (const row of rows) {
+      if (seen.has(String(row.id)) || runs.length >= 100) continue
+      seen.add(String(row.id))
       if (await this.resources.permits(row.resource, Number(row.record_id), actor))
         runs.push(await this.present(row, actor))
+    }
     return runs
   }
 
@@ -586,27 +842,36 @@ export class WorkflowEngine {
       .limit(200)
       .select('e.*', 'u.full_name as actor_name')
     const mine = actor
-      ? await this.db('assignments')
+      ? await this.db('assignments as a')
           .where({
-            workflow_run_id: row.id,
-            workflow_step: row.current_step,
-            assignee_id: actor.id,
-            status: 'open',
+            'a.workflow_run_id': row.id,
+            'a.workflow_step': row.current_step,
+            'a.status': 'open',
           })
-          .first('id', 'title')
+          .modify(actionableBy(this.db, actor.id, this.today()))
+          .orderByRaw(MINE_FIRST, [actor.id, actor.id])
+          .first('a.*')
       : undefined
+    const behalf = mine && actor ? onBehalfOf(mine, actor.id) : null
+    const deadline =
+      row.status === 'waiting'
+        ? await this.db('assignments')
+            .where({ workflow_run_id: row.id, workflow_step: row.current_step, status: 'open' })
+            .whereNotNull('due_at')
+            .first(
+              this.db.raw('min(due_at) as due_at'),
+              this.db.raw('min(due_soon_at) as due_soon_at'),
+              this.db.raw('bool_or(escalated_at IS NOT NULL) as escalated')
+            )
+        : undefined
     const step = row.current_step ? definition?.steps[row.current_step] : undefined
     const titles = actor
       ? await this.resources.titles(row.resource, [Number(row.record_id)], actor)
       : undefined
-    let resourceLabel = String(row.resource)
-    try {
-      resourceLabel = this.resources.label(row.resource)
-    } catch {}
     return {
       id: String(row.id),
       resource: String(row.resource),
-      resourceLabel,
+      resourceLabel: resourceLabel(this.resources, String(row.resource)),
       recordId: Number(row.record_id),
       recordTitle: titles?.get(Number(row.record_id)) ?? null,
       definition: String(row.definition),
@@ -625,6 +890,8 @@ export class WorkflowEngine {
         step: event.step ?? null,
         event: String(event.event),
         actorName: event.actor_name ? String(event.actor_name) : null,
+        onBehalfOfName:
+          typeof event.detail?.onBehalfOfName === 'string' ? event.detail.onBehalfOfName : null,
         detail: (event.detail ?? {}) as { [key: string]: JsonValue },
         at: new Date(event.created_at).toISOString(),
       })),
@@ -633,6 +900,18 @@ export class WorkflowEngine {
             assignmentId: Number(mine.id),
             title: String(mine.title),
             ...(step?.type === 'decision' ? { decision: this.decisionForm(step) } : {}),
+            onBehalfOf: behalf ? { id: behalf, name: await this.userName(this.db, behalf) } : null,
+          }
+        : null,
+      sla: deadline?.due_at
+        ? {
+            dueAt: new Date(deadline.due_at).toISOString(),
+            state: slaState(
+              new Date(deadline.due_at),
+              deadline.due_soon_at ? new Date(deadline.due_soon_at) : null,
+              this.now()
+            ),
+            escalated: Boolean(deadline.escalated),
           }
         : null,
     }
@@ -719,8 +998,10 @@ export class WorkflowEngine {
     const resource = this.registry.get(run.resource)
     const row = await trx(resource.name).where('id', run.record_id).first()
     if (!row) throw new StepFailure('The workflow record no longer exists')
+    // manyToMany links are not columns; steps see them like any other value.
+    const [record] = await withLinks(trx, resource, [fromRow(row, resource)])
     return {
-      record: fromRow(row, resource),
+      record,
       run: {
         id: String(run.id),
         resource: String(run.resource),
@@ -731,7 +1012,11 @@ export class WorkflowEngine {
     }
   }
 
-  /** Workflow writes are system writes attributed to the submitter, with history. */
+  /**
+   * Workflow writes are system writes attributed to the submitter, with history. They go
+   * through systemSave, so the resource validator, hooks, relation checks and the
+   * optimistic lock apply; a rejected write fails the step like any other step error.
+   */
   private async updateRecord(
     trx: Knex.Transaction,
     run: Record<string, any>,
@@ -739,8 +1024,6 @@ export class WorkflowEngine {
     values: RecordData
   ) {
     const resource = this.registry.get(run.resource)
-    const update: RecordData = { updated_at: trx.fn.now() }
-    const changes: FieldChange[] = []
     for (const [key, value] of Object.entries(values)) {
       const field = resource.fields[key]
       if (!field || ['hasMany', 'attachment'].includes(field.type) || field.sequence)
@@ -751,24 +1034,15 @@ export class WorkflowEngine {
           .first()
         if (!valid) throw new StepFailure(`Invalid lookup value for ${key}`)
       }
-      update[field.column ?? columnName(key)] =
-        field.type === 'json' ? JSON.stringify(value) : value
-      if (JSON.stringify(record[key] ?? null) !== JSON.stringify(value ?? null))
-        changes.push({ field: key, before: record[key] ?? null, after: value ?? null })
     }
-    if (resource.version) update.version = Number(record.version) + 1
-    if (run.started_by) update.updated_by = run.started_by
-    await trx(resource.name).where('id', run.record_id).update(update)
-    if (run.started_by)
-      await recordMutation(trx, {
-        module: this.registry.owner(resource.name),
-        resource: resource.name,
-        id: run.record_id,
-        actorId: Number(run.started_by),
-        action: 'update',
-        fields: Object.keys(values),
-        changes,
-      })
+    // A run started by an event without a user is an unattributed system update.
+    await this.resources.systemSave(resource.name, values, Number(run.record_id), {
+      actorId: run.started_by ? Number(run.started_by) : null,
+      trx,
+      reason: `workflow:${run.definition}`,
+      version: resource.version ? Number(record.version) : undefined,
+      submitted: true,
+    })
   }
 
   private async cancelDocument(
@@ -829,10 +1103,8 @@ export class WorkflowEngine {
     return byName ? Number(byName.id) : null
   }
 
-  private async canView(resource: string, id: number, userId: number) {
-    const user = await this.db('users').where('id', userId).first('disabled_at')
-    if (!user || user.disabled_at) return false
-    return this.resources.permits(resource, Number(id), await this.actors.load(userId))
+  private canView(resource: string, id: number, userId: number) {
+    return canView(this.db, this.resources, this.actors, resource, id, userId)
   }
 
   private async log(
@@ -852,8 +1124,165 @@ export class WorkflowEngine {
     })
   }
 
+  /**
+   * Opens one approval per approver. An approver with a delegation in force today is
+   * replaced by the delegate when the delegate may view the record (ADR 044); the row
+   * keeps the approver in on_behalf_of, so both see it while the delegation lasts.
+   * Returns the routed pairs for the run log.
+   */
+  private async openApprovals(
+    trx: Knex.Transaction,
+    run: Record<string, any>,
+    stepName: string,
+    step: ApprovalStep,
+    approvers: number[],
+    deadline: Deadline | null = this.deadline(step)
+  ) {
+    // Calendar days of the system's time zone: at 01:00 in Riyadh it is already the
+    // next day there, though not yet in UTC.
+    const dueOn = deadline
+      ? calendarDate(deadline.dueAt, this.options.timeZone)
+      : step.dueInDays
+        ? addDays(this.today(), step.dueInDays)
+        : null
+    const routed: { from: number; to: number }[] = []
+    const opened = new Set<string>()
+    for (const approver of approvers) {
+      let assigneeId = approver
+      const active = await this.delegateFor(trx, run, approver)
+      let delegation: { id: number; delegateId: number } | null = null
+      if (active) {
+        delegation = active
+        assigneeId = active.delegateId
+        routed.push({ from: approver, to: assigneeId })
+      }
+      const key = `${assigneeId}:${delegation ? approver : ''}`
+      if (opened.has(key)) continue
+      opened.add(key)
+      await this.assignments.create(trx, {
+        resource: run.resource,
+        recordId: Number(run.record_id),
+        assigneeId,
+        assignedBy: run.started_by,
+        title: step.label,
+        kind: 'approval',
+        dueOn,
+        workflowRunId: run.id,
+        workflowStep: stepName,
+        onBehalfOf: delegation ? approver : null,
+        delegationId: delegation?.id ?? null,
+        dueAt: deadline?.dueAt ?? null,
+        dueSoonAt: deadline?.dueSoonAt ?? null,
+        escalatedAt: deadline?.escalatedAt ?? null,
+      })
+    }
+    return routed
+  }
+
+  /** The SLA deadline of a step opening now, or null when the step declares none. */
+  private deadline(step: ApprovalStep): Deadline | null {
+    if (!step.sla) return null
+    const now = this.now().getTime()
+    const dueAt = new Date(now + step.sla.hours * HOUR)
+    const soon = step.sla.dueSoonHours ?? step.sla.hours / 4
+    return { dueAt, dueSoonAt: soon > 0 ? new Date(dueAt.getTime() - soon * HOUR) : null }
+  }
+
+  private async escalationTargets(
+    trx: Knex.Transaction,
+    run: Record<string, any>,
+    context: StepContext,
+    to: EscalationTarget,
+    late: Record<string, any>[]
+  ): Promise<number[]> {
+    if (typeof to === 'object' && to !== null && 'manager' in to) {
+      // The approver of record: the delegator when the late approval was delegated.
+      const approvers = [...new Set(late.map((row) => Number(row.on_behalf_of ?? row.assignee_id)))]
+      const found: number[] = []
+      for (const approver of approvers)
+        found.push(...(await this.managers(trx, to.manager, approver)))
+      return [...new Set(found)]
+    }
+    return this.recipients(trx, run, context, to)
+  }
+
+  /**
+   * The approver's managers in the org tree: active holders of the role whose role is
+   * scoped to the approver's unit or, failing that, to the nearest ancestor unit.
+   */
+  private async managers(trx: Knex.Transaction, role: string, approver: number) {
+    const roleId = await this.roleId(trx, role)
+    if (roleId === null) return []
+    const rows = await trx('user_roles as ur')
+      .join('org_units as o', 'o.id', 'ur.org_unit_id')
+      .join('users as u', 'u.id', 'ur.user_id')
+      .where('ur.role_id', roleId)
+      .whereNot('ur.user_id', approver)
+      .whereNull('u.disabled_at')
+      .whereRaw(
+        'o.path @> ANY (SELECT ou.path FROM user_org_units m JOIN org_units ou ON ou.id = m.org_unit_id WHERE m.user_id = ?)',
+        [approver]
+      )
+      .select('ur.user_id', trx.raw('nlevel(o.path) AS depth'))
+    const nearest = Math.max(...rows.map((row) => Number(row.depth)))
+    return rows.filter((row) => Number(row.depth) === nearest).map((row) => Number(row.user_id))
+  }
+
+  /**
+   * The delegate an approver's approvals go to today, or null to keep them with the
+   * approver (ADR 044). Routing is one hop and only to someone who can act: never the
+   * person who started the run (no self-approval), never a delegate who is away and
+   * delegating in turn, and never a delegate who cannot view the record.
+   */
+  private async delegateFor(db: Knex, run: Record<string, any>, approver: number) {
+    const active = await this.#delegations.active(approver, db)
+    if (!active || active.delegateId === Number(run.started_by)) return null
+    if (await this.#delegations.active(active.delegateId, db)) return null
+    if (!(await this.canView(run.resource, run.record_id, active.delegateId))) return null
+    return active
+  }
+
+  /**
+   * Who is told about an open approval now: the delegate it was routed to while that
+   * delegation lasts; otherwise its approver, or the approver's current delegate when
+   * the approver is away today.
+   */
+  private async holder(db: Knex, run: Record<string, any>, row: Record<string, any>) {
+    let approver = Number(row.assignee_id)
+    if (row.delegation_id && row.on_behalf_of) {
+      const today = this.today()
+      const routed = await db('workflow_delegations')
+        .where('id', row.delegation_id)
+        .whereNull('revoked_at')
+        .where('starts_on', '<=', today)
+        .where('ends_on', '>=', today)
+        .first('id')
+      if (routed) return approver
+      approver = Number(row.on_behalf_of)
+    }
+    const away = await this.delegateFor(db, run, approver)
+    return away ? away.delegateId : approver
+  }
+
+  private async userName(db: Knex, id: number) {
+    const row = await db('users').where('id', id).first('full_name', 'email')
+    return row ? String(row.full_name ?? row.email ?? `#${id}`) : null
+  }
+
+  private today() {
+    return calendarDate(this.now(), this.options.timeZone)
+  }
+
   private now() {
     return this.options.now?.() ?? new Date()
+  }
+}
+
+/** The listener name and domain event that start or cancel a resource's workflow. */
+function workflowKey(registry: ResourceRegistry, resource: string, kind: 'start' | 'cancel') {
+  return {
+    name: `adula.workflows.${kind}.${resource}`,
+    event: `${registry.owner(resource)}.${resource}.${kind === 'start' ? 'submitted' : 'cancelled'}`,
   }
 }
 
@@ -867,16 +1296,17 @@ export function workflowListeners(
 ): Listener[] {
   return registry.all().flatMap((resource) => {
     if (!resource.submittable) return []
-    const module = registry.owner(resource.name)
-    return (['start', 'cancel'] as const).map((kind) => ({
-      name: `adula.workflows.${kind}.${resource.name}`,
-      event: `${module}.${resource.name}.${kind === 'start' ? 'submitted' : 'cancelled'}`,
-      handle: (event: DomainEvent, trx: Knex.Transaction) => {
-        const listener = engine()
-          .listeners()
-          .find((entry) => entry.name === `adula.workflows.${kind}.${resource.name}`)
-        return listener ? listener.handle(event, trx) : Promise.resolve()
-      },
-    }))
+    return (['start', 'cancel'] as const).map((kind) => {
+      const key = workflowKey(registry, resource.name, kind)
+      return {
+        ...key,
+        handle: (event: DomainEvent, trx: Knex.Transaction) => {
+          const listener = engine()
+            .listeners()
+            .find((entry) => entry.name === key.name)
+          return listener ? listener.handle(event, trx) : Promise.resolve()
+        },
+      }
+    })
   })
 }

@@ -3,8 +3,11 @@ import { isAbsolute, join, relative } from 'node:path'
 import type { Settings } from '../services/settings.js'
 import { ADULA_VERSION } from '../version.js'
 import { agentAssets, managedRules, digest } from './agent_assets.js'
-import { columnName } from '../resource/define_resource.js'
+import { columnName, joinTable } from '../resource/define_resource.js'
+import { decimalShape } from '../resource/values.js'
+import type { Knex } from 'knex'
 import type { Field, Resource } from '../resource/types.js'
+import { describeDrift, inSync, migratable, schemaDrift } from '../database/schema_diff.js'
 import type { WorkflowDefinition } from '../workflows/define_workflow.js'
 import type { RuntimeHealth } from '../core/health.js'
 
@@ -295,12 +298,18 @@ export async function diagnose(
   return findings
 }
 
-type TableShape = Pick<Resource, 'name' | 'scoped' | 'version' | 'submittable' | 'customFields'> & {
+type TableShape = Pick<Resource, 'name' | 'scoped' | 'version' | 'submittable' | 'unique'> & {
   fields: Record<
     string,
-    Pick<Field, 'column' | 'required' | 'sequence' | 'unique' | 'searchable'> & {
+    Pick<
+      Field,
+      'column' | 'required' | 'sequence' | 'unique' | 'searchable' | 'default' | 'visibleWhen'
+    > & {
       type: string
       resource?: string
+      table?: string
+      precision?: number
+      scale?: number
     }
   >
 }
@@ -308,19 +317,35 @@ type TableShape = Pick<Resource, 'name' | 'scoped' | 'version' | 'submittable' |
 /** The columns and indexes createResourceTable derives from a definition, one entry each. */
 function tableShape(resource: TableShape) {
   const shape = new Map<string, string>()
-  for (const flag of ['scoped', 'version', 'submittable', 'customFields'] as const)
+  for (const flag of ['scoped', 'version', 'submittable'] as const)
     if (resource[flag]) shape.set(flag, flag)
   for (const [key, field] of Object.entries(resource.fields)) {
     if (field.type === 'hasMany') continue
-    const column = field.column ?? columnName(key)
+    const column =
+      field.type === 'manyToMany'
+        ? joinTable(resource.name, key, { resource: String(field.resource), table: field.table })
+            .table
+        : (field.column ?? columnName(key))
     const traits = [
-      field.type === 'belongsTo' ? `belongsTo ${field.resource}` : field.type,
-      ...(field.required || field.sequence ? ['required'] : []),
+      field.type === 'belongsTo' || field.type === 'manyToMany'
+        ? `${field.type} ${field.resource}`
+        : field.type === 'decimal' || field.type === 'percent'
+          ? `${field.type}(${Object.values(decimalShape(field)).join(',')})`
+          : field.type,
+      // The same NOT NULL rule as createResourceTable: visibleWhen may hide (and clear) it.
+      ...(field.sequence || (field.required && field.visibleWhen === undefined)
+        ? ['required']
+        : []),
       ...(field.unique ? ['unique'] : []),
       ...(field.searchable ? ['searchable'] : []),
+      ...(field.default !== undefined && !Array.isArray(field.default)
+        ? [`default ${JSON.stringify(field.default)}`]
+        : []),
     ]
     shape.set(column, `${column} (${traits.join(', ')})`)
   }
+  for (const keys of resource.unique ?? [])
+    shape.set(`unique ${keys.join(',')}`, `unique (${keys.join(', ')})`)
   return shape
 }
 
@@ -420,5 +445,37 @@ export function diagnoseOutbox(
     message: stale
       ? `${backlog} unpublished events, the oldest ${Math.round(oldestAgeMs / 1000)} s old; the worker is ${worker}. Listeners run only while \`node ace adula:worker\` runs`
       : `No outbox event is older than ${OUTBOX_STALE_MS / 1000} s; the worker is ${worker}`,
+  }
+}
+
+/**
+ * Compares every registered resource with its live table (see schemaDrift): missing
+ * columns, different types, NOT NULL columns the definition lets be empty, missing unique
+ * indexes, unique indexes still counting cancelled documents and missing join tables. Run
+ * `node ace adula:resource:migration <name>` to add what is missing and apply the
+ * relaxing changes.
+ */
+export async function diagnoseResourceSchemas(
+  db: Knex,
+  resources: readonly Resource[]
+): Promise<Finding> {
+  const problems: string[] = []
+  const missing = new Set<string>()
+  for (const resource of resources) {
+    const drift = await schemaDrift(db, resource)
+    if (inSync(drift)) continue
+    if (migratable(drift)) missing.add(resource.name)
+    problems.push(...describeDrift(drift))
+  }
+  return {
+    check: 'resources.schema',
+    status: problems.length ? 'warn' : 'pass',
+    message: problems.length
+      ? `The database differs from the resource definitions: ${problems.join('; ')}${
+          missing.size
+            ? `. Add what is missing with ${[...missing].map((name) => `node ace adula:resource:migration ${name}`).join(', ')}, then migration:run`
+            : ''
+        }`
+      : 'Every resource table matches its definition',
   }
 }

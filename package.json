@@ -1,6 +1,6 @@
 {
   "name": "adulajs",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "private": true,
   "type": "module",
   "license": "MIT",
@@ -9,9 +9,9 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "build": "pnpm --filter adula build && pnpm --filter @adula/ui build && pnpm --filter create-adula-app build && pnpm --filter @adula/reference build",
-    "typecheck": "pnpm --filter adula build && pnpm -r typecheck",
-    "test": "pnpm --filter adula test && pnpm --filter @adula/ui test && pnpm --filter @adula/reference test && pnpm --filter create-adula-app test",
+    "build": "pnpm --filter adula build && pnpm --filter @adula/ui build && node scripts/ui-registry.mjs reference && pnpm --filter create-adulajs build && pnpm --filter @adula/reference build",
+    "typecheck": "pnpm --filter adula build && node scripts/ui-registry.mjs reference && pnpm -r typecheck",
+    "test": "pnpm --filter adula test && node scripts/ui-registry.mjs reference && pnpm --filter @adula/ui test && pnpm --filter @adula/reference test && pnpm --filter create-adulajs test",
     "test:core": "pnpm --filter adula test",
     "test:consumer": "node scripts/test-consumer.mjs",
     "test:medical": "node scripts/test-medical-consumer.mjs",
@@ -19,14 +19,13 @@
     "test:upgrade": "node scripts/test-upgrade.mjs",
     "test:upgrade:synthetic": "node scripts/test-upgrade.mjs --synthetic",
     "test:s3": "node scripts/test-s3.mjs",
-    "dev": "pnpm --filter adula build && pnpm --filter @adula/reference dev",
+    "dev": "pnpm --filter adula build && node scripts/ui-registry.mjs reference && pnpm --filter @adula/reference dev",
     "doctor": "pnpm --filter @adula/reference exec node ace adula:doctor",
     "lint": "pnpm -r lint",
     "check:boundaries": "node scripts/check-boundaries.mjs",
-    "check:naming": "node scripts/check-naming.mjs",
     "test:release": "node --test tests/release/*.test.mjs",
     "check:release": "node scripts/check-release.mjs",
-    "release:status": "node scripts/release-status.mjs",
-    "check:api": "node scripts/check-api.mjs"
+    "check:api": "node scripts/check-api.mjs",
+    "docs:reference": "node scripts/define-resource-reference.mjs --write"
   }
 }
