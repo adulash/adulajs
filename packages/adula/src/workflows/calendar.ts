@@ -4,14 +4,20 @@
  * day starts at local midnight rather than at 00:00 UTC.
  */
 const formats = new Map<string, Intl.DateTimeFormat>()
+const knownZones = new Set<string>()
 
-/** Refuses a time zone the runtime does not know, at construction rather than per call. */
+/**
+ * Refuses a time zone the runtime does not know, at construction rather than per call.
+ * Services are built per request, so each zone is checked with Intl only once.
+ */
 export function assertTimeZone(timeZone: string) {
+  if (knownZones.has(timeZone)) return timeZone
   try {
     new Intl.DateTimeFormat('en-CA', { timeZone })
   } catch {
     throw new Error(`Unknown time zone "${timeZone}"; use an IANA name such as Asia/Riyadh`)
   }
+  knownZones.add(timeZone)
   return timeZone
 }
 
