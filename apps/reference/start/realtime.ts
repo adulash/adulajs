@@ -10,11 +10,15 @@ transmit.authorize<{ id: string }>('notifications/:id', (ctx: HttpContext, { id 
   return ctx.auth.user?.id === Number(id)
 })
 
-const stop = listenForNotifications(
-  db.connection().getWriteClient(),
-  (signal) => {
-    void transmit.broadcast(`notifications/${signal.userId}`, { id: signal.id })
-  },
-  { onError: (error) => logger.warn({ err: error }, 'notification listener interrupted') }
-)
-app.terminating(stop)
+// ace codegen boots the web environment in warmup mode, where terminating hooks never run:
+// an open listener would keep that process alive forever.
+if (app.getMode() !== 'warmup') {
+  const stop = listenForNotifications(
+    db.connection().getWriteClient(),
+    (signal) => {
+      void transmit.broadcast(`notifications/${signal.userId}`, { id: signal.id })
+    },
+    { onError: (error) => logger.warn({ err: error }, 'notification listener interrupted') }
+  )
+  app.terminating(stop)
+}

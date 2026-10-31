@@ -289,12 +289,37 @@ test('extra test arguments reach the test runner instead of a chained formatter'
   // pnpm appends `test -- --files=...` to the end of the script (issue #22).
   assert.equal(scripts.test, 'node ace test')
   assert.match(template.files['tests/bootstrap.ts'], /teardown:[\s\S]*database\/schema\.ts/)
+  // The two-factor setup keeps the database import while the reference TRUNCATE is removed.
+  assert.match(
+    template.files['tests/bootstrap.ts'],
+    /^import db from '@adonisjs\/lucid\/services\/db'$/m
+  )
+  assert.doesNotMatch(template.files['tests/bootstrap.ts'], /TRUNCATE/)
   const calls = []
   await runServices('direct', ['test', '--files=tests/functional/a.spec.ts'], async (...call) => {
     calls.push(call)
   })
   const run = calls.find(([, params]) => params.includes('test:app'))
   assert.deepEqual(run?.[1].slice(-2), ['test:app', '--files=tests/functional/a.spec.ts'])
+})
+
+test('code generation does not open the notification listener', async () => {
+  const template = JSON.parse(
+    await readFile(new URL('../build/template.json', import.meta.url), 'utf8')
+  )
+  // ace codegen runs no terminating hooks, so a listener would keep the installer waiting.
+  assert.match(
+    template.files['start/realtime.ts'],
+    /if \(app\.getMode\(\) !== 'warmup'\) \{\s+const stop = listenForNotifications\(/
+  )
+})
+
+test('the home page title the creator rebrands still exists', async () => {
+  const template = JSON.parse(
+    await readFile(new URL('../build/template.json', import.meta.url), 'utf8')
+  )
+  // If this text moves, the brand import goes unused and the new system fails its typecheck.
+  assert.ok(template.files['inertia/pages/home.tsx'].includes("{ app: 'AdulaJS' }"))
 })
 
 test('starter pages compose the registry Select instead of native lists', async () => {

@@ -110,7 +110,6 @@ files['tsconfig.json'] = files['tsconfig.json'].replace(', "tests/fixtures/front
 files['tests/bootstrap.ts'] = files['tests/bootstrap.ts']
   .replace('adula-reference-test', 'application-specific test')
   .replace(/      await db.rawQuery\([\s\S]*?\n      \)/, '')
-  .replace("import db from '@adonisjs/lucid/services/db'\n", '')
 for (const path of ['config/cache.ts', 'config/queue.ts'])
   files[path] =
     "import env from '#start/env'\n" +

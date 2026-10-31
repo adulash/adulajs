@@ -63,6 +63,7 @@ export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
       )
       // Suites create administrators without a second factor. Enforcement is switched off
       // here; tests/functional/two_factor.spec.ts restores the default (required) and covers it.
+      await db.from('settings').where('key', 'auth.twoFactorRequiredForAdministrators').delete()
       await db
         .table('settings')
         .insert({ key: 'auth.twoFactorRequiredForAdministrators', value: JSON.stringify(false) })

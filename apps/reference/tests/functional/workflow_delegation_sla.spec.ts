@@ -1,6 +1,7 @@
 import { test } from '@japa/runner'
 import db from '@adonisjs/lucid/services/db'
 import { consumeEvent, seedModules, type DomainEvent } from 'adula'
+import adulaConfig from '#config/adula'
 import { registry } from '#start/modules'
 import User from '#models/user'
 import { adula } from '#services/adula'
@@ -10,8 +11,11 @@ import { seedActor, type UiActor } from '#tests/helpers/ui_fixtures'
 
 const json = { Accept: 'application/json' }
 const knex = () => db.connection().getWriteClient()
-/** A UTC calendar date `days` from today, as delegation ranges use. */
-const day = (days = 0) => new Date(Date.now() + days * 86400000).toISOString().slice(0, 10)
+/** A calendar date `days` from today in the system's time zone, as delegation ranges use. */
+const day = (days = 0) =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: adulaConfig.timeZone }).format(
+    Date.now() + days * 86400000
+  )
 
 /** Publishes pending outbox events to every registered listener, as the worker does. */
 async function drainOutbox() {

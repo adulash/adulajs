@@ -24,6 +24,7 @@ import {
 import { lockedManager, upgradeApplication } from './upgrade.mjs'
 import {
   run,
+  argumentBatches,
   npmEntry,
   packageManager,
   packageManagerBin,
@@ -403,11 +404,9 @@ export async function main(argv = process.argv.slice(2)) {
       'inertia/brand.ts',
       'inertia/css/brand.css',
     ]
-    await run(
-      manager[0],
-      [...manager.slice(1), 'exec', 'prettier', '--write', ...sourceFiles],
-      options
-    )
+    for (const batch of argumentBatches(sourceFiles)) {
+      await run(manager[0], [...manager.slice(1), 'exec', 'prettier', '--write', ...batch], options)
+    }
     await run(process.execPath, ['ace', 'adula:doctor'], options)
     progress.start('Typecheck and build the system')
     await run(manager[0], [...manager.slice(1), 'run', 'typecheck'], options)

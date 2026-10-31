@@ -1,6 +1,7 @@
 import { test } from '@japa/runner'
 import db from '@adonisjs/lucid/services/db'
 import { consumeEvent, seedModules, type DomainEvent } from 'adula'
+import adulaConfig from '#config/adula'
 import { adula } from '#services/adula'
 import { registry } from '#start/modules'
 import { listeners } from '#start/listeners'
@@ -8,7 +9,10 @@ import { seedActor, type UiActor } from '#tests/helpers/ui_fixtures'
 import User from '#models/user'
 
 const knex = () => db.connection().getWriteClient()
-const day = (days = 0) => new Date(Date.now() + days * 86400000).toISOString().slice(0, 10)
+const day = (days = 0) =>
+  new Intl.DateTimeFormat('en-CA', { timeZone: adulaConfig.timeZone }).format(
+    Date.now() + days * 86400000
+  )
 
 test.group('Out-of-office delegation in the browser (ADR 044)', (group) => {
   let clerk: UiActor

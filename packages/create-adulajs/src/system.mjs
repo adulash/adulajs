@@ -42,6 +42,24 @@ export async function run(
   }
 }
 
+/**
+ * Splits arguments so no command line exceeds `limit` characters. pnpm exec reaches a
+ * `.cmd` shim on Windows, and cmd.exe refuses a line above 8191 characters.
+ */
+export function argumentBatches(items, limit = 4000) {
+  const batches = []
+  let length = 0
+  for (const item of items) {
+    if (batches.length === 0 || length + item.length + 1 > limit) {
+      batches.push([])
+      length = 0
+    }
+    batches.at(-1).push(item)
+    length += item.length + 1
+  }
+  return batches
+}
+
 export async function checkDocker(execute = run, platform = process.platform) {
   return detectDocker(execute, platform)
 }
