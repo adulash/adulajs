@@ -1,6 +1,31 @@
 # Changelog
 
-## Unreleased
+## 2.2.0 — 2026-10-30
+
+Minor release by the owner's decision: the integration surface, workflow delegation and
+SLA, the list layer, new field types, optional languages, SSO and two-factor
+authentication, multiple attachments, print templates and security hardening. It adds the
+additive migrations `1770000000020`, `1770000000041` to `1770000000046` and `1770000000049`.
+
+`docs/releasing.md` treats a removed or changed export as a major release; these changes
+ship in this minor version, so read them before upgrading:
+
+* Administrators with `manage all` must enrol in two-factor authentication before they can
+  use `/admin`, API tokens or MCP. A setting turns this off.
+* `defineResource` refuses a definition that still sets `customFields`; delete the option.
+* `Resource.validator` is optional: code calling `resource.validator.validate(…)` should
+  use `resourceValidator(resource).validate(…)`.
+* `DATE` columns reach module code and raw queries as `'YYYY-MM-DD'` strings, not `Date`
+  objects.
+* Generic printing refuses a document above 1000 lines per group instead of cutting it at
+  100 (ADR 048).
+
+Fixed: `create-adulajs` formats generated files in batches; on Windows the single `prettier`
+command exceeded the command-line limit and stopped setup at step 5. Generated applications
+keep the database import in `tests/bootstrap.ts`, which the two-factor test setup needs. `ace
+codegen` exits again: `start/realtime.ts` no longer opens the notification listener in warmup
+mode, which kept the process, and so the installer or a CI step, waiting forever. The generated
+home page title shows the company name again; the stale rewrite also failed the typecheck.
 
 ### Integration surface
 

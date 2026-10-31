@@ -1,6 +1,6 @@
 # @adula/ui
 
-Version 2.1.0. For complete consumer setup, use the canonical [installation guide](https://github.com/adulash/adulajs/blob/main/docs/installation.md).
+Version 2.2.0. For complete consumer setup, use the canonical [installation guide](https://github.com/adulash/adulajs/blob/main/docs/installation.md).
 
 Arabic RTL shadcn registry for project-owned React components. This package ships JSON assets, not a runtime React component library. Install with `node ace adula:ui add all` or `node ace adula:ui add dialog`. The command invokes the pinned shadcn CLI and records each generated file hash in `ui.lock.json`. Project modifications are preserved; use `--preview` to review upstream differences before merging an update.
 

@@ -1,7 +1,7 @@
 {
   "name": "adula",
   "description": "Resource-driven business applications for AdonisJS 7",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "engines": {
     "node": ">=24.0.0"
   },

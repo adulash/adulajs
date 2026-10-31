@@ -1,6 +1,6 @@
 # Implementation status
 
-Current state of AdulaJS 2.1.0 on 2026-10-18. [CHANGELOG.md](../CHANGELOG.md) is the
+Current state of AdulaJS 2.2.0 on 2026-10-30. [CHANGELOG.md](../CHANGELOG.md) is the
 chronology of what changed and when; [GAPS.md](../GAPS.md) lists what users still cannot
 do. This page describes what exists today.
 

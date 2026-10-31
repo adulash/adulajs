@@ -1,6 +1,6 @@
 # AdulaJS gaps
 
-Open capability gaps for people building systems with AdulaJS, as of 2.1.0. What exists is
+Open capability gaps for people building systems with AdulaJS, as of 2.2.0. What exists is
 in [docs/implementation-status.md](docs/implementation-status.md); what changed is in
 [CHANGELOG.md](CHANGELOG.md). Report a new gap with the issue form in `.github/ISSUE_TEMPLATE`.
 
