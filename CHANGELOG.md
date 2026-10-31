@@ -26,6 +26,8 @@ keep the database import in `tests/bootstrap.ts`, which the two-factor test setu
 codegen` exits again: `start/realtime.ts` no longer opens the notification listener in warmup
 mode, which kept the process, and so the installer or a CI step, waiting forever. The generated
 home page title shows the company name again; the stale rewrite also failed the typecheck.
+Security updates: `vite` 8.2.4, `dompurify` 3.4.17, `follow-redirects` 1.16.2, `body-parser`
+2.4.0 and `zod` 4.6.7 under the job dashboard.
 
 ### Integration surface
 
