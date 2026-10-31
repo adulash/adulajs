@@ -20,14 +20,14 @@
     "lint": "eslint src build.mjs tests"
   },
   "dependencies": {
-    "pg": "8.16.3",
+    "pg": "8.23.1",
     "pnpm": "11.19.0"
   },
   "devDependencies": {
-    "@types/node": "26.2.0",
-    "@types/pg": "8.15.5",
+    "@types/node": "26.6.5",
+    "@types/pg": "8.23.1",
     "typescript": "6.0.3",
-    "eslint": "10.9.0"
+    "eslint": "10.13.0"
   },
   "repository": {
     "type": "git",

@@ -41,21 +41,21 @@
   "author": "adula contributors",
   "license": "MIT",
   "devDependencies": {
-    "@adonisjs/assembler": "8.5.0",
-    "@adonisjs/core": "7.5.0",
+    "@adonisjs/assembler": "8.6.0",
+    "@adonisjs/core": "7.6.0",
     "@adonisjs/drive": "4.0.0",
     "@adonisjs/eslint-config": "3.1.0",
     "@adonisjs/lucid": "22.4.2",
     "@adonisjs/tsconfig": "2.0.0",
     "@japa/assert": "4.2.0",
-    "@japa/runner": "5.3.0",
+    "@japa/runner": "5.4.0",
     "@jrmc/adonis-mcp": "2.0.0",
-    "@poppinss/ts-exec": "1.4.4",
-    "@types/node": "26.2.0",
+    "@poppinss/ts-exec": "1.5.1",
+    "@types/node": "26.6.5",
     "@types/papaparse": "5.5.2",
     "@vinejs/vine": "4.4.0",
-    "eslint": "10.9.0",
-    "pg": "8.16.3",
+    "eslint": "10.13.0",
+    "pg": "8.23.1",
     "typescript": "6.0.3"
   },
   "peerDependencies": {
@@ -83,11 +83,11 @@
   },
   "prettier": "@adonisjs/prettier-config",
   "dependencies": {
-    "@casl/ability": "7.0.1",
+    "@casl/ability": "7.0.2",
     "knex": "3.3.0",
     "otpauth": "9.5.2",
     "papaparse": "5.7.0",
-    "xstate": "5.33.2"
+    "xstate": "5.33.3"
   },
   "repository": {
     "type": "git",
