@@ -145,4 +145,56 @@ test.group('Realtime notification bell', (group) => {
     })
     await second.getByTestId('unread-count').filter({ hasText: '2' }).waitFor()
   })
+
+  test('a notification during the leader handover reaches every open tab', async ({
+    browserContext,
+    assert,
+  }) => {
+    await db.from('notifications').where('user_id', member.user.id).delete()
+    await browserContext.loginAs(member.user)
+    const pendingLocks = 'navigator.locks.query().then((locks) => locks.pending.length)'
+    const first = await browserContext.newPage()
+    const subscribed = first.waitForResponse(
+      (response) => response.url().includes('/__transmit/subscribe') && response.ok()
+    )
+    await first.goto('/notifications')
+    await subscribed
+    const second = await browserContext.newPage()
+    await second.goto('/notifications')
+    await second.getByRole('heading', { name: 'الإشعارات' }).waitFor()
+    const third = await browserContext.newPage()
+    await third.goto('/notifications')
+    await third.getByRole('heading', { name: 'الإشعارات' }).waitFor()
+    // Both tabs must wait in the lock queue, so that the second one leads next.
+    for (const started = Date.now(); Date.now() - started < 20_000;) {
+      if ((await first.evaluate<number>(pendingLocks)) === 2) break
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    }
+    assert.equal(await first.evaluate<number>(pendingLocks), 2)
+    // Holding the subscription keeps the handover open.
+    let release = () => {}
+    let arrive = () => {}
+    const held = new Promise<void>((resolve) => (release = resolve))
+    const reached = new Promise<void>((resolve) => (arrive = resolve))
+    await second.route('**/__transmit/subscribe', async (route) => {
+      arrive()
+      await held
+      await route.continue()
+    })
+    await first.close()
+    await reached
+    await notifyWithTemplate(
+      db.connection().getWriteClient(),
+      member.user.id,
+      'assignment.created',
+      {
+        title: 'أثناء انتقال القيادة',
+        resource: 'الطلبات',
+        id: 1,
+      }
+    )
+    release()
+    await second.getByTestId('unread-count').filter({ hasText: '1' }).waitFor({ timeout: 10_000 })
+    await third.getByTestId('unread-count').filter({ hasText: '1' }).waitFor({ timeout: 10_000 })
+  })
 })

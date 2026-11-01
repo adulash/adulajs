@@ -27,7 +27,7 @@ function realtime() {
  * Opens this tab's subscription to the user's notification channel; returns a closer.
  * Each open stream holds one of the browser's six HTTP/1.1 connections to this host.
  */
-function openStream(userId: number, onMessage: () => void) {
+function openStream(userId: number, onMessage: () => void, onSubscribed?: () => void) {
   const transmit = realtime()
   const subscription = transmit.subscription(`notifications/${userId}`)
   let active = true
@@ -35,6 +35,7 @@ function openStream(userId: number, onMessage: () => void) {
     .create()
     .then(() => {
       if (!active) void subscription.delete()
+      else if (subscription.isCreated) onSubscribed?.()
     })
     .catch(() => {})
   const stop = subscription.onMessage(onMessage)
@@ -51,27 +52,49 @@ function openStream(userId: number, onMessage: () => void) {
  * One stream per browser, not per tab (#36): visible tabs elect a leader with a Web Lock;
  * the leader holds the stream and relays each signal to the other tabs over a
  * BroadcastChannel. When the leader closes or is hidden, a waiting tab takes over.
+ * Nothing delivers a signal sent between two leaders, so a tab that takes over
+ * refreshes the count for all tabs once it is subscribed.
  * Browsers without these APIs fall back to a stream per visible tab.
  */
-function joinRealtime(userId: number, onMessage: () => void) {
+function joinRealtime(userId: number, onMessage: () => void, onCatchUp: () => void) {
   const name = `adula:notifications:${userId}`
   if (typeof BroadcastChannel === 'undefined' || !('locks' in navigator)) {
     return openStream(userId, onMessage)
   }
   const channel = new BroadcastChannel(name)
-  channel.onmessage = () => onMessage()
+  channel.onmessage = (event) => (event.data === 'catch-up' ? onCatchUp() : onMessage())
   const leave = new AbortController()
-  navigator.locks
-    .request(name, { signal: leave.signal }, async () => {
-      const stop = openStream(userId, () => {
+  const lead = async (takeover: boolean) => {
+    if (leave.signal.aborted) return
+    const stop = openStream(
+      userId,
+      () => {
         onMessage()
         channel.postMessage('notification')
-      })
-      // Hold the lock, and the stream, until this tab leaves.
-      await new Promise<void>((resolve) =>
-        leave.signal.addEventListener('abort', () => resolve(), { once: true })
-      )
-      stop()
+      },
+      takeover
+        ? () => {
+            onCatchUp()
+            channel.postMessage('catch-up')
+          }
+        : undefined
+    )
+    // Hold the lock, and the stream, until this tab leaves.
+    await new Promise<void>((resolve) =>
+      leave.signal.addEventListener('abort', () => resolve(), { once: true })
+    )
+    stop()
+  }
+  // A tab that finds the lock free skips the refresh on purpose, so the gap between
+  // page load and an accepted subscription stays uncovered.
+  navigator.locks
+    .request(name, { ifAvailable: true }, async (lock) => {
+      if (lock) await lead(false)
+      return lock !== null
+    })
+    .then((led) => {
+      if (led || leave.signal.aborted) return
+      return navigator.locks.request(name, { signal: leave.signal }, () => lead(true))
     })
     .catch(() => {
       // Leaving before becoming the leader aborts the pending request.
@@ -97,8 +120,10 @@ export function NotificationBell() {
         action: { label: 'عرض', onClick: () => router.visit('/notifications') },
       })
     }
+    // Asynchronous, so a catch-up never cancels the navigation the user is making.
+    const catchUp = () => router.reload({ only: ['unreadNotifications'], async: true })
     const open = () => {
-      leaveRealtime ??= joinRealtime(userId, onMessage)
+      leaveRealtime ??= joinRealtime(userId, onMessage, catchUp)
     }
     const close = () => {
       leaveRealtime?.()
@@ -113,7 +138,7 @@ export function NotificationBell() {
       } else if (!leaveRealtime) {
         open()
         // Catch up on notifications that arrived while this tab was not listening.
-        router.reload({ only: ['unreadNotifications'] })
+        catchUp()
       }
     }
     if (document.visibilityState !== 'hidden') open()
