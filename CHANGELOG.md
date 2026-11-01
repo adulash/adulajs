@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+Fixed: a notification sent while a closing tab handed its stream to another tab no longer
+stays out of the bell counts of the open tabs. Projects that copied
+`inertia/components/notification-bell.tsx` need the updated file (ADR 034).
+
 ## 2.2.0 — 2026-10-30
 
 Minor release by the owner's decision: the integration surface, workflow delegation and

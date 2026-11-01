@@ -16,7 +16,11 @@ stream per visible tab.
    own unread count and shows its own toast.
 2. A tab leaves the election when it has been hidden for the grace period (ten seconds)
    or closes. The lock is then released and a waiting tab takes the stream over. A tab
-   that becomes visible again rejoins and reloads the unread count to catch up.
+   that becomes visible again rejoins and reloads the unread count to catch up. A signal
+   sent between two leaders reaches no tab, so a tab that takes over reloads the count
+   and asks the other tabs to do the same once it is subscribed. A tab that finds the
+   lock free skips this reload on purpose, so the gap between page load and an accepted
+   subscription stays uncovered.
 3. Browsers without Web Locks or `BroadcastChannel` keep the 1.0.1 behavior: one stream
    per visible tab. Web Locks exist only in a secure context, so an application served
    over plain HTTP on a network address (not `localhost`) also falls back, as do Safari
