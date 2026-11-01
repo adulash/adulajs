@@ -12,7 +12,8 @@ Packages: 0.2.0 and 1.x as `@adula/kit`, `@adula/ui`, `@adula/create-app`; 2.x a
 
 | Version | Date | Tag | PR | CI run | npm status |
 |---|---|---|---|---|---|
-| 2.1.0 | 2026-10-17 | `v2.1.0` (f5ae844) | [#86](https://github.com/adulash/adulajs/pull/86), [#87](https://github.com/adulash/adulajs/pull/87) | [38971440118](https://github.com/adulash/adulajs/actions/runs/38971440118) | `latest` |
+| 2.2.0 | 2026-11-01 | `v2.2.0` (8bf14ec) | [#89](https://github.com/adulash/adulajs/pull/89) | [41170166025](https://github.com/adulash/adulajs/actions/runs/41170166025) | `latest`; first `create-adulajs` published by hand, without provenance |
+| 2.1.0 | 2026-10-17 | `v2.1.0` (f5ae844) | [#86](https://github.com/adulash/adulajs/pull/86), [#87](https://github.com/adulash/adulajs/pull/87) | [38971440118](https://github.com/adulash/adulajs/actions/runs/38971440118) | published; superseded by 2.2.0 |
 | 2.0.0 | 2026-10-15 | `v2.0.0` (4b9951e) | [#79](https://github.com/adulash/adulajs/pull/79), [#81](https://github.com/adulash/adulajs/pull/81) | [38698145811](https://github.com/adulash/adulajs/actions/runs/38698145811) | published; superseded by 2.1.0 |
 | 1.2.0 | 2026-10-01 | `v1.2.0` (e6c860c) | [#75](https://github.com/adulash/adulajs/pull/75), [#76](https://github.com/adulash/adulajs/pull/76) | [36829586279](https://github.com/adulash/adulajs/actions/runs/36829586279) | `latest` of `@adula/kit`; deprecated (renamed to `adula`) |
 | 1.1.0 | — | none | — | — | not published; shipped in 1.2.0 |
