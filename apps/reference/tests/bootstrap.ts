@@ -32,7 +32,16 @@ export const plugins: Config['plugins'] = [
   assert(),
   pluginAdonisJS(app),
   dbAssertions(app),
-  browserClient({ runInSuites: ['browser'] }),
+  browserClient({
+    runInSuites: ['browser'],
+    // A failed test keeps a Playwright trace of what the page showed.
+    tracing: {
+      enabled: true,
+      event: 'onError',
+      cleanOutputDirectory: true,
+      outputDirectory: 'tmp/browser-traces',
+    },
+  }),
   sessionBrowserClient(app),
   authBrowserClient(app),
   apiClient(),
