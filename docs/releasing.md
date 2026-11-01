@@ -76,7 +76,8 @@ npm can configure a trusted publisher only for a package that already exists. Wh
 with a warning. The owner then publishes that first version once from the CI-built archive
 of the approved run: download `npm-packages-<run-id>`, run
 `sha256sum --check SHA256SUMS`, then `npm publish create-adulajs-<version>.tgz --access
-public --tag latest` with the owner's npm session and 2FA. That one version has no
+public --tag latest --provenance=false` with the owner's npm session and 2FA. The flag
+overrides the package's own provenance setting, which works only on CI. That one version has no
 provenance. Then add the trusted publisher above; later versions go through the workflow.
 Finally retire the old name:
 `npm deprecate create-adula-app "Renamed to create-adulajs: npm create adulajs my-system"`.
