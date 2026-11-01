@@ -101,7 +101,7 @@
     "@vinejs/vine": "4.4.0",
     "adonisjs-scheduler": "2.8.0",
     "axios": "1.19.0",
-    "bullmq": "5.81.5",
+    "bullmq": "6.5.0",
     "class-variance-authority": "0.7.1",
     "cmdk": "1.1.1",
     "cn": "0.3.0",
