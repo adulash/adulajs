@@ -16,6 +16,7 @@ import {
   find,
   hydrate,
   permissions,
+  readableField,
   requireRecord,
   type ResourceContext,
 } from './shared.js'
@@ -389,8 +390,8 @@ export async function lookups(ctx: ResourceContext, name: string, actor: Actor) 
 
 /** The last 50 recorded mutations of one record, after authorizing the record itself. */
 export async function activity(ctx: ResourceContext, name: string, id: number, actor: Actor) {
-  await viewable(ctx, name, id, actor)
-  return activityOf(ctx, name, id)
+  const { resource, ability, record } = await viewable(ctx, name, id, actor)
+  return activityOf(ctx, resource, record, ability, actor)
 }
 
 /** Inline children and recent activity of one record from a single record read. */
@@ -398,7 +399,7 @@ export async function details(ctx: ResourceContext, name: string, id: number, ac
   const { resource, ability, record } = await viewable(ctx, name, id, actor)
   return {
     children: await childrenOf(ctx, resource, record, actor, ability),
-    activity: await activityOf(ctx, name, id),
+    activity: await activityOf(ctx, resource, record, ability, actor),
   }
 }
 
@@ -408,15 +409,27 @@ export async function recordPage(ctx: ResourceContext, name: string, id: number,
   return {
     ...(await presented(ctx, resource, found, actor, ability)),
     children: await childrenOf(ctx, resource, found, actor, ability),
-    activity: await activityOf(ctx, name, id),
+    activity: await activityOf(ctx, resource, found, ability, actor),
   }
 }
 
-async function activityOf(ctx: ResourceContext, name: string, id: number) {
+/**
+ * The record's recent activity. Each entry names only fields the viewer may read
+ * (readableField, as the field history); an update names the fields its field history
+ * recorded, plus the inline line groups it wrote, so entries stored with every submitted
+ * key are narrowed too.
+ */
+async function activityOf(
+  ctx: ResourceContext,
+  resource: Resource,
+  record: RecordData,
+  ability: AdulaAbility,
+  actor: Actor
+) {
   const rows = await ctx
     .db('activities as a')
     .leftJoin('users as u', 'u.id', 'a.actor_id')
-    .where({ 'a.resource': name, 'a.record_id': id })
+    .where({ 'a.resource': resource.name, 'a.record_id': Number(record.id) })
     .orderBy('a.id', 'desc')
     .limit(50)
     .select(
@@ -427,10 +440,30 @@ async function activityOf(ctx: ResourceContext, name: string, id: number) {
       'a.created_at',
       'u.full_name as actor_name'
     )
+  const updates = rows.filter((row) => row.action === 'update').map((row) => Number(row.id))
+  const changed = new Map<number, string[]>()
+  if (updates.length)
+    for (const change of await ctx
+      .db('field_changes')
+      .whereIn('activity_id', updates)
+      .orderBy('id')
+      .select('activity_id', 'field')) {
+      const keys = changed.get(Number(change.activity_id)) ?? []
+      if (!keys.includes(String(change.field))) keys.push(String(change.field))
+      changed.set(Number(change.activity_id), keys)
+    }
+  const named = (row: { id: unknown; action: unknown; changes?: { fields?: unknown } }) => {
+    const stored = Array.isArray(row.changes?.fields) ? row.changes.fields.map(String) : []
+    if (row.action !== 'update') return stored
+    const keys = [...(changed.get(Number(row.id)) ?? [])]
+    for (const key of stored)
+      if (resource.fields[key]?.type === 'hasMany' && !keys.includes(key)) keys.push(key)
+    return keys
+  }
   return rows.map((row) => ({
     id: Number(row.id),
     action: String(row.action) as Action,
-    fields: Array.isArray(row.changes?.fields) ? (row.changes.fields as string[]) : [],
+    fields: named(row).filter((key) => readableField(resource, record, ability, actor, key)),
     actorId: Number(row.actor_id),
     // A display name only: record viewers need not be able to read account e-mails.
     actorName: row.actor_name ? String(row.actor_name) : null,

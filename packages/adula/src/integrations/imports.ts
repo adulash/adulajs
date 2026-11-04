@@ -4,6 +4,7 @@ import type { Knex } from 'knex'
 import { subject } from '@casl/ability'
 import type { Actor } from '../auth/ability.js'
 import { buildAbility } from '../auth/ability.js'
+import { accessibleBy } from '../auth/sql.js'
 import type { ResourceService } from '../admin/resource_service.js'
 import type { ResourceRegistry } from '../resource/registry.js'
 import type { Field, RecordData, Resource } from '../resource/types.js'
@@ -618,8 +619,11 @@ export class ImportBatches {
 
   /**
    * Saves one row through ResourceService. Upsert first looks for the live record with
-   * the same match value; ResourceService then authorizes the update against the actor's
-   * scope and rules and checks the record's current `version`. A real import runs in a
+   * the same match value among the records the actor may update (scope and role rules as
+   * SQL, as list() applies them); ResourceService then authorizes the update and checks
+   * the record's current `version`. A value held only by a record outside that reach takes
+   * the create path and answers exactly as a create of it would (a duplicate from the
+   * unique index), so the row never tells the importer where the value is stored. A real import runs in a
    * savepoint of `trx` (the caller's progress transaction); a dry run does the same inside
    * a transaction that is always rolled back.
    */
@@ -638,10 +642,17 @@ export class ImportBatches {
         const value = input[matchField]
         if (value === null || value === undefined)
           throw new Error(`${field.label.ar}: قيمة المطابقة مطلوبة`)
-        const found = await scope(resource.name)
-          .whereNull('deleted_at')
-          .where(field.column ?? columnName(matchField), value as string)
-          .first(['id', ...(resource.version ? ['version'] : [])])
+        const reachable = scope(`${resource.name} as r`)
+          .whereNull('r.deleted_at')
+          .where(`r.${field.column ?? columnName(matchField)}`, value as string)
+        accessibleBy(
+          reachable,
+          buildAbility(actor.rules, this.registry.all()),
+          actor,
+          'update',
+          resource
+        )
+        const found = await reachable.first(['r.id', ...(resource.version ? ['r.version'] : [])])
         if (found) {
           id = Number(found.id)
           if (resource.version) input.version = Number(found.version)

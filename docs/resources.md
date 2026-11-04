@@ -27,7 +27,10 @@ or snapshot to keep in step.
    definition now lets be empty (for example a required field that gained `visibleWhen`;
    until then saving it hidden is 422 `E_NOT_NULL`), and `recreateUnique` drops and
    recreates, in the same migration, a unique index of a submittable table that still
-   counts cancelled documents. `NOT NULL` is never added to an existing column.
+   counts cancelled documents. `NOT NULL` is never added to an existing column. A resource
+   that gained `version: true` gets its `version` column in the same migration (existing
+   rows start at version 1); another missing standard column, such as `org_unit_id`, is
+   reported and the command exits 1, because no default can supply it.
 4. `node ace adula:doctor` runs the `resources.schema` check: for every registered resource
    it reports a missing table, missing columns, different column types, `NOT NULL` columns
    the definition lets be empty, missing unique indexes, unique indexes that still count
@@ -37,7 +40,11 @@ or snapshot to keep in step.
 `node ace adula:resource:snapshot <name>` is deprecated. It still rewrites a pending
 create-migration from the current definition and prints a notice pointing to
 `adula:resource:migration`; the `resources.snapshots` doctor check is unchanged (the
-snapshot records `visibleWhen` and the resolved `precision`/`scale`).
+snapshot records `visibleWhen`, the resolved `precision`/`scale` and the `group` of
+lookup fields). It writes nothing and exits 1 when a `belongsTo` or `manyToMany` field
+links a table whose create-migration runs later, since that foreign key would fail on a
+fresh database: keep the field out of the create-migration and add it with
+`adula:resource:migration` once both tables exist.
 
 ## Example
 

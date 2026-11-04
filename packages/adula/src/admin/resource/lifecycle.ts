@@ -23,7 +23,13 @@ import {
 } from './shared.js'
 
 /** The parent record an inline write belongs to, with the action taken on that parent. */
-export type ParentWrite = { name: string; id: number; action: 'create' | 'update' | 'amend' }
+export type ParentWrite = {
+  name: string
+  id: number
+  action: 'create' | 'update' | 'amend'
+  /** Set by the inline row's persist() when it created the row or changed a value. */
+  changed?: boolean
+}
 
 /** Optimistic lock of versioned resources (409 E_VERSION_CONFLICT). */
 export function requireVersion(resource: Resource, existing: RecordData, version: unknown) {
