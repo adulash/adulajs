@@ -11,7 +11,7 @@ import User from '#models/user'
 import mail from '@adonisjs/mail/services/main'
 import { SMTPTransport } from '@adonisjs/mail/transports/smtp'
 import { smtpSink } from '../helpers/smtp.js'
-import { mailPresets, presetEnvLines, smtpOptions } from '#services/mail_setup'
+import { mailPresets, mailReadiness, presetEnvLines, smtpOptions } from '#services/mail_setup'
 import { mailValues } from '#services/mail_delivery_test'
 
 test.group('Core administration screens', (group) => {
@@ -149,6 +149,46 @@ test.group('Core administration screens', (group) => {
       mail.config.mailers.smtp = previous
       await sink.close()
     }
+  })
+
+  test('mail readiness names gaps by variable and treats a local relay as a warning', ({
+    assert,
+  }) => {
+    const production = { NODE_ENV: 'production' }
+    assert.deepEqual(mailReadiness(production), {
+      configured: false,
+      missing: ['SMTP_HOST', 'MAIL_FROM_ADDRESS'],
+      invalid: [],
+      warnings: [],
+    })
+    const relay = mailReadiness({
+      ...production,
+      SMTP_HOST: '127.0.0.1',
+      SMTP_PORT: 25,
+      MAIL_FROM_ADDRESS: 'no-reply@example.test',
+    })
+    assert.isTrue(relay.configured)
+    assert.deepEqual(relay.warnings, ['loopback_in_production'])
+    const mismatch = mailReadiness({
+      SMTP_HOST: 'smtp.example.test',
+      SMTP_PORT: 465,
+      SMTP_SECURE: false,
+      SMTP_PASSWORD: 'only-a-password',
+      MAIL_FROM_ADDRESS: 'not-an-address',
+    })
+    assert.isFalse(mismatch.configured)
+    assert.deepEqual(mismatch.missing, ['SMTP_USERNAME'])
+    assert.deepEqual(mismatch.invalid, ['MAIL_FROM_ADDRESS'])
+    assert.deepEqual(mismatch.warnings, ['port_security_mismatch'])
+    assert.notInclude(JSON.stringify(mismatch), 'only-a-password')
+    assert.deepEqual(mailReadiness({}).warnings, ['development_default'])
+    for (const preset of mailPresets) {
+      const lines = presetEnvLines(preset)
+      assert.match(lines, /^SMTP_PASSWORD=$/m)
+      assert.include(lines, `SMTP_PORT=${preset.port}`)
+      assert.include(lines, `SMTP_SECURE=${preset.port === 465}`)
+    }
+    assert.notOk(mailPresets.some((preset) => /office365|outlook/i.test(preset.host)))
   })
 
   test('a preset configures mail, a wrong password reads as such and gaps are refused', async ({
