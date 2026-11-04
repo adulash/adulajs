@@ -270,4 +270,108 @@ test.group('Field type widgets in the generated UI', (group) => {
     await page.getByRole('button', { name: 'تصفية طرق الدفع', exact: true }).waitFor()
     assert.equal(await page.getByRole('row').filter({ hasText: name }).count(), 0)
   })
+
+  test('RTL forms keep codes and signs in order, align numbers and show no sample date (#113)', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(admin.user)
+    const page = await visit('/resources/suppliers/create')
+    await page.getByRole('heading', { name: 'إضافة مورد', exact: true }).waitFor()
+    const field = (name: string) => page.getByLabel(name, { exact: true })
+    await field('رمز المورد').fill('12-3-ABC')
+    await field('مدة السداد (يوم)').fill('-3')
+    // `dir="auto"` resolves a Latin code to LTR inside the RTL form, so it reads 12-3-ABC.
+    assert.isTrue(
+      await field('رمز المورد').evaluate((element) =>
+        (element as unknown as { matches: (selector: string) => boolean }).matches(':dir(ltr)')
+      )
+    )
+    assert.equal(await field('مدة السداد (يوم)').inputValue(), '-3')
+    const alignment = (name: string) =>
+      field(name).evaluate((element) => {
+        const style = (element as unknown as Styled).ownerDocument.defaultView.getComputedStyle(
+          element as unknown as Styled
+        ) as unknown as { direction: string; textAlign: string }
+        return `${style.direction} ${style.textAlign}`
+      })
+    // Integers, decimals and money share one side.
+    assert.equal(await alignment('مدة السداد (يوم)'), await alignment('التقييم'))
+    assert.equal(await alignment('مدة السداد (يوم)'), await alignment('حد الائتمان'))
+
+    const leave = await visit('/resources/leave_requests/create')
+    const start = leave.getByLabel('تاريخ البداية', { exact: true })
+    await start.waitFor()
+    assert.equal(await start.inputValue(), '')
+    // An empty date reads as an example of what to do, never as a stored date.
+    assert.notMatch((await start.getAttribute('placeholder')) ?? '', /[0-9٠-٩]/)
+    assert.isNotEmpty((await start.getAttribute('placeholder')) ?? '')
+  })
+
+  test('a select takes the focus on click and filters long Arabic lists by folded letters (#114)', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    const stamp = randomUUID().slice(0, 6)
+    const lookupGroup = 'leave_request_status'
+    const labels = [
+      'إسكان',
+      'إجازة سنوية',
+      'إجازة مرضية',
+      'أمومة',
+      'إرادة',
+      'تدريب',
+      'مهمة رسمية',
+      'زواج',
+      'وفاة قريب',
+      'حج',
+      'امتحان',
+      'دراسة',
+    ]
+    const keys = labels.map((_, index) => `fold_${stamp}_${index}`)
+    await knex()('lookups').insert(
+      labels.map((label, index) => ({
+        group: lookupGroup,
+        key: keys[index],
+        label_ar: label,
+        label_en: label,
+      }))
+    )
+    try {
+      await browserContext.loginAs(admin.user)
+      const page = await visit('/resources/leave_requests/create')
+      const reason = page.getByLabel('السبب', { exact: true })
+      await reason.waitFor()
+      await reason.fill('سبب مكتوب')
+      await page.getByRole('combobox', { name: 'الحالة', exact: true }).click()
+      await page.keyboard.type('اسكان')
+      // The typed text went to the search box, not to the previous field.
+      assert.equal(await reason.inputValue(), 'سبب مكتوب')
+      const options = page.getByRole('option')
+      await page.assertElementsCount('[role="option"]', 1)
+      assert.equal(await options.first().innerText(), 'إسكان')
+      await page.keyboard.press('Enter')
+      await page
+        .getByRole('combobox', { name: 'الحالة', exact: true })
+        .getByText('إسكان', { exact: true })
+        .waitFor()
+      await page.getByRole('combobox', { name: 'الحالة', exact: true }).click()
+      await page.keyboard.type('اراده')
+      assert.equal(await options.first().innerText(), 'إرادة')
+      await page.keyboard.press('Escape')
+
+      // A short list keeps the Select; clicking it still moves the focus off the previous field.
+      const suppliers = await visit('/resources/suppliers/create')
+      const name = suppliers.getByLabel('اسم المورد', { exact: true })
+      await name.waitFor()
+      await name.fill('مورد')
+      await suppliers.getByRole('combobox', { name: 'نوع المورد', exact: true }).click()
+      await suppliers.keyboard.type('x')
+      assert.equal(await name.inputValue(), 'مورد')
+    } finally {
+      await knex()('lookups').whereIn('key', keys).delete()
+    }
+  })
 })

@@ -7,6 +7,8 @@ import {
   canonicalValue,
   emailHref,
   fieldApplies,
+  foldArabic,
+  foldedFilter,
   hiddenFields,
   toLatinDigits,
   listInput,
@@ -16,6 +18,17 @@ import {
   phoneHref,
   safeUrl,
 } from '../registry/ui/field_values.ts'
+
+test('Arabic search folds hamza, taa marbuta, alef maqsura, harakat and tatweel (#114)', () => {
+  assert.equal(foldArabic('إسكان'), foldArabic('اسكان'))
+  assert.equal(foldArabic('إرادة'), foldArabic('اراده'))
+  assert.equal(foldArabic('مستشفى'), foldArabic('مستشفي'))
+  assert.equal(foldArabic('آمِنَـــة'), foldArabic('امنه'))
+  assert.equal(foldArabic(' ABC  ١٢ '), 'abc 12')
+  assert.equal(foldedFilter('housing', 'اسكان', ['الإسكان والتعمير']), 1)
+  assert.equal(foldedFilter('health', 'اسكان', ['الصحة']), 0)
+  assert.equal(foldedFilter('any', '  '), 1)
+})
 
 test('decimal entry accepts Arabic-Indic digits and the Arabic separator, padded to the scale', () => {
   assert.equal(parseDecimal('١٢٫٥', 2), '12.50')
