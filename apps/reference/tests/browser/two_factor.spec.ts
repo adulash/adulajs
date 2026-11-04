@@ -72,6 +72,8 @@ test.group('Browser two-factor authentication', () => {
     const secretText = await dialog.locator('code').first().textContent()
     const secret = String(secretText).replaceAll(' ', '')
     assert.match(secret, /^[A-Z2-7]{32}$/)
+    // The code field takes the focus once the secret arrives, not the footer's «إلغاء».
+    await page.waitForFunction("document.activeElement?.id === 'two-factor-enrol-code'")
     const link = await dialog
       .getByRole('link', { name: 'فتح في تطبيق المصادقة' })
       .getAttribute('href')

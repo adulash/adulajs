@@ -33,9 +33,9 @@ export default function Layout({ children }: { children: ReactElement<Data.Share
           </div>
           <div>
             <nav>
-              {children.props.user ? (
+              {children.props.account ? (
                 <>
-                  <span>{children.props.user.initials}</span>
+                  <span>{children.props.account.initials}</span>
                   <Form route="session.destroy">
                     <button type="submit">تسجيل الخروج</button>
                   </Form>

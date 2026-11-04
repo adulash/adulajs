@@ -260,7 +260,12 @@ test.group('Two-factor: enrolment and self-service', (group) => {
     const { secret } = await enrolTwoFactor(member.id, member.email)
     const browser = new Browser(client)
     await browser.password(admin)
-    await expectStatus(browser.send('post', `/admin/users/${member.id}/impersonate`), 200)
+    await expectStatus(
+      browser.send('post', `/admin/users/${member.id}/impersonate`, {
+        body: { reason: 'مراجعة إعدادات التحقق للمستخدم' },
+      }),
+      200
+    )
     assert.equal(browser.userId, member.id)
     for (const [method, url, body] of [
       ['post', '/account/two-factor/begin', {}],
@@ -655,7 +660,12 @@ test.group('Two-factor: administration', (group) => {
     const browser = new Browser(client)
     await browser.password(admin)
     await expectStatus(browser.code(nextCode(secret)), 200)
-    await expectStatus(browser.send('post', `/admin/users/${member.id}/impersonate`), 200)
+    await expectStatus(
+      browser.send('post', `/admin/users/${member.id}/impersonate`, {
+        body: { reason: 'مراجعة إعدادات التحقق للمستخدم' },
+      }),
+      200
+    )
     assert.equal(browser.userId, member.id)
     // The impersonated member is checked as a member, not prompted to enrol.
     const admin403 = await browser.send('get', '/admin/users')

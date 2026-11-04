@@ -406,6 +406,15 @@ test.group('Core administration screens', (group) => {
       index.body().props.users.data.map((user: { id: number }) => user.id),
       [member.id]
     )
+    // `q` is the documented parameter shared with the other administration lists.
+    const byQ = await asJson(
+      client.get(`/admin/users?q=${encodeURIComponent(member.email)}`).loginAs(admin)
+    )
+    byQ.assertStatus(200)
+    assert.deepEqual(
+      byQ.body().data.map((user: { id: number }) => user.id),
+      [member.id]
+    )
     const assigned = await asJson(
       client.post(`/admin/users/${member.id}/roles`).loginAs(admin)
     ).json({ roleId: viewerRoleId, orgUnitId: rootId })
@@ -417,9 +426,19 @@ test.group('Core administration screens', (group) => {
     const show = await asPage(client.get(`/admin/users/${member.id}`).loginAs(admin))
     show.assertStatus(200)
     assert.equal(show.body().component, 'admin/users/show')
+    // The page shows the member as `target`; the shell keeps the signed-in administrator.
+    assert.equal(show.body().props.target.id, member.id)
+    assert.equal(show.body().props.account.id, admin.id)
+    // Roles that grant full administration are flagged for their own confirmation.
+    assert.include(show.body().props.privilegedRoleIds, adminRoleId)
+    assert.notInclude(show.body().props.privilegedRoleIds, viewerRoleId)
+    const showJson = await asJson(client.get(`/admin/users/${member.id}`).loginAs(admin))
+    showJson.assertStatus(200)
+    assert.equal(showJson.body().user.id, member.id)
+    assert.include(showJson.body().privilegedRoleIds, adminRoleId)
     const scopedAssignment = show
       .body()
-      .props.user.roles.find((role: { orgUnitId: number | null }) => role.orgUnitId === rootId)
+      .props.target.roles.find((role: { orgUnitId: number | null }) => role.orgUnitId === rootId)
     assert.equal(scopedAssignment.role, `viewer-${unique}`)
     assert.isArray(show.body().props.roles)
     assert.isArray(show.body().props.orgUnits)
@@ -460,7 +479,7 @@ test.group('Core administration screens', (group) => {
     selfImpersonation.assertStatus(422)
     const impersonated = await asJson(
       client.post(`/admin/users/${member.id}/impersonate`).loginAs(admin)
-    )
+    ).json({ reason: 'مراجعة طلب دعم فني للمستخدم' })
     impersonated.assertStatus(200)
     assert.exists(
       await knex()('activities')
@@ -654,6 +673,122 @@ test.group('Core administration screens', (group) => {
       .loginAs(admin)
       .header('Accept', 'application/json')
     badDate.assertStatus(422)
+  })
+
+  test('activity rows read as names, titles and changed fields; the actor filter lists names', async ({
+    client,
+    assert,
+  }) => {
+    const name = `عميل السجل ${randomUUID()}`
+    const created = await asJson(client.post('/resources/customers').loginAs(admin)).json({
+      name,
+      email: `before-${unique}@example.test`,
+    })
+    created.assertStatus(201)
+    const id = created.body().data.id
+    // Both fields are submitted; only the e-mail changes.
+    const updated = await asJson(client.patch(`/resources/customers/${id}`).loginAs(admin)).json({
+      name,
+      email: `after-${unique}@example.test`,
+      version: created.body().data.version,
+    })
+    updated.assertStatus(200)
+
+    const page = await asPage(
+      client.get(`/admin/activity?resource=customers&actorId=${admin.id}`).loginAs(admin)
+    )
+    page.assertStatus(200)
+    type Row = {
+      recordId: number
+      action: string
+      changes: unknown
+      resourceLabel: string
+      actionLabel: string
+      recordTitle: string | null
+      actorName: string | null
+      fieldChanges: { field: string; label: string; before: string | null; after: string | null }[]
+    }
+    const rows: Row[] = page.body().props.activity.data
+    const update = rows.find((row) => row.recordId === id && row.action === 'update')!
+    assert.exists(update)
+    assert.property(update, 'changes', 'stored keys stay for JSON clients')
+    assert.equal(update.resourceLabel, 'العملاء')
+    assert.equal(update.actionLabel, 'تعديل')
+    assert.equal(update.recordTitle, name)
+    assert.equal(update.actorName, 'مدير الإدارة')
+    assert.deepEqual(update.fieldChanges, [
+      {
+        field: 'email',
+        label: 'البريد الإلكتروني',
+        before: `before-${unique}@example.test`,
+        after: `after-${unique}@example.test`,
+      },
+    ])
+    const facets = page.body().props.facets
+    assert.deepInclude(facets.actors, { id: admin.id, name: 'مدير الإدارة' })
+    assert.equal(facets.labels.resources['core.users'], 'المستخدمون')
+    assert.equal(facets.labels.actions['assign_role'], 'إسناد دور')
+
+    // Core subjects and actions have Arabic names; user records are titled by name.
+    await knex()('activities').insert({
+      resource: 'core.users',
+      record_id: member.id,
+      actor_id: admin.id,
+      action: 'assign_role',
+      changes: JSON.stringify({ roleId: viewerRoleId }),
+    })
+    const core = await client
+      .get(`/admin/activity?resource=core.users&action=assign_role&limit=1`)
+      .loginAs(admin)
+      .header('Accept', 'application/json')
+    core.assertStatus(200)
+    assert.include(core.body().data[0], {
+      resourceLabel: 'المستخدمون',
+      actionLabel: 'إسناد دور',
+      recordTitle: 'عضو عادي',
+    })
+
+    // Option values show their labels; a field no longer defined is withheld.
+    const [entry] = await knex()('activities')
+      .insert({
+        resource: 'suppliers',
+        record_id: 2147483000,
+        actor_id: admin.id,
+        action: 'update',
+        changes: JSON.stringify({ fields: ['kind', 'removed'] }),
+      })
+      .returning('id')
+    await knex()('field_changes').insert([
+      {
+        activity_id: entry.id,
+        resource: 'suppliers',
+        record_id: 2147483000,
+        field: 'kind',
+        before: JSON.stringify('local'),
+        after: JSON.stringify('international'),
+      },
+      {
+        activity_id: entry.id,
+        resource: 'suppliers',
+        record_id: 2147483000,
+        field: 'removed',
+        before: JSON.stringify('secret-before'),
+        after: JSON.stringify('secret-after'),
+      },
+    ])
+    const supplier = await client
+      .get(`/admin/activity?resource=suppliers&limit=1`)
+      .loginAs(admin)
+      .header('Accept', 'application/json')
+    supplier.assertStatus(200)
+    const [row] = supplier.body().data
+    assert.equal(row.id, String(entry.id))
+    assert.isNull(row.recordTitle)
+    assert.deepEqual(row.fieldChanges, [
+      { field: 'kind', label: 'نوع المورد', before: 'محلي', after: 'دولي' },
+      { field: 'removed', label: 'removed', before: null, after: null, withheld: true },
+    ])
+    assert.notInclude(JSON.stringify(row.fieldChanges), 'secret')
   })
 
   test('jobs page shows heartbeats, outbox backlog and retries a failed queue job', async ({

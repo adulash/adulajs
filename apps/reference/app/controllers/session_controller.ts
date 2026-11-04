@@ -12,7 +12,7 @@ import {
   loginLockoutLimiter,
   lockoutMinutes,
 } from '#start/limiter'
-import { endImpersonation } from '#services/impersonation'
+import { activeImpersonation, endImpersonation, logImpersonationEnd } from '#services/impersonation'
 
 export default class SessionController {
   async create({ inertia }: HttpContext) {
@@ -86,8 +86,10 @@ export default class SessionController {
     const { auth, response, session } = ctx
     const user = auth.getUserOrFail()
     const sessionId = session.sessionId
+    const impersonation = activeImpersonation(ctx)
     await auth.use('web').logout()
     endImpersonation(session)
+    if (impersonation) await logImpersonationEnd(impersonation, 'logout')
     await endSession(sessionId)
     await logAuthActivity({ userId: user.id, action: 'logout', changes: requestContext(ctx) })
     response.redirect().toRoute('session.create')

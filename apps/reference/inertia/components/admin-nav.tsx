@@ -143,7 +143,7 @@ export function AdminNav() {
 export function ImpersonationBar() {
   const page = usePage<{
     impersonating?: boolean
-    user?: { fullName: string | null; email: string }
+    account?: { fullName: string | null; email: string }
   }>()
   const { t } = useMessages()
   if (!page.props.impersonating) return null
@@ -155,7 +155,7 @@ export function ImpersonationBar() {
       <span className="flex items-center gap-2">
         <UserCog size={16} />
         {t('أنت تتصفح باسم {name}', {
-          name: page.props.user?.fullName || page.props.user?.email || '',
+          name: page.props.account?.fullName || page.props.account?.email || '',
         })}
       </span>
       <Button size="sm" variant="outline" onClick={() => router.post('/impersonation/stop')}>

@@ -457,6 +457,93 @@ test.group('Administration screens in the browser', (group) => {
     assert.lengthOf(unread, 0)
   })
 
+  test('the user page starts with no role and asks a dedicated confirmation for full administration', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    const [ordinary] = await knex()('roles')
+      .insert({ name: `browser-ordinary-${unique}` })
+      .returning('id')
+    const privileged = await knex()('user_roles').where('user_id', admin.id).first()
+    const [privilegedRole] = await knex()('roles').where('id', privileged.role_id).select('name')
+    await browserContext.loginAs(admin)
+    const page = await visit(`/admin/users/${member.id}`)
+    // The shell names the signed-in administrator, not the account the page shows.
+    await page
+      .getByRole('button', { name: 'قائمة الحساب', exact: true })
+      .getByText(admin.fullName!)
+      .waitFor()
+    const role = page.getByRole('combobox', { name: 'الدور', exact: true })
+    assert.include(await role.textContent(), 'اختر دوراً')
+    const form = page.locator('form').filter({ has: role })
+    const submit = form.getByRole('button', { name: 'إسناد الدور', exact: true })
+    assert.isTrue(await submit.isDisabled())
+
+    await role.click()
+    await page
+      .getByRole('option', { name: `${privilegedRole.name} (إدارة كاملة)`, exact: true })
+      .click()
+    await submit.click()
+    const grant = page.getByRole('dialog', { name: 'منح الإدارة الكاملة؟' })
+    await grant.waitFor()
+    await grant.getByRole('button', { name: 'تراجع', exact: true }).click()
+    await grant.waitFor({ state: 'hidden' })
+    assert.notExists(
+      await knex()('user_roles').where({ user_id: member.id, role_id: privileged.role_id }).first()
+    )
+
+    await role.click()
+    await page.getByRole('option', { name: `browser-ordinary-${unique}`, exact: true }).click()
+    await submit.click()
+    const ordinaryDialog = page.getByRole('dialog', { name: 'إسناد الدور؟' })
+    await ordinaryDialog.getByRole('button', { name: 'إسناد الدور', exact: true }).click()
+    await ordinaryDialog.waitFor({ state: 'hidden' })
+    await page.getByRole('cell', { name: `browser-ordinary-${unique}`, exact: true }).waitFor()
+    assert.exists(
+      await knex()('user_roles').where({ user_id: member.id, role_id: ordinary.id }).first()
+    )
+
+    // Access-ending actions sit in their own section, apart from the header.
+    const danger = page.locator('[data-slot="card"]').filter({ hasText: 'إجراءات حساسة' })
+    for (const name of ['تعطيل الحساب', 'إنهاء الجلسات', 'إلغاء جميع الرموز', 'انتحال الحساب'])
+      assert.equal(await danger.getByRole('button', { name, exact: true }).count(), 1, name)
+  })
+
+  test('the activity log filters by actor name and reads changed fields', async ({
+    browserContext,
+    visit,
+  }) => {
+    const [entry] = await knex()('activities')
+      .insert({
+        resource: 'customers',
+        record_id: 2147483001,
+        actor_id: admin.id,
+        action: 'update',
+        changes: JSON.stringify({ fields: ['name', 'email'] }),
+      })
+      .returning('id')
+    await knex()('field_changes').insert({
+      activity_id: entry.id,
+      resource: 'customers',
+      record_id: 2147483001,
+      field: 'email',
+      before: JSON.stringify(`old-${unique}@example.test`),
+      after: JSON.stringify(`new-${unique}@example.test`),
+    })
+    await browserContext.loginAs(admin)
+    const page = await visit('/admin/activity')
+    await page.getByRole('combobox', { name: 'المنفّذ', exact: true }).click()
+    await page.getByRole('option', { name: admin.fullName!, exact: true }).click()
+    await page.getByRole('button', { name: 'تصفية', exact: true }).click()
+    await page.waitForURL((url) => url.searchParams.get('actorId') === String(admin.id))
+    const row = page.getByRole('row').filter({ hasText: `new-${unique}@example.test` })
+    await row.getByText('البريد الإلكتروني:', { exact: true }).waitFor()
+    await row.getByText(`old-${unique}@example.test`, { exact: true }).waitFor()
+    await row.getByText('العملاء', { exact: true }).waitFor()
+    await row.getByText('تعديل', { exact: true }).waitFor()
+  })
+
   test('impersonation switches the session and can be ended', async ({
     browserContext,
     visit,
@@ -465,6 +552,24 @@ test.group('Administration screens in the browser', (group) => {
     await browserContext.loginAs(admin)
     const page = await visit(`/admin/users/${member.id}`)
     await page.getByRole('button', { name: 'انتحال الحساب', exact: true }).click()
+    // Starting asks for a written reason in a dialog; nothing starts before it is given.
+    const dialog = page.getByRole('dialog', { name: `انتحال حساب ${member.fullName}` })
+    await dialog.waitFor()
+    const start = dialog.getByRole('button', { name: 'بدء الانتحال', exact: true })
+    assert.isTrue(await start.isDisabled())
+    await dialog.getByLabel('سبب الانتحال', { exact: true }).fill('قصير')
+    assert.isTrue(await start.isDisabled())
+    assert.lengthOf(
+      await knex()('activities').where({
+        resource: 'core.users',
+        record_id: member.id,
+        action: 'impersonate',
+      }),
+      0
+    )
+    const reason = 'مراجعة مشكلة في عرض الطلبات أبلغ عنها المستخدم'
+    await dialog.getByLabel('سبب الانتحال', { exact: true }).fill(reason)
+    await start.click()
     await page.getByText(`أنت تتصفح باسم ${member.fullName}`).waitFor()
     assert.equal(await page.getByRole('link', { name: 'المستخدمون', exact: true }).count(), 0)
     await page.getByRole('button', { name: 'إنهاء الانتحال', exact: true }).click()
@@ -474,6 +579,12 @@ test.group('Administration screens in the browser', (group) => {
     const log = await knex()('activities')
       .where({ resource: 'core.users', record_id: member.id })
       .whereIn('action', ['impersonate', 'stop_impersonation'])
-    assert.lengthOf(log, 2)
+      .orderBy('id')
+    assert.deepEqual(
+      log.map((row) => row.action),
+      ['impersonate', 'stop_impersonation']
+    )
+    assert.equal(log[0].changes.reason, reason)
+    assert.isNumber(log[1].changes.durationSeconds)
   })
 })

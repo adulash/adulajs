@@ -262,6 +262,7 @@ test.group('Authentication lifecycle', (group) => {
     // Pages without the auth middleware no longer see the user either.
     const home = await client.get('/').loginAs(user).withInertia()
     assert.isUndefined(home.body().props.user)
+    assert.isUndefined(home.body().props.account)
 
     const login = await client
       .post('/login')
