@@ -1,5 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
+import logger from '@adonisjs/core/services/logger'
 import db from '@adonisjs/lucid/services/db'
 import { NotificationsAdmin, UserInvitations, buildAbility, isBackupStale } from 'adula'
 import { IMPERSONATOR_KEY, adula } from '#services/adula'
@@ -20,10 +21,20 @@ async function countRows(table: string, where: Record<string, string | number>) 
   return Number(row?.count ?? 0)
 }
 
+/**
+ * The «مهامي» badge. A failing record check (a resource whose table is missing, a database
+ * error) hides the badge instead of failing every page, and never falls back to a raw count.
+ */
 async function openTasks(userId: number) {
   const runtime = adula()
-  const { open } = await runtime.assignments.mine(await runtime.actors.load(userId), { limit: 1 })
-  return open
+  try {
+    const actor = await runtime.actors.load(userId)
+    const { open } = await runtime.assignments.mine(actor, { limit: 1 })
+    return open
+  } catch (error) {
+    logger.error({ err: error, userId }, 'my tasks badge count failed')
+    return 0
+  }
 }
 
 /** Whether the actor can create any resource, which is what importing needs. */
