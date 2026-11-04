@@ -236,3 +236,26 @@ function relationTitleOf(row: Record<string, unknown>) {
   )
   return label ? String(label[1]) : null
 }
+
+/**
+ * Text folded for matching Arabic as people type it (#114): hamza forms of alef, taa marbuta,
+ * alef maqsura, harakat and tatweel are ignored, Latin letters compare without case, and
+ * Arabic-Indic digits match Latin ones. «اراده» finds «إرادة»، «اسكان» finds «إسكان».
+ */
+export function foldArabic(text: string) {
+  return toLatinDigits(text.normalize('NFC'))
+    .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
+    .replace(/[أإآٱ]/g, 'ا')
+    .replace(/ة/g, 'ه')
+    .replace(/ى/g, 'ي')
+    .toLocaleLowerCase('en')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** A cmdk `filter`: 1 when the folded search occurs in the folded value or one of its keywords. */
+export function foldedFilter(value: string, search: string, keywords: string[] = []) {
+  const wanted = foldArabic(search)
+  if (!wanted) return 1
+  return [value, ...keywords].some((text) => foldArabic(text).includes(wanted)) ? 1 : 0
+}

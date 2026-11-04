@@ -123,7 +123,7 @@ function WidgetLabel({ label, href }: { label: string; href: string | null }) {
     <Link
       href={href}
       className="hover:text-foreground hover:underline"
-      aria-label={t('فتح سجلات {label}', { label })}
+      aria-label={t('فتح القائمة: {label}', { label })}
     >
       {label}
     </Link>

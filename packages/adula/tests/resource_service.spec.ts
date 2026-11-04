@@ -285,6 +285,42 @@ test.group('Transactional resource service', (group) => {
     )
     assert.notExists(await db('orders').where('notes', 'failed-lines').first())
   })
+  test('a list below the exact-count limit reports the real count of its scope (#111)', async ({
+    assert,
+  }) => {
+    const stamp = randomUUID().slice(0, 8)
+    const rows = (unit: number, count: number) =>
+      Array.from({ length: count }, (_, index) => ({
+        number: `EXACT-${stamp}-${unit}-${index}`,
+        org_unit_id: unit,
+        created_by: 1,
+        updated_by: 1,
+      }))
+    // About 20 rows of the reader's unit among a few hundred others: planner statistics are coarse.
+    await db('orders').insert([...rows(3, 300), ...rows(2, 22)])
+    await db.raw('ANALYZE orders')
+    try {
+      const inScope = await db('orders')
+        .join('org_units', 'org_units.id', 'orders.org_unit_id')
+        .whereNull('orders.deleted_at')
+        .whereRaw("org_units.path <@ '1.2'::ltree")
+        .count('* as n')
+        .first()
+      const page = await service.list('orders', reader, { limit: 5 })
+      assert.lengthOf(page.data, 5)
+      assert.isString(page.meta.nextCursor)
+      assert.equal(page.meta.estimatedTotal, Number(inScope!.n))
+      // Rows name themselves the way related rows do.
+      assert.isTrue(page.data.every((row) => typeof row._title === 'string' && row._title !== ''))
+      const all = await service.list('orders', admin, { limit: 5 })
+      assert.equal(
+        all.meta.estimatedTotal,
+        Number((await db('orders').whereNull('deleted_at').count('* as n').first())!.n)
+      )
+    } finally {
+      await db('orders').where('number', 'like', `EXACT-${stamp}-%`).delete()
+    }
+  })
   test('keyset pages have no duplicates, accept null values and cap at 100', async ({ assert }) => {
     let cursor: string | undefined
     const ids: unknown[] = []

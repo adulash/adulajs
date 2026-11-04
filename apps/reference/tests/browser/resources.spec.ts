@@ -19,6 +19,26 @@ type Scrollable = {
   scrollWidth: number
   clientWidth: number
 }
+/**
+ * Scrolls whatever scrolls the list (the window, or a scrolling content column) to its end:
+ * the table has no scroller of its own (#109). Runs in the page; the server tsconfig has no DOM lib.
+ */
+const scrollListToEnd = `(() => {
+  let element = document.querySelector('[data-slot="table-scroll"]').closest('section').parentElement
+  while (element && element !== document.body) {
+    const { overflowY } = getComputedStyle(element)
+    if ((overflowY === 'auto' || overflowY === 'scroll') && element.scrollHeight > element.clientHeight) {
+      element.scrollTop = element.scrollHeight
+      return
+    }
+    element = element.parentElement
+  }
+  window.scrollTo(0, document.documentElement.scrollHeight)
+})()`
+/** Elements inside the list section that would scroll vertically on their own. */
+const innerScrollers = `[...document.querySelector('[data-slot="table-scroll"]').closest('section').querySelectorAll('*')]
+  .filter((element) => ['auto', 'scroll'].includes(getComputedStyle(element).overflowY))
+  .filter((element) => element.scrollHeight > element.clientHeight).length`
 
 const knex = () => db.connection().getWriteClient()
 async function service(actor: UiActor) {
@@ -906,24 +926,63 @@ test.group('Generic resource browser acceptance', (group) => {
     await page.assertElementsCount('tbody tr[aria-rowindex]', 25)
     await loadAll(page)
     await page.getByText('نهاية السجلات', { exact: true }).waitFor()
-    const shown = await page.getByText(/\d+ معروض/).innerText()
-    assert.isAtLeast(Number.parseInt(shown, 10), 250)
+    const shown = await page.getByText(/^المعروض: \d+$/).innerText()
+    assert.isAtLeast(Number.parseInt(shown.replace(/\D+/g, ''), 10), 250)
+    // Every page is loaded, so the count is exact and its noun agrees with the number (#110).
+    await page.assertVisible(page.getByText(/^ضمن نطاقك: \d+ (سجلًا|سجلات|سجل)$/))
     const rendered = await page.locator('tbody tr[aria-rowindex]').count()
     assert.isBelow(rendered, 80)
     await page.assertVisible(page.getByText(`مهمة افتراضية 1 ${stamp}`, { exact: true }))
-    const scroller = page.locator('[data-slot="table-scroll"]')
-    await scroller.evaluate((element: Scrollable) => {
-      element.scrollTop = element.scrollHeight
-    })
+    // The rows scroll with the page; the virtualizer follows the page scroller (#109).
+    assert.equal(await page.evaluate<number>(innerScrollers), 0)
+    await page.evaluate(scrollListToEnd)
     await page.getByText(`مهمة افتراضية 250 ${stamp}`, { exact: true }).waitFor()
     assert.isBelow(await page.locator('tbody tr[aria-rowindex]').count(), 80)
     await page.setViewportSize({ width: 390, height: 844 })
     await page.assertVisible(page.getByRole('navigation', { name: 'التنقل على الجوال' }))
     assert.isAtMost(await page.evaluate<number>('document.documentElement.scrollWidth'), 390)
-    assert.isTrue(
-      await scroller.evaluate((element: Scrollable) => element.scrollWidth > element.clientWidth)
+    // Columns that do not fit scroll sideways inside the table, with the actions column pinned.
+    const scroller = page.locator('[data-slot="table-scroll"]')
+    const fits = await scroller.evaluate(
+      (element: Scrollable) => element.scrollWidth <= element.clientWidth
     )
+    if (!fits) {
+      assert.equal(await scroller.getAttribute('data-overflowing'), '')
+      assert.include((await page.locator('thead th').last().getAttribute('class')) ?? '', 'sticky')
+    }
     await page.screenshot({ path: join(shots, 'index-mobile.png'), fullPage: false })
+  })
+
+  test('at 1024 px a list and its trash fit without a fixed width or a nested scroller (#109)', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(admin.user)
+    for (const path of ['/resources/tasks', '/resources/tasks/trash']) {
+      const page = await visit(path)
+      await page.setViewportSize({ width: 1024, height: 768 })
+      await page.reload()
+      const scroller = page.locator('[data-slot="table-scroll"]')
+      await scroller.waitFor()
+      // No horizontal scroll unless the content needs it, and then never the page's.
+      assert.isTrue(
+        await scroller.evaluate(
+          (element: Scrollable) => element.scrollWidth <= element.clientWidth
+        ),
+        path
+      )
+      assert.isNull(await scroller.getAttribute('data-overflowing'), path)
+      assert.isAtMost(await page.evaluate<number>('document.documentElement.scrollWidth'), 1024)
+      // One vertical scroll bar: nothing inside the list scrolls on its own.
+      assert.equal(await page.evaluate<number>(innerScrollers), 0, path)
+      // Without overflow the actions column is an ordinary cell, so it covers no header.
+      assert.notInclude(
+        (await page.locator('thead th').last().getAttribute('class')) ?? '',
+        'sticky',
+        path
+      )
+    }
   })
 
   test('a create link with defaults opens the form already filled (#48)', async ({

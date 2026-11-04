@@ -1,5 +1,11 @@
 import type { Knex } from 'knex'
-import type { Field, JsonValue, RecordData, Resource } from '../../resource/types.js'
+import type {
+  Field,
+  JsonValue,
+  RecordData,
+  Resource,
+  SerializedRecord,
+} from '../../resource/types.js'
 import { columnName } from '../../resource/define_resource.js'
 import { accessibleBy, authorizationSql, conditionSql } from '../../auth/sql.js'
 import { canRecord, type Actor, type AdulaAbility } from '../../auth/ability.js'
@@ -24,7 +30,7 @@ import {
   collectionFilter,
   withLinks,
 } from './shared.js'
-import { preload } from './read.js'
+import { preload, titler } from './read.js'
 
 /** Per-process cache of planner row estimates for identical list queries. */
 const estimates = new Map<string, { rows: number; at: number }>()
@@ -426,6 +432,8 @@ export async function list(
   // Estimate the authorized, filtered query, never the deployment-wide table cardinality.
   // Only the first page pays for the extra planner round trip; later pages keep its figure.
   let estimatedTotal: number | undefined
+  // The authorized, filtered query before the cursor and the page limit narrow it.
+  const counted = query.clone()
   if (options.estimate !== false && !options.cursor) {
     estimatedTotal = await estimate(ctx.db, query)
   }
@@ -454,11 +462,20 @@ export async function list(
   const last = records.at(-1)
   if (estimatedTotal !== undefined) {
     estimatedTotal =
-      !options.cursor && rows.length <= limit ? rows.length : Math.max(estimatedTotal, rows.length)
+      !options.cursor && rows.length <= limit
+        ? rows.length
+        : estimatedTotal < EXACT_COUNT_LIMIT
+          ? await exactCount(ctx.db, counted, Math.max(estimatedTotal, rows.length))
+          : Math.max(estimatedTotal, rows.length)
   }
   const hydrated = await hydrate(ctx.db, resource, records, ctx.attachments)
+  const title = await titler(ctx, resource)
   return {
-    data: hydrated.map((record) => serialize(resource, record, ability, actor)),
+    data: hydrated.map((record): SerializedRecord => {
+      const row = serialize(resource, record, ability, actor)
+      // Like related rows, list rows carry the title formatted from the visible values (#110).
+      return { ...row, _title: title(row) }
+    }),
     permissions: Object.fromEntries(
       records.map((record) => [
         String(record.id),
@@ -493,6 +510,24 @@ function trashedPermissions(
     view: canRecord(ability, actor, resource, 'view', record),
     restore: canRecord(ability, actor, resource, 'delete', record),
   }
+}
+
+/**
+ * Planner estimates are coarse for small tables and scoped filters (#111): below this figure the
+ * list counts exactly, so a figure under it is the real count of the authorized, filtered rows.
+ */
+const EXACT_COUNT_LIMIT = 1000
+
+/** The exact row count up to EXACT_COUNT_LIMIT; above it, an estimate known to exceed the limit. */
+async function exactCount(db: Knex, query: Knex.QueryBuilder, estimated: number) {
+  const bounded = query
+    .clearSelect()
+    .clearOrder()
+    .select('r.id')
+    .limit(EXACT_COUNT_LIMIT + 1)
+  const [row] = await db.from(bounded.as('bounded')).count<{ count: string }[]>('* as count')
+  const count = Number(row.count)
+  return count > EXACT_COUNT_LIMIT ? Math.max(estimated, EXACT_COUNT_LIMIT + 1) : count
 }
 
 /** The planner's row estimate of a list query, reused briefly for the identical query. */

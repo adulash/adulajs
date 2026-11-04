@@ -22,8 +22,16 @@ export const transitionLabels: Record<TransitionAction, string> = {
   cancel: 'إلغاء الاعتماد',
   amend: 'تعديل بالنسخ',
 }
+/** Accessible names that name the record: «حذف ORD-000012», never «حذف السجل السجل 12» (#110). */
+const namedLabels: Record<TransitionAction, (record: string, t: Translate) => string> = {
+  delete: (record, t) => t('حذف {record}', { record }),
+  submit: (record, t) => t('اعتماد {record}', { record }),
+  cancel: (record, t) => t('إلغاء اعتماد {record}', { record }),
+  amend: (record, t) => t('تعديل {record} بالنسخ', { record }),
+}
 const descriptions: Record<TransitionAction, string> = {
-  delete: 'سيُخفى السجل من القوائم ولن يمكن تعديله بعد الحذف.',
+  // Deleting is soft: the record moves to «المحذوفات», where whoever deletes may restore it.
+  delete: 'سيُنقل السجل إلى «المحذوفات»، ويمكن استعادته منها.',
   submit: 'بعد الاعتماد لا يمكن تعديل المستند أو بنوده.',
   cancel: 'سيُعاد المستند إلى حالة الإلغاء ولن يُحتسب.',
   amend: 'تُنشأ مسودة جديدة منسوخة من هذا المستند الملغي مع بنوده، ويبقى الأصل كما هو.',
@@ -73,6 +81,20 @@ export function ResourceActions({
   const [failure, setFailure] = useState('')
   const [conflict, setConflict] = useState(false)
   const base = `/resources/${resource}/${id}`
+  // «تراجع» restores the record just deleted, then shows the page as it now is.
+  const undoDelete = async () => {
+    try {
+      await axios.post(
+        `${base}/restore`,
+        {},
+        { headers: { Accept: 'application/json' }, withXSRFToken: true }
+      )
+      toast.success(t('تمت استعادة السجل'))
+      router.reload()
+    } catch (error) {
+      toast.error(failureMessage(error, t('تعذر التراجع عن الحذف. استعد السجل من «المحذوفات».'), t))
+    }
+  }
   const execute = async () => {
     if (!pending) return
     setBusy(true)
@@ -85,8 +107,15 @@ export function ResourceActions({
         headers: { Accept: 'application/json' },
         withXSRFToken: true,
       })
-      toast.success(t(successes[pending]))
       const done = pending
+      if (done === 'delete')
+        toast.success(t(successes.delete), {
+          action: {
+            label: t('تراجع'),
+            onClick: () => void undoDelete(),
+          },
+        })
+      else toast.success(t(successes[done]))
       setPending(null)
       // The amended copy is a new draft; continue editing it.
       if (done === 'amend') router.visit(`/resources/${resource}/${response.data.data.id}/edit`)
@@ -111,7 +140,7 @@ export function ResourceActions({
             variant={variant}
             size={size}
             className={action === 'delete' ? 'text-destructive' : undefined}
-            aria-label={label ? `${t(transitionLabels[action])} ${label}` : undefined}
+            aria-label={label ? namedLabels[action](label, t) : undefined}
             onClick={() => {
               setPending(action)
               setFailure('')

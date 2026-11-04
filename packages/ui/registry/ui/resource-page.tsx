@@ -14,6 +14,7 @@ import type {
 } from 'adula'
 import { Button } from '~/components/ui/button'
 import { DataTable } from '~/components/ui/data-table'
+import type { BulkAction } from '~/components/ui/resource-bulk'
 import { ResourceForm } from '~/components/ui/resource-form'
 import { ResourceShow } from '~/components/ui/resource-show'
 import { ResourceImport } from '~/components/ui/resource-import'
@@ -33,6 +34,8 @@ export type ResourceView =
       resource: ResourceDescription
       lookups: ResourceLookups
       savedViews: SavedView[]
+      /** The actor's bulk actions, sent with the list so its selection column renders at once (#108). */
+      bulkActions?: BulkAction[]
       /** `/resources/:name/trash`: the soft-deleted records, offered for restore (ADR 046). */
       trashed?: boolean
     }
@@ -176,6 +179,7 @@ export function ResourcePage({
               lookups={view.lookups}
               savedViews={view.savedViews}
               trashed={trashed}
+              bulkActions={view.bulkActions}
             />
           ) : null}
           {overlay && overlayView && overlayId !== undefined && (

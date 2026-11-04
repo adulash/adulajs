@@ -876,6 +876,14 @@ test.group('List layer: restore and «المحذوفات»', (group) => {
       bulk: true,
       exportable: true,
     })
+    // The page carries the same actions as GET …/bulk, so the list needs no second request (#108).
+    const keysOf = (actions: { key: string }[]) => actions.map((action) => action.key)
+    const offered = await client
+      .get('/resources/list_probes/bulk')
+      .loginAs(clerk.user)
+      .headers(json)
+    assert.deepEqual(index.body().props.view.bulkActions, offered.body().data)
+    assert.deepEqual(keysOf(index.body().props.view.bulkActions), ['delete', 'restore'])
     const plain = await client
       .get('/resources/list_probes')
       .loginAs(viewer.user)
@@ -886,6 +894,7 @@ test.group('List layer: restore and «المحذوفات»', (group) => {
       bulk: false,
       exportable: true,
     })
+    assert.deepEqual(plain.body().props.view.bulkActions, [])
     const trash = await client
       .get('/resources/list_probes/trash')
       .loginAs(manager.user)
@@ -896,6 +905,11 @@ test.group('List layer: restore and «المحذوفات»', (group) => {
     assert.isTrue(trash.body().props.view.trashed)
     assert.equal(trash.body().props.view.mode, 'index')
     assert.deepEqual(trash.body().props.view.savedViews, [])
+    const trashOffered = await client
+      .get('/resources/list_probes/bulk')
+      .loginAs(manager.user)
+      .headers(json)
+    assert.deepEqual(trash.body().props.view.bulkActions, trashOffered.body().data)
     assert.deepEqual(titles(trash.body().props.result), ['Alpha', 'Beta'])
     assert.isTrue(trash.body().props.result.permissions[String(ids.alpha)].restore)
   })
