@@ -115,6 +115,21 @@ export const arabicMessages: Readonly<Record<string, string>> = Object.freeze({
     'لا يمكنك إزالة صلاحية إدارة النظام من حسابك الحالي. اطلب من مدير آخر تعديلها.',
   'errors.E_MAIL_TEST_COOLDOWN': 'انتظر قليلًا قبل إعادة إرسال البريد التجريبي',
   'errors.E_MAIL_TEST_SEND': 'تعذّر إرسال البريد التجريبي. راجع إعدادات البريد ثم أعد المحاولة.',
+  'errors.E_MAIL_TEST_SEND.authentication':
+    'رفض خادم البريد اسم المستخدم أو كلمة المرور. راجع SMTP_USERNAME وSMTP_PASSWORD، واستخدم كلمة مرور التطبيق إن طلبها مزودك.',
+  'errors.E_MAIL_TEST_SEND.connection':
+    'رفض خادم البريد الاتصال. راجع SMTP_HOST وSMTP_PORT، وتأكد أن الجدار الناري يسمح بالمنفذ.',
+  'errors.E_MAIL_TEST_SEND.host_not_found': 'تعذّر العثور على خادم البريد. راجع كتابة SMTP_HOST.',
+  'errors.E_MAIL_TEST_SEND.tls':
+    'فشل الاتصال المشفّر بخادم البريد. استخدم SMTP_SECURE=true مع المنفذ 465، أو SMTP_SECURE=false مع المنفذ 587.',
+  'errors.E_MAIL_TEST_SEND.timeout':
+    'انتهت مهلة الاتصال بخادم البريد. راجع SMTP_HOST وSMTP_PORT، وتأكد أن الخادم يسمح بالاتصال الصادر.',
+  'errors.E_MAIL_TEST_SEND.sender_rejected':
+    'رفض خادم البريد عنوان المرسل. استخدم في MAIL_FROM_ADDRESS عنوانًا موثّقًا لدى مزودك.',
+  'errors.E_MAIL_TEST_SEND.recipient_rejected':
+    'رفض خادم البريد عنوان المستلم. راجع بريد حسابك ثم أعد المحاولة.',
+  'errors.E_MAIL_NOT_CONFIGURED':
+    'إعداد البريد غير مكتمل. افتح «إعداد البريد» وأكمل المتغيرات الناقصة، ثم أعد تشغيل الخادم.',
   'errors.E_MAIL_TEST_ANSWER': 'اختر هل وصلت الرسالة أم لم تصل',
   'errors.E_MAIL_TEST_STALE': 'هذه التجربة لم تعد قابلة للتأكيد. أرسل رسالة تجريبية جديدة.',
   'errors.E_TEMPLATE_SUBJECT': 'العنوان مطلوب ولا يتجاوز 200 حرف',

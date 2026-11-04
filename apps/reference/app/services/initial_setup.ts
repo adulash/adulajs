@@ -7,7 +7,12 @@ import redis from '@adonisjs/redis/services/main'
 import drive from '@adonisjs/drive/services/main'
 import { InitialSetup, Settings, runtimeHealth, type SetupCheck } from 'adula'
 import env from '#start/env'
-import { mailTest, mailFingerprint, publicMailTest } from '#services/mail_delivery_test'
+import {
+  mailTest,
+  mailFingerprint,
+  publicMailTest,
+  mailSetupProps,
+} from '#services/mail_delivery_test'
 
 const database = () => db.connection().getWriteClient()
 export const setup = () => new InitialSetup(database())
@@ -179,6 +184,7 @@ export async function setupSnapshot(user: { id: number; email: string }) {
     identityConfirmed: approved?.fingerprint === (await identityFingerprint()),
     mailTest: publicMailTest(mail),
     mailRecipient: user.email,
+    ...mailSetupProps(),
     notification: notification ? { ...notification, read: Boolean(receipt?.read_at) } : null,
     storage,
     storageDisk: env.get('DRIVE_DISK'),
