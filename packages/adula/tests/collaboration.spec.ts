@@ -1,13 +1,49 @@
+import { randomUUID } from 'node:crypto'
 import { test } from '@japa/runner'
-import { RecordCollaboration, ResourceService } from '../index.js'
-import { admin, db, reader, registry, setup } from './helpers.js'
+import knex, { type Knex } from 'knex'
+import { ActorStore, RecordCollaboration, ResourceService } from '../index.js'
+import { withdrawDeletedCommentNotifications } from '../src/database/schema.js'
+import { admin, db, reader, registry, setup, testConnection } from './helpers.js'
 import { failure } from './helpers/failure.js'
 import {
   addUserProfileColumns,
   outsider as anOutsider,
+  powerless,
   seedActor,
   viewer as aViewer,
 } from './helpers/actors.js'
+
+/**
+ * A pool of two connections that gives up after three seconds: code that holds a
+ * transaction and asks the pool for another connection deadlocks against its siblings
+ * once enough of them run at the same time, and fails here instead of hanging.
+ */
+function smallPool(): Knex {
+  return knex({
+    client: 'pg',
+    connection: testConnection,
+    pool: { min: 0, max: 2 },
+    acquireConnectionTimeout: 3000,
+    searchPath: ['adula_test', 'public'],
+  })
+}
+
+/** Grants users 2 and 4 a deployment-wide orders view role, so ActorStore loads real rules. */
+async function seedOrderReaders() {
+  const [role] = await db('roles')
+    .insert({ name: `orders-readers-${randomUUID()}` })
+    .returning('id')
+  await db('role_rules').insert({ role_id: role.id, subject: 'orders', action: 'view' })
+  await db('user_roles').insert([
+    { user_id: 2, role_id: role.id },
+    { user_id: 4, role_id: role.id },
+  ])
+  return async () => {
+    await db('user_roles').where('role_id', role.id).del()
+    await db('role_rules').where('role_id', role.id).del()
+    await db('roles').where('id', role.id).del()
+  }
+}
 
 /** A user in a sibling organization: can use orders, but not records of unit 1.2. */
 const outsider = anOutsider()
@@ -45,10 +81,12 @@ test.group('Record collaboration', (group) => {
   })
   group.each.setup(async () => {
     await db('comment_mentions').del()
+    await db('notification_deliveries').del()
+    await db('notifications').del()
     await db('comments').del()
     await db('followers').del()
-    await db('notifications').del()
     await db('taggables').del()
+    await db('user_notification_channels').del()
   })
 
   test('comments notify mentions and followers who can read the record', async ({ assert }) => {
@@ -233,5 +271,243 @@ test.group('Record collaboration', (group) => {
     const rows = await db('notifications').pluck('user_id')
     // The outsider follows a record it can no longer read: no notification.
     assert.deepEqual(rows, [4])
+  })
+
+  test('simultaneous comments never wait for a second connection while in a transaction', async ({
+    assert,
+  }) => {
+    const small = smallPool()
+    const cleanup = await seedOrderReaders()
+    try {
+      // Everything runs on the two-connection pool, including the real actor store.
+      const store = new ActorStore(small, registry)
+      const shared = new RecordCollaboration(small, new ResourceService(small, registry), store)
+      // One author who already follows, so who follows never depends on timing.
+      await db('followers').insert(
+        [1, 2, 4, 3].map((userId) => ({ resource: 'orders', record_id: orderId, user_id: userId }))
+      )
+      const results = await Promise.allSettled(
+        Array.from({ length: 6 }, (_, index) =>
+          shared.comment('orders', orderId, admin, { body: `تعليق متزامن ${index}`, mentions: [2] })
+        )
+      )
+      assert.deepEqual(
+        results.map((result) => (result.status === 'rejected' ? String(result.reason) : 'ok')),
+        Array(6).fill('ok')
+      )
+      const notified = await db('notifications')
+        .groupBy('user_id', 'template_key')
+        .orderBy('user_id')
+        .select('user_id', 'template_key', db.raw('count(*)::int as count'))
+      // The outsider (3) follows but cannot read the record; nobody else is left out.
+      assert.deepEqual(
+        notified.map((row) => [row.user_id, row.template_key, row.count]),
+        [
+          [2, 'comment.mentioned', 6],
+          [4, 'comment.created', 6],
+        ]
+      )
+      const [{ count: unlinked }] = await db('notifications')
+        .whereNull('comment_id')
+        .count<{ count: string }[]>('* as count')
+      assert.equal(Number(unlinked), 0)
+    } finally {
+      await cleanup()
+      await small.destroy()
+    }
+  })
+
+  test('follower listener checks access on its own transaction under pool pressure', async ({
+    assert,
+  }) => {
+    const small = smallPool()
+    const cleanup = await seedOrderReaders()
+    try {
+      const shared = new RecordCollaboration(
+        small,
+        new ResourceService(small, registry),
+        new ActorStore(small, registry)
+      )
+      await db('followers').insert(
+        [2, 3, 4].map((userId) => ({ resource: 'orders', record_id: orderId, user_id: userId }))
+      )
+      const listener = shared.followerListener('orders', 'orders', 'updated')
+      const results = await Promise.allSettled(
+        Array.from({ length: 6 }, () =>
+          small.transaction((trx) =>
+            listener.handle(
+              { id: randomUUID(), event: listener.event, payload: { id: orderId, actorId: 1 } },
+              trx
+            )
+          )
+        )
+      )
+      assert.deepEqual(
+        results.map((result) => (result.status === 'rejected' ? String(result.reason) : 'ok')),
+        Array(6).fill('ok')
+      )
+      const notified = await db('notifications')
+        .groupBy('user_id')
+        .orderBy('user_id')
+        .select('user_id', db.raw('count(*)::int as count'))
+      assert.deepEqual(
+        notified.map((row) => [row.user_id, row.count]),
+        [
+          [2, 6],
+          [4, 6],
+        ]
+      )
+    } finally {
+      await cleanup()
+      await small.destroy()
+    }
+  })
+
+  test('deleting a comment withdraws its text from notifications and their deliveries', async ({
+    assert,
+  }) => {
+    await db('user_notification_channels').insert({
+      user_id: 2,
+      channel: 'sms',
+      enabled: true,
+      address: '+966500000000',
+      confirmed_at: db.fn.now(),
+    })
+    await collaboration().follow('orders', orderId, viewer, true)
+    const comment = await collaboration().comment('orders', orderId, admin, {
+      body: 'الرقم السري 7731',
+      mentions: [2],
+    })
+    const before = await db('notifications').orderBy('user_id').select('*')
+    assert.deepEqual(
+      before.map((row) => [row.user_id, row.mail_state, Number(row.comment_id)]),
+      [
+        [2, 'pending', comment.id],
+        [4, null, comment.id],
+      ]
+    )
+    for (const row of before) assert.include(`${row.title} ${row.body}`, '7731')
+    await collaboration().deleteComment('orders', orderId, comment.id, admin)
+    const after = await db('notifications').orderBy('user_id').select('*')
+    for (const row of after) {
+      assert.notInclude(`${row.title} ${row.body}`, '7731')
+      assert.include(row.body, 'حُذف هذا التعليق.')
+      assert.isNull(row.read_at)
+    }
+    // The pending e-mail of the mention is skipped and its SMS delivery withdrawn.
+    assert.equal(after[0].mail_state, 'skipped')
+    const deliveries = await db('notification_deliveries').select('state', 'error_category')
+    assert.deepEqual(deliveries, [{ state: 'skipped', error_category: 'withdrawn' }])
+  })
+
+  test('editing a comment replaces the quoted text with a neutral note', async ({ assert }) => {
+    await collaboration().follow('orders', orderId, viewer, true)
+    const comment = await collaboration().comment('orders', orderId, admin, {
+      body: 'نص أول 4410',
+      mentions: [2],
+    })
+    await collaboration().editComment('orders', orderId, comment.id, admin, 'نص ثانٍ 5520')
+    const rows = await db('notifications').orderBy('user_id').select('*')
+    assert.lengthOf(rows, 2)
+    for (const row of rows) {
+      assert.notInclude(`${row.title} ${row.body}`, '4410')
+      assert.notInclude(`${row.title} ${row.body}`, '5520')
+      assert.include(row.body, 'عُدّل هذا التعليق')
+    }
+    // Editing is not a withdrawal: the mention's e-mail still goes out, with the note.
+    assert.equal(rows[0].mail_state, 'pending')
+  })
+
+  test('notifications written before they named their comment are withdrawn too', async ({
+    assert,
+  }) => {
+    // Before 2.2.1 a comment and its notifications were written in one transaction
+    // without a link: the same created_at and the quoted text identify them.
+    const legacy = async (body: string, deleted: boolean) =>
+      db.transaction(async (trx) => {
+        const [row] = await trx('comments')
+          .insert({
+            resource: 'orders',
+            record_id: orderId,
+            author_id: 1,
+            body,
+            deleted_at: deleted ? trx.fn.now() : null,
+          })
+          .returning('id')
+        await trx('notifications').insert({
+          user_id: 4,
+          title: 'تعليق جديد على الطلبات',
+          body: `مدير النظام: ${body}`,
+          template_key: 'comment.created',
+          resource: 'orders',
+          record_id: orderId,
+        })
+        return Number(row.id)
+      })
+    await legacy('حذف قبل الترقية 1111', true)
+    const live = await legacy('يحذف بعد الترقية 2222', false)
+    await legacy('يبقى كما هو 3333', false)
+    // The same text written at another time is a different message and stays.
+    await db('notifications').insert({
+      user_id: 4,
+      title: 'رسالة أخرى',
+      body: 'حذف قبل الترقية 1111',
+      template_key: 'comment.created',
+      resource: 'orders',
+      record_id: orderId,
+      created_at: db.raw("now() - interval '1 day'"),
+    })
+    // The migration's pass over comments deleted before it ran.
+    await withdrawDeletedCommentNotifications(db)
+    // A comment deleted afterwards finds its unlinked notifications the same way.
+    await collaboration().deleteComment('orders', orderId, live, admin)
+    const bodies = await db('notifications').orderBy('id').pluck('body')
+    assert.deepEqual(bodies, [
+      'حُذف هذا التعليق.',
+      'مدير النظام: حُذف هذا التعليق.',
+      'مدير النظام: يبقى كما هو 3333',
+      'حذف قبل الترقية 1111',
+    ])
+  })
+
+  test('tag suggestions only name tags of records the user may view', async ({ assert }) => {
+    await collaboration().setTags('orders', orderId, reader, ['سري'])
+    const sibling = await service().save('orders', admin, { notes: 'وحدة أخرى', orgUnitId: 3 })
+    await collaboration().setTags('orders', Number(sibling.id), anOutsider(), ['عام'])
+    const removed = await service().save('orders', admin, { notes: 'سيحذف', orgUnitId: 2 })
+    await collaboration().setTags('orders', Number(removed.id), admin, ['محذوف'])
+    const shown = await service().show('orders', Number(removed.id), admin)
+    await service().transition('orders', Number(removed.id), admin, 'delete', shown.data.version)
+    assert.deepEqual(await collaboration().tagOptions('orders', admin), ['سري', 'عام'])
+    // Organization scope: each unit sees only its own records' tags.
+    assert.deepEqual(await collaboration().tagOptions('orders', viewer), ['سري'])
+    assert.deepEqual(await collaboration().tagOptions('orders', outsider), ['عام'])
+    // A conditional rule narrows the suggestions as it narrows the list.
+    const conditional = aViewer({
+      orgPaths: ['1'],
+      rules: [{ subject: 'orders', action: 'view', conditions: { notes: 'وحدة أخرى' } }],
+    })
+    assert.deepEqual(await collaboration().tagOptions('orders', conditional), ['عام'])
+    const denied = await failure(() => collaboration().tagOptions('orders', powerless()))
+    assert.equal(denied.status, 403)
+  })
+
+  test('simultaneous tag saves on one record never fail and the last save wins', async ({
+    assert,
+  }) => {
+    const inputs = Array.from({ length: 12 }, (_, index) => [`وسم${index}`, 'مشترك'])
+    const results = await Promise.allSettled(
+      inputs.map((tags) => collaboration().setTags('orders', orderId, reader, tags))
+    )
+    assert.deepEqual(
+      results.map((result) => (result.status === 'rejected' ? String(result.reason) : 'ok')),
+      Array(12).fill('ok')
+    )
+    const final = await collaboration().tags('orders', orderId)
+    assert.isTrue(inputs.some((tags) => JSON.stringify([...tags].sort()) === JSON.stringify(final)))
+    const [{ count }] = await db('taggables')
+      .where({ resource: 'orders', record_id: orderId })
+      .count<{ count: string }[]>('* as count')
+    assert.equal(Number(count), 2)
   })
 })

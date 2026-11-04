@@ -386,6 +386,31 @@ export async function countUpTo(
   return Number(row.count)
 }
 
+/**
+ * Distinct tag names on records list() would return to the actor, for tag suggestions
+ * (RecordCollaboration.tagOptions): the same rules, organization scope and soft-delete
+ * filter apply, so a suggestion never names a tag found only on records the actor cannot see.
+ */
+export async function tagNames(
+  ctx: ResourceContext,
+  name: string,
+  actor: Actor,
+  limit: number
+): Promise<string[]> {
+  const { query } = listQuery(ctx, name, actor, {})
+  const ids = query.clearSelect().select('r.id')
+  const names = await ctx
+    .db('taggables as t')
+    .join('tags', 'tags.id', 't.tag_id')
+    .where('t.resource', name)
+    .whereIn('t.record_id', ids)
+    .distinct('tags.name')
+    .orderBy('tags.name')
+    .limit(limit)
+    .pluck('tags.name')
+  return names.map(String)
+}
+
 export async function list(
   ctx: ResourceContext,
   name: string,

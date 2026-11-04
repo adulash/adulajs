@@ -104,6 +104,19 @@ export class ResourceService {
   }
 
   /**
+   * Tag names used on records the actor may view, at most `limit` (1-200), for tag
+   * suggestions. Authorization is list()'s: rules, organization scope and soft delete.
+   */
+  async tagNames(name: string, actor: Actor, limit = 200): Promise<string[]> {
+    return query.tagNames(
+      this.context,
+      name,
+      actor,
+      Math.max(1, Math.min(200, Math.floor(Number(limit)) || 200))
+    )
+  }
+
+  /**
    * Titles of records the actor may view, read under the actor's field access (#32).
    * Records the actor cannot view are left out; callers fall back to the record id.
    */

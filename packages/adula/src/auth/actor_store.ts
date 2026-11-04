@@ -14,17 +14,21 @@ export class ActorStore {
     private registry: ResourceRegistry,
     private cache?: ActorCache
   ) {}
-  async load(id: number): Promise<Actor> {
+  /**
+   * Loads a user's actor. A caller holding a transaction passes it as `db`, so the load
+   * never waits for a second pool connection while that transaction holds one.
+   */
+  async load(id: number, db: Knex = this.db): Promise<Actor> {
     // Revision is read on every request; DB triggers invalidate across workers and tree moves.
-    const { version } = await this.db('authorization_revision').where({ id: 1 }).first('version')
+    const { version } = await db('authorization_revision').where({ id: 1 }).first('version')
     const key = `ability:${id}:${version}`
     const cached = await this.cache?.get(key)
     if (cached) return cached
-    const memberships = await this.db('user_org_units as u')
+    const memberships = await db('user_org_units as u')
       .join('org_units as o', 'o.id', 'u.org_unit_id')
       .where('u.user_id', id)
       .select('o.path')
-    const assignments = await this.db('user_roles as ur')
+    const assignments = await db('user_roles as ur')
       .join('roles as r', 'r.id', 'ur.role_id')
       .leftJoin('org_units as o', 'o.id', 'ur.org_unit_id')
       .join('role_rules as rr', 'rr.role_id', 'r.id')

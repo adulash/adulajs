@@ -1193,3 +1193,79 @@ $$ LANGUAGE plpgsql`)
     'CREATE TRIGGER print_template_versions_immutable BEFORE UPDATE OR DELETE ON print_template_versions FOR EACH ROW EXECUTE FUNCTION adula_print_template_versions_immutable()'
   )
 }
+
+/** Template keys of the notifications that quote a comment's text. */
+export const COMMENT_NOTIFICATION_KEYS = ['comment.mentioned', 'comment.created'] as const
+export const DELETED_COMMENT_TITLE = 'تعليق محذوف'
+export const DELETED_COMMENT_BODY = 'حُذف هذا التعليق.'
+
+/**
+ * Ids and template keys of the notifications that quote a comment: those naming it
+ * (comment_id, 2.2.1) and those written before notifications named their comment. A
+ * comment's notifications were inserted in its own transaction, so their created_at equals
+ * the comment's (both now()), and they quote its text from the start: the first 100
+ * characters are matched, which the 200-unit excerpt always contains. Read before a
+ * comment's body changes. `comment` is one comment id, or 'deleted' for every deleted one.
+ */
+export async function commentNotifications(
+  db: Knex,
+  comment: number | 'deleted'
+): Promise<{ id: number; key: string }[]> {
+  const result = await db.raw(
+    `SELECT DISTINCT n.id, n.template_key FROM notifications n JOIN comments c
+       ON n.comment_id = c.id OR (
+         n.comment_id IS NULL AND n.template_key IN (?, ?) AND n.created_at = c.created_at
+         AND (n.resource IS NULL OR (n.resource = c.resource AND n.record_id = c.record_id))
+         AND (strpos(n.body, left(c.body, 100)) > 0 OR strpos(n.title, left(c.body, 100)) > 0))
+     WHERE ${comment === 'deleted' ? 'c.deleted_at IS NOT NULL' : 'c.id = ?'}`,
+    [...COMMENT_NOTIFICATION_KEYS, ...(comment === 'deleted' ? [] : [comment])]
+  )
+  return result.rows.map((row: { id: number; template_key: string | null }) => ({
+    id: Number(row.id),
+    key: String(row.template_key ?? ''),
+  }))
+}
+
+/**
+ * Stops what has not been sent yet of the given notifications: pending e-mail is skipped
+ * and pending channel deliveries are withdrawn (a channel worker re-checks the pending
+ * state before it sends, so a claimed delivery is not sent either).
+ */
+export async function withdrawNotificationDelivery(db: Knex, ids: number[]) {
+  if (!ids.length) return
+  await db('notifications').whereIn('id', ids).where('mail_state', 'pending').update({
+    mail_state: 'skipped',
+  })
+  await db('notification_deliveries')
+    .whereIn('notification_id', ids)
+    .where('state', 'pending')
+    .update({ state: 'skipped', error_category: 'withdrawn' })
+}
+
+/**
+ * Comment notifications name their comment (2.2.1), so deleting or editing the comment
+ * withdraws the quoted text. Notifications of comments deleted before this migration are
+ * found by their transaction time and quoted text, and withdrawn here.
+ */
+export async function createCommentNotificationsSchema(db: Knex) {
+  await db.schema.alterTable('notifications', (t) => {
+    t.bigInteger('comment_id').references('id').inTable('comments').onDelete('SET NULL')
+  })
+  await db.raw(
+    'CREATE INDEX notifications_comment_id ON notifications (comment_id) WHERE comment_id IS NOT NULL'
+  )
+  await withdrawDeletedCommentNotifications(db)
+}
+
+/** Replaces the quoted text of every deleted comment's notifications with a neutral note. */
+export async function withdrawDeletedCommentNotifications(db: Knex) {
+  const rows = await commentNotifications(db, 'deleted')
+  const ids = rows.map((row) => row.id)
+  for (let start = 0; start < ids.length; start += 1000) {
+    const chunk = ids.slice(start, start + 1000)
+    await db('notifications')
+      .whereIn('id', chunk)
+      .update({ title: DELETED_COMMENT_TITLE, body: DELETED_COMMENT_BODY })
+    await withdrawNotificationDelivery(db, chunk)
+  }
+}
