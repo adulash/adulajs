@@ -31,8 +31,9 @@ assert(
   'Usage: pnpm test:create [--docker] [--reuse-packages]'
 )
 await mkdir(work, { recursive: true })
-async function step(name, command, args, cwd = root, env = process.env, failure = false) {
+async function step(name, command, args, cwd = root, env = process.env, failure = false, input) {
   await run(command, args, {
+    input,
     cwd,
     env,
     log: join(work, `create-${name}.log`),
@@ -87,14 +88,6 @@ const profile = {
 }
 const profilePath = join(work, 'create-services.json')
 await writeFile(profilePath, JSON.stringify(profile), { mode: 0o600 })
-const identityPath = join(work, 'create-brand.json')
-await writeFile(
-  identityPath,
-  JSON.stringify({
-    primaryColor: '#14532d',
-    guidelines: 'Test identity, supplied by the acceptance harness.',
-  })
-)
 const version = JSON.parse(
   await readFile(join(root, 'packages/create-adulajs/package.json'), 'utf8')
 ).version
@@ -139,21 +132,17 @@ try {
       '--',
       'create-adulajs',
       target,
-      '--company',
-      'شركة الاختبار',
-      '--admin-email',
-      'owner@example.test',
-      '--identity',
-      identityPath,
       '--database',
       `adula_created_${Date.now()}_test`,
       ...(docker ? [] : ['--services', 'existing', '--connection', profilePath]),
       '--packages',
       work,
-      '--yes',
     ],
     root,
-    env
+    env,
+    false,
+    // The interactive flow without --yes, answered through piped input (issue #151).
+    'شركة الاختبار\nowner@example.test\n'
   )
   await writeFile(join(work, 'create-latest.json'), JSON.stringify({ root: target }, null, 2))
   const installationOutput = await readFile(join(work, 'create-from-zero.log'), 'utf8')
@@ -161,8 +150,14 @@ try {
   assert.match(installationOutput, /Administrator credentials: tmp\/dev-admin.txt/)
   assert(
     !installationOutput.includes('\u001b'),
-    'Noninteractive installer output must not contain terminal animations'
+    'Piped installer output must not contain terminal animations'
   )
+  // The installer asked exactly for the company and the administrator, in that order.
+  const asked = [
+    ...installationOutput.matchAll(/^(.*?: )(?:شركة الاختبار|owner@example\.test)$/gm),
+  ].map((match) => match[1])
+  assert.deepEqual(asked, ['Company name as it should appear in the system: ', 'Administrator email: '])
+  assert(!/identity JSON|System directory:/i.test(installationOutput), 'Unexpected installer question')
   await access(join(target, 'tmp/install.log'))
   const appEnv = parseEnv(await readFile(join(target, '.env'), 'utf8'))
   const testEnv = parseEnv(await readFile(join(target, '.env.test'), 'utf8'))
@@ -199,7 +194,12 @@ try {
   assert.equal(JSON.parse(await readFile(join(target, 'adula-setup.json'), 'utf8')).completed, true)
   const lock = await readFile(join(target, 'pnpm-lock.yaml'), 'utf8')
   assert(!lock.includes('workspace:') && !lock.includes('link:'), 'Starter depends on the monorepo')
-  assert.match(await readFile(join(target, 'docs/design-identity.md'), 'utf8'), /شركة الاختبار/)
+  const designIdentity = await readFile(join(target, 'docs/design-identity.md'), 'utf8')
+  assert.match(designIdentity, /شركة الاختبار/)
+  // No identity file was supplied, so every visual item is recorded as pending (#151).
+  for (const item of ['Logo', 'Primary color', 'Font', 'Guidelines'])
+    assert.match(designIdentity, new RegExp(`- ${item}: Pending`))
+  assert.doesNotMatch(await readFile(join(target, 'inertia/css/brand.css'), 'utf8'), /--primary:/)
   assert.match(
     await readFile(join(target, '.agents/skills/adula-frontend-design/SKILL.md'), 'utf8'),
     /company identity/i
@@ -315,11 +315,16 @@ try {
     await page.locator('button[type="submit"]').click()
     await page.waitForURL(`${appEnv.APP_URL}/`)
     assert((await page.locator('body').innerText()).includes('شركة الاختبار'))
+    // With the identity pending, the provisional theme colour from adula.css stays in force.
+    const provisional = (await readFile(join(target, 'inertia/css/adula.css'), 'utf8')).match(
+      /--primary:\s*([^;]+);/
+    )?.[1]
+    assert(provisional, 'adula.css defines --primary')
     assert.equal(
       await page.evaluate(() =>
         getComputedStyle(document.documentElement).getPropertyValue('--primary').trim()
       ),
-      '#14532d'
+      provisional.trim()
     )
     // The brand color must reach compiled utilities, not only the variable (issue #23).
     assert.equal(

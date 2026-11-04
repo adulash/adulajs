@@ -104,7 +104,8 @@ npx create-adulajs@latest my-system
 
   --company "Company name"     Company display name (Arabic supported)
   --admin-email email          Administrator email
-  --identity brand.json        Company logo, primaryColor, fontFamily and guidelines
+  --identity brand.json        Optional company logo, primaryColor, fontFamily and guidelines;
+                               without it the identity is recorded as pending
   --services docker|existing   Default: Docker; requires Docker Compose
   --connection local.json      PostgreSQL and Redis profile for existing services
   --database name              Fresh database name (starts with a lowercase letter); existing databases are rejected
@@ -192,11 +193,15 @@ Values containing dotenv interpolation or quote characters are stored in private
 
 ## Company identity
 
-The wizard requests the company name, administrator email and company identity.
-An optional identity JSON file contains `primaryColor` (six-digit hex), `logo`
+The wizard asks only for the company name and administrator email; it does not ask for
+an identity file. Without `--yes`, piped input answers the questions, one line each.
+The optional `--identity` JSON file contains `primaryColor` (six-digit hex), `logo`
 (local PNG/JPEG/WebP path relative to the JSON), `fontFamily` and `guidelines`.
 Known identity is applied immediately. Missing identity remains explicitly pending
-in `docs/design-identity.md`; no official branding is invented.
+in `docs/design-identity.md`; no official branding is invented. Supply it later: the
+project's agent rules ask for the company identity before the first design, and the
+project team records it in `docs/design-identity.md`, `company-identity.json`,
+`inertia/brand.ts` and `inertia/css/brand.css`.
 
 Identity lives in the project-owned `inertia/css/brand.css`, which loads after the
 AdulaJS theme. It can override these `:root` tokens: `--background`, `--foreground`,

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Progress } from './progress.mjs'
 import { prepareDocker } from './prerequisites.mjs'
+import { askDetails, pipedQuestions, prompts } from './prompts.mjs'
 import { parseArgs } from 'node:util'
 import { createInterface } from 'node:readline/promises'
 import { randomBytes } from 'node:crypto'
@@ -42,12 +43,15 @@ export const help = `Create a new business system with AdonisJS and AdulaJS
 
   --company "Company name"     Company display name (Arabic supported)
   --admin-email email          Administrator email
-  --identity brand.json        Company logo, primaryColor, fontFamily and guidelines
+  --identity brand.json        Optional company logo, primaryColor, fontFamily and guidelines;
+                               without it the identity is recorded as pending
   --services docker|existing   Default: Docker; requires Docker Compose
   --connection local.json      PostgreSQL and Redis profile for existing services
   --database name              Fresh database name; existing databases are rejected
   --packages directory         Local core and UI archives for pre-publication testing
   --yes                       Noninteractive; requires company and administrator email
+
+Without --yes, missing values are asked for; piped input answers them, one line each.
   --help                      Show help
 
 Requires Node.js 24+ and npm. Installs pnpm, AdonisJS, adula, the Arabic UI,
@@ -167,8 +171,10 @@ export async function main(argv = process.argv.slice(2)) {
   let directory = positionals[0]
   let company = values.company
   let email = values['admin-email']
-  let identityFile = values.identity
-  const interactive = process.stdin.isTTY && !values.yes
+  // A terminal is asked; piped input without --yes answers the questions that the options
+  // did not (one line each), so scripts and tests drive the same interactive flow.
+  const interactive =
+    !values.yes && (process.stdin.isTTY || !directory || !company || !email)
   // Reject a supplied destination before collecting company details.
   if (directory) {
     projectName(resolve(directory))
@@ -179,12 +185,11 @@ export async function main(argv = process.argv.slice(2)) {
   // Host prerequisites must pass before prompts, package setup or project writes.
   let docker
   if (interactive) {
-    const prompt = createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    })
+    const prompt = process.stdin.isTTY
+      ? createInterface({ input: process.stdin, output: process.stdout })
+      : pipedQuestions(process.stdin, process.stdout)
     try {
-      directory ||= await prompt.question('System directory: ')
+      directory ||= await prompt.question(prompts.directory)
       projectName(resolve(directory))
       await assertEmpty(resolve(directory))
       if (values.services === 'docker') {
@@ -207,11 +212,10 @@ export async function main(argv = process.argv.slice(2)) {
           console.log(`Docker is ready (${docker.display}). Continuing setup.`)
         }
       }
-      company ||= await prompt.question('Company name as it should appear in the system: ')
-      email ||= await prompt.question('Administrator email: ')
-      identityFile ||= await prompt.question(
-        'Company identity JSON (logo, colors, fonts, guidelines; Enter to record as pending): '
-      )
+      ;({ company, email } = await askDetails((message) => prompt.question(message), {
+        company,
+        email,
+      }))
     } finally {
       prompt.close()
     }
@@ -225,7 +229,7 @@ export async function main(argv = process.argv.slice(2)) {
   const target = resolve(directory)
   const name = projectName(target)
   await assertEmpty(target)
-  const identity = await readIdentity(identityFile || undefined, company)
+  const identity = await readIdentity(values.identity, company)
   const template = JSON.parse(await readFile(new URL('./template.json', import.meta.url), 'utf8'))
   const manager = await packageManager()
   const suffix = randomBytes(6).toString('hex')

@@ -51,7 +51,8 @@ export const nonZero = (code) => code !== 0
  * - `capture: true` stdout and stderr are piped and returned (`stdout`, `stderr`, `output`).
  * - otherwise       stdio is inherited.
  *
- * Options: `cwd` (default: repository root), `env` (default: process.env; pass the whole
+ * Options: `input` (text piped to stdin, which is closed afterwards; stdin is ignored
+ * otherwise), `cwd` (default: repository root), `env` (default: process.env; pass the whole
  * environment, it replaces rather than merges), `expect` (exit code, list of codes or a
  * predicate; default 0), `check: true` (never throw on the exit code, just return the
  * result), `label` (name used in the failure message), `tail` (number of trailing output
@@ -72,6 +73,7 @@ export async function run(command, args = [], options = {}) {
     label,
     tail = 0,
     echo = true,
+    input,
   } = options
   const line = commandLine(command, args)
   if (echo) {
@@ -87,13 +89,21 @@ export async function run(command, args = [], options = {}) {
       const child = spawn(command, args, {
         cwd,
         env,
-        stdio: file ? ['ignore', file.fd, file.fd] : capture ? ['ignore', 'pipe', 'pipe'] : 'inherit',
+        stdio: file
+          ? [input === undefined ? 'ignore' : 'pipe', file.fd, file.fd]
+          : capture
+            ? [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe']
+            : 'inherit',
         shell: false,
         windowsHide: true,
       })
       if (capture && !file) {
         child.stdout.on('data', (chunk) => chunks.stdout.push(chunk))
         child.stderr.on('data', (chunk) => chunks.stderr.push(chunk))
+      }
+      if (input !== undefined && child.stdin) {
+        child.stdin.on('error', () => {})
+        child.stdin.end(input)
       }
       child.once('error', reject)
       child.once('close', (code, signal) => done({ code, signal }))
