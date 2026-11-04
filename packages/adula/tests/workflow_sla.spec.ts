@@ -711,6 +711,10 @@ test.group('Workflow SLA deadlines and escalation', (group) => {
     assert,
   }) => {
     const delegations = () => new WorkflowDelegations(db, { now: clock })
+    // A user's own delegation goes to someone on their organization path (unit 1.2).
+    await db('user_org_units').insert(
+      [manager, head2, backup].map((actor) => ({ user_id: actor.id, org_unit_id: 2 }))
+    )
     await delegations().create(
       {
         delegatorId: manager.id,

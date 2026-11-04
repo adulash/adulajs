@@ -183,7 +183,8 @@ export default function MyTasks({ assignments, tab, decisions }: Props) {
                 ) : item.dueOn && (
                   <span
                     className={
-                      item.status === 'open' && item.dueOn < today
+                      item.status === 'open' &&
+                      (item.sla ? item.sla === 'overdue' : item.dueOn < today)
                         ? 'flex items-center gap-1 font-medium text-red-700'
                         : 'flex items-center gap-1'
                     }

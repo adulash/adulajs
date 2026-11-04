@@ -36,7 +36,10 @@ panel automatically.
 `Assignments` assigns work on a record (update permission required; the assignee
 must be able to read the record). `/my-tasks` lists the user's tasks; only the
 assignee completes and only the assigner cancels. Approval steps of workflows
-create assignments of kind `approval`.
+create assignments of kind `approval`. A due date must be a real calendar day
+(otherwise 422 `E_ASSIGNMENT_DUE`); an open task past its due date reports
+`sla: 'overdue'` after its last day in the system time zone. The open counts cover
+only items on records the user can still read.
 
 ## Notifications, templates, e-mail and realtime
 
@@ -237,6 +240,10 @@ A user delegates their workflow approvals to a colleague for a date range in
 * the user's pending approvals appear in the delegate's My tasks and can be decided
   there;
 * the run's history names who decided and on whose behalf.
+
+A user picks a delegate on their own organization path (the same unit, an ancestor or a
+descendant); administrators may choose anyone. A user without an organization unit
+cannot delegate by themselves.
 
 Delegation never widens record access (the delegate's own rights still apply), never
 covers manual tasks, and never lets anyone approve a request they submitted. It ends at

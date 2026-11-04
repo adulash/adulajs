@@ -7,6 +7,7 @@ import { canView, resourceLabel, type ActorLoader } from './shared.js'
 import { actionableBy, delegationActive } from '../workflows/delegations.js'
 import { assertTimeZone, calendarDate } from '../workflows/calendar.js'
 import { slaState, type SlaState } from '../workflows/sla.js'
+import { canonicalDate } from '../resource/values.js'
 
 export type AssignmentStatus = 'open' | 'done' | 'cancelled'
 export type Assignment = {
@@ -47,13 +48,19 @@ export type Assignment = {
   onBehalfOf?: { id: number; name: string | null } | null
   /** The SLA deadline of an approval with one (ISO time); dueOn stays its calendar date. */
   dueAt?: string | null
-  /** The SLA state of an open approval with a deadline. */
+  /**
+   * The SLA state of an open item: an approval's SLA deadline (dueAt), or a manual task's
+   * due date (dueOn), overdue after its last day in the system time zone. Null otherwise.
+   */
   sla?: SlaState | null
 }
 export type AssignmentPage = {
   data: Assignment[]
   nextCursor: string | null
-  /** Open items of every kind. */
+  /**
+   * Open items of every kind the user may act on, on records they can still read: the
+   * number of items the open list shows (counted over the newest 1000 records).
+   */
   open: number
   /** Open approval steps among them. 1.2; optional for compatibility. */
   approvals?: number
@@ -77,7 +84,8 @@ const NO_DELEGATION: DelegationScope = { delegations: new Set(), delegators: new
 const TITLE_LIMIT = 200
 const NOTE_LIMIT = 2000
 const REASON_LIMIT = 500
-const DATE = /^\d{4}-\d{2}-\d{2}$/
+/** mine() counts open items over at most this many records, newest first: the list's scan bound. */
+const COUNT_RECORDS = 1000
 
 function dateOnly(value: unknown) {
   if (value === null || value === undefined) return null
@@ -138,9 +146,8 @@ export class Assignments {
     const dueOn =
       input.dueOn === undefined || input.dueOn === null || input.dueOn === ''
         ? null
-        : typeof input.dueOn === 'string' &&
-            DATE.test(input.dueOn) &&
-            !Number.isNaN(Date.parse(input.dueOn))
+        : // A real calendar day: 2026-02-30 would roll over and fail the insert (#127).
+          typeof input.dueOn === 'string' && canonicalDate(input.dueOn, 'date')
           ? input.dueOn
           : undefined
     if (dueOn === undefined)
@@ -242,11 +249,12 @@ export class Assignments {
   ): Promise<AssignmentPage> {
     const status = options.status === 'done' || options.status === 'all' ? options.status : 'open'
     const limit = Math.max(1, Math.min(100, Math.floor(Number(options.limit) || 50)))
+    const today = this.today()
     const query = this.query().orderBy('a.id', 'desc')
     // Open items include approvals held through a delegation in force today (ADR 044);
     // closed ones are the user's own, those decided for them and those they decided.
     if (status === 'open')
-      query.where('a.status', 'open').modify(actionableBy(this.db, actor.id, this.today()))
+      query.where('a.status', 'open').modify(actionableBy(this.db, actor.id, today))
     else
       query.where((own) =>
         own
@@ -262,6 +270,17 @@ export class Assignments {
       last = Number(options.cursor)
       if (!Number.isSafeInteger(last) || last <= 0)
         throw new AdulaError(422, 'E_CURSOR', 'مؤشر الصفحة غير صالح')
+    }
+    // One record check per record, shared by the page and the counts.
+    const checked = new Map<string, Promise<boolean>>()
+    const viewable = (resource: string, recordId: number) => {
+      const key = `${resource} ${recordId}`
+      let result = checked.get(key)
+      if (!result) {
+        result = this.resources.permits(resource, recordId, actor)
+        checked.set(key, result)
+      }
+      return result
     }
     const data: Assignment[] = []
     const scope = await this.scope(actor.id)
@@ -281,31 +300,37 @@ export class Assignments {
           break
         }
         last = Number(row.id)
-        if (await this.resources.permits(row.resource, Number(row.record_id), actor))
+        if (await viewable(String(row.resource), Number(row.record_id)))
           data.push(this.present(row, actor, scope))
       }
     }
-    // The user's own open items are counted in SQL, as before. Items held only through
-    // a delegation are counted after the same record check as the list (ADR 044), so the
-    // badge never reveals approvals on records the delegate cannot open.
-    const [{ count, approvals }] = await this.db('assignments')
-      .where({ assignee_id: actor.id, status: 'open' })
-      .whereNull('delegation_id')
-      .select(this.db.raw('count(*) as count'), this.db.raw('count(workflow_run_id) as approvals'))
-    let held = 0
-    const borrowed = await this.db('assignments as a')
+    // Counted like the open list (ADR 044): every item the user may act on today, own or
+    // held through a delegation, after the same record check, so the badge never counts
+    // work on records the user can no longer open.
+    const groups = await this.db('assignments as a')
       .where('a.status', 'open')
-      .modify(actionableBy(this.db, actor.id, this.today()))
-      .where((q) => q.whereNot('a.assignee_id', actor.id).orWhereNotNull('a.delegation_id'))
-      .limit(200)
-      .select('a.resource', 'a.record_id')
-    for (const row of borrowed)
-      if (await this.resources.permits(row.resource, Number(row.record_id), actor)) held++
+      .modify(actionableBy(this.db, actor.id, today))
+      .groupBy('a.resource', 'a.record_id')
+      .orderByRaw('max(a.id) DESC')
+      .limit(COUNT_RECORDS)
+      .select(
+        'a.resource',
+        'a.record_id',
+        this.db.raw('count(*)::integer AS open'),
+        this.db.raw('count(a.workflow_run_id)::integer AS approvals')
+      )
+    let open = 0
+    let approvals = 0
+    for (const group of groups)
+      if (await viewable(String(group.resource), Number(group.record_id))) {
+        open += Number(group.open)
+        approvals += Number(group.approvals)
+      }
     return {
       data: await this.titled(data, actor),
       nextCursor: more && last !== null ? String(last) : null,
-      open: Number(count) + held,
-      approvals: Number(approvals) + held,
+      open,
+      approvals,
     }
   }
 
@@ -331,7 +356,9 @@ export class Assignments {
       const row = await trx('assignments').where('id', id).forUpdate().first()
       if (!row) throw new AdulaError(404, 'E_ASSIGNMENT_NOT_FOUND', 'المهمة غير موجودة')
       const involved = row.assignee_id === actor.id || row.assigned_by === actor.id
-      if (!involved || !(await this.resources.permits(row.resource, Number(row.record_id), actor)))
+      // The record check runs on this transaction: a second pool connection while the
+      // row is locked would let concurrent closes exhaust the pool.
+      if (!involved || !(await this.viewable(row, actor, trx)))
         throw new AdulaError(404, 'E_ASSIGNMENT_NOT_FOUND', 'المهمة غير موجودة')
       if (row.workflow_run_id)
         throw new AdulaError(
@@ -523,14 +550,20 @@ export class Assignments {
         (own || original || delegated),
       onBehalfOf: behalf,
       dueAt: row.due_at ? new Date(row.due_at).toISOString() : null,
-      sla:
-        open && row.due_at
+      sla: !open
+        ? null
+        : row.due_at
           ? slaState(
               new Date(row.due_at),
               row.due_soon_at ? new Date(row.due_soon_at) : null,
               this.now()
             )
-          : null,
+          : // A manual task is late after its due day ends in the system time zone (#128).
+            !row.workflow_run_id && row.due_on
+            ? dateOnly(row.due_on)! < this.today()
+              ? 'overdue'
+              : 'on_time'
+            : null,
     }
   }
 
@@ -576,6 +609,18 @@ export class Assignments {
 
   private label(name: string) {
     return resourceLabel(this.resources, name)
+  }
+
+  /** permits() on a given connection: denial (403/404) is false, other errors propagate. */
+  private async viewable(row: Record<string, any>, actor: Actor, db: Knex) {
+    try {
+      await this.resources.access(String(row.resource), Number(row.record_id), actor, 'view', db)
+      return true
+    } catch (error) {
+      if (error instanceof AdulaError && (error.status === 403 || error.status === 404))
+        return false
+      throw error
+    }
   }
 
   private canView(name: string, id: number, userId: number) {

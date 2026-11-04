@@ -43,7 +43,10 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
 
 * SLA deadlines count wall-clock hours: there is no business calendar (working days,
   holidays), and an overdue step escalates once (no escalation chain).
-* Delegation covers workflow approvals only (not manual tasks), one hop.
+* Delegation covers workflow approvals only (not manual tasks), one hop. A user's own
+  delegation stays on their organization path; delegations created before 2.2.1 to
+  someone outside it are kept until they end or are revoked.
+* My tasks counts cover the newest 1000 records with open items.
 * Due dates and delegation days use one time zone per system (`timeZone`), not each
   user's zone.
 * `WorkflowDefinition.machine` and the `xstate` dependency remain until the next major
