@@ -316,6 +316,10 @@
       "kind": "TypeAliasDeclaration",
       "type": "{ attachmentId: number; actor: { id: number; }; resource: string; field: string; recordId?: number | undefined; orgUnitId?: number | null | undefined; scoped: boolean; }"
     },
+    "classifyMailFailure": {
+      "kind": "FunctionDeclaration",
+      "type": "(error: unknown) => MailFailure"
+    },
     "clientMessages": {
       "kind": "FunctionDeclaration",
       "type": "(language: string, prefix?: string | undefined) => Record<string, string>"
@@ -967,6 +971,14 @@
     "MailDeliveryTest": {
       "kind": "ClassDeclaration",
       "type": "typeof MailDeliveryTest"
+    },
+    "MailFailure": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ reason: MailFailureReason; code?: string | undefined; responseCode?: number | undefined; command?: string | undefined; }"
+    },
+    "MailFailureReason": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"tls\" | \"timeout\" | \"authentication\" | \"connection\" | \"host_not_found\" | \"sender_rejected\" | \"recipient_rejected\" | \"unknown\""
     },
     "MailSender": {
       "kind": "TypeAliasDeclaration",
