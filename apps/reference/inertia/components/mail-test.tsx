@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { router } from '@inertiajs/react'
 import type { MailTestState } from 'adula'
+import { MailReadinessNotice, MailSetupDialog, type MailSetupProps } from '~/components/mail-setup'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '~/components/ui/card'
 import {
@@ -12,7 +13,7 @@ import {
   DialogFooter,
 } from '~/components/ui/dialog'
 
-export type MailTestProps = {
+export type MailTestProps = MailSetupProps & {
   mailTest: Omit<MailTestState, 'fingerprint'> | null
   mailRecipient: string
 }
@@ -26,10 +27,13 @@ const labels = {
 export function MailTest({
   mailTest,
   mailRecipient,
+  mailReadiness,
+  mailPresets,
   returnTo = 'settings',
 }: MailTestProps & { returnTo?: 'settings' | 'setup' }) {
   const [busy, setBusy] = useState(false)
   const [open, setOpen] = useState(false)
+  const [setup, setSetup] = useState(false)
   const pending =
     mailTest?.status === 'pending' && Date.now() - Date.parse(mailTest.requestedAt) < 86_400_000
   useEffect(() => {
@@ -52,6 +56,7 @@ export function MailTest({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <MailReadinessNotice readiness={mailReadiness} />
         <p>
           المستلم: <span dir="ltr">{mailRecipient}</span>
         </p>
@@ -74,8 +79,14 @@ export function MailTest({
           </p>
         )}
         <div className="flex flex-wrap gap-3">
-          <Button disabled={busy} onClick={() => post('/admin/settings/mail/test')}>
+          <Button
+            disabled={busy || !mailReadiness.configured}
+            onClick={() => post('/admin/settings/mail/test')}
+          >
             {busy ? 'جارٍ التنفيذ…' : 'إرسال بريد تجريبي'}
+          </Button>
+          <Button variant="outline" onClick={() => setSetup(true)}>
+            إعداد البريد
           </Button>
           {pending && (
             <Button variant="outline" disabled={busy} onClick={() => setOpen(true)}>
@@ -89,6 +100,12 @@ export function MailTest({
           </p>
         )}
       </CardContent>
+      <MailSetupDialog
+        open={setup}
+        onOpenChange={setSetup}
+        mailReadiness={mailReadiness}
+        mailPresets={mailPresets}
+      />
       <Dialog mode="confirm" open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>

@@ -235,6 +235,42 @@ test.group('Administration screens in the browser', (group) => {
     assert.include(await dialog.getByRole('alert').innerText(), 'لا ينقل الملفات القائمة')
   })
 
+  test('mail setup dialog builds provider lines to copy without any secret', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(admin)
+    const page = await visit('/admin/settings')
+    await page.evaluate(() => {
+      const copied: string[] = []
+      ;(globalThis as unknown as { copied: string[] }).copied = copied
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText: async (text: string) => void copied.push(text) },
+      })
+    })
+    await page.getByRole('button', { name: 'إعداد البريد', exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByRole('heading', { name: 'إعداد البريد' }).waitFor()
+    assert.equal(await dialog.getByTestId('mail-setup-steps').locator(':scope > li').count(), 4)
+    assert.include(
+      await dialog.getByTestId('mail-env-lines').innerText(),
+      'SMTP_HOST=smtp.gmail.com'
+    )
+    await dialog.getByRole('combobox', { name: 'اختر مزود البريد:' }).click()
+    await page.getByRole('option', { name: 'SendGrid', exact: true }).click()
+    const lines = await dialog.getByTestId('mail-env-lines').innerText()
+    assert.include(lines, 'SMTP_HOST=smtp.sendgrid.net')
+    assert.include(lines, 'SMTP_PORT=587')
+    assert.include(lines, 'SMTP_USERNAME=apikey')
+    assert.match(lines, /^SMTP_PASSWORD=$/m)
+    assert.include(await dialog.innerText(), 'مفتاح API من SendGrid')
+    await dialog.getByRole('button', { name: 'نسخ الأسطر', exact: true }).click()
+    const copied = await page.evaluate(() => (globalThis as unknown as { copied: string[] }).copied)
+    assert.deepEqual(copied, [lines.trim()])
+  })
+
   test('toggling a matrix cell writes the rule and the page reflects it', async ({
     browserContext,
     visit,

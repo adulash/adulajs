@@ -419,7 +419,14 @@ export type {
   QueueCounts,
   FailedJob,
 } from './src/core/health.js'
-export { MailDeliveryTest, MAIL_TEST_KEY, type MailTestState } from './src/core/mail_test.js'
+export {
+  MailDeliveryTest,
+  MAIL_TEST_KEY,
+  classifyMailFailure,
+  type MailFailure,
+  type MailFailureReason,
+  type MailTestState,
+} from './src/core/mail_test.js'
 export { InitialSetup, type SetupCheck } from './src/core/setup.js'
 export {
   administratorExists,

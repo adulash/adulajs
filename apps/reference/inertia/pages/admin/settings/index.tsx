@@ -68,6 +68,8 @@ export default function SettingsIndex({
   scopeId,
   mailTest,
   mailRecipient,
+  mailReadiness,
+  mailPresets,
   authentication,
   messagingChannel,
 }: Props) {
@@ -105,7 +107,12 @@ export default function SettingsIndex({
       </AdminHeader>
       <UiSettings key={JSON.stringify(preferences)} initial={preferences} />
       <AuthenticationSettings authentication={authentication} />
-      <MailTest mailTest={mailTest} mailRecipient={mailRecipient} />
+      <MailTest
+        mailTest={mailTest}
+        mailRecipient={mailRecipient}
+        mailReadiness={mailReadiness}
+        mailPresets={mailPresets}
+      />
       <MessagingChannelSettings channel={messagingChannel} />
       <h2 className="mb-4 text-lg font-semibold">إعدادات متقدمة</h2>
       <div className="mb-6 flex flex-wrap items-center gap-4">

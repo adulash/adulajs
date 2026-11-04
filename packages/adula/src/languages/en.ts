@@ -114,6 +114,22 @@ export const englishMessages: Readonly<Record<string, string>> = Object.freeze({
   'errors.E_MAIL_TEST_COOLDOWN': 'Wait a moment before sending the test email again',
   'errors.E_MAIL_TEST_SEND':
     'The test email could not be sent. Check the mail settings and try again.',
+  'errors.E_MAIL_TEST_SEND.authentication':
+    'The mail server rejected the username or password. Check SMTP_USERNAME and SMTP_PASSWORD, and use an app password if your provider requires one.',
+  'errors.E_MAIL_TEST_SEND.connection':
+    'The mail server refused the connection. Check SMTP_HOST and SMTP_PORT, and make sure the firewall allows the port.',
+  'errors.E_MAIL_TEST_SEND.host_not_found':
+    'The mail server could not be found. Check the spelling of SMTP_HOST.',
+  'errors.E_MAIL_TEST_SEND.tls':
+    'The encrypted connection to the mail server failed. Use SMTP_SECURE=true with port 465, or SMTP_SECURE=false with port 587.',
+  'errors.E_MAIL_TEST_SEND.timeout':
+    'The connection to the mail server timed out. Check SMTP_HOST and SMTP_PORT, and make sure the server allows outgoing connections.',
+  'errors.E_MAIL_TEST_SEND.sender_rejected':
+    'The mail server rejected the sender address. Use an address verified with your provider in MAIL_FROM_ADDRESS.',
+  'errors.E_MAIL_TEST_SEND.recipient_rejected':
+    'The mail server rejected the recipient address. Check your account email and try again.',
+  'errors.E_MAIL_NOT_CONFIGURED':
+    'The mail configuration is incomplete. Open “Mail setup”, complete the missing variables, then restart the server.',
   'errors.E_MAIL_TEST_ANSWER': 'Choose whether the message arrived or not',
   'errors.E_MAIL_TEST_STALE': 'This test can no longer be confirmed. Send a new test message.',
   'errors.E_TEMPLATE_SUBJECT': 'The subject is required and must not exceed 200 characters',

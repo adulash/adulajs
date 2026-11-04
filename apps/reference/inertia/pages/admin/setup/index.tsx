@@ -109,10 +109,13 @@ export default function SetupIndex(props: Props) {
           </CardContent>
         </Card>
       </div>
-      <MailTest mailTest={props.mailTest} mailRecipient={props.mailRecipient} returnTo="setup" />
-      <Button variant="link" className="mb-6" onClick={() => setGuide('mail')}>
-        كيفية ضبط البريد بأمان
-      </Button>
+      <MailTest
+        mailTest={props.mailTest}
+        mailRecipient={props.mailRecipient}
+        mailReadiness={props.mailReadiness}
+        mailPresets={props.mailPresets}
+        returnTo="setup"
+      />
       <div className="grid gap-5 xl:grid-cols-2">
         <Card>
           <CardHeader>

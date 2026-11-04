@@ -12,7 +12,10 @@ import {
   mailFingerprint,
   sendMailTest,
   publicMailTest,
+  mailSetupProps,
+  mailValues,
 } from '#services/mail_delivery_test'
+import { mailReadiness } from '#services/mail_setup'
 import { authenticationSettings } from './authentication_settings_controller.js'
 import { adula } from '#services/adula'
 
@@ -40,6 +43,7 @@ export default class SettingsController {
       scopeId,
       mailTest: publicMailTest(state),
       mailRecipient: user.email,
+      ...mailSetupProps(),
       authentication: await authenticationSettings(),
       messagingChannel: await adula().channelSettings.read(),
     })
@@ -49,10 +53,18 @@ export default class SettingsController {
     const user = ctx.auth.getUserOrFail()
     return mutate(
       ctx,
-      () =>
-        mailTest().send(user.id, user.email, mailFingerprint(), (id) =>
+      () => {
+        // Refuse before sending, so an incomplete setup reads as such rather than a failure.
+        if (!mailReadiness(mailValues()).configured)
+          throw new AdulaError(
+            422,
+            'E_MAIL_NOT_CONFIGURED',
+            'إعداد البريد غير مكتمل. افتح «إعداد البريد» وأكمل المتغيرات الناقصة، ثم أعد تشغيل الخادم.'
+          )
+        return mailTest().send(user.id, user.email, mailFingerprint(), (id) =>
           sendMailTest(user.email, id)
-        ),
+        )
+      },
       'قُبل طلب الإرسال. تحقق من بريدك وأكد وصول الرسالة.',
       ctx.request.input('returnTo') === 'setup' ? '/admin/setup' : '/admin/settings'
     )

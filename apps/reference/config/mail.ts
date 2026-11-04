@@ -1,8 +1,6 @@
 import env from '#start/env'
 import { defineConfig, transports } from '@adonisjs/mail'
-
-const smtpUser = env.get('SMTP_USERNAME')
-const smtpPassword = env.get('SMTP_PASSWORD')
+import { smtpOptions } from '#services/mail_setup'
 
 /**
  * SMTP only: no external mail service. Tests fake the mailer, and a local
@@ -15,18 +13,17 @@ const mailConfig = defineConfig({
     name: env.get('MAIL_FROM_NAME') ?? 'عدولة',
   },
   mailers: {
-    smtp: transports.smtp({
-      host: env.get('SMTP_HOST') ?? '127.0.0.1',
-      port: env.get('SMTP_PORT') ?? 1025,
-      secure: env.get('SMTP_SECURE') ?? env.get('SMTP_PORT') === 465,
-      requireTLS: env.get('SMTP_REQUIRE_TLS') ?? env.get('NODE_ENV') === 'production',
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 20000,
-      ...(smtpUser && smtpPassword
-        ? { auth: { type: 'login' as const, user: smtpUser, pass: smtpPassword } }
-        : {}),
-    }),
+    smtp: transports.smtp(
+      smtpOptions({
+        SMTP_HOST: env.get('SMTP_HOST'),
+        SMTP_PORT: env.get('SMTP_PORT'),
+        SMTP_SECURE: env.get('SMTP_SECURE'),
+        SMTP_REQUIRE_TLS: env.get('SMTP_REQUIRE_TLS'),
+        SMTP_USERNAME: env.get('SMTP_USERNAME'),
+        SMTP_PASSWORD: env.get('SMTP_PASSWORD'),
+        NODE_ENV: env.get('NODE_ENV'),
+      })
+    ),
   },
 })
 
