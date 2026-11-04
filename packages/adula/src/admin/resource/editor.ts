@@ -68,6 +68,7 @@ export async function editor(
     .map((key) => editorField(key, resource.fields[key]))
   const options: Record<string, { value: string; label: string }[]> = {}
   const relationSearch: Record<string, boolean> = {}
+  const onlyChoice = new Map<string, number>()
   const inline: Record<
     string,
     {
@@ -160,6 +161,13 @@ export async function editor(
           value: String(row.id),
           label: title(row) ?? `#${row.id}`,
         }))
+        if (
+          field.type === 'belongsTo' &&
+          field.required &&
+          page.data.length === 1 &&
+          page.meta.nextCursor === null
+        )
+          onlyChoice.set(field.key, Number(page.data[0].id))
         const value = record?.[field.key]
         // Current values outside the first page keep a labelled choice when still viewable.
         for (const selected of Array.isArray(value) ? value : [value]) {
@@ -264,6 +272,10 @@ export async function editor(
       }
       defaults[field.key] = value as SerializedRecord[string]
     }
+  // A required belongsTo whose actor can choose only one record starts on it (#115, ADR 030);
+  // saving still authorizes the reference.
+  if (id === undefined)
+    for (const [key, only] of onlyChoice) if (defaults[key] === undefined) defaults[key] = only
   return {
     mode: action,
     name,
