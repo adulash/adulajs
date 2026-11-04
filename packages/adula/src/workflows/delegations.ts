@@ -105,6 +105,23 @@ export function actionableBy(db: Knex, actorId: number, today: string) {
     })
 }
 
+/**
+ * For a users query aliased `u`: members of a unit on the same organization path as one of
+ * `userId`'s units (that unit, an ancestor or a descendant), the tree rule of user fields.
+ * A user without units shares a path with nobody.
+ */
+function sharesOrgPath(db: Knex, userId: number) {
+  return db('user_org_units as m')
+    .join('org_units as o', 'o.id', 'm.org_unit_id')
+    .whereRaw('m.user_id = u.id')
+    .whereExists(
+      db('user_org_units as dm')
+        .join('org_units as d', 'd.id', 'dm.org_unit_id')
+        .where('dm.user_id', userId)
+        .whereRaw('(o.path <@ d.path OR o.path @> d.path)')
+    )
+}
+
 /** The SQL flag `delegation_active` for an assignments query aliased `a`. */
 export function delegationActive(db: Knex, today: string) {
   return db.raw(
@@ -147,22 +164,29 @@ export class WorkflowDelegations {
    * Active users a delegate can be chosen from (id and display name only), at most 20.
    * The search needs two characters and matches names, or an e-mail address exactly, so
    * the picker cannot list the whole user directory or probe e-mail fragments.
+   * `exceptId` is the delegator: only users on the delegator's organization path (the same
+   * unit, an ancestor or a descendant) are offered, by name or e-mail, the rule create()
+   * applies to a user's own delegation. 0 (administrators managing anyone's delegation)
+   * offers every active user.
    */
-  async candidates(search: unknown, exceptId: number) {
+  async candidates(search: unknown, exceptId: number): Promise<{ id: number; name: string }[]> {
     const text = typeof search === 'string' ? search.trim().slice(0, 100) : ''
     if (text.length < 2) return []
-    const rows = await this.db('users')
-      .whereNull('disabled_at')
-      .whereNot('id', exceptId)
+    const rows = await this.db('users as u')
+      .whereNull('u.disabled_at')
+      .whereNot('u.id', exceptId)
+      .modify((q) => {
+        if (exceptId > 0) q.whereExists(sharesOrgPath(this.db, exceptId))
+      })
       .where((q) =>
         q
-          .whereILike('full_name', `%${escapeLike(text)}%`)
-          .orWhereRaw('lower(email) = lower(?)', [text])
+          .whereILike('u.full_name', `%${escapeLike(text)}%`)
+          .orWhereRaw('lower(u.email) = lower(?)', [text])
       )
-      .orderBy('full_name')
+      .orderBy('u.full_name')
       .limit(20)
-      .select('id', 'full_name', 'email')
-    return rows.map((row) => ({
+      .select('u.id', 'u.full_name', 'u.email')
+    return rows.map((row: Record<string, any>) => ({
       id: Number(row.id),
       name: String(row.full_name ?? row.email ?? `#${row.id}`),
     }))
@@ -191,7 +215,12 @@ export class WorkflowDelegations {
     return row ? { id: Number(row.id), delegateId: Number(row.delegate_id) } : null
   }
 
-  /** Creates a delegation; the caller decides whether `createdBy` may act for the delegator. */
+  /**
+   * Creates a delegation; the caller decides whether `createdBy` may act for the delegator.
+   * When `createdBy` is the delegator, the delegate must be on their organization path (see
+   * candidates()); a caller acting for someone else (administrators) may choose any active
+   * user.
+   */
   async create(input: WorkflowDelegationInput, createdBy: number): Promise<WorkflowDelegation> {
     const delegatorId = Number(input.delegatorId)
     const delegateId = Number(input.delegateId)
@@ -227,7 +256,17 @@ export class WorkflowDelegations {
       const delegator = users.find((user) => Number(user.id) === delegatorId)
       const delegate = users.find((user) => Number(user.id) === delegateId)
       if (!delegator) throw new AdulaError(422, 'E_DELEGATION_USER', 'المستخدم غير صالح')
-      if (!delegate || delegate.disabled_at)
+      // A user's own delegation goes to someone on their organization path, the picker's
+      // rule; the same answer as an unknown user, so ids cannot be probed for names.
+      if (
+        !delegate ||
+        delegate.disabled_at ||
+        (createdBy === delegatorId &&
+          !(await trx('users as u')
+            .where('u.id', delegateId)
+            .whereExists(sharesOrgPath(trx, delegatorId))
+            .first('u.id')))
+      )
         throw new AdulaError(422, 'E_DELEGATE', 'المفوَّض إليه غير موجود أو معطّل')
       const overlap = await trx('workflow_delegations')
         .where('delegator_id', delegatorId)
