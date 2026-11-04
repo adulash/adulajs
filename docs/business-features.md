@@ -16,11 +16,20 @@ panel automatically.
 
 - Mentions and follower notifications only reach users who can read the record;
   mentioning anyone else is refused.
-- Tags require update permission; lists filter with `?tag=<name>`.
+- Deleting a comment replaces its text in the notifications it produced with a
+  neutral note and stops their pending e-mail and channel deliveries; editing one
+  replaces the earlier excerpt with a neutral note. Messages already sent by e-mail
+  or another channel cannot be recalled, and an open notification list shows the
+  change after it reloads.
+- Tags require update permission; lists filter with `?tag=<name>`. Tag suggestions
+  name only tags of records the user may view, and simultaneous saves of one
+  record's tags keep the last one.
 - Every update stores before/after values in `field_changes` inside the save
   transaction. Readers only see changes of fields they may read.
 - `followerListeners(registry, () => adula().collaboration)` notifies followers of
-  updates and document transitions.
+  updates and document transitions. Its access checks run on the event's
+  transaction; a custom actor loader should accept the connection passed as the
+  second argument of `load(id, db)`, as `ActorStore` does.
 
 ## Assignments and "my tasks"
 

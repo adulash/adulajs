@@ -26,6 +26,7 @@ import type { Actor, RecordData } from '../index.js'
 import { createImportModesSchema, createImportLeasesSchema } from '../index.js'
 import { createSyncJobsSchema } from '../index.js'
 import { createPrintTemplatesSchema } from '../index.js'
+import { createCommentNotificationsSchema } from '../src/database/schema.js'
 import { createNotificationChannelsSchema, createChannelConfirmationsSchema } from '../index.js'
 
 export const customer = defineResource({
@@ -190,6 +191,7 @@ export async function setup() {
   await createChannelConfirmationsSchema(db)
   await createWorkflowDelegationSlaSchema(db)
   await createPrintTemplatesSchema(db)
+  await createCommentNotificationsSchema(db)
   await db('org_units').insert([
     { id: 1, name: 'Root', type: 'root', path: '1' },
     { id: 2, parent_id: 1, name: 'A', type: 'unit', path: '1.2' },

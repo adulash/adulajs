@@ -10,7 +10,8 @@ import {
 } from '../index.js'
 import { predicates } from '../src/auth/conditions.js'
 import { fromRow } from '../src/admin/contracts.js'
-import { db, setup, order, admin, reader, registry } from './helpers.js'
+import knex from 'knex'
+import { db, setup, order, admin, reader, registry, testConnection } from './helpers.js'
 import type { Rule } from '../index.js'
 
 test.group('Authorization semantics against PostgreSQL 17', (group) => {
@@ -256,5 +257,30 @@ test.group('Authorization semantics against PostgreSQL 17', (group) => {
       [1, 3]
     )
     await assert.rejects(() => moveOrgUnit(db, 3, 4), /beneath itself/)
+  })
+  test('the actor store loads on the connection it is given', async ({ assert }) => {
+    const [role] = await db('roles').insert({ name: 'connection-reader' }).returning('id')
+    await db('role_rules').insert({ role_id: role.id, subject: 'orders', action: 'view' })
+    await db('user_roles').insert({ user_id: 2, role_id: role.id })
+    // One connection that is never released while the transaction runs: a load that
+    // asked the pool for another one would time out.
+    const single = knex({
+      client: 'pg',
+      connection: testConnection,
+      pool: { min: 0, max: 1 },
+      acquireConnectionTimeout: 2000,
+      searchPath: ['adula_test', 'public'],
+    })
+    try {
+      const store = new ActorStore(single, registry)
+      const inside = await single.transaction((trx) => store.load(2, trx))
+      assert.deepEqual(inside, await store.load(2))
+      assert.isTrue(buildAbility(inside.rules).can('view', 'orders'))
+    } finally {
+      await single.destroy()
+      await db('user_roles').where('role_id', role.id).del()
+      await db('role_rules').where('role_id', role.id).del()
+      await db('roles').where('id', role.id).del()
+    }
   })
 })

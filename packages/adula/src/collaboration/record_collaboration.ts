@@ -6,7 +6,17 @@ import type { JsonValue, RecordData, Resource } from '../resource/types.js'
 import type { DomainEvent, Listener } from '../events/outbox.js'
 import { jsonValue } from '../admin/contracts.js'
 import { AdulaError } from '../admin/errors.js'
-import { notifyWithTemplate } from '../core/message_templates.js'
+import {
+  insertTemplatedNotification,
+  MessageTemplates,
+  notifyWithTemplate,
+} from '../core/message_templates.js'
+import {
+  commentNotifications,
+  DELETED_COMMENT_BODY,
+  DELETED_COMMENT_TITLE,
+  withdrawNotificationDelivery,
+} from '../database/schema.js'
 import { escapeLike } from '../core/like.js'
 import { canView, resourceLabel, type ActorLoader } from './shared.js'
 
@@ -46,6 +56,9 @@ const BODY_LIMIT = 5000
 const MENTION_LIMIT = 20
 const TAG_LIMIT = 20
 const TAG_PATTERN = /^[\p{L}\p{N}][\p{L}\p{N} _-]{0,59}$/u
+/** Neutral excerpts that replace a comment's text in its notifications. */
+const DELETED_EXCERPT = DELETED_COMMENT_BODY
+const EDITED_EXCERPT = 'عُدّل هذا التعليق؛ افتح السجل لقراءته.'
 
 /** Minimum permission level of a field for the current resource definition. */
 function fieldLevel(resource: Resource, key: string) {
@@ -185,10 +198,22 @@ export class RecordCollaboration {
           'لا يمكن الإشارة إلى مستخدم لا يملك صلاحية عرض السجل'
         )
     }
+    // Followers are checked before the transaction, as mentions are: a check made while the
+    // transaction holds a connection would wait for a second one, and enough simultaneous
+    // comments would exhaust the pool. The transaction keeps only those still following.
+    const readers: number[] = []
+    const candidates = await this.db('followers')
+      .where({ resource: name, record_id: id })
+      .whereNot('user_id', actor.id)
+      .whereNotIn('user_id', mentioned.length ? mentioned : [0])
+      .pluck('user_id')
+    for (const userId of candidates)
+      if (await this.canView(name, id, Number(userId))) readers.push(Number(userId))
     return this.db.transaction(async (trx) => {
       const [row] = await trx('comments')
         .insert({ resource: name, record_id: id, author_id: actor.id, body })
         .returning('*')
+      const commentId = Number(row.id)
       if (mentioned.length)
         await trx('comment_mentions').insert(
           mentioned.map((userId) => ({ comment_id: row.id, user_id: userId }))
@@ -200,31 +225,34 @@ export class RecordCollaboration {
       const author = await trx('users').where('id', actor.id).first('full_name')
       const authorName = author?.full_name ? String(author.full_name) : `مستخدم #${actor.id}`
       const label = this.label(name)
+      const variables = { author: authorName, resource: label, id, excerpt: body.slice(0, 200) }
       for (const userId of mentioned)
-        await notifyWithTemplate(
+        await insertTemplatedNotification(
           trx,
           userId,
           'comment.mentioned',
-          { author: authorName, resource: label, id, excerpt: body.slice(0, 200) },
+          variables,
           undefined,
-          { resource: name, recordId: id }
+          { resource: name, recordId: id },
+          { commentId }
         )
-      const followers = await trx('followers')
-        .where({ resource: name, record_id: id })
-        .whereNot('user_id', actor.id)
-        .whereNotIn('user_id', mentioned.length ? mentioned : [0])
-        .pluck('user_id')
-      for (const userId of followers) {
-        if (!(await this.canView(name, id, Number(userId)))) continue
-        await notifyWithTemplate(
+      const followers = readers.length
+        ? await trx('followers')
+            .where({ resource: name, record_id: id })
+            .whereIn('user_id', readers)
+            .orderBy('user_id')
+            .pluck('user_id')
+        : []
+      for (const userId of followers)
+        await insertTemplatedNotification(
           trx,
           Number(userId),
           'comment.created',
-          { author: authorName, resource: label, id, excerpt: body.slice(0, 200) },
+          variables,
           undefined,
-          { resource: name, recordId: id }
+          { resource: name, recordId: id },
+          { commentId }
         )
-      }
       const names = mentioned.length
         ? await trx('users').whereIn('id', mentioned).select('id', 'full_name')
         : []
@@ -251,21 +279,85 @@ export class RecordCollaboration {
     const text = typeof body === 'string' ? body.trim() : ''
     if (!text || text.length > BODY_LIMIT)
       throw new AdulaError(422, 'E_COMMENT_BODY', 'نص التعليق مطلوب ولا يتجاوز 5000 حرف')
-    const updated = await this.db('comments')
-      .where({ id: commentId, resource: name, record_id: id, author_id: actor.id })
-      .whereNull('deleted_at')
-      .update({ body: text, edited_at: this.db.fn.now() })
-    if (!updated) throw new AdulaError(404, 'E_COMMENT_NOT_FOUND', 'التعليق غير موجود')
+    await this.db.transaction(async (trx) => {
+      // Read before the body changes: notifications written before 2.2.1 match by text.
+      const notifications = await this.ownComment(trx, name, id, commentId, actor)
+      await trx('comments').where('id', commentId).update({ body: text, edited_at: trx.fn.now() })
+      // The earlier excerpt is replaced by a neutral note rather than the new text, which
+      // would reach recipients who may since have lost access to the record.
+      await this.rewriteNotifications(trx, name, id, actor, notifications, EDITED_EXCERPT)
+    })
   }
 
+  /**
+   * Deleting a comment also withdraws its text from the notifications that quoted it and
+   * stops their pending e-mail and channel deliveries. Messages already delivered by e-mail
+   * or another channel cannot be recalled.
+   */
   async deleteComment(name: string, id: number, comment: unknown, actor: Actor) {
     await this.resources.access(name, id, actor)
     const commentId = this.commentId(comment)
-    const deleted = await this.db('comments')
+    await this.db.transaction(async (trx) => {
+      const notifications = await this.ownComment(trx, name, id, commentId, actor)
+      await trx('comments').where('id', commentId).update({ deleted_at: trx.fn.now() })
+      await this.rewriteNotifications(trx, name, id, actor, notifications, DELETED_EXCERPT)
+      await withdrawNotificationDelivery(
+        trx,
+        notifications.map((row) => row.id)
+      )
+    })
+  }
+
+  /** Locks the actor's own live comment and returns the notifications quoting it. */
+  private async ownComment(
+    trx: Knex.Transaction,
+    name: string,
+    id: number,
+    commentId: number,
+    actor: Actor
+  ) {
+    const row = await trx('comments')
       .where({ id: commentId, resource: name, record_id: id, author_id: actor.id })
       .whereNull('deleted_at')
-      .update({ deleted_at: this.db.fn.now() })
-    if (!deleted) throw new AdulaError(404, 'E_COMMENT_NOT_FOUND', 'التعليق غير موجود')
+      .forUpdate()
+      .first('id')
+    if (!row) throw new AdulaError(404, 'E_COMMENT_NOT_FOUND', 'التعليق غير موجود')
+    return commentNotifications(trx, commentId)
+  }
+
+  /** Re-renders comment notifications with a neutral excerpt in place of the comment text. */
+  private async rewriteNotifications(
+    trx: Knex.Transaction,
+    name: string,
+    id: number,
+    actor: Actor,
+    notifications: { id: number; key: string }[],
+    excerpt: string
+  ) {
+    if (!notifications.length) return
+    const author = await trx('users').where('id', actor.id).first('full_name')
+    const variables = {
+      author: author?.full_name ? String(author.full_name) : `مستخدم #${actor.id}`,
+      resource: this.label(name),
+      id,
+      excerpt,
+    }
+    const templates = new MessageTemplates(trx)
+    for (const key of new Set(notifications.map((row) => row.key))) {
+      let text = { title: DELETED_COMMENT_TITLE, body: excerpt }
+      try {
+        const message = await templates.render(key, variables, trx)
+        text = { title: message.subject, body: message.body }
+      } catch {
+        // An unknown key keeps the constant neutral text.
+      }
+      await trx('notifications')
+        .whereIn(
+          'id',
+          notifications.filter((row) => row.key === key).map((row) => row.id)
+        )
+        .update(text)
+    }
   }
 
   async follow(name: string, id: number, actor: Actor, following: boolean) {
@@ -296,8 +388,14 @@ export class RecordCollaboration {
           return value
         })
       ),
-    ]
+    ].sort()
     await this.db.transaction(async (trx) => {
+      // Saves of one record's tags run one at a time, so the last save wins instead of the
+      // second insert failing on rows the first one added. Names are inserted in sorted
+      // order, so saves on different records cannot deadlock on new tag names.
+      await trx.raw('SELECT pg_advisory_xact_lock(hashtextextended(?, 0))', [
+        `adula.tags:${name}:${id}`,
+      ])
       if (names.length)
         await trx('tags')
           .insert(names.map((tag) => ({ name: tag })))
@@ -322,17 +420,13 @@ export class RecordCollaboration {
     return names.map(String)
   }
 
-  /** Tag vocabulary used on records of a resource the actor may list. */
+  /**
+   * Tag vocabulary used on records of a resource that the actor may view: a tag found only
+   * on records outside the actor's scope or rules, or on deleted records, is not suggested.
+   */
   async tagOptions(name: string, actor: Actor) {
     this.resources.describe(name, actor)
-    const names = await this.db('taggables as t')
-      .join('tags', 'tags.id', 't.tag_id')
-      .where('t.resource', name)
-      .distinct('tags.name')
-      .orderBy('tags.name')
-      .limit(200)
-      .pluck('tags.name')
-    return names.map(String)
+    return this.resources.tagNames(name, actor, 200)
   }
 
   /** Active users that may read the record, for the mention picker. */
@@ -396,7 +490,9 @@ export class RecordCollaboration {
           deleted: 'تم حذف',
         }
         for (const userId of followers) {
-          if (event !== 'deleted' && !(await this.canView(resource, id, Number(userId)))) continue
+          // Checked on the event's transaction: it already holds a connection.
+          if (event !== 'deleted' && !(await this.canView(resource, id, Number(userId), trx)))
+            continue
           await notifyWithTemplate(
             trx,
             Number(userId),
@@ -415,8 +511,9 @@ export class RecordCollaboration {
     return resourceLabel(this.resources, name)
   }
 
-  private canView(name: string, id: number, userId: number) {
-    return canView(this.db, this.resources, this.actors, name, id, userId)
+  /** Pass the caller's transaction as `db` when one is held, so no second connection is taken. */
+  private canView(name: string, id: number, userId: number, db: Knex = this.db) {
+    return canView(db, this.resources, this.actors, name, id, userId)
   }
 
   /** Parsed after the record is authorized, so malformed ids never bypass the 403. */
