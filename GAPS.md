@@ -1,6 +1,6 @@
 # AdulaJS gaps
 
-Open capability gaps for people building systems with AdulaJS, as of 2.2.0. What exists is
+Open capability gaps for people building systems with AdulaJS, as of 2.2.1. What exists is
 in [docs/implementation-status.md](docs/implementation-status.md); what changed is in
 [CHANGELOG.md](CHANGELOG.md). Report a new gap with the issue form in `.github/ISSUE_TEMPLATE`.
 
@@ -24,6 +24,12 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
   webhooks yet.
 * A resource-defined bulk action resubmits the stored form values, so it fails on a row
   whose lookup became inactive or whose related record the user can no longer view.
+* A shared saved view reaches every reader of the resource who may query its fields; it
+  cannot be limited to roles or organization units, and publishing one needs update
+  permission on the resource rather than a permission of its own (#147). The share option
+  is still offered to users who may not publish, who then get a 403 message.
+* A reader who may not view a related record sees «سجل غير متاح» instead of its title;
+  there is no opt-in to show a parent's title alone to such readers (#148).
 * Dashboards show counts, sums and grouped values as tiles and ranked bars; there are
   no time-series charts and no dashboard editor (dashboards are defined in code).
 
