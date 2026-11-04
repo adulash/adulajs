@@ -352,4 +352,7 @@ export const arabicInterfaceMessages = {
   'ui.admin.printTemplates': 'قوالب الطباعة',
   'ui.relation.unavailable': 'سجل غير متاح',
   'ui.show.orgUnitUnavailable': 'وحدة غير متاحة',
+  'ui.copy.action': 'نسخ',
+  'ui.copy.done': 'تم النسخ',
+  'ui.copy.failed': 'تعذر النسخ؛ حدّد النص وانسخه يدويًا.',
 } as const

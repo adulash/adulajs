@@ -363,4 +363,7 @@ export const englishInterfaceMessages: Partial<
   'ui.admin.printTemplates': 'Print templates',
   'ui.relation.unavailable': 'Record not available',
   'ui.show.orgUnitUnavailable': 'Unit not available',
+  'ui.copy.action': 'Copy',
+  'ui.copy.done': 'Copied',
+  'ui.copy.failed': 'Copying failed; select the text and copy it manually.',
 }

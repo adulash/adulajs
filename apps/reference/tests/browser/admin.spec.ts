@@ -199,6 +199,42 @@ test.group('Administration screens in the browser', (group) => {
     await page.getByText('اعتمد المدير الهوية الحالية', { exact: true }).waitFor()
   })
 
+  test('storage setup guide lists ordered steps and copies variable names', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(admin)
+    const page = await visit('/admin/setup')
+    await page.evaluate(() => {
+      const copied: string[] = []
+      ;(globalThis as unknown as { copied: string[] }).copied = copied
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText: async (text: string) => void copied.push(text) },
+      })
+    })
+    await page.getByRole('button', { name: 'إعداد التخزين', exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByRole('heading', { name: 'إعداد الملفات' }).waitFor()
+    const steps = dialog.getByTestId('setup-guide-steps').locator(':scope > li')
+    assert.equal(await steps.count(), 4)
+    assert.include(await steps.nth(0).innerText(), 'أضف المتغيرات التالية')
+    assert.include(await steps.nth(2).innerText(), 'فحص التخزين')
+    assert.include(await steps.nth(3).innerText(), 'node ace adula:storage:migrate local s3')
+    const variables = steps.nth(0).getByRole('listitem')
+    assert.equal(await variables.count(), 6)
+    assert.include(await variables.last().innerText(), 'AWS_ENDPOINT')
+    assert.include(await variables.last().innerText(), 'اختياري')
+    await dialog.getByRole('button', { name: 'نسخ DRIVE_DISK=s3', exact: true }).click()
+    await dialog.getByRole('button', { name: 'نسخ AWS_REGION', exact: true }).click()
+    assert.deepEqual(
+      await page.evaluate(() => (globalThis as unknown as { copied: string[] }).copied),
+      ['DRIVE_DISK=s3', 'AWS_REGION']
+    )
+    assert.include(await dialog.getByRole('alert').innerText(), 'لا ينقل الملفات القائمة')
+  })
+
   test('toggling a matrix cell writes the rule and the page reflects it', async ({
     browserContext,
     visit,

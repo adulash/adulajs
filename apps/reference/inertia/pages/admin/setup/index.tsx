@@ -5,6 +5,7 @@ import type { setupSnapshot } from '#services/initial_setup'
 import Workspace from '~/layouts/workspace'
 import { AdminHeader } from '~/components/admin-nav'
 import { MailTest } from '~/components/mail-test'
+import { SetupGuideSteps, setupGuides, type SetupGuideKey } from '~/components/setup-guides'
 import { Button } from '~/components/ui/button'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '~/components/ui/card'
 import { Badge } from '~/components/ui/badge'
@@ -18,35 +19,8 @@ import {
 } from '~/components/ui/dialog'
 
 type Props = Awaited<ReturnType<typeof setupSnapshot>>
-const guides = {
-  identity: {
-    title: 'هوية الشركة',
-    text: 'راجع الاسم والشعار والألوان والخطوط قبل الاعتماد. الهوية المثبتة مملوكة للمشروع؛ تُستكمل في docs/design-identity.md وcompany-identity.json وملفات brand. الاعتماد هنا يسجل موافقتك على الهوية المعروضة ولا يغيّر ملفاتها.',
-  },
-  mail: {
-    title: 'إعداد البريد',
-    text: 'اضبط SMTP_HOST وSMTP_PORT وSMTP_USERNAME وSMTP_PASSWORD وMAIL_FROM_NAME وMAIL_FROM_ADDRESS في بيئة النظام، ثم أعد تشغيل الخادم والعامل. استخدم عنوان مرسل موثقًا لدى مزودك واتبع تعليماته لتوثيق النطاق. لا تضع كلمات المرور في الإعدادات العامة أو مستودع المشروع. بعد ذلك أرسل تجربة وأكد استلامها.',
-  },
-  storage: {
-    title: 'إعداد الملفات',
-    text: 'التخزين المحلي متاح افتراضيًا ويحتاج مساحة دائمة. لاستخدام S3 اضبط DRIVE_DISK=s3 وAWS_ACCESS_KEY_ID وAWS_SECRET_ACCESS_KEY وAWS_REGION وS3_BUCKET وAWS_ENDPOINT عند الحاجة. أعد التشغيل ثم افحص التخزين. نقل الملفات القائمة يحتاج أمر adula:storage:migrate الموثق؛ تغيير الإعداد وحده لا ينقلها.',
-  },
-  runtime: {
-    title: 'تشغيل الخدمات الخلفية',
-    text: 'تحقق من اتصالات PostgreSQL وRedis في بيئة النظام. شغّل node ace adula:worker باستمرار، وعملية واحدة فقط من node ace scheduler:run تحت مدير عمليات أو خدمات النشر. نجاح الاتصال لا يثبت تنفيذ المهام؛ راقب نبضات التشغيل والطابور في صفحة تشغيل النظام.',
-  },
-  backup: {
-    title: 'النسخ الاحتياطي والاستعادة',
-    text: 'اضبط BACKUP_S3_ENDPOINT وBACKUP_S3_BUCKET وBACKUP_S3_REGION وBACKUP_S3_ACCESS_KEY_ID وBACKUP_S3_SECRET_ACCESS_KEY في بيئة التشغيل. شغّل خدمة النسخ المرفقة وحدد سياسة الاحتفاظ وفق احتياجك. افحص النسخة عبر node ace backup:verify، ثم نفّذ backup:restore-test على نسخة محمّلة من المخزن الخارجي. وجود الملفات لا يثبت استعادة سجل ومرفقه. لا تبدأ الاستعادة على قاعدة بيانات النظام الحالية.',
-  },
-  oauth: {
-    title: 'الدخول الخارجي — اختياري',
-    text: 'اضبط APP_URL ثم بيانات GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET أو GITHUB_CLIENT_ID/GITHUB_CLIENT_SECRET أو MICROSOFT_CLIENT_ID/MICROSOFT_CLIENT_SECRET/MICROSOFT_TENANT_ID. سجل عنوان الرجوع APP_URL/oauth/<المزود>/callback (google أو github أو microsoft) لدى المزود. أعد التشغيل وجرّب الدخول في جلسة أخرى مع إبقاء جلسة المدير متاحة. لا يُعد المزود مختبرًا حتى ينجح الدخول الفعلي.',
-  },
-}
-
 export default function SetupIndex(props: Props) {
-  const [guide, setGuide] = useState<keyof typeof guides | null>(null)
+  const [guide, setGuide] = useState<SetupGuideKey | null>(null)
   const [busy, setBusy] = useState(false)
   const post = (path: string, data = {}) => {
     setBusy(true)
@@ -245,11 +219,12 @@ export default function SetupIndex(props: Props) {
         </Card>
       </div>
       <Dialog mode="view" open={guide !== null} onOpenChange={(open) => !open && setGuide(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
           <DialogHeader>
-            <DialogTitle>{guide ? guides[guide].title : ''}</DialogTitle>
-            <DialogDescription>{guide ? guides[guide].text : ''}</DialogDescription>
+            <DialogTitle>{guide ? setupGuides[guide].title : ''}</DialogTitle>
+            <DialogDescription>{guide ? setupGuides[guide].intro : ''}</DialogDescription>
           </DialogHeader>
+          {guide && <SetupGuideSteps guide={setupGuides[guide]} />}
           <DialogFooter>
             {guide === 'identity' && (
               <Button

@@ -891,6 +891,24 @@
           "type": "registry:ui"
         }
       ]
+    },
+    {
+      "name": "copy-button",
+      "type": "registry:ui",
+      "registryDependencies": [
+        "button",
+        "messages"
+      ],
+      "dependencies": [
+        "lucide-react@1.47.0",
+        "sonner@2.0.8"
+      ],
+      "files": [
+        {
+          "path": "registry/ui/copy-button.tsx",
+          "type": "registry:ui"
+        }
+      ]
     }
   ]
 }
