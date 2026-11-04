@@ -40,7 +40,9 @@ export function navigation(ctx: ResourceContext, actor: Actor): ResourceNavigati
         !children.has(resource.name) &&
         resource.actions.includes('view') &&
         (!resource.scoped || actor.orgPaths.length > 0) &&
-        ability.can('view', resource.name)
+        ability.can('view', resource.name) &&
+        // A role that may add records keeps the entry: creating and importing start there.
+        (ability.can('create', resource.name) || !referenceOnly(resource, actor))
     )
     .map((resource) => ({
       name: resource.name,
@@ -51,6 +53,28 @@ export function navigation(ctx: ResourceContext, actor: Actor): ResourceNavigati
         registry.modules().find((module) => module.name === registry.owner(resource.name))?.label
           .ar ?? registry.owner(resource.name),
     }))
+}
+
+/**
+ * Whether the actor reads the resource only to name its records: every rule that grants
+ * `view` on it is limited to its title fields (#141). Such a role reads the resource for
+ * titles, pickers and inherited scope checks, so navigation does not present it. A rule
+ * meant only for references must therefore name title fields (the resource's `title`).
+ */
+function referenceOnly(resource: Resource, actor: Actor) {
+  const title = new Set(titleFields(resource))
+  const grants = actor.rules.filter((rule) => {
+    const actions = Array.isArray(rule.action) ? rule.action : [rule.action]
+    return (
+      !rule.inverted &&
+      (rule.subject === resource.name || rule.subject === 'all') &&
+      (actions.includes('view') || actions.includes('manage'))
+    )
+  })
+  return (
+    grants.length > 0 &&
+    grants.every((rule) => rule.fields?.length && rule.fields.every((key) => title.has(key)))
+  )
 }
 
 export function describe(ctx: ResourceContext, name: string, actor: Actor): ResourceDescription {
@@ -275,10 +299,19 @@ async function presented(
   ability: AdulaAbility
 ) {
   const [hydrated] = await hydrate(ctx.db, resource, [record], ctx.attachments)
+  const related = await preload(ctx, resource, [record], actor)
+  // A reader of the record may read the name of its unit; clients show it instead of an id.
+  if (resource.scoped && record.orgUnitId !== null && record.orgUnitId !== undefined) {
+    const unit = await ctx.db('org_units').where('id', Number(record.orgUnitId)).first('id', 'name')
+    if (unit)
+      related.orgUnitId = [
+        { id: Number(unit.id), name: String(unit.name), _title: String(unit.name) },
+      ]
+  }
   return {
     data: serialize(resource, hydrated, ability, actor),
     permissions: permissions(resource, record, actor, ability),
-    related: await preload(ctx, resource, [record], actor),
+    related,
   }
 }
 

@@ -333,4 +333,6 @@ export const arabicInterfaceMessages = {
   'ui.print.open': 'فتح للطباعة',
   'ui.activity.printed': 'طباعة السجل بقالب',
   'ui.admin.printTemplates': 'قوالب الطباعة',
+  'ui.relation.unavailable': 'سجل غير متاح',
+  'ui.show.orgUnitUnavailable': 'وحدة غير متاحة',
 } as const

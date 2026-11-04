@@ -8,6 +8,7 @@ import {
 import { seedModules } from '../src/core/module_seed.js'
 import type { ResourceRegistry } from '../src/resource/registry.js'
 import { syncAgentAssets } from '../src/commands/agent_assets.js'
+import { diagnoseScopeParentRoles } from '../src/commands/doctor.js'
 import { GAPS_TEMPLATE } from '../src/commands/gap_report.js'
 import { ADULA_VERSION } from '../src/version.js'
 import { fileURLToPath } from 'node:url'
@@ -100,6 +101,15 @@ export default class Install extends BaseCommand {
       this.logger.info(
         `Module defaults: ${seeded.lookups} lookup rows added; roles created: ${seeded.created.join(', ') || 'none'}; adopted by name: ${seeded.adopted.join(', ') || 'none'}`
       )
+      const parents = diagnoseScopeParentRoles(
+        registry.all(),
+        registry
+          .modules()
+          .flatMap((module) =>
+            (module.defaultRoles ?? []).map((role) => ({ name: role.key, rules: role.rules }))
+          )
+      )
+      if (parents.status === 'warn') this.logger.warning(parents.message)
     }
     for (const [name, content] of [
       ['CLAUDE.md', 'Read and follow AGENTS.md.\nThe project rules are maintained there.\n'],

@@ -499,6 +499,45 @@ test.group('Field types: definition as the source of truth', (group) => {
     assert.lengthOf(await db('ft_contacts_tags').where('ft_contacts_id', Number(own.id)), 0)
   })
 
+  test('soft-deleted manyToMany targets are hidden, never matched, and relinked on restore', async ({
+    assert,
+  }) => {
+    const gone = await service.save(tag.name, admin, { name: 'محذوف لاحقاً', orgUnitId: 2 })
+    const saved = await service.save(
+      contact.name,
+      admin,
+      valid({ tags: [Number(unitTwo.id), Number(gone.id)] })
+    )
+    await db(tag.name).where('id', Number(gone.id)).update({ deleted_at: db.fn.now() })
+    const shown = await service.show(contact.name, Number(saved.id), admin)
+    assert.deepEqual(shown.data.tags, [Number(unitTwo.id)])
+    const listed = await service.list(contact.name, admin, { filters: { tags: Number(gone.id) } })
+    assert.notInclude(
+      listed.data.map((row) => Number(row.id)),
+      Number(saved.id)
+    )
+    // An edit sends the visible links only; the hidden link's row is kept, not removed.
+    const edited = await service.save(
+      contact.name,
+      admin,
+      {
+        code: saved.code,
+        name: 'بعد الحذف',
+        kind: 'person',
+        tags: [Number(unitTwo.id)],
+        version: saved.version,
+      },
+      Number(saved.id)
+    )
+    assert.deepEqual(edited.tags, [Number(unitTwo.id)])
+    await db(tag.name).where('id', Number(gone.id)).update({ deleted_at: null })
+    const restored = await service.show(contact.name, Number(saved.id), admin)
+    assert.deepEqual(
+      restored.data.tags,
+      [Number(unitTwo.id), Number(gone.id)].sort((a, b) => a - b)
+    )
+  })
+
   test('definitionSchema extends the derived validator', async ({ assert }) => {
     const extended = vine.create(
       vine.object({ ...definitionSchema(contact), note: vine.string().maxLength(5) })

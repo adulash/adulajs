@@ -7,6 +7,7 @@ import { columnName, joinTable } from '../resource/define_resource.js'
 import { decimalShape } from '../resource/values.js'
 import type { Knex } from 'knex'
 import type { Field, Resource } from '../resource/types.js'
+import type { Rule } from '../auth/ability.js'
 import { describeDrift, inSync, migratable, schemaDrift } from '../database/schema_diff.js'
 import type { WorkflowDefinition } from '../workflows/define_workflow.js'
 import type { RuntimeHealth } from '../core/health.js'
@@ -427,6 +428,53 @@ export function diagnoseWorkflowRoles(
     message: messages.length
       ? messages.join(' | ')
       : 'Every role addressed by a workflow step exists',
+  }
+}
+
+/**
+ * A child declared with `scope: { from }` takes its unit from its parent, so creating or
+ * updating it needs `view` on the parent (ADR 029). List roles that may write such a child
+ * but have no rule that lets them view the parent: every create and update refuses them (#140).
+ */
+export function diagnoseScopeParentRoles(
+  resources: readonly Pick<Resource, 'name' | 'fields' | 'scope'>[],
+  roles: readonly {
+    name: string
+    rules: readonly Pick<Rule, 'subject' | 'action' | 'inverted'>[]
+  }[]
+): Finding {
+  const grants = (
+    rules: readonly Pick<Rule, 'subject' | 'action' | 'inverted'>[],
+    subject: string,
+    wanted: readonly string[]
+  ) =>
+    rules.some((rule) => {
+      const actions = Array.isArray(rule.action) ? rule.action : [rule.action]
+      return (
+        !rule.inverted &&
+        (rule.subject === subject || rule.subject === 'all') &&
+        actions.some((action) => action === 'manage' || wanted.includes(action))
+      )
+    })
+  const problems: string[] = []
+  for (const child of resources) {
+    const field = child.scope ? child.fields[child.scope.from] : undefined
+    if (!child.scope || field?.type !== 'belongsTo') continue
+    for (const role of roles)
+      if (
+        grants(role.rules, child.name, ['create', 'update']) &&
+        !grants(role.rules, field.resource, ['view'])
+      )
+        problems.push(
+          `role "${role.name}": create/update on ${child.name} needs view on ${field.resource} (scope.from ${child.scope.from})`
+        )
+  }
+  return {
+    check: 'roles.scope_parents',
+    status: problems.length ? 'warn' : 'pass',
+    message: problems.length
+      ? `Roles may write scope-inheriting records without viewing their parent; those creates and updates are refused: ${problems.join(', ')}`
+      : 'Every role that writes a scope-inheriting record may view its parent',
   }
 }
 

@@ -282,6 +282,8 @@ export default function RoleShow({ role, matrix }: Props) {
   const [busy, setBusy] = useState(false)
   const [name, setName] = useState(role.name)
   const [key, setKey] = useState(role.key ?? '')
+  // adula:install still finds a bootstrap role without a key by its name (see RolesAdmin.rename).
+  const legacyBootstrap = role.name === 'administrator' && !role.key
   const [editing, setEditing] = useState<RoleRule | null>(null)
   const ruleFor = (subject: string, action: string, inverted: boolean) =>
     role.rules.find(
@@ -363,7 +365,7 @@ export default function RoleShow({ role, matrix }: Props) {
           <Input
             id="role-name"
             value={name}
-            disabled={role.name === 'administrator' || busy}
+            disabled={legacyBootstrap || busy}
             onChange={(event) => setName(event.target.value)}
             required
           />
@@ -377,7 +379,7 @@ export default function RoleShow({ role, matrix }: Props) {
             disabled={busy}
             options={Array.from({ length: 10 }, (_, level) => ({
               value: String(level),
-              label: String(level),
+              label: level > 0 ? `${level}: حقول محمية حتى هذا المستوى` : '0: الحقول العامة',
             }))}
             onChange={(value) =>
               confirm({
@@ -397,7 +399,7 @@ export default function RoleShow({ role, matrix }: Props) {
           type="submit"
           variant="outline"
           className="self-end"
-          disabled={role.name === 'administrator' || busy}
+          disabled={legacyBootstrap || busy}
         >
           حفظ الاسم
         </Button>

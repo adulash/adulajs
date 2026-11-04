@@ -170,7 +170,8 @@ export function cellText(
       return resolve.lookup(field.group, String(value)) ?? String(value)
     case 'belongsTo':
     case 'user':
-      return resolve.title(Number(value)) ?? `#${value}`
+      // A record the reader may not view is never named, not even by its id.
+      return resolve.title(Number(value)) ?? translate('list.value.unavailable')
     case 'enum':
       return optionText(field.options, value)
     case 'multiSelect':
@@ -179,7 +180,9 @@ export function cellText(
         : optionText(field.options, value)
     case 'manyToMany':
       return Array.isArray(value)
-        ? value.map((id) => resolve.title(Number(id)) ?? `#${id}`).join('، ')
+        ? value
+            .map((id) => resolve.title(Number(id)) ?? translate('list.value.unavailable'))
+            .join('، ')
         : String(value)
     case 'money':
       return moneyText(String(value))

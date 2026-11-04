@@ -2,9 +2,17 @@ import { test } from '@japa/runner'
 import { SavedViews } from '../index.js'
 import { admin, db, reader, registry, setup } from './helpers.js'
 import { failure } from './helpers/failure.js'
+import { seedActor, viewer } from './helpers/actors.js'
 
 test.group('Saved views', (group) => {
-  group.setup(setup)
+  group.setup(async () => {
+    await setup()
+    // Colleagues see a shared view only while its author may share it, which the author's
+    // stored roles decide: the helper's admin (user 1) holds manage all.
+    const [role] = await db('roles').insert({ name: 'admins', permission_level: 1 }).returning('id')
+    await db('role_rules').insert({ role_id: role.id, subject: 'all', action: 'manage' })
+    await db('user_roles').insert({ user_id: 1, role_id: role.id })
+  })
   group.each.setup(async () => {
     await db('saved_views').del()
   })
@@ -129,6 +137,93 @@ test.group('Saved views', (group) => {
         ['ي خاص', true],
         ['أ مشترك', false],
       ]
+    )
+  })
+
+  test("colleagues' shared views that query fields the reader may not query are not listed", async ({
+    assert,
+  }) => {
+    await views().save('orders', admin, {
+      name: 'حسب الإجمالي',
+      query: { sort: 'total' },
+      shared: true,
+    })
+    await views().save('orders', admin, {
+      name: 'المفتوحة',
+      query: { filters: { status: 'open' } },
+      shared: true,
+    })
+    await views().save('orders', admin, { name: 'بحث', query: { search: 'سري' }, shared: true })
+    const names = async (actor: Parameters<ReturnType<typeof views>['list']>[1]) => {
+      const listed = await views().list('orders', actor)
+      return listed.map((view) => view.name).sort()
+    }
+
+    // Level 0 cannot sort by the level-1 total: that view and its query stay with level 1.
+    assert.deepEqual(await names(reader), ['المفتوحة', 'بحث'].sort())
+    // A role that reads orders without the status field never receives the status filter value.
+    const limited = viewer({
+      rules: [{ subject: 'orders', action: 'view', fields: ['number', 'notes'] }],
+    })
+    assert.deepEqual(await names(limited), ['بحث'])
+    // Without the searchable notes field, the search text is withheld too.
+    const narrow = viewer({
+      rules: [{ subject: 'orders', action: 'view', fields: ['number', 'status'] }],
+    })
+    assert.deepEqual(await names(narrow), ['المفتوحة'])
+    // A conditional rule on the field cannot be queried either (the list refuses it).
+    const conditional = viewer({
+      rules: [
+        { subject: 'orders', action: 'view', fields: ['number', 'notes'] },
+        { subject: 'orders', action: 'view', fields: ['status'], conditions: { status: 'open' } },
+      ],
+    })
+    assert.notInclude(await names(conditional), 'المفتوحة')
+    // The author keeps every view.
+    assert.deepEqual(await names(admin), ['المفتوحة', 'بحث', 'حسب الإجمالي'].sort())
+  })
+
+  test('sharing a view requires the right to update the resource', async ({ assert }) => {
+    await seedActor(viewer())
+    const refused = await failure(() =>
+      views().save('orders', viewer(), { name: 'للجميع', query: {}, shared: true })
+    )
+    assert.equal(refused.status, 403)
+    assert.equal(refused.code, 'E_FORBIDDEN')
+    assert.lengthOf(await db('saved_views'), 0)
+    // A private view stays available to read-only users.
+    await views().save('orders', viewer(), { name: 'لي', query: {} })
+    // Re-saving an existing private view as shared is refused the same way.
+    const promoted = await failure(() =>
+      views().save('orders', viewer(), { name: 'لي', query: {}, shared: true })
+    )
+    assert.equal(promoted.code, 'E_FORBIDDEN')
+    const kept = await db('saved_views').where({ user_id: 4 }).first()
+    assert.isFalse(kept.shared)
+    const shared = await views().save('orders', reader, { name: 'للفريق', query: {}, shared: true })
+    assert.isTrue(shared.shared)
+  })
+
+  test('views shared by an author who may no longer share them stay with their author', async ({
+    assert,
+  }) => {
+    // Published by user 2 (no stored role) before sharing required update.
+    await db('saved_views').insert({
+      user_id: 2,
+      resource: 'orders',
+      name: 'قديم مشترك',
+      query: JSON.stringify({}),
+      shared: true,
+    })
+    const forOthers = await views().list('orders', admin)
+    assert.notInclude(
+      forOthers.map((view) => view.name),
+      'قديم مشترك'
+    )
+    const own = await views().list('orders', reader)
+    assert.deepEqual(
+      own.map((view) => [view.name, view.own]),
+      [['قديم مشترك', true]]
     )
   })
 })

@@ -16,6 +16,7 @@ import { arabicText, useMessages, type Translate } from '~/components/ui/message
 import { Skeleton } from '~/components/ui/skeleton'
 import { ResourceActions } from '~/components/ui/resource-actions'
 import { ResourceValue, formatDatetime, type LookupOptions } from '~/components/ui/resource-value'
+import { relationText } from '~/components/ui/field_values'
 import { RecordCollaboration } from '~/components/ui/record-collaboration'
 import { RecordAssignments } from '~/components/ui/record-assignments'
 import { RecordWorkflows } from '~/components/ui/record-workflows'
@@ -136,7 +137,16 @@ export function ResourceShow({
         {resource.scoped && result.data.orgUnitId !== undefined && (
           <div>
             <dt className="mb-2 text-xs text-muted-foreground">{t('الوحدة التنظيمية')}</dt>
-            <dd className="text-sm">#{String(result.data.orgUnitId)}</dd>
+            {/* The server sends the unit's name; without it the unit is labelled, never its id. */}
+            <dd className="text-sm">
+              {relationText(
+                result.related.orgUnitId?.find(
+                  (unit) => String(unit.id) === String(result.data.orgUnitId)
+                ),
+                result.data.orgUnitId,
+                t('وحدة غير متاحة')
+              )}
+            </dd>
           </div>
         )}
       </dl>

@@ -99,7 +99,10 @@ same resource operations with the token owner's current permissions.
 
 Generic index pages filter each filterable field by its type: «أيٌّ من» (several values)
 for lookups, texts and relations, «من / إلى» for numbers, amounts and dates, and
-«فارغ / غير فارغ» for every field. Saved views keep these filters. The URL form is
+«فارغ / غير فارغ» for every field. Saved views keep these filters. Sharing a view with
+every reader of the resource requires `update` on it; a colleague's shared view is listed
+only while its author may still share it and only when it queries fields the reader may
+query. The URL form is
 `filters[status][in]=open,closed`, `filters[total][gte]=1000`, `filters[notes][empty]=true`.
 
 «تصدير النتائج» downloads a CSV of every record matching the current search and filters,

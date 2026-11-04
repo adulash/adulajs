@@ -10,6 +10,7 @@ import {
 import type { RecordData } from '../index.js'
 import { db, setup, admin, customer, order, line } from './helpers.js'
 import { ace, powerless } from './helpers/actors.js'
+import { diagnoseScopeParentRoles } from '../src/commands/doctor.js'
 
 // A shipment belongs to an order and always lives in the order's organization unit (#45).
 // Its validator and hooks prove that system writes keep the resource's own rules (#44).
@@ -147,6 +148,44 @@ test.group('Inherited organization scope (#45)', (group) => {
     assert.equal(error.status, 404)
     const after = await db('shipments').count<{ count: string }[]>('* as count')
     assert.equal(after[0].count, before[0].count)
+  })
+
+  test('writing a child without view on its parent names the missing rule (#140)', async ({
+    assert,
+  }) => {
+    const parent = await orderIn(2)
+    const childOnly = ace({
+      orgPaths: ['1.2'],
+      rules: [{ subject: 'shipments', action: ['view', 'create', 'update', 'delete'] }],
+    })
+    const created = await service
+      .save('shipments', childOnly, { orderId: parent.id, carrier: 'dhl' })
+      .catch((caught) => caught)
+    assert.instanceOf(created, AdulaError)
+    assert.equal(created.status, 403)
+    assert.equal(created.code, 'E_FORBIDDEN')
+    assert.include(created.message, order.label.ar)
+    const child = await service.save('shipments', admin, { orderId: parent.id, carrier: 'dhl' })
+    const updated = await service
+      .save('shipments', childOnly, { carrier: 'smsa', version: child.version }, Number(child.id))
+      .catch((caught) => caught)
+    assert.equal(updated.status, 403)
+    assert.include(updated.message, order.label.ar)
+    // The doctor names the role before its users meet the refusal.
+    const finding = diagnoseScopeParentRoles(registry.all(), [
+      { name: 'shipping', rules: childOnly.rules },
+      { name: 'complete', rules: [...childOnly.rules, { subject: 'orders', action: 'view' }] },
+    ])
+    assert.equal(finding.status, 'warn')
+    assert.include(
+      finding.message,
+      'role "shipping": create/update on shipments needs view on orders'
+    )
+    assert.notInclude(finding.message, 'complete')
+    assert.equal(
+      diagnoseScopeParentRoles(registry.all(), [{ name: 'admin', rules: admin.rules }]).status,
+      'pass'
+    )
   })
 
   test('moving the parent re-homes its children through one call', async ({ assert }) => {
