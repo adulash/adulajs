@@ -37,11 +37,47 @@ export function rememberListView(record: string) {
   }
 }
 
+function forgetListView() {
+  try {
+    sessionStorage.removeItem(LIST_RETURN)
+  } catch {
+    // Storage can be unavailable; nothing to forget.
+  }
+}
+
+/** A path with its query on this origin, or null: never another origin or a scheme URL. */
+function localPath(href: unknown): string | null {
+  if (typeof href !== 'string' || !href.startsWith('/')) return null
+  if (href.startsWith('//') || href.includes('\\')) return null
+  try {
+    const url = new URL(href, window.location.origin)
+    // Dot segments can still collapse to a protocol-relative path ('/.//host').
+    if (url.origin !== window.location.origin || url.pathname.startsWith('//')) return null
+    return url.pathname + url.search
+  } catch {
+    return null
+  }
+}
+
+const recordPath = (path: string) => path.split('?')[0].replace(/\/edit$/, '')
+
+/**
+ * The remembered view to return to when this record closes: the record's own list view, or
+ * any page of this application that remembered itself for this record (for example «مهامي»).
+ */
 function listReturn(backHref: string): ListReturn | null {
   try {
-    const saved = JSON.parse(sessionStorage.getItem(LIST_RETURN) ?? 'null') as ListReturn | null
-    const path = (href: string) => new URL(href, window.location.origin).pathname
-    if (saved && typeof saved.href === 'string' && path(saved.href) === path(backHref)) return saved
+    const stored = sessionStorage.getItem(LIST_RETURN) ?? 'null'
+    const saved = JSON.parse(stored) as Partial<ListReturn> | null
+    const href = localPath(saved?.href)
+    if (!saved || !href) return null
+    const record = localPath(saved.record)
+    const fromList = href.split('?')[0] === new URL(backHref, window.location.origin).pathname
+    const forThisRecord =
+      record !== null && recordPath(record) === recordPath(window.location.pathname)
+    if (!fromList && !forThisRecord) return null
+    const scroll = Number.isFinite(saved.scroll) ? Number(saved.scroll) : 0
+    return { href, record: record ?? '', scroll: Math.max(0, scroll) }
   } catch {
     // Ignore unreadable entries.
   }
@@ -110,11 +146,17 @@ export async function openRecord(
 
 /** Closes a record dialog opened by openRecord and returns to its list, refreshed if changed. */
 export function closeRecord(overlay: RecordOverlay) {
+  // The list is mounted; a later direct visit of a record must not return to this view.
+  forgetListView()
   if (overlay.changed) {
     // Replace the record's history entry, so Back does not reopen a record that changed.
+    // The list stays mounted and its rows refresh in place; the reset header restarts the
+    // list's loaded pages from the first page, as the refreshed rows do.
     router.visit(overlay.list, {
       replace: true,
+      preserveState: true,
       preserveScroll: true,
+      headers: { 'X-Inertia-Reset': 'result' },
       onSuccess: () => restoreFocus(overlay.record),
     })
     return
@@ -193,6 +235,7 @@ export function ResourceSurface({
               if (onClose) return onClose()
               // Return to the list view the record was opened from: same query and scroll.
               const saved = listReturn(backHref)
+              forgetListView()
               router.visit(saved?.href ?? backHref, {
                 onSuccess: () => {
                   if (saved) window.scrollTo(0, saved.scroll)
@@ -208,13 +251,16 @@ export function ResourceSurface({
     >
       <DialogContent
         dir={dir}
-        className="flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl"
+        // Anchored to the top, so sections that load after opening extend the dialog downward
+        // instead of moving it. Clipped, not hidden: focus cannot scroll the header away; the
+        // body is the only scroller.
+        className="top-4 flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] translate-y-0 flex-col gap-0 overflow-clip p-0 sm:top-[5dvh] sm:max-h-[90dvh] sm:max-w-5xl"
       >
         <DialogHeader className="shrink-0 border-b px-6 py-5 pe-12 text-start">
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <div className="min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6">{children}</div>
+        <div className="min-h-0 scroll-py-6 overflow-y-auto overscroll-contain p-4 sm:p-6">{children}</div>
       </DialogContent>
     </Dialog>
   )
