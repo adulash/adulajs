@@ -32,8 +32,8 @@ export default function Profile({
   csrfToken,
   notificationChannels,
 }: Props) {
-  const { props, flash } = usePage<{ user?: { fullName: string | null; email: string } }>()
-  const user = props.user
+  const { props, flash } = usePage<{ account?: { fullName: string | null; email: string } }>()
+  const user = props.account
   return (
     <>
       <Head title="الملف الشخصي" />

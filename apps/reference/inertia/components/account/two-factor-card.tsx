@@ -178,7 +178,7 @@ function RecoveryCodes({ codes, account }: { codes: string[]; account: string })
 }
 
 export function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorProps }) {
-  const account = usePage<{ user?: { email: string } }>().props.user?.email ?? ''
+  const account = usePage<{ account?: { email: string } }>().props.account?.email ?? ''
   const [panel, setPanel] = useState<Panel>(null)
   const [enrolment, setEnrolment] = useState<Enrolment | null>(null)
   const [codes, setCodes] = useState<string[] | null>(null)
@@ -366,7 +366,17 @@ export function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorProps }) {
         open={panel === 'enrol'}
         onOpenChange={(open) => !open && close()}
       >
-        <DialogContent dir="rtl" className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
+        <DialogContent
+          dir="rtl"
+          className="max-h-[90vh] overflow-y-auto sm:max-w-xl"
+          // While the secret loads the only focusable control is «إلغاء»; focus the dialog
+          // itself instead, and the code field focuses itself when it mounts.
+          onOpenAutoFocus={(event) => {
+            if (enrolment || codes) return
+            event.preventDefault()
+            ;(event.currentTarget as HTMLElement | null)?.focus()
+          }}
+        >
           <DialogHeader>
             <DialogTitle>{codes ? 'رموز الاسترداد' : 'تفعيل التحقق بخطوتين'}</DialogTitle>
             <DialogDescription>
@@ -436,7 +446,7 @@ export function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorProps }) {
                   على الهاتف يفتح الرابط تطبيق المصادقة مباشرة.
                 </p>
               </section>
-              <CodeField id="two-factor-enrol-code" value={code} onChange={setCode} />
+              <CodeField id="two-factor-enrol-code" value={code} onChange={setCode} autoFocus />
               <ErrorLine message={error} />
             </form>
           ) : reauth ? (

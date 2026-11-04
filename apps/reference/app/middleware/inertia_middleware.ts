@@ -27,6 +27,7 @@ export default class InertiaMiddleware extends BaseInertiaMiddleware {
     const { auth } = ctx as Partial<HttpContext>
     const language = requestLanguage(ctx)
     const actor = auth?.user ? await adula().actors.load(auth.user.id) : undefined
+    const account = auth?.user ? UserTransformer.transform(auth.user) : undefined
 
     /**
      * Data shared with all Inertia pages. Make sure you are using
@@ -35,7 +36,12 @@ export default class InertiaMiddleware extends BaseInertiaMiddleware {
     return {
       errors: ctx.inertia.always(this.getValidationErrors(ctx)),
       uiPreferences: ctx.inertia.always(await uiPreferences(db.connection().getWriteClient())),
-      user: ctx.inertia.always(auth?.user ? UserTransformer.transform(auth.user) : undefined),
+      // The signed-in account under a name pages do not use for their own data: Inertia
+      // merges page props over shared ones, so a page sending `user` (the account it shows)
+      // would otherwise replace the signed-in account in the shell.
+      account: ctx.inertia.always(account),
+      /** @deprecated Read `account`; a page prop named `user` replaces this one. */
+      user: ctx.inertia.always(account),
       navigation: ctx.inertia.always(
         actor ? this.#localizedNavigation(adula().resources.navigation(actor), language) : []
       ),

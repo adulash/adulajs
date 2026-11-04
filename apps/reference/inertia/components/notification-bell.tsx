@@ -108,9 +108,9 @@ function joinRealtime(userId: number, onMessage: () => void, onCatchUp: () => vo
 export function NotificationBell() {
   const page = usePage<{
     unreadNotifications?: number
-    user?: { id: number; email: string }
+    account?: { id: number; email: string }
   }>()
-  const userId = page.props.user?.id
+  const userId = page.props.account?.id
   useEffect(() => {
     if (!userId) return
     let leaveRealtime: (() => void) | undefined
@@ -149,7 +149,7 @@ export function NotificationBell() {
       close()
     }
   }, [userId])
-  if (!page.props.user) return null
+  if (!page.props.account) return null
   const count = page.props.unreadNotifications ?? 0
   return (
     <Link

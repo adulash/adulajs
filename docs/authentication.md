@@ -217,6 +217,16 @@ The answers are:
 The resource pages (`/resources/*`) are not gated: they apply the same permissions as for
 any user and carry no administration screens.
 
+## Impersonation
+
+An administrator may act as another non-administrator account from its user page to diagnose a
+problem. Starting asks for a written reason (10 to 500 characters) in a dialog;
+`POST /admin/users/:id/impersonate` without one answers `422 E_IMPERSONATION_REASON`. The
+`impersonate` activity row records the reason, IP address and user agent; the
+`stop_impersonation` row records how it ended (`stop`, `revoked` or `logout`), when it started,
+its duration in seconds and the start row's id. Every write made meanwhile names the
+administrator (`impersonatedBy`).
+
 ## Routes
 
 | Method and path                                                  | Purpose                                                                |

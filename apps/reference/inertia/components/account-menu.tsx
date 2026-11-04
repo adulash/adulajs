@@ -19,7 +19,7 @@ import {
 
 /** The user block at the bottom of the workspace sidebar: profile, sessions, delegation, logout. */
 export function AccountMenu() {
-  const { user } = usePage<{ user?: { fullName: string | null; email: string } }>().props
+  const { account: user } = usePage<{ account?: { fullName: string | null; email: string } }>().props
   if (!user) return null
   return (
     <DropdownMenu>

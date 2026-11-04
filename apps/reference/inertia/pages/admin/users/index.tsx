@@ -24,10 +24,10 @@ export default function UsersIndex({ users, search }: Props) {
   const [term, setTerm] = useState(search)
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    router.get('/admin/users', term ? { search: term } : {}, { preserveState: true })
+    router.get('/admin/users', term ? { q: term } : {}, { preserveState: true })
   }
   const next = users.nextCursor
-    ? `/admin/users?cursor=${users.nextCursor}${search ? `&search=${encodeURIComponent(search)}` : ''}`
+    ? `/admin/users?cursor=${users.nextCursor}${search ? `&q=${encodeURIComponent(search)}` : ''}`
     : null
   return (
     <>

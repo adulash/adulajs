@@ -53,7 +53,7 @@ export default function Workspace({ children }: { children: ReactNode }) {
   const preferences = useUiPreferences()
   const { t, dir } = useMessages()
   const page = usePage<{
-    user?: { fullName: string | null; email: string }
+    account?: { fullName: string | null; email: string }
     navigation: ResourceNavigation
     canInviteUsers?: boolean
     canImport?: boolean

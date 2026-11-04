@@ -8,8 +8,8 @@ import Workspace from '~/layouts/workspace'
 import Layout from '~/layouts/default'
 
 export default function Home() {
-  const { user, isAdmin, navigation } = usePage<{
-    user?: { email: string }
+  const { account: user, isAdmin, navigation } = usePage<{
+    account?: { email: string }
     isAdmin: boolean
     navigation: ResourceNavigation
   }>().props
@@ -77,4 +77,4 @@ export default function Home() {
   )
 }
 
-Home.layout = (props: { user?: unknown }) => (props.user ? Workspace : Layout)
+Home.layout = (props: { account?: unknown }) => (props.account ? Workspace : Layout)
