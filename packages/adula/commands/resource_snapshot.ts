@@ -4,6 +4,7 @@ import { MigrationRunner } from '@adonisjs/lucid/migration'
 import type { ResourceRegistry } from '../src/resource/registry.js'
 import {
   embeddedResource,
+  laterRelationTargets,
   resourceSnapshot,
   rewriteResourceSnapshot,
 } from '../src/commands/snapshot.js'
@@ -38,16 +39,20 @@ export default class ResourceSnapshot extends BaseCommand {
       return
     }
     const migrations = await new MigrationRunner(db, this.app, { direction: 'up' }).getList()
-    const matches: { file: string; source: string; pending: boolean }[] = []
-    for (const entry of migrations)
+    const matches: { name: string; file: string; source: string; pending: boolean }[] = []
+    const embedded: { name: string; resource?: string }[] = []
+    for (const entry of migrations) {
+      embedded.push({ name: entry.name })
       for (const extension of ['.ts', '.js'])
         try {
           const file = `${entry.name}${extension}`
           const source = await readFile(this.app.makePath(file), 'utf8')
+          embedded[embedded.length - 1].resource = embeddedResource(source)
           if (embeddedResource(source) === this.name)
-            matches.push({ file, source, pending: entry.status === 'pending' })
+            matches.push({ name: entry.name, file, source, pending: entry.status === 'pending' })
           break
         } catch {}
+    }
     const pending = matches.filter((match) => match.pending)
     if (!pending.length) {
       this.logger.error(
@@ -58,10 +63,24 @@ export default class ResourceSnapshot extends BaseCommand {
       this.exitCode = 1
       return
     }
+    // A relation to a table created by a later migration would fail its foreign key on a
+    // fresh database (#99): refuse before writing anything.
+    const snapshot = resourceSnapshot(resource)
+    const later = pending.flatMap((match) =>
+      laterRelationTargets(snapshot, match.name, embedded).map((entry) => ({ ...entry, match }))
+    )
+    if (later.length) {
+      for (const entry of later)
+        this.logger.error(
+          `${entry.match.file}: ${entry.field} links ${entry.target}, whose create-migration ${entry.migration} runs later, so its foreign key would fail. Keep ${entry.field} out of this create-migration and add it with node ace adula:resource:migration ${this.name} once both tables exist.`
+        )
+      this.exitCode = 1
+      return
+    }
     for (const match of pending) {
       await writeFile(
         this.app.makePath(match.file),
-        rewriteResourceSnapshot(match.source, resourceSnapshot(resource))
+        rewriteResourceSnapshot(match.source, snapshot)
       )
       this.logger.success(match.file)
     }

@@ -13,6 +13,8 @@ export function fieldSnapshot(field: Field): Field {
     type: field.type,
     label: field.label,
     ...('resource' in field && field.type !== 'hasMany' ? { resource: field.resource } : {}),
+    // Required by the lookup Field type: without it the generated migration fails tsc (#98).
+    ...(field.type === 'lookup' ? { group: field.group } : {}),
     ...(field.type === 'manyToMany' && field.table ? { table: field.table } : {}),
     ...(field.column ? { column: field.column } : {}),
     ...(field.required ? { required: true } : {}),
@@ -51,6 +53,30 @@ export function resourceSnapshot(
         .map(([key, field]) => [key, fieldSnapshot(field)])
     ),
   }
+}
+
+/**
+ * The relations of a snapshot whose target table is created by a generated
+ * create-migration that runs after `file` (the migration runner's order): their foreign
+ * keys would fail on a fresh database (#99). Targets without a generated create-migration
+ * (core tables, hand-written ones), earlier ones and self-references are fine.
+ */
+export function laterRelationTargets(
+  snapshot: ReturnType<typeof resourceSnapshot>,
+  file: string,
+  migrations: readonly { name: string; resource?: string }[]
+): { field: string; target: string; migration: string }[] {
+  const position = migrations.findIndex((migration) => migration.name === file)
+  const later: { field: string; target: string; migration: string }[] = []
+  for (const [key, field] of Object.entries(snapshot.fields)) {
+    if ((field.type !== 'belongsTo' && field.type !== 'manyToMany') || !('resource' in field))
+      continue
+    const target = field.resource
+    if (target === snapshot.name) continue
+    const index = migrations.findIndex((migration) => migration.resource === target)
+    if (index > position) later.push({ field: key, target, migration: migrations[index].name })
+  }
+  return later
 }
 
 /** The resource name embedded in a generated create-migration, if the source is one. */

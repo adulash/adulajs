@@ -117,7 +117,9 @@ Index pages show «استيراد CSV» to users who may create records. The ste
    user corrects the mapping.
 3. **Mode.** Choose «إضافة فقط» or «إضافة أو تحديث» (upsert). Upsert matches existing
    records by one field. That field must be marked `unique` in the definition and mapped
-   to a column, and upsert also needs the update permission. An empty cell in a matched
+   to a column, and upsert also needs the update permission. Only records the importer may
+   update are matched; a value held by a record outside that reach is treated as a new
+   row, so it fails as a duplicate exactly as in «إضافة فقط». An empty cell in a matched
    row keeps the stored value.
 4. **«تحقق دون حفظ» (dry run).** The worker runs every row through the real save, then
    rolls it back:

@@ -380,7 +380,7 @@ export function diagnoseResourceSnapshots(
     check: 'resources.snapshots',
     status: drift.length ? 'warn' : 'pass',
     message: drift.length
-      ? `Pending create-migrations differ from their resource definitions; run node ace adula:resource:snapshot <name> (or update the embedded definition) before migration:run: ${drift.join(' | ')}`
+      ? `Pending create-migrations differ from their resource definitions; run node ace adula:resource:snapshot <name> (or update the embedded definition) before migration:run; a relation to a table created by a later migration is refused, add it afterwards with node ace adula:resource:migration <name>: ${drift.join(' | ')}`
       : 'Pending resource migrations match their definitions',
   }
 }

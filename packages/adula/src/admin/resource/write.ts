@@ -317,8 +317,18 @@ export async function persist(
         const parent = await load(trx, parentResource, parentId)
         if (!system) requireParentView(ability, actor, resource, parentResource, parent)
         candidate.orgUnitId = parent.orgUnitId
-      } else if (!system || 'orgUnitId' in input || id === undefined)
+      } else if (!system || 'orgUnitId' in input || id === undefined) {
         candidate.orgUnitId = input.orgUnitId ?? existing.orgUnitId
+        // A user write without a unit names the missing field (#130, #132); a unit that does
+        // not exist or lies outside the actor's scope stays 404 below. System writes keep
+        // their 422 E_ORG_UNIT.
+        if (!system && [undefined, null, ''].includes(candidate.orgUnitId as never))
+          throw new AdulaError(
+            422,
+            'E_REQUIRED',
+            `${translate('ui.form.orgUnit', currentLanguage())}: ${translate('validation.required', currentLanguage())}`
+          )
+      }
       const unit = await trx('org_units')
         .where('id', Number(candidate.orgUnitId) || -1)
         .first('path')
@@ -397,7 +407,16 @@ export async function persist(
             !(candidate[key] as string).trim()))
       )
         throw requiredField(key)
-      if (field.type === 'belongsTo' && candidate[key] !== null && candidate[key] !== undefined) {
+      // A link is checked when it is made or changed, like manyToMany links below (ADR 045):
+      // an unchanged value never blocks an edit after its target was deleted or moved out
+      // of the writer's scope (#130). The comparison runs after the hooks, so a link a hook
+      // changes is checked too.
+      if (
+        field.type === 'belongsTo' &&
+        candidate[key] !== null &&
+        candidate[key] !== undefined &&
+        (id === undefined || Number(candidate[key]) !== Number(existing[key]))
+      ) {
         const related = registry.get(field.resource)
         const target = await load(trx, related, Number(candidate[key]))
         check(related, 'view', target)
@@ -557,7 +576,17 @@ export async function persist(
       for (const previous of attachmentIds(existing[key]))
         if (!next.includes(previous)) await releaseAttachment(trx, previous)
     }
-    await writeInlineRows(ctx, trx, resource, actor, form, id, row, candidate, action)
+    const inline = await writeInlineRows(
+      ctx,
+      trx,
+      resource,
+      actor,
+      form,
+      id,
+      row,
+      candidate,
+      action
+    )
     const changes: FieldChange[] = []
     if (id !== undefined)
       for (const key of Object.keys(resource.fields)) {
@@ -567,8 +596,15 @@ export async function persist(
         if (JSON.stringify(before) !== JSON.stringify(after))
           changes.push({ field: key, before, after })
       }
+    // An inline row tells its parent's write whether it changed anything.
+    if (parentWrite && (id === undefined || changes.length)) parentWrite.changed = true
+    // A create names the submitted keys; an update names what changed (the field history
+    // holds the values) and the inline line groups whose rows were written, never every
+    // submitted key.
+    const fields =
+      id === undefined ? Object.keys(form) : [...changes.map(({ field }) => field), ...inline]
     if (!system?.unattributed)
-      await audit(ctx, trx, resource, actor, action, saved, Object.keys(form), changes, system)
+      await audit(ctx, trx, resource, actor, action, saved, fields, changes, system)
     await resource.hooks?.afterSave?.(saved, context)
     if (system) return (await hydrateOne(trx, resource, saved, ctx.attachments)) as SerializedRecord
     return serialize(
@@ -583,7 +619,8 @@ export async function persist(
 
 /**
  * Creates, updates and deletes the inline rows submitted with a parent write. Each row
- * is authorized and written through persist() (or transition() for deletions).
+ * is authorized and written through persist() (or transition() for deletions). Returns
+ * the hasMany keys whose rows were created, changed or deleted.
  */
 async function writeInlineRows(
   ctx: ResourceContext,
@@ -595,8 +632,9 @@ async function writeInlineRows(
   row: RecordData,
   candidate: RecordData,
   action: 'create' | 'update'
-) {
+): Promise<string[]> {
   const name = resource.name
+  const written: string[] = []
   for (const [key, field] of Object.entries(resource.fields)) {
     if (field.type !== 'hasMany' || !(key in form)) continue
     if (!field.inline || !Array.isArray(form[key]) || (form[key] as unknown[]).length > 100)
@@ -635,8 +673,10 @@ async function writeInlineRows(
         if (childId === undefined)
           throw invalidInline('Deleting an inline row requires its identifier')
         await transition(ctx, field.resource, Number(childId), actor, 'delete', data.version, trx)
+        if (!written.includes(key)) written.push(key)
         continue
       }
+      const parent: ParentWrite = { name, id: Number(row.id), action }
       await persist(
         ctx,
         field.resource,
@@ -650,10 +690,12 @@ async function writeInlineRows(
         },
         childId === undefined ? undefined : Number(childId),
         trx,
-        { name, id: Number(row.id), action }
+        parent
       )
+      if (parent.changed && !written.includes(key)) written.push(key)
     }
   }
+  return written
 }
 
 /**

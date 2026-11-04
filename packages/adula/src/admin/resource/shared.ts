@@ -1,3 +1,4 @@
+import { subject } from '@casl/ability'
 import type { Knex } from 'knex'
 import type { ResourceRegistry } from '../../resource/registry.js'
 import type { Action, RecordData, Resource } from '../../resource/types.js'
@@ -37,6 +38,27 @@ export type ResourceContext = {
  */
 export function fieldLevel(resource: Resource, key: string) {
   return Math.max(resource.fields[key].permissionLevel ?? 0, resource.hidden?.includes(key) ? 1 : 0)
+}
+
+/**
+ * Whether a viewer may read a field of a record: exposed by the resource (serialize, or
+ * list and show), at the field's permission level, and allowed by the role rules on this
+ * record. The per-field change history and the activity entries apply this rule.
+ */
+export function readableField(
+  resource: Resource,
+  record: RecordData,
+  ability: AdulaAbility,
+  actor: Actor,
+  key: string
+) {
+  const serialized = resource.serialize ?? [...resource.list, ...resource.show]
+  return (
+    key in resource.fields &&
+    serialized.includes(key) &&
+    actor.permissionLevel >= fieldLevel(resource, key) &&
+    ability.can('view', subject(resource.name, record), key)
+  )
 }
 
 /**
