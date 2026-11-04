@@ -797,4 +797,81 @@ test.group('Workflow approval delegation', (group) => {
       runs.map(() => 'done')
     )
   })
+
+  test('a decision that opens the next approval checks its approvers on the locked run', async ({
+    assert,
+  }) => {
+    // The second step goes to the peer, whose approvals are delegated to the deputy: opening
+    // it checks the peer and the deputy can view the record, both inside the decision.
+    const twoStage = defineWorkflow({
+      name: 'two_stage_approval',
+      version: 1,
+      resource: 'orders',
+      label: 'اعتماد على مرحلتين',
+      start: 'review',
+      steps: {
+        review: {
+          type: 'approval',
+          label: 'موافقة المدير',
+          assignees: () => [manager.id],
+          approve: 'confirm',
+          reject: 'rejected',
+        },
+        confirm: {
+          type: 'approval',
+          label: 'تأكيد الزميل',
+          assignees: () => [peer.id],
+          approve: 'approved',
+          reject: 'rejected',
+        },
+        approved: { type: 'end', outcome: 'approved' },
+        rejected: { type: 'end', outcome: 'rejected' },
+      },
+    })
+    const starting = new WorkflowEngine(
+      db,
+      registry,
+      service(),
+      loader,
+      assignments(),
+      [twoStage],
+      {
+        now: clock,
+      }
+    )
+    const delegation = await delegate(peer.id, deputy.id, '2026-10-10', '2026-10-12')
+    const runs = []
+    for (let i = 0; i < 6; i++) runs.push(await submitted(starting))
+    const narrow = knex({
+      client: 'pg',
+      connection: db.client.config.connection,
+      searchPath: ['adula_test', 'public'],
+      pool: { min: 0, max: 2 },
+      acquireConnectionTimeout: 5000,
+    })
+    try {
+      const resources = new ResourceService(narrow, registry)
+      const tasks = new Assignments(narrow, resources, loader, { now: clock })
+      const deciding = new WorkflowEngine(narrow, registry, resources, loader, tasks, [twoStage], {
+        now: clock,
+      })
+      const results = await Promise.allSettled(
+        runs.map((runId) => deciding.decide(runId, manager, 'approve'))
+      )
+      assert.deepEqual(
+        results.map((result) => (result.status === 'rejected' ? String(result.reason) : 'ok')),
+        runs.map(() => 'ok')
+      )
+    } finally {
+      await narrow.destroy()
+    }
+    const next = await db('assignments')
+      .whereIn('workflow_run_id', runs)
+      .where('status', 'open')
+      .select('assignee_id', 'on_behalf_of', 'delegation_id')
+    assert.deepEqual(
+      next.map((row) => [row.assignee_id, row.on_behalf_of, row.delegation_id]),
+      runs.map(() => [deputy.id, peer.id, delegation.id])
+    )
+  })
 })

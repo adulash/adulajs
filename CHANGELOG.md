@@ -2,9 +2,119 @@
 
 ## Unreleased
 
-Fixed: a notification sent while a closing tab handed its stream to another tab no longer
-stays out of the bell counts of the open tabs. Projects that copied
-`inertia/components/notification-bell.tsx` need the updated file (ADR 034).
+## 2.2.1 — 2026-11-04
+
+Patch release: security hardening of scoped data, collaboration, tasks, saved views and the
+starter's administration, with the list and record dialog fixes filed on 2026-11-04. No new
+`adula` export (`pnpm check:api` reports no change). It adds the additive migration
+`1770000000051`. Changes that need a new option moved to milestone 2.3.0.
+
+Behaviour that changes on upgrade, so read it first:
+
+* A scoped create or update by a user without an organization unit answers 422
+  `E_REQUIRED` naming the unit instead of 404; an unknown or out-of-scope unit stays 404.
+  System writes keep 422 `E_ORG_UNIT`.
+* Publishing a shared saved view requires update permission on the resource. Views shared
+  earlier by users without it stay private to their authors.
+* Self-service delegation is limited to users on the delegator's organization path; users
+  without a unit cannot delegate until they are placed in one. Existing delegations stay.
+* Task due dates must be real calendar days (422 `E_ASSIGNMENT_DUE`).
+* The starter's impersonation needs a written reason: `POST /admin/users/:id/impersonate`
+  without one answers 422 `E_IMPERSONATION_REASON`.
+* `adula:resource:migration` exits 1 when a standard column other than `version` is missing.
+* A manyToMany whose targets are all soft-deleted reads as empty; a required one then
+  needs a live target before the record can be saved.
+* A custom actor loader passed to `RecordCollaboration` should accept `load(id, db)` and
+  read on that connection, as `ActorStore` does.
+
+### Security
+
+* Comments, follower notifications, closing tasks, deciding approvals, opening the next
+  approval step, delegating and escalating check access on their own transaction, so many concurrent requests can no longer exhaust the connection
+  pool and stall the application.
+* Deleting a comment replaces its text in the notifications it produced and stops their
+  pending deliveries; editing one replaces the earlier excerpt. Migration `1770000000051`
+  adds `notifications.comment_id` and withdraws the text of comments deleted before the
+  upgrade (one pass over notifications). Messages already sent by e-mail or another channel
+  cannot be recalled.
+* Tag suggestions name only tags of records the user may view.
+* An upsert import looks for the matching record only among the records the importer may
+  update; a value held outside that reach fails as a duplicate, as in create mode.
+* Record activity entries of an update name only the fields that changed, and only the
+  fields the reader may read; entries stored earlier are narrowed when read.
+* My tasks counts, and the starter's task badge, include only items on records the user can
+  still read. Projects that copied `app/middleware/admin_middleware.ts` need the updated file.
+* The delegate picker lists only users on the delegator's organization path, and an
+  out-of-path delegate is refused like an unknown user.
+* A colleague's shared saved view is not listed to a reader when it sorts, filters or
+  searches on a field that reader may not query.
+* A related record the reader may not view, or a soft-deleted one, shows as «سجل غير متاح»
+  in details, lists, CSV export and printing instead of by its id; record details name the
+  organization unit; manyToMany values list only live targets.
+* Closing a record returns only to a page of the same application.
+* Starter: impersonation asks for a reason in a dialog and logs the reason, IP address and
+  user agent, and its end with how it ended and its duration. The user page no longer
+  preselects a role, asks a dedicated confirmation before granting a role with full
+  administration and groups access-ending actions apart.
+
+### Fixed
+
+* Editing a record no longer fails with 404 because an unchanged belongsTo points at a
+  deleted or out-of-scope record (#130, #132).
+* `adula:resource:snapshot` and `adula:resource:migration` keep the group of lookup fields
+  (#98); the deprecated snapshot command refuses relations to tables created later (#99);
+  `adula:resource:migration` adds the `version` column when a resource gains
+  `version: true` (#138).
+* Writing a scope-inheriting child without view permission on its parent is refused with a
+  message naming both resources, and `adula:doctor` and `adula:install` warn about such
+  roles (#140). Navigation hides a resource a role reads only through title-field rules
+  (#141). `adula:install` finds the administrator role by its key and names a new one
+  «مدير النظام» (#143).
+* Two users saving the tags of one record at once no longer fail with a duplicate-value
+  error (#122).
+* Open manual tasks past their due date report an overdue SLA state (#128); impossible due
+  dates are refused (#127).
+* Record dialogs keep the list mounted under them and refresh its rows after a save
+  (#100, #105), keep the sidebar in place in RTL (#101), let the form fill the dialog
+  (#102), open anchored to the top (#103), keep their header in view and focus the first
+  invalid field (#118), ask about unsaved changes only when something changed (#117) and
+  return to the page that opened them (#119). The list under a dialog reads its filters
+  from the list URL.
+* Lists render the selection column with their first rows (#108), scroll with the workspace
+  (#109), use Arabic counts that agree with their number and name row actions by the record
+  title (#110), report exact counts below 1000 rows (#111), keep Latin codes in order and
+  align integers in RTL fields (#113), focus selects on click and search long Arabic lists
+  ignoring letter variants (#114), and preselect the only allowed belongsTo choice (#115).
+* Starter: the signed-in user is shared as `account` (`user` stays as a deprecated alias,
+  #146); the activity log shows Arabic names, record titles and changed fields (#142);
+  `/admin/users` reads `q` (#144); the two-factor dialog focuses the code field (#145); the
+  development guide says to open 127.0.0.1 (#107).
+* A notification sent while a closing tab handed its stream to another tab no longer stays
+  out of the bell counts of the open tabs (ADR 034).
+
+### Files projects must update
+
+Projects own these files; upgrades do not rewrite them. Merge them from a new
+`npm create adulajs` application:
+
+* `node ace adula:ui add dialog resource-form resource-surface data-table resource-bulk
+  resource-actions resource-dashboard resource-field resource-page resource-value
+  resource-show messages` (with the shared `field_values.ts` and `list_query.ts`).
+* `app/controllers/resources_controller.ts` (bulk actions in the list props, #108).
+* `inertia/layouts/workspace.tsx`, `inertia/layouts/default.tsx`,
+  `inertia/pages/work/my_tasks.tsx`, `inertia/components/notification-bell.tsx`,
+  `inertia/components/account-menu.tsx`, `inertia/components/admin-nav.tsx`,
+  `inertia/components/account/two-factor-card.tsx`, `inertia/pages/home.tsx`,
+  `inertia/pages/account/profile.tsx`, `app/middleware/inertia_middleware.ts`: custom pages
+  that read `usePage().props.user` for the signed-in user should read `account`.
+* Impersonation and users: `app/services/impersonation.ts`,
+  `app/controllers/admin/users_controller.ts`, `app/controllers/session_controller.ts`,
+  `app/controllers/account_sessions_controller.ts`, `inertia/pages/admin/users/show.tsx`
+  (its page prop is now `target`), `inertia/pages/admin/users/index.tsx`. API clients that
+  start impersonation must send `reason`.
+* Activity log: `app/controllers/admin/activity_controller.ts`, the new
+  `app/services/activity_presentation.ts`, `inertia/pages/admin/activity/index.tsx`.
+* Roles: `inertia/pages/admin/roles/index.tsx`, `inertia/pages/admin/roles/show.tsx`.
 
 ## 2.2.0 — 2026-10-30
 

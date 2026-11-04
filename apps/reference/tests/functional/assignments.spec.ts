@@ -98,6 +98,36 @@ test.group('Assignments and my tasks over HTTP', (group) => {
     assert.equal(assigned.body().open, 0)
   })
 
+  test('the my tasks badge counts only tasks on records the user may still open', async ({
+    client,
+    assert,
+  }) => {
+    const created = await client
+      .post(`${base}/assignments`)
+      .loginAs(manager.user)
+      .withCsrfToken()
+      .headers(json)
+      .json({ assigneeId: clerk.user.id, title: 'مهمة على سجل سينتقل' })
+    created.assertStatus(201)
+    const badge = async () => {
+      const page = await client
+        .get('/my-tasks')
+        .loginAs(clerk.user)
+        .header('Accept', 'text/html')
+        .withInertia()
+      page.assertStatus(200)
+      return [page.body().props.openTasks, page.body().props.assignments.open]
+    }
+    assert.deepEqual(await badge(), [1, 1])
+    // The record moves to another unit: the clerk can no longer open it or its task.
+    await knex()('ui_samples').where('id', id).update({ org_unit_id: outsider.orgUnitId })
+    try {
+      assert.deepEqual(await badge(), [0, 0])
+    } finally {
+      await knex()('ui_samples').where('id', id).update({ org_unit_id: manager.orgUnitId })
+    }
+  })
+
   test('a read-only user cannot assign and outsiders never see the record tasks', async ({
     client,
   }) => {
