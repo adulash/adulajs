@@ -28,7 +28,17 @@ function Dialog({
     onOpenChange?.(next)
   }
   const request = (next: boolean) => {
-    const editing = mode === 'edit' || (!mode && Boolean(content.current?.querySelector('form')))
+    const forms = [...(content.current?.querySelectorAll<HTMLFormElement>('form') ?? [])]
+    // ResourceForm reports whether its values differ from the opened ones (data-dirty); a
+    // dialog with any form that reports nothing keeps the earlier rule, so plain forms still ask.
+    const reporting = forms.filter((form) => form.dataset.dirty !== undefined)
+    const editing =
+      mode !== 'view' &&
+      mode !== 'confirm' &&
+      (reporting.some((form) => form.dataset.dirty === 'true') ||
+        (reporting.length < forms.length || forms.length === 0
+          ? mode === 'edit' || (!mode && forms.length > 0)
+          : false))
     if (!next && editing && preferences.confirmDialogClose) setConfirming(true)
     else commit(next)
   }

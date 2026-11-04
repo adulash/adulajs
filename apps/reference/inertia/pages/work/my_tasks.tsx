@@ -20,6 +20,7 @@ import { Label } from '~/components/ui/label'
 import { Textarea } from '~/components/ui/textarea'
 import { Tabs, TabsList, TabsTrigger } from '~/components/ui/tabs'
 import { formatDate } from '~/components/ui/resource-value'
+import { rememberListView } from '~/components/ui/resource-surface'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
 import { OnBehalfOf, SlaBadge, WorkflowDecision } from '~/components/ui/record-workflows'
 
@@ -159,6 +160,8 @@ export default function MyTasks({ assignments, tab, decisions }: Props) {
               </p>
               <Link
                 href={`/resources/${item.resource}/${item.recordId}`}
+                // Closing the record returns here, with this tab and scroll.
+                onClick={() => rememberListView(`/resources/${item.resource}/${item.recordId}`)}
                 className="text-sm text-primary underline-offset-4 hover:underline"
               >
                 {item.resourceLabel}: {item.recordTitle ?? `#${item.recordId}`}
@@ -215,7 +218,12 @@ export default function MyTasks({ assignments, tab, decisions }: Props) {
               )}
               {item.managed && item.status === 'open' && (
                 <Button size="sm" asChild>
-                  <Link href={`/resources/${item.resource}/${item.recordId}`}>فتح السجل</Link>
+                  <Link
+                    href={`/resources/${item.resource}/${item.recordId}`}
+                    onClick={() => rememberListView(`/resources/${item.resource}/${item.recordId}`)}
+                  >
+                    فتح السجل
+                  </Link>
                 </Button>
               )}
               {item.canDecide && item.workflowRunId && runs[item.workflowRunId] && (

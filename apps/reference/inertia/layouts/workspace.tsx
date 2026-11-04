@@ -60,6 +60,8 @@ export default function Workspace({ children }: { children: ReactNode }) {
     openTasks?: number
     isAdmin?: boolean
     dashboards?: DashboardSummary[]
+    /** Set while a record dialog is open over a list (ADR 035). */
+    overlay?: { list: string }
   }>()
   const { collapsed, toggle } = useCollapsedModules()
   const openTasks = page.props.openTasks ?? 0
@@ -108,7 +110,8 @@ export default function Workspace({ children }: { children: ReactNode }) {
   return (
     <div dir={dir} className="min-h-screen bg-background text-foreground" data-workspace-shell>
       <FlashMessages />
-      <aside className="fixed inset-y-0 start-0 z-30 hidden w-[244px] flex-col overflow-y-auto border-e border-border bg-white lg:flex [&>*]:shrink-0">
+      {/* react-remove-scroll offsets this class by the scroll bar a dialog hides (RTL: right: 0). */}
+      <aside className="right-scroll-bar-position fixed inset-y-0 start-0 z-30 hidden w-[244px] flex-col overflow-y-auto border-e border-border bg-white lg:flex [&>*]:shrink-0">
         <Link href="/" className="flex h-24 items-center gap-3 px-7">
           <span className="grid size-10 place-items-center rounded-xl bg-primary text-2xl font-bold text-white">
             ع
@@ -224,7 +227,8 @@ export default function Workspace({ children }: { children: ReactNode }) {
         </nav>
         <main className="mx-auto max-w-[1440px] p-5 lg:px-10 lg:py-9">
           <div
-            key={page.url.split('?')[0]}
+            // A record dialog over a list keeps the list's key, so the list stays mounted.
+            key={(page.props.overlay?.list ?? page.url).split('?')[0]}
             className={preferences.pageTransitions ? 'adula-page-enter' : undefined}
           >
             {children}

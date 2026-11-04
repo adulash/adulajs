@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { router } from '@inertiajs/react'
 import { Link } from '@adonisjs/inertia/react'
 import axios from 'axios'
@@ -26,6 +26,36 @@ type ServerError = { field?: string; message: string }
 function initialValue(field: Field, value: unknown) {
   if (field.type === 'boolean' && (value === null || value === undefined)) return 'false'
   return inputValue(field, value)
+}
+
+const entries = (record: Record<string, string>) =>
+  Object.keys(record)
+    .sort()
+    .map((key) => [key, record[key]])
+
+/** What the form would submit, independent of key order, for the unsaved-changes check. */
+function snapshot(values: Record<string, string>, rows: Record<string, InlineRow[]>, unit: string) {
+  return JSON.stringify([
+    entries(values),
+    Object.keys(rows)
+      .sort()
+      .map((key) => [
+        key,
+        rows[key]
+          // A row added and removed again changes nothing.
+          .filter((row) => !(row.id === undefined && row.deleted))
+          .map((row) => [row.id ?? null, Boolean(row.deleted), entries(row.values)]),
+      ]),
+    unit,
+  ])
+}
+
+/** The first control to focus for an invalid field: the field itself or its first focusable part. */
+function focusable(element: HTMLElement): HTMLElement | null {
+  if (element.tabIndex >= 0 && !element.hasAttribute('disabled')) return element
+  return element.querySelector<HTMLElement>(
+    'input:not([disabled]):not([type=hidden]), button:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  )
 }
 
 export function ResourceForm({
@@ -85,6 +115,24 @@ export function ResourceForm({
   const [rowErrors, setRowErrors] = useState<RowErrors>({})
   const [sectionErrors, setSectionErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
+  // The state the form opened with; the dialog asks before closing only while they differ, and
+  // reverting every change makes the form clean again.
+  const state = snapshot(values, rows, unit)
+  const opened = useRef(state)
+  const dirty = state !== opened.current
+  const form = useRef<HTMLFormElement>(null)
+  // Counts refused submits, so focus moves to the first invalid field after the errors render.
+  const [refused, setRefused] = useState(0)
+  useEffect(() => {
+    if (!refused || !form.current) return
+    const invalid = [...form.current.querySelectorAll<HTMLElement>('[aria-invalid="true"]')]
+    const target =
+      invalid.map(focusable).find((element) => element !== null) ??
+      form.current.querySelector<HTMLElement>(':scope > [data-slot="alert"]')
+    target?.focus({ preventScroll: true })
+    // The nearest scroller: the dialog body in a dialog, the window on a page.
+    target?.scrollIntoView({ block: 'nearest' })
+  }, [refused])
   const multiValued = new Set(
     editor.fields
       .filter((field) => field.type === 'multiSelect' || field.type === 'manyToMany')
@@ -209,6 +257,7 @@ export function ResourceForm({
       setErrors(fieldErrors)
       setRowErrors(collected)
       setFailure({ message: t('راجع الحقول المحددة ثم أعد المحاولة.'), conflict: false })
+      setRefused((count) => count + 1)
       return
     }
     if (editor.scoped && !editor.scopeFrom) payload.orgUnitId = Number(unit)
@@ -247,6 +296,7 @@ export function ResourceForm({
             ? unknown.join(' · ')
             : failureMessage(error, t('تعذر الحفظ. راجع البيانات وحاول مجدداً.'), t),
       })
+      setRefused((count) => count + 1)
     } finally {
       setBusy(false)
     }
@@ -258,9 +308,17 @@ export function ResourceForm({
   )
 
   return (
-    <form onSubmit={submit} noValidate className="max-w-4xl space-y-6" aria-busy={busy}>
+    <form
+      ref={form}
+      onSubmit={submit}
+      noValidate
+      // The page keeps a reading width; a dialog body is already bounded.
+      className="max-w-4xl space-y-6 in-data-[slot=dialog-content]:max-w-none"
+      aria-busy={busy}
+      data-dirty={dirty ? 'true' : 'false'}
+    >
       {failure && (
-        <Alert variant="destructive" role="alert">
+        <Alert variant="destructive" role="alert" tabIndex={-1}>
           <AlertTitle>{failure.conflict ? t('تعارض في الإصدار') : t('تعذر الحفظ')}</AlertTitle>
           <AlertDescription className="flex flex-wrap items-center gap-3">
             {failure.message}

@@ -1,5 +1,6 @@
 import { test } from '@japa/runner'
 import { join } from 'node:path'
+import db from '@adonisjs/lucid/services/db'
 import { adula } from '#services/adula'
 import {
   installSampleResources,
@@ -109,5 +110,45 @@ test.group('Record collaboration browser acceptance', (group) => {
     )
     assert.equal(row.status, 'done')
     assert.equal(row.closeReason, 'تم التدقيق')
+  })
+
+  test('a record opened from my tasks closes back to my tasks with its tab and scroll', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    // A colleague of its own, so the other tests' task lists are unaffected.
+    const reader = await seedActor([{ subject: 'ui_samples', action: 'view' }], {
+      orgUnitId: owner.orgUnitId,
+      fullName: 'سلمى القارئة',
+      level: 0,
+    })
+    const actor = await adula().actors.load(owner.user.id)
+    try {
+      for (let index = 1; index <= 12; index++)
+        await adula().assignments.assign('ui_samples', id, actor, {
+          assigneeId: reader.user.id,
+          title: `مهمة العودة ${index}`,
+        })
+      await browserContext.loginAs(reader.user)
+      const page = await visit('/my-tasks?tab=assigned')
+      await page.setViewportSize({ width: 1280, height: 700 })
+      await page.getByText('مهمة العودة 12').waitFor()
+      await page.evaluate('window.scrollTo(0, document.documentElement.scrollHeight)')
+      const scroll = await page.evaluate<number>('window.scrollY')
+      assert.isAbove(scroll, 200)
+      await page.getByRole('link', { name: 'عينات الواجهة: عينة التعليقات' }).last().click()
+      await page.getByRole('dialog', { name: 'تفاصيل · عينات الواجهة' }).waitFor()
+      await page.keyboard.press('Escape')
+      await page.waitForURL((url) => url.pathname === '/my-tasks' && url.search === '?tab=assigned')
+      await page.getByRole('heading', { name: 'مهامي' }).waitFor()
+      await page.waitForFunction(`Math.abs(window.scrollY - ${scroll}) <= 2`)
+      // The remembered view is used once.
+      assert.isNull(
+        await page.evaluate<string | null>('sessionStorage.getItem("adula:list-return")')
+      )
+    } finally {
+      await db.from('assignments').where('assignee_id', reader.user.id).delete()
+    }
   })
 })
