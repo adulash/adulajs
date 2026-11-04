@@ -64,7 +64,7 @@ The same creator runs with `npx create-adulajs@latest my-system`.
 The creator starts from an empty folder and does the rest. It installs AdulaJS and
 its stack, starts PostgreSQL 17 and Redis 7 in Docker (or uses your existing services),
 creates the development and test databases, runs migrations, creates the administrator,
-asks for your company identity and builds the system. Each business area you add
+records the company identity as pending for you to supply later and builds the system. Each business area you add
 inside the system, such as assets, maintenance or HR, is an application: a module under
 `app/modules/<name>`. Applications share users, roles, the organisation tree,
 notifications and the task inbox, and the system integrates with your other software

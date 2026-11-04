@@ -18,8 +18,8 @@ starter or maintaining a second full application. Exclude secrets, generated
 assets, fixture modules, their hooks and UI files. Install UI through the kit
 registry so the application owns it and updates track its hashes.
 
-The creator pins package versions, bundles pnpm as a dependency installed by npm, asks for company
-identity and administrator email, generates private credentials and unique
+The creator pins package versions, bundles pnpm as a dependency installed by npm, asks for the
+company name and administrator email, generates private credentials and unique
 database/cache namespaces, migrates fresh PostgreSQL 17 databases, initializes
 authorization, synchronizes managed skills and checks doctor/types/build.
 Default local services run through Docker Compose; existing services are a
@@ -45,3 +45,9 @@ from an empty directory with real PostgreSQL/Redis, HTTP authorization and real
 administrator browser login. CI retains all three tested archives for publication.
 Docker startup must also be exercised on a Docker-capable host; the original
 workstation has no Docker. These checks do not close the separate 1.0 gates.
+
+Amendment (2.2.2, #151): the interactive creator no longer asks for a company identity file.
+`--identity` stays an optional, non-interactive option (not deprecated). Without it the generated
+project records the identity as pending in `docs/design-identity.md`, and the managed AGENTS
+kickoff rule asks for it before the first design. Without `--yes`, piped input answers the
+remaining questions, so the acceptance harness drives the same interactive flow.
