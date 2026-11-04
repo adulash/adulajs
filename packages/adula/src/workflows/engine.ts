@@ -461,7 +461,9 @@ export class WorkflowEngine {
     await this.db.transaction(async (trx) => {
       const run = await trx('workflow_runs').where('id', runId).forUpdate().first()
       if (!run) throw new AdulaError(404, 'E_WORKFLOW_NOT_FOUND', 'التدفق غير موجود')
-      if (!(await this.resources.permits(run.resource, Number(run.record_id), actor)))
+      // The record check runs on this transaction: a second pool connection while the run
+      // is locked would let concurrent decisions exhaust the pool.
+      if (!(await this.viewable(run, actor, trx)))
         throw new AdulaError(404, 'E_WORKFLOW_NOT_FOUND', 'التدفق غير موجود')
       // The actor's own approval first, then one they hold for a delegator (ADR 044).
       const assignment = await trx('assignments as a')
@@ -1101,6 +1103,18 @@ export class WorkflowEngine {
     if (byKey) return Number(byKey.id)
     const byName = await db('roles').where('name', reference).first('id')
     return byName ? Number(byName.id) : null
+  }
+
+  /** permits() on a given connection: denial (403/404) is false, other errors propagate. */
+  private async viewable(run: Record<string, any>, actor: Actor, db: Knex) {
+    try {
+      await this.resources.access(String(run.resource), Number(run.record_id), actor, 'view', db)
+      return true
+    } catch (error) {
+      if (error instanceof AdulaError && (error.status === 403 || error.status === 404))
+        return false
+      throw error
+    }
   }
 
   private canView(resource: string, id: number, userId: number) {
