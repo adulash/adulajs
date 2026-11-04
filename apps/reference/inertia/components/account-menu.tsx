@@ -16,10 +16,13 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '~/components/ui/dropdown-menu'
+import { UserAvatar } from '~/components/ui/user-avatar'
 
 /** The user block at the bottom of the workspace sidebar: profile, sessions, delegation, logout. */
 export function AccountMenu() {
-  const { account: user } = usePage<{ account?: { fullName: string | null; email: string } }>().props
+  const { account: user } = usePage<{
+    account?: { id: number; fullName: string | null; email: string; avatarUrl: string | null }
+  }>().props
   if (!user) return null
   return (
     <DropdownMenu>
@@ -27,9 +30,10 @@ export function AccountMenu() {
         aria-label="قائمة الحساب"
         className="flex w-full items-center gap-3 rounded-lg p-1 text-start outline-none hover:bg-background focus-visible:ring-[3px] focus-visible:ring-ring/50"
       >
-        <span className="grid size-9 shrink-0 place-items-center rounded-full bg-secondary font-semibold">
-          {user.fullName?.slice(0, 1) || 'م'}
-        </span>
+        <UserAvatar
+          user={{ id: user.id, name: user.fullName || user.email, avatarUrl: user.avatarUrl }}
+          size="md"
+        />
         <span className="min-w-0 flex-1">
           <strong className="block truncate text-xs">{user.fullName || 'حسابي'}</strong>
           <span className="block truncate text-[10px] text-muted-foreground" dir="ltr">

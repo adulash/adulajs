@@ -12,12 +12,16 @@ export const fixtureDashboards = [
         label: { ar: 'عدد الطلبات', en: 'Orders' },
         resource: 'orders',
         measure: 'count',
+        // Offered on the personal overview (ADR 050); every orders viewer may add it.
+        overview: true,
       },
       {
         key: 'ordersTotal',
         label: { ar: 'إجمالي الطلبات', en: 'Orders total' },
         resource: 'orders',
         measure: { sum: 'total' },
+        // Also offered there, but only viewers who may read the total ever see it.
+        overview: true,
       },
       {
         key: 'ordersByStatus',

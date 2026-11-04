@@ -1,5 +1,13 @@
 import type { HttpContext } from '@adonisjs/core/http'
-import { AdulaError, OrgUnitsAdmin, RolesAdmin, UsersAdmin, logActivity } from 'adula'
+import {
+  AdulaError,
+  OrgUnitsAdmin,
+  RolesAdmin,
+  UserAvatars,
+  UsersAdmin,
+  avatarUrl,
+  logActivity,
+} from 'adula'
 import User from '#models/user'
 import { adula } from '#services/adula'
 import { endSession, recordSession, revokeUserSessions } from '#services/sessions'
@@ -54,6 +62,11 @@ export default class UsersController {
       tokens,
       twoFactor: { enabled, enabledAt, recoveryRemaining },
       privilegedRoleIds,
+      // The viewed user's profile picture (ADR 050), versioned; null shows the initials.
+      avatarUrl: await (async () => {
+        const version = (await new UserAvatars(knex()).versions([user.id])).get(user.id)
+        return version ? avatarUrl(user.id, version) : null
+      })(),
     }
     // The JSON body keeps `user`; the page receives the viewed account as `target` so it
     // never replaces the signed-in account the shell reads.

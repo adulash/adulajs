@@ -3,6 +3,7 @@ import axios from 'axios'
 import { ListChecks, Plus } from 'lucide-react'
 import type { Assignment, MentionCandidate } from 'adula'
 import { Badge } from '~/components/ui/badge'
+import { UserAvatar } from '~/components/ui/user-avatar'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
@@ -135,7 +136,8 @@ export function RecordAssignments({
               <Badge variant={row.status === 'open' ? 'default' : 'secondary'}>
                 {statusLabel[row.status]}
               </Badge>
-              <span className="text-xs text-muted-foreground">
+              <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                <UserAvatar user={{ id: row.assigneeId, name: row.assigneeName }} size="xs" />
                 المكلف: {row.assigneeName ?? `#${row.assigneeId}`}
               </span>
               {row.dueOn && (

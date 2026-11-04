@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import type { CalendarSystem, ResourceEditor, ResourceField as Field } from 'adula'
 import { Badge } from '~/components/ui/badge'
+import { UserAvatar } from '~/components/ui/user-avatar'
 import { Button } from '~/components/ui/button'
 import { Checkbox } from '~/components/ui/checkbox'
 import { Calendar } from '~/components/ui/calendar'
@@ -1302,6 +1303,9 @@ function RelationCombobox({
                   }}
                 >
                   <Check className={option.value === value ? 'opacity-100' : 'opacity-0'} />
+                  {field.type === 'user' && /^\d+$/.test(option.value) ? (
+                    <UserAvatar user={{ id: Number(option.value), name: option.label }} size="xs" />
+                  ) : null}
                   <span dir="auto">{option.label}</span>
                 </CommandItem>
               ))}

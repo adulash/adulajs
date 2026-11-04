@@ -4,7 +4,14 @@ import UserTransformer from '#transformers/user_transformer'
 import BaseInertiaMiddleware from '@adonisjs/inertia/inertia_middleware'
 import { adula } from '#services/adula'
 import { sharedAdminProps } from '#middleware/admin_middleware'
-import { clientMessages, localizeText, runWithLanguage, uiPreferences } from 'adula'
+import {
+  UserAvatars,
+  avatarUrl,
+  clientMessages,
+  localizeText,
+  runWithLanguage,
+  uiPreferences,
+} from 'adula'
 import db from '@adonisjs/lucid/services/db'
 import { signupEnabled } from '#services/signup'
 import {
@@ -27,6 +34,12 @@ export default class InertiaMiddleware extends BaseInertiaMiddleware {
     const { auth } = ctx as Partial<HttpContext>
     const language = requestLanguage(ctx)
     const actor = auth?.user ? await adula().actors.load(auth.user.id) : undefined
+    if (auth?.user) {
+      const version = (
+        await new UserAvatars(db.connection().getWriteClient()).versions([auth.user.id])
+      ).get(auth.user.id)
+      auth.user.$extras.avatarUrl = version ? avatarUrl(auth.user.id, version) : null
+    }
     const account = auth?.user ? UserTransformer.transform(auth.user) : undefined
 
     /**

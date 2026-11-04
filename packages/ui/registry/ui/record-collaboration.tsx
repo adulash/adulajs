@@ -3,6 +3,7 @@ import axios from 'axios'
 import { AtSign, Bell, BellOff, MessageSquare, Pencil, Tag, Trash2, X } from 'lucide-react'
 import type { MentionCandidate, RecordCollaborationState, ResourceDescription } from 'adula'
 import { Badge } from '~/components/ui/badge'
+import { UserAvatar } from '~/components/ui/user-avatar'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Textarea } from '~/components/ui/textarea'
@@ -190,6 +191,7 @@ export function RecordCollaboration({
             {state.comments.map((comment) => (
               <li key={comment.id} className="rounded-lg border px-4 py-3">
                 <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <UserAvatar user={{ id: comment.authorId, name: comment.authorName }} size="xs" />
                   <span className="font-medium text-foreground">
                     {comment.authorName ?? `مستخدم #${comment.authorId}`}
                   </span>
@@ -314,7 +316,7 @@ export function RecordCollaboration({
                 />
                 {mentions.map((user) => (
                   <Badge key={user.id} variant="outline" className="gap-1">
-                    @{user.name}
+                    <UserAvatar user={user} size="xs" />@{user.name}
                     <button
                       type="button"
                       aria-label={`إزالة الإشارة إلى ${user.name}`}
@@ -428,6 +430,7 @@ function MentionPicker({
                   setOpen(false)
                 }}
               >
+                <UserAvatar user={user} size="xs" />
                 {user.name}
               </CommandItem>
             ))}

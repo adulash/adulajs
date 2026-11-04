@@ -172,6 +172,26 @@
       "kind": "FunctionDeclaration",
       "type": "(ability: AdulaAbility, action: string, resource: Resource, field?: string | undefined) => Sql"
     },
+    "AVATAR_LIMITS": {
+      "kind": "VariableDeclaration",
+      "type": "Readonly<{ maxBytes: number; minSide: 32; maxSide: 512; }>"
+    },
+    "avatarHeaders": {
+      "kind": "FunctionDeclaration",
+      "type": "(avatar: AvatarRecord, options?: { immutable?: boolean | undefined; } | undefined) => Record<string, string>"
+    },
+    "AvatarImage": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ type: \"png\" | \"webp\"; mimeType: \"image/png\" | \"image/webp\"; extname: \"png\" | \"webp\"; width: number; height: number; bytes: Buffer<ArrayBufferLike>; }"
+    },
+    "AvatarRecord": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ userId: number; version: number; disk: string; path: string; size: number; mimeType: string; width: number; height: number; }"
+    },
+    "avatarUrl": {
+      "kind": "FunctionDeclaration",
+      "type": "(userId: number, version?: number | null | undefined) => string"
+    },
     "BACKUP_MAX_AGE_MS": {
       "kind": "VariableDeclaration",
       "type": "number"
@@ -490,7 +510,7 @@
     },
     "DashboardWidgetDefinition": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ key: string; label: Label; resource: string; measure: DashboardMeasure; groupBy?: string | undefined; filters?: Record<string, unknown> | undefined; where?: Conditions | undefined; }"
+      "type": "{ key: string; label: Label; resource: string; measure: DashboardMeasure; groupBy?: string | undefined; filters?: Record<string, unknown> | undefined; where?: Conditions | undefined; overview?: boolean | undefined; }"
     },
     "DashboardWidgetResult": {
       "kind": "TypeAliasDeclaration",
@@ -1120,6 +1140,22 @@
       "kind": "TypeAliasDeclaration",
       "type": "{ address: string; family: 4 | 6; }"
     },
+    "OverviewBuiltin": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ id: string; label: string; }"
+    },
+    "OverviewLayout": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ order?: readonly string[] | undefined; hidden?: readonly string[] | undefined; }"
+    },
+    "OverviewState": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ widgets: OverviewWidget[]; customized: boolean; }"
+    },
+    "OverviewWidget": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ id: string; kind: \"builtin\"; label: string; hidden: boolean; } | { id: string; kind: \"dashboard\"; label: string; hidden: boolean; dashboard: string; data: DashboardWidgetResult | null; }"
+    },
     "packedResourceRules": {
       "kind": "FunctionDeclaration",
       "type": "(resource: Resource, actor: Actor) => PackRule<SubjectRawRule<string, any, Conditions>>[]"
@@ -1312,6 +1348,10 @@
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>, id: number) => Promise<boolean>"
     },
+    "RemovedAvatarFile": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ disk: string; path: string; }"
+    },
     "RenderedMessage": {
       "kind": "TypeAliasDeclaration",
       "type": "{ subject: string; body: string; mail: boolean; }"
@@ -1471,6 +1511,10 @@
     "runWithLanguage": {
       "kind": "FunctionDeclaration",
       "type": "<T>(language: string, callback: () => T) => T"
+    },
+    "sanitizeAvatarImage": {
+      "kind": "FunctionDeclaration",
+      "type": "(input: Uint8Array<ArrayBufferLike>) => AvatarImage"
     },
     "sanitizePrintHtml": {
       "kind": "FunctionDeclaration",
@@ -1767,6 +1811,10 @@
     "UploadInput": {
       "kind": "TypeAliasDeclaration",
       "type": "{ disk: string; path: string; name: string; originalName: string; size: number; mimeType: string; extname: string; data: Record<string, unknown>; uploadedBy: number; impersonatorId?: number | null | undefined; orgUnitId?: number | null | undefined; resource?: string | null | undefined; field?: string | null | undefined; grant?: { id: number; resource: string; recordId: number; field: string; orgUnitId: number | null; } | null | undefined; }"
+    },
+    "UserAvatars": {
+      "kind": "ClassDeclaration",
+      "type": "typeof UserAvatars"
     },
     "UserInvitations": {
       "kind": "ClassDeclaration",

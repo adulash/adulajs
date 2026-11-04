@@ -49,6 +49,10 @@ export type {
   DashboardSummary,
   DashboardWidgetDefinition,
   DashboardWidgetResult,
+  OverviewBuiltin,
+  OverviewLayout,
+  OverviewState,
+  OverviewWidget,
 } from './src/lists/dashboards.js'
 export { serialize, writableInput, selectedFields } from './src/admin/contracts.js'
 export { AdulaError } from './src/admin/errors.js'
@@ -378,6 +382,10 @@ export type {
   MatrixField,
 } from './src/core/roles.js'
 export { UsersAdmin } from './src/core/users.js'
+export { UserAvatars, avatarUrl, avatarHeaders } from './src/core/user_avatars.js'
+export type { AvatarRecord, RemovedAvatarFile } from './src/core/user_avatars.js'
+export { sanitizeAvatarImage, AVATAR_LIMITS } from './src/core/avatar_image.js'
+export type { AvatarImage } from './src/core/avatar_image.js'
 export { UserInvitations, type InvitationDelivery } from './src/core/user_invitations.js'
 export type { UserSummary, UserPage, UserRoleAssignment, UserOrgUnit } from './src/core/users.js'
 export { OrgUnitsAdmin } from './src/core/org_units.js'

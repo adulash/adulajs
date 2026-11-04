@@ -26,6 +26,7 @@ export const controllers = {
   ApiTokens: () => import('#controllers/api_tokens_controller'),
   Assignments: () => import('#controllers/assignments_controller'),
   Attachments: () => import('#controllers/attachments_controller'),
+  Avatars: () => import('#controllers/avatars_controller'),
   Dashboards: () => import('#controllers/dashboards_controller'),
   Delegations: () => import('#controllers/delegations_controller'),
   Imports: () => import('#controllers/imports_controller'),

@@ -70,8 +70,12 @@ const AdminLookupsController = () => import('#controllers/admin/lookups_controll
 const AdminSequencesController = () => import('#controllers/admin/sequences_controller')
 const InboundWebhooksController = () => import('#controllers/inbound_webhooks_controller')
 const DashboardsController = () => import('#controllers/dashboards_controller')
+const AvatarsController = () => import('#controllers/avatars_controller')
 
-router.on('/').renderInertia('home', {}).as('home')
+const HomeController = () => import('#controllers/home_controller')
+
+// The personal overview for signed-in users (ADR 050); guests see the start page.
+router.get('/', [HomeController, 'show']).as('home')
 
 // Realtime notification signals: every Transmit route requires a signed-in user.
 transmit.registerRoutes((route) => {
@@ -249,6 +253,10 @@ router
     router.get('users/invite', [UserInvitationsController, 'create'])
     router.post('users/invite', [UserInvitationsController, 'store']).use(apiThrottle)
 
+    // Profile pictures (ADR 050): any signed-in user sees them; only the user changes their own.
+    router.get('users/:id/avatar', [AvatarsController, 'show']).where('id', /^\d+$/)
+    router.post('account/avatar', [AvatarsController, 'storeOwn']).use(apiThrottle)
+    router.delete('account/avatar', [AvatarsController, 'destroyOwn'])
     router.get('account/profile', [ProfileController, 'show'])
     router.patch('account/profile', [ProfileController, 'update'])
     router.post('account/password', [ProfileController, 'password']).use(passwordChangeThrottle)
@@ -325,6 +333,11 @@ router
     router.post('users/:id/revoke-tokens', [AdminUsersController, 'revokeTokens'])
     router.post('users/:id/reset-two-factor', [AdminUsersController, 'resetTwoFactor'])
     router.post('users/:id/impersonate', [AdminUsersController, 'impersonate'])
+    router
+      .post('users/:id/avatar', [AvatarsController, 'storeFor'])
+      .where('id', /^\d+$/)
+      .use(apiThrottle)
+    router.delete('users/:id/avatar', [AvatarsController, 'destroyFor']).where('id', /^\d+$/)
     router.get('roles', [AdminRolesController, 'index'])
     router.post('roles', [AdminRolesController, 'store'])
     router.get('roles/:id', [AdminRolesController, 'show'])
