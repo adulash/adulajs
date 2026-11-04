@@ -12,6 +12,7 @@ import {
 import { conditionSql } from '../../auth/sql.js'
 import { fromRow, selectedFields } from '../contracts.js'
 import { AdulaError, forbiddenAction, notFound } from '../errors.js'
+import { currentLanguage, labelText, translate } from '../../languages/catalog.js'
 import { fieldValue, isMultipleAttachment } from '../../resource/values.js'
 import {
   isAttachmentId,
@@ -125,6 +126,10 @@ export async function find(
  * Adds the linked ids of every manyToMany field (ascending arrays) to records read
  * from the resource's table, so policies, serialization and audits see them like
  * column values. Mutates and returns the records.
+ *
+ * Only live targets are linked: a soft-deleted target's id is never shown, and because
+ * writes diff against these ids too, its join row survives an edit and the link returns
+ * when the target is restored.
  */
 export async function withLinks(db: Knex, resource: Resource, records: RecordData[]) {
   if (!records.length) return records
@@ -132,12 +137,14 @@ export async function withLinks(db: Knex, resource: Resource, records: RecordDat
     if (field.type !== 'manyToMany') continue
     const join = joinTable(resource.name, key, field)
     const rows: RecordData[] = await db(join.table)
+      .join(`${field.resource} as t`, 't.id', `${join.table}.${join.target}`)
+      .whereNull('t.deleted_at')
       .whereIn(
-        join.owner,
+        `${join.table}.${join.owner}`,
         records.map((record) => Number(record.id))
       )
-      .orderBy(join.target)
-      .select(`${join.owner} as owner`, `${join.target} as target`)
+      .orderBy(`${join.table}.${join.target}`)
+      .select(`${join.table}.${join.owner} as owner`, `${join.table}.${join.target} as target`)
     const links = new Map<number, number[]>()
     for (const row of rows) {
       const list = links.get(Number(row.owner)) ?? []
@@ -170,7 +177,12 @@ export function collectionFilter(
   if (field?.type === 'manyToMany') {
     const join = joinTable(resource.name, key, field)
     const links = (exists: Knex.QueryBuilder) => {
-      exists.from(join.table).whereRaw('?? = r.id', [`${join.table}.${join.owner}`])
+      // Links to soft-deleted targets are not shown (withLinks), so they never match.
+      exists
+        .from(join.table)
+        .join(`${field.resource} as t`, 't.id', `${join.table}.${join.target}`)
+        .whereNull('t.deleted_at')
+        .whereRaw('?? = r.id', [`${join.table}.${join.owner}`])
       if (value !== null) exists.where(`${join.table}.${join.target}`, value as number)
     }
     if (value === null) query.whereNotExists(links)
@@ -207,6 +219,33 @@ export function requireRecord(
 ) {
   if (resource.scoped && !inOrgScope(record.orgPath, actor.orgPaths)) throw notFound()
   if (!canRecord(ability, actor, resource, action, record)) throw forbiddenAction()
+}
+
+/**
+ * A child that inherits its unit (`scope.from`, ADR 029) is written only by readers of its
+ * parent. The refusal names the missing rule, since the same role may read and delete
+ * the child (#140); a parent outside the actor's scope stays 404.
+ */
+export function requireParentView(
+  ability: AdulaAbility,
+  actor: Actor,
+  child: Resource,
+  parent: Resource,
+  record: RecordData
+) {
+  try {
+    requireRecord(ability, actor, parent, 'view', record)
+  } catch (error) {
+    if (!(error instanceof AdulaError) || error.status !== 403) throw error
+    throw new AdulaError(
+      403,
+      'E_FORBIDDEN',
+      translate('errors.parentView', currentLanguage(), {
+        child: labelText(child.label),
+        parent: labelText(parent.label),
+      })
+    )
+  }
 }
 
 /** Which of the resource's actions the actor may take on one record now. */

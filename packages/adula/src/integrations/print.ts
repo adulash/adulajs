@@ -1,5 +1,6 @@
 import type { ResourceDescription } from '../admin/presentation.js'
 import type { JsonValue, SerializedRecord } from '../resource/types.js'
+import { translate } from '../languages/catalog.js'
 
 /**
  * `logoUrl` must be a base64 image data URI (see imageDataUri). Any other URL is
@@ -49,12 +50,13 @@ const RELATION_META = new Set(['id', 'version', 'docStatus', 'orgUnitId'])
 
 /**
  * The label of a related record, as the UI's relationLabel: the server's `_title`, else
- * (user rows) the first non-meta text value, else `#id`.
+ * (user rows) the first non-meta text value, else `#id`. A record the reader may not view
+ * has no related row and is printed with a neutral label, never its id.
  */
 export function relationTitle(rows: SerializedRecord[] | undefined, value: JsonValue | undefined) {
   const fallback = value === null || value === undefined ? '—' : `#${String(value)}`
   const row = rows?.find((entry) => String(entry.id) === String(value))
-  if (!row) return fallback
+  if (!row) return fallback === '—' ? fallback : translate('list.value.unavailable')
   if ('_title' in row) return typeof row._title === 'string' && row._title ? row._title : fallback
   const label = Object.entries(row).find(
     ([key, entry]) => !RELATION_META.has(key) && typeof entry === 'string' && entry

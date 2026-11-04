@@ -16,6 +16,7 @@ import {
   orderedSelection,
   parseDecimal,
   phoneHref,
+  relationText,
   safeUrl,
   toLatinDigits,
 } from '~/components/ui/field_values'
@@ -42,7 +43,6 @@ export const CURRENCY_LABEL = 'ر.س'
 const locale = 'ar-u-nu-latn'
 const integerFormat = new Intl.NumberFormat(locale)
 const sizeFormat = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 })
-const meta = new Set(['id', 'version', 'docStatus', 'orgUnitId'])
 
 /** The percent sign after a percent value; translated interfaces map it (ui.value.percent). */
 export const PERCENT_LABEL = '٪'
@@ -64,18 +64,20 @@ export function fieldOptions(field: ResourceField, language = 'ar'): Option[] {
   }))
 }
 
-/** Linked records of a manyToMany value: id and title, #id when the reader cannot view it. */
+/** Linked records of a manyToMany value: id and title, a neutral label when the reader cannot view it. */
 export function linkedTitles(
   field: ResourceField,
   value: unknown,
-  related: Record<string, SerializedRecord[]> = {}
+  related: Record<string, SerializedRecord[]> = {},
+  unavailable?: string
 ) {
   if (!Array.isArray(value)) return []
   return value.map((id) => ({
     id: String(id),
     title: relationLabel(
       related[field.key]?.find((item) => String(item.id) === String(id)),
-      id
+      id,
+      unavailable
     ),
   }))
 }
@@ -149,23 +151,15 @@ export function formatDatetime(value: unknown, calendar: CalendarPreference = 'g
 /**
  * A related record is labelled by the title the server computed from the resource's
  * `title` fields (`_title`, #47). Older servers send none; then the first readable string
- * of the record is used.
+ * of the record is used. Without a related row the reader may not view the record, so it
+ * is labelled neutrally instead of by its id.
  */
-export function relationLabel(row: SerializedRecord | undefined, fallback: unknown) {
-  if (row && '_title' in row)
-    return typeof row._title === 'string' && row._title
-      ? row._title
-      : fallback === null || fallback === undefined
-        ? '—'
-        : `#${fallback}`
-  const label =
-    row &&
-    Object.entries(row).find(([key, entry]) => !meta.has(key) && typeof entry === 'string' && entry)
-  return label
-    ? String(label[1])
-    : fallback === null || fallback === undefined
-      ? '—'
-      : `#${fallback}`
+export function relationLabel(
+  row: SerializedRecord | undefined,
+  fallback: unknown,
+  unavailable?: string
+) {
+  return relationText(row, fallback, unavailable)
 }
 
 export function inputValue(field: ResourceField, value: unknown) {
@@ -269,7 +263,7 @@ export function displayValue(
         ? value.map((entry) => optionLabel(field, String(entry), language)).join('، ')
         : String(value)
     case 'manyToMany':
-      return linkedTitles(field, value, related)
+      return linkedTitles(field, value, related, t('سجل غير متاح'))
         .map((entry) => entry.title)
         .join('، ')
     case 'money':
@@ -282,7 +276,8 @@ export function displayValue(
     case 'user':
       return relationLabel(
         related[field.key]?.find((item) => String(item.id) === String(value)),
-        value
+        value,
+        t('سجل غير متاح')
       )
     case 'lookup':
       return (
@@ -385,7 +380,7 @@ export function ResourceValue({
   if (field.type === 'manyToMany')
     return (
       <span className="flex flex-wrap gap-1">
-        {linkedTitles(field, value, related).map((entry) => (
+        {linkedTitles(field, value, related, t('سجل غير متاح')).map((entry) => (
           <Badge key={entry.id} variant="outline" className="font-normal">
             {entry.title}
           </Badge>

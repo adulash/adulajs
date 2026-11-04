@@ -40,6 +40,7 @@ import {
   findAny,
   hydrateOne,
   normalizeValues,
+  requireParentView,
   requireRecord,
   withLinks,
   type ResourceContext,
@@ -314,7 +315,7 @@ export async function persist(
           throw requiredField(resource.scope.from)
         const parentResource = registry.get(field.resource)
         const parent = await load(trx, parentResource, parentId)
-        check(parentResource, 'view', parent)
+        if (!system) requireParentView(ability, actor, resource, parentResource, parent)
         candidate.orgUnitId = parent.orgUnitId
       } else if (!system || 'orgUnitId' in input || id === undefined)
         candidate.orgUnitId = input.orgUnitId ?? existing.orgUnitId

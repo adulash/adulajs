@@ -46,3 +46,13 @@ grouping and without checking permissions, and they crowded out the business mod
 - Kit tests cover `kind`, `approvals` and `canDecide`; reference browser tests cover the
   redirect, deciding from My tasks (approval and decision steps), the closing-note dialog
   and the sidebar for administrators and ordinary users.
+
+## Addendum (2.2.1): resources read only for titles
+
+A role often reads another application's resource only to name its records: relation
+titles, pickers and the parent check of `scope.from` (ADR 029). `navigation()` leaves out a
+resource when every rule that grants the actor `view` on it is limited (`fields`) to the
+resource's title fields and the actor may not create its records, so that application is
+not presented to the role (#141). A rule meant only for references therefore names title
+fields; declare the resource's `title` when the default title fields are not the ones the
+role needs. A `reference` flag on rules was not added in a patch release.

@@ -228,7 +228,9 @@ export class RolesAdmin {
     const name = roleName(value)
     return this.db.transaction(async (trx) => {
       const role = await this.find(trx, id)
-      if (role.name === 'administrator' && name !== role.name)
+      // adula:install finds the bootstrap role by its key; a role installed before keys
+      // existed is still found by its name, so that name stays until adula:install keys it.
+      if (role.name === 'administrator' && !role.key && name !== role.name)
         throw new AdulaError(
           409,
           'E_BOOTSTRAP_ROLE',

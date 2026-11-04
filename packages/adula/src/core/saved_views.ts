@@ -5,6 +5,7 @@ import { buildAbility, type Actor, type AdulaAbility } from '../auth/ability.js'
 import { AdulaError } from '../admin/errors.js'
 import { canQueryField } from '../admin/resource_service.js'
 import { logActivity } from './activity.js'
+import { ActorStore } from '../auth/actor_store.js'
 import { filterCondition, type ListFilterValue } from '../admin/resource/query.js'
 
 export type SavedViewQuery = {
@@ -28,6 +29,24 @@ const VIEW_LIMIT = 50
 const SHARED_LIMIT = 100
 const ACTIVITY_RESOURCE = 'core.saved_views'
 
+/** The fields a view queries: its sort, its filters and, with a search, every searchable field. */
+function queriedKeys(resource: Resource, query: SavedViewQuery) {
+  return [
+    ...(query.sort ? [query.sort] : []),
+    ...Object.keys(query.filters ?? {}),
+    ...(query.search
+      ? Object.entries(resource.fields)
+          .filter(([, field]) => field.searchable)
+          .map(([key]) => key)
+      : []),
+  ]
+}
+
+/** Publishing a view to every reader takes the right to change the resource's records. */
+function canShare(resource: Resource, ability: AdulaAbility) {
+  return resource.actions.includes('update') && ability.can('update', resource.name)
+}
+
 /**
  * A saved view is stored user input that later drives a list query, so every key
  * is validated against the resource definition before it is written and again
@@ -41,7 +60,7 @@ export class SavedViews {
   ) {}
 
   async list(name: string, actor: Actor): Promise<SavedView[]> {
-    const { resource } = this.authorize(name, actor)
+    const { resource, ability } = this.authorize(name, actor)
     // Own views first, so colleagues' shared views can never crowd them out.
     const rows = await this.db('saved_views')
       .where('resource', resource.name)
@@ -49,20 +68,42 @@ export class SavedViews {
       .orderByRaw('(user_id = ?) DESC', [actor.id])
       .orderBy('name')
       .limit(VIEW_LIMIT + SHARED_LIMIT)
-    return rows.flatMap((row) => {
+    // A colleague's shared view reaches this reader only while its author may still share
+    // it: views published by read-only users before sharing required `update` stay private.
+    const authors = new Map<number, Promise<boolean>>()
+    const store = new ActorStore(this.db, this.registry)
+    const mayShare = (userId: number) => {
+      if (!authors.has(userId))
+        authors.set(
+          userId,
+          store
+            .load(userId)
+            .then((author) => canShare(resource, buildAbility(author.rules, this.registry.all())))
+        )
+      return authors.get(userId)!
+    }
+    const views: SavedView[] = []
+    for (const row of rows) {
+      const own = Number(row.user_id) === actor.id
       const query = this.sanitize(resource, row.query)
-      return query
-        ? [
-            {
-              id: Number(row.id),
-              name: String(row.name),
-              query,
-              shared: Boolean(row.shared),
-              own: Number(row.user_id) === actor.id,
-            },
-          ]
-        : []
-    })
+      if (!query) continue
+      // Another user's view whose sort, filters or search touch a field this reader may not
+      // query would hand over that user's stored values on it (and the list refuses it).
+      if (
+        !own &&
+        !queriedKeys(resource, query).every((key) => canQueryField(resource, actor, ability, key))
+      )
+        continue
+      if (!own && !(await mayShare(Number(row.user_id)))) continue
+      views.push({
+        id: Number(row.id),
+        name: String(row.name),
+        query,
+        shared: Boolean(row.shared),
+        own,
+      })
+    }
+    return views
   }
 
   async save(
@@ -76,19 +117,14 @@ export class SavedViews {
       throw new AdulaError(422, 'E_VIEW_NAME', 'اسم العرض مطلوب ولا يتجاوز 60 حرفاً')
     const query = this.sanitize(resource, input.query, true)!
     // A view may only query what its author may query; stored filters must not probe hidden fields.
-    const queried = [
-      ...(query.sort ? [query.sort] : []),
-      ...Object.keys(query.filters ?? {}),
-      ...(query.search
-        ? Object.entries(resource.fields)
-            .filter(([, field]) => field.searchable)
-            .map(([key]) => key)
-        : []),
-    ]
-    for (const key of queried)
+    for (const key of queriedKeys(resource, query))
       if (!canQueryField(resource, actor, ability, key))
         throw new AdulaError(403, 'E_FIELD_FORBIDDEN', `لا يمكنك الاستعلام بهذا الحقل: ${key}`)
     const shared = input.shared === true
+    // A shared view reaches every reader of the resource; publishing one takes the right to
+    // change its records, so read-only roles cannot push views into other users' lists.
+    if (shared && !canShare(resource, ability))
+      throw new AdulaError(403, 'E_FORBIDDEN', 'مشاركة العرض تتطلب صلاحية تعديل هذا الكيان')
     const existing = await this.db('saved_views')
       .where({ user_id: actor.id, resource: resource.name, name: label })
       .first('id', 'shared')

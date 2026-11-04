@@ -1,7 +1,7 @@
 import { test } from '@japa/runner'
 import { randomUUID } from 'node:crypto'
 import { ResourceService, consumeEvent, publishOutbox, AdulaError } from '../index.js'
-import type { RecordData } from '../index.js'
+import type { Actor, RecordData } from '../index.js'
 import {
   db,
   setup,
@@ -519,5 +519,61 @@ test.group('Transactional resource service', (group) => {
       /failed/
     )
     assert.notExists(await db('processed_events').where('event_id', event.id).first())
+  })
+  test('a resource read only for record titles is absent from navigation (#141)', async ({
+    assert,
+  }) => {
+    const titleOnly: Actor = {
+      ...reader,
+      rules: [
+        { subject: 'orders', action: ['view', 'create', 'update'] },
+        { subject: 'customers', action: 'view', fields: ['name'] },
+      ],
+    }
+    const names = (actor: Actor) => service.navigation(actor).map((entry) => entry.name)
+    assert.include(names(titleOnly), 'orders')
+    assert.notInclude(names(titleOnly), 'customers')
+    // A full view rule, or a field-limited rule beyond the title, keeps the entry.
+    assert.include(names(reader), 'customers')
+    assert.include(names(admin), 'customers')
+    const withRule = (rule: Actor['rules'][number]) =>
+      names({ ...titleOnly, rules: [...titleOnly.rules, rule] })
+    // A denial grants nothing; the title-only rule still decides.
+    assert.notInclude(
+      withRule({ subject: 'customers', action: 'view', inverted: true }),
+      'customers'
+    )
+    assert.include(
+      withRule({ subject: 'customers', action: 'view', fields: ['name', 'id'] }),
+      'customers'
+    )
+    // Creating customers starts from their entry, so it stays.
+    assert.include(withRule({ subject: 'customers', action: 'create' }), 'customers')
+    // The role still links its orders to customers it reads by title.
+    const [customer] = await db('customers').insert({ name: 'عميل للعنوان' }).returning('id')
+    const saved = await service.save('orders', titleOnly, {
+      orgUnitId: 2,
+      notes: 'مرتبط',
+      customerId: customer.id,
+    })
+    assert.equal(saved.customerId, customer.id)
+  })
+  test('a record shows its unit by name and never relates a parent the reader cannot view', async ({
+    assert,
+  }) => {
+    const [customer] = await db('customers').insert({ name: 'عميل مخفي' }).returning('id')
+    const record = await service.save('orders', admin, {
+      orgUnitId: 2,
+      notes: 'وحدة',
+      customerId: customer.id,
+    })
+    const ordersOnly: Actor = { ...reader, rules: [{ subject: 'orders', action: 'view' }] }
+    const shown = await service.show('orders', Number(record.id), ordersOnly)
+    assert.isUndefined(shown.related.customerId)
+    const unit = await db('org_units').where('id', 2).first('name')
+    assert.deepEqual(shown.related.orgUnitId, [{ id: 2, name: unit.name, _title: unit.name }])
+    // A reader of the parent still receives its title.
+    const withCustomers = await service.show('orders', Number(record.id), reader)
+    assert.equal(withCustomers.related.customerId[0]._title, 'عميل مخفي')
   })
 })

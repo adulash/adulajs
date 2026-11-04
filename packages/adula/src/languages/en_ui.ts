@@ -343,4 +343,6 @@ export const englishInterfaceMessages: Partial<
   'ui.print.open': 'Open for printing',
   'ui.activity.printed': 'Printed with a template',
   'ui.admin.printTemplates': 'Print templates',
+  'ui.relation.unavailable': 'Record not available',
+  'ui.show.orgUnitUnavailable': 'Unit not available',
 }

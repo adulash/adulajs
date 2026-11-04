@@ -211,3 +211,28 @@ export function emailHref(value: unknown) {
   const text = String(value ?? '').trim()
   return /^[^\s@?#]+@[^\s@?#]+$/.test(text) ? `mailto:${text}` : null
 }
+
+const RELATION_META = new Set(['id', 'version', 'docStatus', 'orgUnitId'])
+
+/**
+ * The label of a related record: the title the server computed (`_title`, #47), else the
+ * first readable text of the row (older servers), else `#id`. Without a row the reader may
+ * not view the record (or it was deleted), so it is labelled `unavailable`, never by its id.
+ */
+export function relationText(
+  row: Record<string, unknown> | undefined,
+  fallback: unknown,
+  unavailable = 'سجل غير متاح'
+): string {
+  if (fallback === null || fallback === undefined) return row ? (relationTitleOf(row) ?? '—') : '—'
+  if (!row) return unavailable
+  return relationTitleOf(row) ?? `#${String(fallback)}`
+}
+
+function relationTitleOf(row: Record<string, unknown>) {
+  if ('_title' in row) return typeof row._title === 'string' && row._title ? row._title : null
+  const label = Object.entries(row).find(
+    ([key, entry]) => !RELATION_META.has(key) && typeof entry === 'string' && entry
+  )
+  return label ? String(label[1]) : null
+}
