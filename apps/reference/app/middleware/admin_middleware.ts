@@ -1,5 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
+import logger from '@adonisjs/core/services/logger'
 import db from '@adonisjs/lucid/services/db'
 import { NotificationsAdmin, UserInvitations, buildAbility, isBackupStale } from 'adula'
 import { IMPERSONATOR_KEY, adula } from '#services/adula'
@@ -18,6 +19,22 @@ export async function isAdministrator(userId: number) {
 async function countRows(table: string, where: Record<string, string | number>) {
   const [row] = await db.connection().getWriteClient()(table).where(where).count('* as count')
   return Number(row?.count ?? 0)
+}
+
+/**
+ * The «مهامي» badge. A failing record check (a resource whose table is missing, a database
+ * error) hides the badge instead of failing every page, and never falls back to a raw count.
+ */
+async function openTasks(userId: number) {
+  const runtime = adula()
+  try {
+    const actor = await runtime.actors.load(userId)
+    const { open } = await runtime.assignments.mine(actor, { limit: 1 })
+    return open
+  } catch (error) {
+    logger.error({ err: error, userId }, 'my tasks badge count failed')
+    return 0
+  }
 }
 
 /** Whether the actor can create any resource, which is what importing needs. */
@@ -44,9 +61,9 @@ export async function sharedAdminProps(ctx: HttpContext) {
     adminAlerts: ctx.inertia.always(failedRuns + (backupStale ? 1 : 0)),
     setupPending: ctx.inertia.always(isAdmin && (await setupPending())),
     canImport: ctx.inertia.always(userId ? await canImport(userId) : false),
-    openTasks: ctx.inertia.always(
-      userId ? await countRows('assignments', { assignee_id: userId, status: 'open' }) : 0
-    ),
+    // The same count as «مهامي»: items the user may act on today, after the record check,
+    // so the badge never counts work on records the user can no longer open.
+    openTasks: ctx.inertia.always(userId ? await openTasks(userId) : 0),
     canInviteUsers: ctx.inertia.always(
       userId ? await new UserInvitations(knex).canInvite(userId) : false
     ),

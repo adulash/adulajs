@@ -371,7 +371,7 @@ export class WorkflowEngine {
           const users = await this.recipients(trx, run, context, assignees)
           const eligible: number[] = []
           for (const userId of users)
-            if (await this.canView(run.resource, run.record_id, userId)) eligible.push(userId)
+            if (await this.canView(trx, run.resource, run.record_id, userId)) eligible.push(userId)
           // Waiting on nobody would hide the run for hours of retries; fail it where admins look.
           if (!eligible.length)
             throw new StepFailure(
@@ -645,7 +645,7 @@ export class WorkflowEngine {
           if (
             !late.has(userId) &&
             userId !== Number(run.started_by) &&
-            (await this.canView(run.resource, run.record_id, userId))
+            (await this.canView(trx, run.resource, run.record_id, userId))
           )
             targets.push(userId)
       } catch (error) {
@@ -1117,8 +1117,13 @@ export class WorkflowEngine {
     }
   }
 
-  private canView(resource: string, id: number, userId: number) {
-    return canView(this.db, this.resources, this.actors, resource, id, userId)
+  /**
+   * Whether a user may view the run's record, read on `db`. Callers inside a transaction
+   * pass it: a second pool connection while the run is locked lets concurrent decisions,
+   * submissions and worker passes exhaust the pool.
+   */
+  private canView(db: Knex, resource: string, id: number, userId: number) {
+    return canView(db, this.resources, this.actors, resource, id, userId)
   }
 
   private async log(
@@ -1252,7 +1257,7 @@ export class WorkflowEngine {
     const active = await this.#delegations.active(approver, db)
     if (!active || active.delegateId === Number(run.started_by)) return null
     if (await this.#delegations.active(active.delegateId, db)) return null
-    if (!(await this.canView(run.resource, run.record_id, active.delegateId))) return null
+    if (!(await this.canView(db, run.resource, run.record_id, active.delegateId))) return null
     return active
   }
 
