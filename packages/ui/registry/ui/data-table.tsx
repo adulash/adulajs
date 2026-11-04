@@ -71,6 +71,7 @@ import {
   clearFilter,
   exportHref,
   fromSavedFilter,
+  listUrl,
   readFilters,
   selectionState,
   serverMessage,
@@ -234,7 +235,8 @@ export function DataTable({
 }) {
   const { calendar } = useUiPreferences()
   const { t, label, locale } = useMessages()
-  const { url } = usePage()
+  const page = usePage<{ overlay?: { list?: unknown } }>()
+  const url = listUrl(page.url, page.props.overlay)
   const description = resource as ListDescription
   const query = new URL(url, 'http://localhost').searchParams
   const listPath = `/resources/${resource.name}${trashed ? '/trash' : ''}`

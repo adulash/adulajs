@@ -294,3 +294,11 @@ export function inclusiveDatetime(raw: string, side: 'gte' | 'lte') {
   if (/^\d{2}:\d{2}$/.test(time)) return `${day}T${time}${side === 'gte' ? ':00.000' : ':59.999'}`
   return value
 }
+
+/**
+ * The URL of the list itself. While a record dialog is open over the list, the page URL is the
+ * record's, so filters, sort and refresh read the list URL the dialog returns to instead (#104).
+ */
+export function listUrl(pageUrl: string, overlay?: { list?: unknown } | null) {
+  return typeof overlay?.list === 'string' && overlay.list ? overlay.list : pageUrl
+}
