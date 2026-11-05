@@ -21,6 +21,7 @@ import { useUiPreferences } from '~/components/ui/ui-preferences'
 import { useMessages } from '~/components/ui/messages'
 import { BackupBanner } from '~/components/backup-banner'
 import { NotificationBell } from '~/components/notification-bell'
+import AssistantLauncher from '~/components/assistant/assistant-launcher'
 
 /** Collapsed module groups are a per-browser convenience; storage may be unavailable. */
 function useCollapsedModules() {
@@ -205,6 +206,7 @@ export default function Workspace({ children }: { children: ReactNode }) {
             <span className="text-foreground">{current}</span>
           </div>
           <span className="flex items-center gap-3 text-[11px] text-muted-foreground">
+            <AssistantLauncher />
             <NotificationBell />
             <span className="size-1.5 rounded-full bg-primary" />
             {t('بيئة التجربة')}

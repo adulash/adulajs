@@ -44,6 +44,7 @@ export const ACTION_LABELS: Record<string, string> = {
   amend: 'تعديل معتمد',
   manage: 'إدارة كاملة',
   invite: 'دعوة مستخدم',
+  use: 'استخدام',
 }
 const OPERATORS: [string, string][] = [
   ['$eq', 'يساوي'],

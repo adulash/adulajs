@@ -16,6 +16,8 @@ import { Settings } from 'adula'
 import redis from '@adonisjs/redis/services/main'
 import {
   apiThrottle,
+  assistantTestThrottle,
+  assistantThrottle,
   channelChangeThrottle,
   channelCodeThrottle,
   channelTestThrottle,
@@ -59,6 +61,8 @@ const AdminOrgUnitsController = () => import('#controllers/admin/org_units_contr
 const AdminActivityController = () => import('#controllers/admin/activity_controller')
 const AdminJobsController = () => import('#controllers/admin/jobs_controller')
 const AdminSettingsController = () => import('#controllers/admin/settings_controller')
+const AssistantController = () => import('#controllers/assistant_controller')
+const AdminAssistantController = () => import('#controllers/admin/assistant_controller')
 const AdminAuthenticationSettingsController = () =>
   import('#controllers/admin/authentication_settings_controller')
 const SetupController = () => import('#controllers/admin/setup_controller')
@@ -93,6 +97,18 @@ transmit.registerRoutes((route) => {
 })
 
 router.mcp().use([middleware.auth(), apiThrottle, middleware.mcp()])
+
+// The built-in assistant (ADR 052): JSON only, CSRF on, the signed-in user's permissions.
+router
+  .group(() => {
+    router.post('notice', [AssistantController, 'acceptNotice'])
+    router.post('conversations', [AssistantController, 'startConversation'])
+    router.post('conversations/:conversation/turns', [AssistantController, 'turn'])
+    router.post('conversations/:conversation/actions/:id/confirm', [AssistantController, 'confirm'])
+    router.post('conversations/:conversation/actions/:id/reject', [AssistantController, 'reject'])
+  })
+  .prefix('assistant')
+  .use([middleware.auth(), middleware.assistant(), assistantThrottle])
 
 // Signed inbound webhooks: no session or CSRF; the source secret authenticates (#30).
 router
@@ -390,6 +406,11 @@ router
       .post('settings/channels/test', [AdminSettingsController, 'testChannel'])
       .use(channelTestThrottle)
     router.delete('settings/:id', [AdminSettingsController, 'destroy'])
+    router.get('assistant', [AdminAssistantController, 'index'])
+    router.put('assistant', [AdminAssistantController, 'update'])
+    router.put('assistant/key', [AdminAssistantController, 'setKey'])
+    router.delete('assistant/key', [AdminAssistantController, 'clearKey'])
+    router.post('assistant/test', [AdminAssistantController, 'test']).use(assistantTestThrottle)
     router.get('lookups', [AdminLookupsController, 'index'])
     router.post('lookups', [AdminLookupsController, 'store'])
     router.put('lookups/groups/:group/order', [AdminLookupsController, 'reorder'])

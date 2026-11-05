@@ -20,6 +20,7 @@ import {
   UserRoundCheck,
   Printer,
   type LucideIcon,
+  Bot,
 } from 'lucide-react'
 import { calendarDisplay } from '~/components/ui/calendar_date'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
@@ -54,6 +55,7 @@ export const adminGroups: AdminGroup[] = [
       { href: '/admin/templates', label: 'قوالب الرسائل', icon: Mail },
       { href: '/admin/print-templates', label: 'قوالب الطباعة', icon: Printer },
       { href: '/admin/webhooks', label: 'الربط الخارجي', icon: Webhook },
+      { href: '/admin/assistant', label: 'المساعد الذكي', icon: Bot },
     ],
   },
   {

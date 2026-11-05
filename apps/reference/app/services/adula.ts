@@ -25,7 +25,7 @@ import cache from '@adonisjs/cache/services/main'
 import type { Actor } from 'adula'
 import type { HttpContext } from '@adonisjs/core/http'
 import { activeImpersonation } from '#services/impersonation'
-import { HttpChannelSettings } from 'adula'
+import { HttpChannelSettings, Assistant, AssistantSettings, createChatClient } from 'adula'
 import { SyncJobs } from 'adula'
 import { syncJobDefinitions } from '#start/sync_jobs'
 
@@ -46,9 +46,26 @@ export function adula() {
     closeNote: 'optional',
     timeZone,
   })
+  // The built-in assistant (ADR 052): the provider key is sealed like webhook secrets.
+  const assistantSettings = new AssistantSettings(
+    knex,
+    {
+      seal: (value) => encryption.encrypt(value),
+      open: (value) => encryption.decrypt<string>(value),
+    },
+    outboundPolicy()
+  )
   return {
     registry,
     resources,
+    assistantSettings,
+    assistant: new Assistant(
+      knex,
+      registry,
+      resources,
+      assistantSettings,
+      createChatClient(outboundPolicy())
+    ),
     savedViews: new SavedViews(knex, registry),
     bulk: new BulkActions(registry, resources, bulkActions, {
       report: (error, context) =>
