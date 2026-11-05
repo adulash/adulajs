@@ -208,6 +208,9 @@ test.group('Core administration screens', (group) => {
       'MAIL_FROM_ADDRESS',
     ] as const
     const saved = Object.fromEntries(keys.map((key) => [key, env.get(key)]))
+    // Env.set also writes process.env, which child processes of later tests inherit; keep the
+    // raw values so an unset variable is removed again rather than becoming "undefined".
+    const savedProcess = Object.fromEntries(keys.map((key) => [key, process.env[key]]))
     const previous = mail.config.mailers.smtp
     const preset = mailPresets.find((item) => item.id === 'sendgrid')!
     // The administrator copies the preset's lines and fills the empty password and sender;
@@ -286,10 +289,19 @@ test.group('Core administration screens', (group) => {
         assert.notInclude(surface, wrong)
       }
     } finally {
-      for (const key of keys) env.set(key, saved[key] as never)
+      for (const key of keys) {
+        env.set(key, saved[key] as never)
+        if (savedProcess[key] === undefined) delete process.env[key]
+        else process.env[key] = savedProcess[key]
+      }
       await mail.close('smtp')
       mail.config.mailers.smtp = previous
       await sink.close()
+    }
+    for (const key of keys) {
+      assert.equal(process.env[key], savedProcess[key], key)
+      assert.notEqual(process.env[key], 'undefined', key)
+      assert.equal(env.get(key), saved[key], key)
     }
   })
 
