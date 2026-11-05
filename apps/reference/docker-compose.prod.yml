@@ -65,6 +65,13 @@ x-application-environment: &application-environment
   MICROSOFT_CLIENT_ID:
   MICROSOFT_CLIENT_SECRET:
   MICROSOFT_TENANT_ID:
+  # Encrypted downloadable and cloud backups (ADR 051); keep an offline copy of the key.
+  BACKUP_ENCRYPTION_KEY:
+  BACKUP_GOOGLE_CLIENT_ID:
+  BACKUP_GOOGLE_CLIENT_SECRET:
+  BACKUP_MICROSOFT_CLIENT_ID:
+  BACKUP_MICROSOFT_CLIENT_SECRET:
+  BACKUP_MICROSOFT_TENANT:
   # One-off `run --rm web node ace.js adula:install` reads it.
   ADULA_ADMIN_EMAIL:
 services:
@@ -86,7 +93,11 @@ services:
       dockerfile: apps/reference/Dockerfile
     restart: unless-stopped
     environment: *application-environment
-    volumes: [uploads:/app/apps/reference/storage/uploads]
+    # The worker writes sealed backups to backup_files and web streams downloads from it;
+    # the scheduler overrides volumes and never sees them.
+    volumes:
+      - uploads:/app/apps/reference/storage/uploads
+      - backup_files:/app/apps/reference/storage/backups
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
@@ -168,5 +179,6 @@ volumes:
   caddy_data:
   uploads:
   backups:
+  backup_files:
   pgdata:
   redisdata:

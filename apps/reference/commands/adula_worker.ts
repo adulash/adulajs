@@ -15,7 +15,16 @@ export default class AdulaWorker extends BaseCommand {
     let active: Promise<void> | undefined
     let stopped = false
     let syncing: Promise<unknown> | undefined
+    let backing: Promise<unknown> | undefined
+    const { cloudBackups } = await import('#services/cloud_backups')
     const tick = () => {
+      // A backup may take hours (pg_dump, upload), so it has its own lane as well.
+      backing ??= stopped
+        ? undefined
+        : cloudBackups()
+            .runNext()
+            .catch((error) => this.logger.error(error instanceof Error ? error.message : error))
+            .finally(() => (backing = undefined))
       // Sync handlers may run for minutes, so they get their own lane beside the outbox.
       syncing ??= stopped
         ? undefined
@@ -48,7 +57,7 @@ export default class AdulaWorker extends BaseCommand {
     this.app.terminating(async () => {
       stopped = true
       clearInterval(timer)
-      await Promise.all([active, syncing])
+      await Promise.all([active, syncing, backing])
     })
     tick()
   }

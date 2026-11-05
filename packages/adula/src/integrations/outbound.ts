@@ -153,8 +153,34 @@ export async function resolveOutboundTarget(
   return { address, family: isIP(address) === 6 ? 6 : 4 }
 }
 
-/** Sends a POST whose TCP connection goes to the pinned address; redirects are not followed. */
-export function pinnedPost(url: URL, init: OutboundRequest & { target: OutboundTarget }) {
+/** A request through the pinned connection; the response body is read up to a bound. */
+export type PinnedRequest = {
+  method: string
+  headers: Record<string, string>
+  body?: string | Uint8Array
+  signal: AbortSignal
+  target: OutboundTarget
+  /** Bytes of the response body kept; 0 discards it. A longer body fails the request. */
+  maxResponseBytes?: number
+}
+export type PinnedResponse = {
+  status: number
+  headers: Record<string, string | string[] | undefined>
+  body: Buffer
+}
+
+/** Raised when a response body exceeds the caller's bound. */
+export class OutboundResponseTooLargeError extends Error {
+  constructor() {
+    super('Response body is too large')
+  }
+}
+
+/**
+ * Sends a request whose TCP connection goes to the pinned address; redirects are not
+ * followed and the response body is bounded.
+ */
+export function pinnedRequest(url: URL, init: PinnedRequest) {
   const { address, family } = init.target
   const pinnedLookup: LookupFunction = (_host, options, callback) => {
     if (options.all) callback(null, [{ address, family }])
@@ -162,25 +188,62 @@ export function pinnedPost(url: URL, init: OutboundRequest & { target: OutboundT
   }
   const host = url.hostname.replace(/^\[|\]$/g, '')
   const send = url.protocol === 'https:' ? httpsRequest : httpRequest
-  return new Promise<{ status: number }>((resolve, reject) => {
+  const limit = init.maxResponseBytes ?? 0
+  const body = init.body ?? ''
+  return new Promise<PinnedResponse>((resolve, reject) => {
     const request = send(
       url,
       {
-        method: 'POST',
-        headers: { ...init.headers, 'Content-Length': String(Buffer.byteLength(init.body)) },
+        method: init.method,
+        headers: { ...init.headers, 'Content-Length': String(Buffer.byteLength(body)) },
         lookup: pinnedLookup,
         servername: isIP(host) ? undefined : host,
         signal: init.signal,
       },
       (response) => {
-        // The body is never read or stored.
-        response.resume()
-        resolve({ status: response.statusCode ?? 0 })
+        const result = { status: response.statusCode ?? 0, headers: response.headers }
+        if (limit <= 0) {
+          response.resume()
+          return resolve({ ...result, body: Buffer.alloc(0) })
+        }
+        const chunks: Buffer[] = []
+        let size = 0
+        response.on('data', (chunk: Buffer) => {
+          size += chunk.length
+          if (size > limit) {
+            response.destroy()
+            request.destroy()
+            return reject(new OutboundResponseTooLargeError())
+          }
+          chunks.push(chunk)
+        })
+        response.on('end', () => resolve({ ...result, body: Buffer.concat(chunks) }))
+        response.on('error', reject)
       }
     )
     request.on('error', reject)
-    request.end(init.body)
+    request.end(body)
   })
+}
+
+/** Sends a POST whose TCP connection goes to the pinned address; redirects are not followed. */
+export async function pinnedPost(url: URL, init: OutboundRequest & { target: OutboundTarget }) {
+  // The body is never read or stored.
+  const { status } = await pinnedRequest(url, { ...init, method: 'POST', maxResponseBytes: 0 })
+  return { status }
+}
+
+/**
+ * Validates an absolute URL for an outbound request: https only (http when private targets
+ * are allowed), no credentials, and a resolved address that is public unless allowed.
+ */
+export async function guardOutboundUrl(value: string | URL, options: OutboundOptions = {}) {
+  const url = new URL(value)
+  if (url.protocol !== 'https:' && !(options.allowPrivateTargets && url.protocol === 'http:'))
+    throw new OutboundTargetError('blocked-target')
+  if (url.username || url.password) throw new OutboundTargetError('blocked-target')
+  const target = await resolveOutboundTarget(url, options)
+  return { url, target }
 }
 
 /**

@@ -68,6 +68,10 @@ All three share one version and are published together from a `v<version>` tag
   job.
 * Attachments: private storage on Drive disks (filesystem or S3), authorized download,
   upload grants, `adula:storage:migrate`, upload pruning.
+* Encrypted backups (ADR 051): download by an administrator, Google Drive and OneDrive
+  uploads (manual or scheduled), `backup:seal` and `backup:open`. Real Drive and OneDrive
+  delivery is unverified until the owner's OAuth clients complete a connection; tests use
+  local fakes of both APIs.
 * Operations: outbox and jobs, scheduler/worker heartbeats, `backup:create`,
   `backup:verify`, `backup:restore-files`, `backup:restore-test`,
   `adula:restore:reconcile` (see [operations](operations.md)).

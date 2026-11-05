@@ -1269,3 +1269,52 @@ export async function withdrawDeletedCommentNotifications(db: Knex) {
     await withdrawNotificationDelivery(db, chunk)
   }
 }
+
+/**
+ * Cloud and downloadable backups (ADR 051): one connection per destination with its refresh
+ * token sealed by the host's SecretBox, and one row per backup run.
+ */
+export async function createCloudBackupsSchema(db: Knex) {
+  await db.schema.createTable('backup_connections', (t) => {
+    t.increments('id')
+    t.string('provider', 20).notNullable().unique()
+    t.string('status', 20).notNullable().defaultTo('connected')
+    t.string('account_label', 320)
+    t.text('refresh_token').notNullable()
+    t.string('schedule', 10).notNullable().defaultTo('off')
+    t.integer('connected_by').notNullable().references('id').inTable('users').onDelete('RESTRICT')
+    t.timestamp('connected_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+    t.timestamp('updated_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+  })
+  await db.raw(`ALTER TABLE backup_connections
+    ADD CONSTRAINT backup_connections_provider CHECK (provider IN ('google', 'onedrive')),
+    ADD CONSTRAINT backup_connections_status CHECK (status IN ('connected', 'revoked')),
+    ADD CONSTRAINT backup_connections_schedule CHECK (schedule IN ('off', 'daily', 'weekly'))`)
+  await db.schema.createTable('backup_runs', (t) => {
+    t.bigIncrements('id')
+    t.string('kind', 20).notNullable()
+    t.integer('connection_id').references('id').inTable('backup_connections').onDelete('SET NULL')
+    t.string('trigger', 10).notNullable().defaultTo('manual')
+    t.string('status', 20).notNullable().defaultTo('queued')
+    t.integer('requested_by').notNullable().references('id').inTable('users').onDelete('RESTRICT')
+    t.string('file_name', 200)
+    t.bigInteger('size_bytes')
+    t.string('sha256', 64)
+    t.string('remote_id', 500)
+    t.timestamp('expires_at', { useTz: true })
+    t.string('error_category', 40)
+    t.string('error_message', 500)
+    t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+    t.timestamp('started_at', { useTz: true })
+    t.timestamp('finished_at', { useTz: true })
+  })
+  await db.raw(`ALTER TABLE backup_runs
+    ADD CONSTRAINT backup_runs_kind CHECK (kind IN ('download', 'google', 'onedrive')),
+    ADD CONSTRAINT backup_runs_trigger CHECK (trigger IN ('manual', 'schedule')),
+    ADD CONSTRAINT backup_runs_status
+      CHECK (status IN ('queued', 'running', 'succeeded', 'failed', 'expired'))`)
+  await db.raw(
+    `CREATE UNIQUE INDEX backup_runs_active ON backup_runs (kind) WHERE status IN ('queued', 'running')`
+  )
+  await db.raw('CREATE INDEX backup_runs_kind_created ON backup_runs (kind, created_at DESC)')
+}
