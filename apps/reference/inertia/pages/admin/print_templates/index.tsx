@@ -6,6 +6,7 @@ import type { PrintTemplateDetail, PrintTemplateSummary, PrintTemplateVersion } 
 import Workspace from '~/layouts/workspace'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
+import { LongDialogContent } from '~/components/ui/long-dialog'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Switch } from '~/components/ui/switch'
@@ -14,11 +15,7 @@ import { ResourceSelect } from '~/components/ui/resource-field'
 import { Alert, AlertDescription } from '~/components/ui/alert'
 import {
   Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+  DialogClose,
 } from '~/components/ui/dialog'
 
 type Column = { key: string; label: string; type: string }
@@ -102,6 +99,12 @@ function errorMessage(error: unknown) {
 
 export default function PrintTemplatesIndex({ templates, resources, helpers, timeZone }: Props) {
   const [draft, setDraft] = useState<Draft | null>(null)
+  // The values the dialog opened with: closing asks for confirmation only when they changed.
+  const [opened, setOpened] = useState('')
+  const begin = (next: Draft) => {
+    setOpened(JSON.stringify(next))
+    setDraft(next)
+  }
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -123,7 +126,7 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
     setError(null)
     setPreviewHtml(null)
     setPreviewRecord('')
-    setDraft({
+    begin({
       resource: resource?.name ?? '',
       key: '',
       label: '',
@@ -152,7 +155,7 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
       return
     }
     setEditing(true)
-    setDraft({
+    begin({
       resource: detail.resource,
       key: detail.key,
       label: detail.label,
@@ -324,17 +327,35 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
       </div>
 
       <Dialog open={draft !== null} onOpenChange={(value) => !value && setDraft(null)}>
-        <DialogContent dir="rtl" className="max-h-[92vh] overflow-y-auto sm:max-w-5xl">
-          <DialogHeader>
-            <DialogTitle>{editing ? 'تعديل قالب الطباعة' : 'قالب طباعة جديد'}</DialogTitle>
-            <DialogDescription>
-              {editing
-                ? 'يُحفظ التعديل نسخةً جديدة وتبقى النسخ السابقة كما هي.'
-                : 'اكتب تخطيط المستند بالوسوم المسموحة والمتغيرات بين {{ }}.'}
-            </DialogDescription>
-          </DialogHeader>
+        <LongDialogContent
+          dir="rtl"
+          width="full"
+          title={editing ? 'تعديل قالب الطباعة' : 'قالب طباعة جديد'}
+          description={
+            editing
+              ? 'يُحفظ التعديل نسخةً جديدة وتبقى النسخ السابقة كما هي.'
+              : 'اكتب تخطيط المستند بالوسوم المسموحة والمتغيرات بين {{ }}.'
+          }
+          footer={
+            <>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  إلغاء
+                </Button>
+              </DialogClose>
+              <Button type="submit" form="print-template-form" disabled={saving}>
+                {saving ? 'جارٍ الحفظ…' : editing ? 'حفظ نسخة جديدة' : 'إنشاء القالب'}
+              </Button>
+            </>
+          }
+        >
           {draft && (
-            <form id="print-template-form" className="grid gap-6 lg:grid-cols-2" onSubmit={save}>
+            <form
+              id="print-template-form"
+              className="grid gap-6 lg:grid-cols-2"
+              data-dirty={String(JSON.stringify(draft) !== opened)}
+              onSubmit={save}
+            >
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
@@ -522,23 +543,23 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
               </div>
             </form>
           )}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDraft(null)}>
-              إلغاء
-            </Button>
-            <Button type="submit" form="print-template-form" disabled={saving}>
-              {saving ? 'جارٍ الحفظ…' : editing ? 'حفظ نسخة جديدة' : 'إنشاء القالب'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
+        </LongDialogContent>
       </Dialog>
 
-      <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
-        <DialogContent dir="rtl" className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>نسخ القالب</DialogTitle>
-            <DialogDescription>{history?.template.label}</DialogDescription>
-          </DialogHeader>
+      <Dialog mode="view" open={historyOpen} onOpenChange={setHistoryOpen}>
+        <LongDialogContent
+          dir="rtl"
+          width="2xl"
+          title="نسخ القالب"
+          description={history?.template.label}
+          footer={
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                إغلاق
+              </Button>
+            </DialogClose>
+          }
+        >
           {!history?.versions ? (
             <p className="text-sm text-muted-foreground">جارٍ تحميل النسخ…</p>
           ) : (
@@ -565,7 +586,7 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
               ))}
             </ol>
           )}
-        </DialogContent>
+        </LongDialogContent>
       </Dialog>
     </>
   )

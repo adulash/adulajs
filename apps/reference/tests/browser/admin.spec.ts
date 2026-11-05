@@ -85,7 +85,10 @@ test.group('Administration screens in the browser', (group) => {
     try {
       await browserContext.loginAs(admin)
       const page = await visit('/admin/users')
-      await page.getByRole('link', { name: 'إضافة مستخدم', exact: true }).click()
+      // The users page offers the invitation as its primary action.
+      const invite = page.locator('main').getByRole('link', { name: 'دعوة مستخدم', exact: true })
+      assert.equal(await invite.getAttribute('data-variant'), 'default')
+      await invite.click()
       const dialog = page.getByRole('dialog')
       await dialog.getByLabel('الاسم الكامل').fill('مستخدم الدعوة')
       await dialog.getByLabel('البريد الإلكتروني').fill(member.email)
@@ -951,6 +954,55 @@ test.group('Administration screens in the browser', (group) => {
       await knex()('settings')
         .where({ key: 'preference.shell.theme', scope: 'user', scope_id: String(admin.id) })
         .delete()
+    }
+  })
+
+  test('the mail setup dialog closes at once until another provider is chosen', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(admin)
+    for (const size of [
+      { width: 1440, height: 900 },
+      { width: 375, height: 812 },
+    ]) {
+      const page = await visit('/admin/settings')
+      await page.setViewportSize(size)
+      const dialog = page.getByRole('dialog', { name: 'إعداد البريد' })
+      const confirmClose = page.getByRole('dialog', { name: 'إغلاق النموذج؟' })
+      const provider = dialog.getByRole('combobox', { name: 'اختر مزود البريد:' })
+      const choose = async (name: string) => {
+        await provider.click()
+        await page.getByRole('option', { name, exact: true }).click()
+        // Let the list close first, or it takes the next Escape for itself.
+        await page.getByRole('listbox').waitFor({ state: 'detached' })
+        const chosen = await provider.textContent()
+        assert.equal(chosen?.trim(), name)
+      }
+      await page.getByRole('button', { name: 'إعداد البريد', exact: true }).click()
+      await dialog.waitFor()
+      const first = (await provider.textContent())!.trim()
+      // Unchanged: the footer's «إغلاق» closes at once.
+      await dialog
+        .locator('[data-slot="long-dialog-footer"]')
+        .getByRole('button', { name: 'إغلاق', exact: true })
+        .click()
+      await dialog.waitFor({ state: 'hidden' })
+      assert.equal(await confirmClose.count(), 0)
+      // Another provider: Escape asks; going back to the first provider is clean again.
+      await page.getByRole('button', { name: 'إعداد البريد', exact: true }).click()
+      await dialog.waitFor()
+      await choose('SendGrid')
+      await page.keyboard.press('Escape')
+      await confirmClose.waitFor()
+      await confirmClose.getByRole('button', { name: 'متابعة التحرير' }).click()
+      await confirmClose.waitFor({ state: 'hidden' })
+      await choose(first)
+      await page.keyboard.press('Escape')
+      await dialog.waitFor({ state: 'hidden' })
+      assert.equal(await confirmClose.count(), 0)
+      await page.close()
     }
   })
 })

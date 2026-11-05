@@ -13,14 +13,8 @@ import { Checkbox } from '~/components/ui/checkbox'
 import { useConfirmAction } from '~/components/ui/confirm-action'
 import { ResourceSelect } from '~/components/ui/resource-field'
 import { Alert, AlertDescription, AlertTitle } from '~/components/ui/alert'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '~/components/ui/dialog'
+import { Dialog, DialogClose } from '~/components/ui/dialog'
+import { LongDialogContent } from '~/components/ui/long-dialog'
 import {
   Table,
   TableBody,
@@ -97,6 +91,11 @@ function RuleEditor({
   const { confirm, confirmation } = useConfirmAction()
   const [predicates, setPredicates] = useState<Predicate[]>(toPredicates(rule.conditions))
   const [fields, setFields] = useState<string[]>(rule.fields ?? [])
+  // Compared with the rule as opened: closing asks for confirmation only when it changed.
+  const snapshot = (rows: Predicate[], keys: string[]) =>
+    JSON.stringify({ rows, keys: [...keys].sort() })
+  const [opened] = useState(() => snapshot(toPredicates(rule.conditions), rule.fields ?? []))
+  const dirty = snapshot(predicates, fields) !== opened
   const editable = subject.conditionFields.length > 0
   const update = (index: number, patch: Partial<Predicate>) =>
     setPredicates((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)))
@@ -141,18 +140,35 @@ function RuleEditor({
   return (
     <>
       <Dialog mode={editable ? 'edit' : 'view'} open onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="max-w-2xl">
-          <form onSubmit={save} className="space-y-6">
-            <DialogHeader>
-              <DialogTitle>
-                {rule.inverted ? 'منع' : 'سماح'}: {subject.label.ar} / {ACTION_LABELS[rule.action]}
-              </DialogTitle>
-              <DialogDescription>
-                {editable
-                  ? 'الشروط تُقيّد القاعدة بسجلات محددة، وقائمة الحقول تحصرها في حقول بعينها.'
-                  : 'الشروط والحقول تتطلب اختيار كيان محدد بدلاً من كل الكيانات.'}
-              </DialogDescription>
-            </DialogHeader>
+        <LongDialogContent
+          width="2xl"
+          title={`${rule.inverted ? 'منع' : 'سماح'}: ${subject.label.ar} / ${ACTION_LABELS[rule.action]}`}
+          description={
+            editable
+              ? 'الشروط تُقيّد القاعدة بسجلات محددة، وقائمة الحقول تحصرها في حقول بعينها.'
+              : 'الشروط والحقول تتطلب اختيار كيان محدد بدلاً من كل الكيانات.'
+          }
+          footer={
+            <>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  إلغاء
+                </Button>
+              </DialogClose>
+              {editable && (
+                <Button type="submit" form="role-rule-form">
+                  حفظ القاعدة
+                </Button>
+              )}
+            </>
+          }
+        >
+          <form
+            id="role-rule-form"
+            onSubmit={save}
+            className="space-y-6"
+            data-dirty={String(dirty)}
+          >
             {editable && (
               <>
                 <fieldset className="space-y-3">
@@ -264,14 +280,8 @@ function RuleEditor({
                 </fieldset>
               </>
             )}
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={onClose}>
-                إلغاء
-              </Button>
-              {editable && <Button type="submit">حفظ القاعدة</Button>}
-            </DialogFooter>
           </form>
-        </DialogContent>
+        </LongDialogContent>
       </Dialog>
       {confirmation}
     </>

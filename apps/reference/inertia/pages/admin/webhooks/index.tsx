@@ -14,12 +14,14 @@ import { Label } from '~/components/ui/label'
 import { Switch } from '~/components/ui/switch'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '~/components/ui/dialog'
+import { LongDialogContent } from '~/components/ui/long-dialog'
 
 type EventOption = { key: string; resource: string; verb: string }
 type Props = { webhooks: Webhook[]; events: EventOption[]; inbound: InboundSource[] }
@@ -72,14 +74,24 @@ export default function WebhooksIndex({ webhooks, events, inbound }: Props) {
   const [busy, setBusy] = useState(false)
   const [secret, setSecret] = useState<string | null>(null)
   const [log, setLog] = useState<{ webhook: Webhook; rows: WebhookDelivery[] } | null>(null)
+  // The values the form opened with: closing asks for confirmation only when they changed.
+  const values = (next: { name: string; url: string; events: string[]; active: boolean }) =>
+    JSON.stringify({ ...next, events: [...next.events].sort() })
+  const [opened, setOpened] = useState('')
+  const dirty = values({ name, url, events: selected, active }) !== opened
 
   const open = (webhook: Webhook | 'new') => {
+    const next =
+      webhook === 'new'
+        ? { name: '', url: 'https://', events: [], active: true }
+        : { name: webhook.name, url: webhook.url, events: webhook.events, active: webhook.active }
     setEditing(webhook)
     setError('')
-    setName(webhook === 'new' ? '' : webhook.name)
-    setUrl(webhook === 'new' ? 'https://' : webhook.url)
-    setSelected(webhook === 'new' ? [] : webhook.events)
-    setActive(webhook === 'new' ? true : webhook.active)
+    setName(next.name)
+    setUrl(next.url)
+    setSelected(next.events)
+    setActive(next.active)
+    setOpened(values(next))
   }
   const save = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -187,14 +199,30 @@ export default function WebhooksIndex({ webhooks, events, inbound }: Props) {
       <InboundWebhooks sources={inbound} />
 
       <Dialog open={editing !== null} onOpenChange={(value) => !value && setEditing(null)}>
-        <DialogContent dir="rtl" className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{editing === 'new' ? 'إضافة ربط خارجي' : 'تعديل الربط'}</DialogTitle>
-            <DialogDescription>
-              يُرسل النظام طلب POST بصيغة JSON يحمل نوع الحدث ومعرّف السجل فقط.
-            </DialogDescription>
-          </DialogHeader>
-          <form id="webhook-form" className="space-y-4" onSubmit={save}>
+        <LongDialogContent
+          dir="rtl"
+          width="2xl"
+          title={editing === 'new' ? 'إضافة ربط خارجي' : 'تعديل الربط'}
+          description="يُرسل النظام طلب POST بصيغة JSON يحمل نوع الحدث ومعرّف السجل فقط."
+          footer={
+            <>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  إلغاء
+                </Button>
+              </DialogClose>
+              <Button type="submit" form="webhook-form" disabled={busy}>
+                حفظ
+              </Button>
+            </>
+          }
+        >
+          <form
+            id="webhook-form"
+            className="space-y-4"
+            data-dirty={String(dirty)}
+            onSubmit={save}
+          >
             <div className="space-y-2">
               <Label htmlFor="webhook-name">الاسم</Label>
               <Input
@@ -245,15 +273,7 @@ export default function WebhooksIndex({ webhooks, events, inbound }: Props) {
               </p>
             )}
           </form>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setEditing(null)}>
-              إلغاء
-            </Button>
-            <Button type="submit" form="webhook-form" disabled={busy}>
-              حفظ
-            </Button>
-          </DialogFooter>
-        </DialogContent>
+        </LongDialogContent>
       </Dialog>
 
       <Dialog open={secret !== null} onOpenChange={(value) => !value && setSecret(null)}>
@@ -284,13 +304,21 @@ export default function WebhooksIndex({ webhooks, events, inbound }: Props) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={log !== null} onOpenChange={(value) => !value && setLog(null)}>
-        <DialogContent dir="rtl" className="sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>سجل المحاولات</DialogTitle>
-            <DialogDescription>{log?.webhook.name}</DialogDescription>
-          </DialogHeader>
-          <div className="max-h-96 overflow-auto">
+      <Dialog mode="view" open={log !== null} onOpenChange={(value) => !value && setLog(null)}>
+        <LongDialogContent
+          dir="rtl"
+          width="xl"
+          title="سجل المحاولات"
+          description={log?.webhook.name}
+          footer={
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                إغلاق
+              </Button>
+            </DialogClose>
+          }
+        >
+          <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-muted text-xs text-muted-foreground">
                 <tr>
@@ -341,7 +369,7 @@ export default function WebhooksIndex({ webhooks, events, inbound }: Props) {
               </tbody>
             </table>
           </div>
-        </DialogContent>
+        </LongDialogContent>
       </Dialog>
     </>
   )

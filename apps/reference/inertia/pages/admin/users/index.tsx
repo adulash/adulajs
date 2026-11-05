@@ -36,7 +36,7 @@ export default function UsersIndex({ users, search }: Props) {
       <AdminHeader title="المستخدمون" description="الأدوار والوحدات وحالة الحساب لكل مستخدم.">
         {canInviteUsers && (
           <Button asChild>
-            <Link href="/users/invite">إضافة مستخدم</Link>
+            <Link href="/users/invite">دعوة مستخدم</Link>
           </Button>
         )}
       </AdminHeader>

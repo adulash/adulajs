@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '~/components/ui/select'
-import { Dialog } from '~/components/ui/dialog'
+import { Dialog, DialogClose } from '~/components/ui/dialog'
 import { LongDialogContent } from '~/components/ui/long-dialog'
 
 export type MailSetupProps = {
@@ -78,20 +78,32 @@ export function MailSetupDialog({
   mailReadiness,
   mailPresets,
 }: MailSetupProps & { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const [presetId, setPresetId] = useState(mailPresets[0]?.id ?? '')
+  const initial = mailPresets[0]?.id ?? ''
+  const [presetId, setPresetId] = useState(initial)
   const preset = mailPresets.find((item) => item.id === presetId) ?? mailPresets[0]
   return (
-    <Dialog mode="edit" open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      mode="edit"
+      open={open}
+      onOpenChange={(next) => {
+        // The next opening starts again from the first provider.
+        if (!next) setPresetId(initial)
+        onOpenChange(next)
+      }}
+    >
       <LongDialogContent
         title="إعداد البريد"
         description="يرسل النظام البريد عبر خادم SMTP لدى مزودك. تبقى بيانات الدخول في بيئة النظام، ولا يحفظها النظام هنا."
         footer={
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            إغلاق
-          </Button>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">
+              إغلاق
+            </Button>
+          </DialogClose>
         }
       >
-        <div className="space-y-4 text-sm">
+        {/* Choosing another provider is the only edit; returning to the first one is clean. */}
+        <div className="space-y-4 text-sm" data-dirty={String(presetId !== initial)}>
           <MailReadinessNotice readiness={mailReadiness} />
           <ol className="list-[arabic-indic] space-y-4 ps-5" data-testid="mail-setup-steps">
             <li className="space-y-2 ps-1">
