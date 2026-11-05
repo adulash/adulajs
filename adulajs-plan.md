@@ -65,9 +65,9 @@ flowchart RL
 | @jrmc/adonis-mcp | 2.0.0 | كشف التطبيق للوكيل | |
 | @adonisjs/inertia | 5.0.1 | المحوّل | يشترط @inertiajs/core و@inertiajs/react ^3.4 (الحالي 3.7.1) |
 
-**مكتبات عامة لا تعتمد على الإطار:** @casl/ability 7.0.1 و@casl/react (المقيّم)، @ucast/sql 0.2.0 (غير مستقر؛ تجربة اليوم الأول تقرر، والمترجم الخاص للعمليات الست هو الأرجح)، XState 5.33 (المرحلة 4)، otpauth، sharp 0.35.5 (إعادة ترميز الصور الشخصية وإزالة بياناتها الوصفية، بقرار المالك في 2026-11-05، ADR 050)، TanStack Table وVirtual، react-hook-form، Zod، exceljs، papaparse، k6 للقياس.
+**مكتبات عامة لا تعتمد على الإطار:** @casl/ability 7.0.1 و@casl/react (المقيّم)، @ucast/sql 0.2.0 (غير مستقر؛ تجربة اليوم الأول تقرر، والمترجم الخاص للعمليات الست هو الأرجح)، XState 5.33 (المرحلة 4)، otpauth، sharp 0.35.5 (إعادة ترميز الصور الشخصية وإزالة بياناتها الوصفية، بقرار المالك في 2026-11-05، ADR 050)، TanStack Table وVirtual، react-hook-form، Zod، papaparse، k6 للقياس. ولملفات Excel منذ 2.3.0 (#161): read-excel-file 9.3.12 لقراءة الورقة الأولى عند الاستيراد، وwrite-excel-file 4.1.1 لكتابة ملفات التصدير والقوالب من اليمين إلى اليسار، وfflate 0.8.3 لفك ضغط كل جزء من الملف وعدّ حجمه الفعلي قبل القراءة؛ وافق عليها المالك بإصدارات مثبتة، والحزمتان الأوليان تعتمدان على fflate نفسها.
 
-**مرفوضة:** @rlanz/bull-queue و@nulix/adonis-2fa وadonis-captcha-guard (لا تدعم 7)؛ @holoyan/adonisjs-permissions و-activitylog (تدعم 7 لكن AdulaJS يملك جداول التخويل والنشاط بنفسه).
+**مرفوضة:** exceljs (آخر نشر 2024-12 فيخالف شرط الأشهر الستة، وشجرة اعتمادياتها ثقيلة)؛ @rlanz/bull-queue و@nulix/adonis-2fa وadonis-captcha-guard (لا تدعم 7)؛ @holoyan/adonisjs-permissions و-activitylog (تدعم 7 لكن AdulaJS يملك جداول التخويل والنشاط بنفسه).
 
 **قاعدة الاعتماد:** قبل أي حزمة: `npm view <package> version time.modified peerDependencies`. ثلاثة شروط: تعلن core ^7، آخر نشر خلال ستة أشهر، لها اختبارات. **في المشاريع:** تثبيت دقيق للإصدار (لا `^`) لحزم AdulaJS، وprovenance عند النشر.
 

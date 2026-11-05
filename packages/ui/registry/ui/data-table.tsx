@@ -25,6 +25,8 @@ import {
   ArrowDownUp,
   ArrowUp,
   Download,
+  FileSpreadsheet,
+  FileText,
   Inbox,
   ListChecks,
   Loader2,
@@ -47,6 +49,12 @@ import { Alert, AlertDescription } from '~/components/ui/alert'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { Checkbox } from '~/components/ui/checkbox'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '~/components/ui/dropdown-menu'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
 import { recordCount, useMessages } from '~/components/ui/messages'
 import { Can } from '~/components/ui/can'
@@ -415,19 +423,24 @@ export function DataTable({
     }
   }
   // The server export reads the same filtered set as this list, page by page, up to its limit.
-  const exportResults = async () => {
+  const exportResults = async (format: 'csv' | 'xlsx') => {
     setExporting(true)
     setExportFailure('')
     try {
-      const response = await axios.get<Blob>(exportHref(resource.name, query), {
+      const response = await axios.get<Blob>(exportHref(resource.name, query, format), {
         responseType: 'blob',
-        headers: { Accept: 'text/csv, application/json' },
+        headers: {
+          Accept:
+            format === 'xlsx'
+              ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/json'
+              : 'text/csv, application/json',
+        },
       })
       const href = URL.createObjectURL(response.data)
       const link = document.createElement('a')
       link.href = href
       link.download =
-        attachmentName(response.headers['content-disposition']) ?? `${resource.label}.csv`
+        attachmentName(response.headers['content-disposition']) ?? `${resource.label}.${format}`
       link.click()
       // Revoking right after click can cancel the download in some browsers.
       setTimeout(() => URL.revokeObjectURL(href), 60_000)
@@ -515,15 +528,28 @@ export function DataTable({
             </Button>
           )}
           {!trashed && description.exportable !== false && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void exportResults()}
-              disabled={!rows.length || exporting}
-            >
-              {exporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
-              {exporting ? t('جارٍ التصدير...') : t('تصدير النتائج')}
-            </Button>
+            <DropdownMenu dir="rtl">
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={!rows.length || exporting}>
+                  {exporting ? (
+                    <Loader2 size={15} className="animate-spin" />
+                  ) : (
+                    <Download size={15} />
+                  )}
+                  {exporting ? t('جارٍ التصدير...') : t('تصدير النتائج')}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => void exportResults('xlsx')}>
+                  <FileSpreadsheet size={15} />
+                  {t('ملف Excel (xlsx)')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void exportResults('csv')}>
+                  <FileText size={15} />
+                  {t('ملف CSV')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </div>

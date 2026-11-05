@@ -23,7 +23,7 @@ test.group('CSV import browser acceptance', (group) => {
   }) => {
     await browserContext.loginAs(clerk.user)
     const page = await visit('/resources/ui_samples')
-    await page.getByRole('button', { name: 'استيراد CSV' }).click()
+    await page.getByRole('button', { name: 'استيراد من ملف' }).click()
     const dialog = page.getByRole('dialog', { name: 'استيراد إلى عينات الواجهة' })
     const template = dialog.getByRole('link', { name: 'تنزيل قالب CSV' })
     if ((await template.getAttribute('href')) !== '/resources/ui_samples/imports/template')

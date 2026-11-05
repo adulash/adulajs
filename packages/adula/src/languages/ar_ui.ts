@@ -256,6 +256,8 @@ export const arabicInterfaceMessages = {
   'ui.list.exportResults': 'تصدير النتائج',
   'ui.list.exporting': 'جارٍ التصدير...',
   'ui.list.exportFailed': 'تعذر تصدير النتائج. حاول مجدداً.',
+  'ui.list.exportXlsx': 'ملف Excel (xlsx)',
+  'ui.list.exportCsv': 'ملف CSV',
   'ui.list.activeFilters': 'التصفية المطبقة',
   'ui.list.removeFilter': 'إزالة تصفية {field}',
   'ui.list.rangeBoth': 'من {from} إلى {to}',

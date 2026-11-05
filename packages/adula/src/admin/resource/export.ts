@@ -1,4 +1,11 @@
-import type { Field, FieldOption, JsonValue, SerializedRecord } from '../../resource/types.js'
+import writeXlsxFile, { type Cell, type SheetData } from 'write-excel-file/node'
+import type {
+  Field,
+  FieldOption,
+  JsonValue,
+  Resource,
+  SerializedRecord,
+} from '../../resource/types.js'
 import type { Actor } from '../../auth/ability.js'
 import { AdulaError } from '../errors.js'
 import { labelText, translate } from '../../languages/catalog.js'
@@ -22,19 +29,36 @@ export type CsvExport = {
   asciiFilename: string
   rows: number
 }
+/** An xlsx export; the same file names as CsvExport with the .xlsx extension. */
+export type XlsxExport = {
+  content: Uint8Array
+  filename: string
+  asciiFilename: string
+  rows: number
+}
+
+/** The rows of one export, before they are written as CSV or xlsx. */
+type ExportCell = { field: Field; text: string; raw: JsonValue | undefined }
+type CollectedExport = {
+  resource: Resource
+  keys: string[]
+  /** One entry per record: the field, its display text and its stored value per column. */
+  rows: ExportCell[][]
+  /** Records the export in the activity log with its format. */
+  audit(format: 'csv' | 'xlsx'): Promise<void>
+}
 
 /**
- * The currently filtered list as CSV; see ResourceService.export. Rows are read page by
- * page through list(), so the actor's rules, organization scope, field redaction and the
- * soft-delete filter are exactly the list's. More than EXPORT_ROW_LIMIT matching rows is
- * 422 E_EXPORT_LIMIT and nothing is produced.
+ * The currently filtered list, read page by page through list(), so the actor's rules,
+ * organization scope, field redaction and the soft-delete filter are exactly the list's.
+ * More than EXPORT_ROW_LIMIT matching rows is 422 E_EXPORT_LIMIT and nothing is produced.
  */
-export async function exportCsv(
+async function collectExport(
   ctx: ResourceContext,
   name: string,
   actor: Actor,
-  options: ExportOptions = {}
-): Promise<CsvExport> {
+  options: ExportOptions
+): Promise<CollectedExport> {
   const resource = ctx.registry.get(name)
   const description = describe(ctx, name, actor)
   const readable = new Map(description.fields.map((field) => [field.key, field]))
@@ -94,45 +118,127 @@ export async function exportCsv(
       lookup: (group, entry) => lookupLabels.get(`${group}\u0000${entry}`),
       title: (id) => titles.get(key)?.get(id),
     })
+  const rows = records.map((record) =>
+    keys.map((key) => {
+      const field = resource.fields[key]
+      return { field, text: display(key, field, record[key]), raw: record[key] }
+    })
+  )
+  const audit = async (format: 'csv' | 'xlsx') => {
+    await logActivity(ctx.db, {
+      resource: ACTIVITY_RESOURCE,
+      recordId: 0,
+      actorId: actor.id,
+      impersonatorId: actor.impersonatorId,
+      action: 'exported',
+      changes: {
+        resource: name,
+        format,
+        query: {
+          ...(options.search ? { search: options.search } : {}),
+          ...(options.sort ? { sort: options.sort } : {}),
+          ...(options.direction ? { direction: options.direction } : {}),
+          ...(options.filters && Object.keys(options.filters).length
+            ? { filters: options.filters }
+            : {}),
+          ...(options.tag ? { tag: options.tag } : {}),
+          ...(options.trashed ? { trashed: true } : {}),
+        },
+        rows: records.length,
+      },
+    })
+  }
+  return { resource, keys, rows, audit }
+}
+
+/**
+ * The currently filtered list as CSV; see ResourceService.export. The rows, limit and audit
+ * come from collectExport.
+ */
+export async function exportCsv(
+  ctx: ResourceContext,
+  name: string,
+  actor: Actor,
+  options: ExportOptions = {}
+): Promise<CsvExport> {
+  const { resource, keys, rows, audit } = await collectExport(ctx, name, actor, options)
   const lines = [
     keys.map((key) => csvCell(labelText(resource.fields[key].label), true)).join(','),
-    ...records.map((record) =>
-      keys
-        .map((key) => {
-          const field = resource.fields[key]
-          return csvCell(display(key, field, record[key]), textual(field))
-        })
-        .join(',')
-    ),
+    ...rows.map((row) => row.map((cell) => csvCell(cell.text, textual(cell.field))).join(',')),
   ]
-  await logActivity(ctx.db, {
-    resource: ACTIVITY_RESOURCE,
-    recordId: 0,
-    actorId: actor.id,
-    impersonatorId: actor.impersonatorId,
-    action: 'exported',
-    changes: {
-      resource: name,
-      query: {
-        ...(options.search ? { search: options.search } : {}),
-        ...(options.sort ? { sort: options.sort } : {}),
-        ...(options.direction ? { direction: options.direction } : {}),
-        ...(options.filters && Object.keys(options.filters).length
-          ? { filters: options.filters }
-          : {}),
-        ...(options.tag ? { tag: options.tag } : {}),
-        ...(options.trashed ? { trashed: true } : {}),
-      },
-      rows: records.length,
-    },
-  })
+  await audit('csv')
   const day = new Date().toISOString().slice(0, 10)
   return {
     content: `\uFEFF${lines.join('\r\n')}\r\n`,
     filename: `${labelText(resource.label)}-${day}.csv`,
     asciiFilename: `${name}-${day}.csv`,
-    rows: records.length,
+    rows: rows.length,
   }
+}
+
+/**
+ * The currently filtered list as an Excel workbook (one right-to-left sheet, bold header),
+ * with the same rows, columns, limit and audit as exportCsv. Numbers, amounts and dates are
+ * typed cells; other values are text, guarded like CSV against formula evaluation.
+ */
+export async function exportXlsx(
+  ctx: ResourceContext,
+  name: string,
+  actor: Actor,
+  options: ExportOptions = {}
+): Promise<XlsxExport> {
+  const { resource, keys, rows, audit } = await collectExport(ctx, name, actor, options)
+  const header: Cell[] = keys.map((key) => ({
+    value: guardFormula(labelText(resource.fields[key].label)),
+    fontWeight: 'bold',
+  }))
+  const data: SheetData = [header, ...rows.map((row) => row.map(xlsxCell))]
+  const content = await writeXlsxFile(data, {
+    sheet: sheetName(labelText(resource.label)),
+    rightToLeft: true,
+    stickyRowsCount: 1,
+  }).toBuffer()
+  await audit('xlsx')
+  const day = new Date().toISOString().slice(0, 10)
+  return {
+    content: new Uint8Array(content.buffer, content.byteOffset, content.byteLength),
+    filename: `${labelText(resource.label)}-${day}.xlsx`,
+    asciiFilename: `${name}-${day}.xlsx`,
+    rows: rows.length,
+  }
+}
+
+/** Excel sheet names: at most 31 characters, none of [ ] : * ? / \, not quoted. */
+function sheetName(label: string) {
+  const clean = label
+    .replace(/[[\]:*?/\\]/g, ' ')
+    .trim()
+    .replace(/^'+|'+$/g, '')
+    .slice(0, 31)
+    .trim()
+  return clean || 'Sheet1'
+}
+
+const NUMERIC = new Set(['integer', 'decimal', 'percent'])
+
+/** One typed xlsx cell; anything that is not a safe number or date stays guarded text. */
+function xlsxCell({ field, text, raw }: ExportCell): Cell {
+  if (raw === null || raw === undefined || raw === '') return null
+  if (NUMERIC.has(field.type)) {
+    const value = typeof raw === 'number' ? raw : Number(raw)
+    if (Number.isFinite(value) && String(raw).trim() !== '') return value
+  }
+  if (field.type === 'money' && /^-?\d+$/.test(String(raw))) {
+    const minor = BigInt(String(raw))
+    const limit = BigInt(Number.MAX_SAFE_INTEGER)
+    if (minor <= limit && minor >= -limit)
+      return { value: Number(minor) / 100, type: Number, format: '#,##0.00' }
+  }
+  if (field.type === 'date' && typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    const date = new Date(`${raw}T00:00:00.000Z`)
+    if (!Number.isNaN(date.getTime())) return { value: date, type: Date, format: 'yyyy-mm-dd' }
+  }
+  return text === '' ? null : guardFormula(text)
 }
 
 function exportLimit() {
@@ -224,6 +330,15 @@ const FORMULA_START = /^(?:[\t\r]|\s*[=+\-@\uFF1D\uFF0B\uFF0D\uFF20])/
  * apostrophe so spreadsheets do not evaluate it as a formula.
  */
 export function csvCell(text: string, guard: boolean) {
-  const safe = guard && FORMULA_START.test(text) ? `'${text}` : text
+  const safe = guard ? guardFormula(text) : text
   return `"${safe.replaceAll('"', '""')}"`
+}
+
+/**
+ * Prefixes an apostrophe to text a spreadsheet would evaluate as a formula: a leading tab or
+ * carriage return, or = + - @ (also full width) as the first non-whitespace character. CSV
+ * export, xlsx export and xlsx templates share this one rule.
+ */
+export function guardFormula(text: string) {
+  return FORMULA_START.test(text) ? `'${text}` : text
 }

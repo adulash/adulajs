@@ -522,6 +522,7 @@ test.group('Generic resource browser acceptance', (group) => {
     assert.equal(await page.getByText(`عينة التصدير 101 ${stamp}`).count(), 0)
     const download = page.waitForEvent('download')
     await page.getByRole('button', { name: 'تصدير النتائج', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'ملف CSV' }).click()
     const file = await download
     assert.match(file.suggestedFilename(), /^عينات الواجهة-\d{4}-\d{2}-\d{2}\.csv$/)
     const chunks: Buffer[] = []

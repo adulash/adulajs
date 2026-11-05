@@ -88,7 +88,9 @@ try {
 ```
 
 * Methods return the record itself, with `data` unwrapped. The exceptions are `list`
-  (`{ data, meta }`), `aggregate` and `imports.template` (the CSV text).
+  (`{ data, meta }`), `aggregate`, `imports.template` (the CSV text) and
+  `imports.xlsxTemplate` (the workbook as an `ArrayBuffer`; a custom `fetch` must then
+  return `arrayBuffer()`).
 * Value types:
   * money is a decimal string in minor units (`'1050'` = 10.50);
   * dates and datetimes are ISO strings;
@@ -108,11 +110,13 @@ try {
 
 ### From the interface
 
-Index pages show «استيراد CSV» to users who may create records. The steps are:
+Index pages show «استيراد من ملف» to users who may create records. The file is an Excel
+workbook (`.xlsx`, first sheet only) or a UTF-8 CSV. The steps are:
 
-1. **Template.** «تنزيل قالب CSV» downloads one header row. It lists the fields the user
-   may import, labelled in Arabic, with required columns marked ` *`. The file starts with
-   a UTF-8 BOM so Excel shows Arabic correctly. Columns of a filled template map automatically.
+1. **Template.** «تنزيل قالب Excel» and «تنزيل قالب CSV» download one header row. It lists
+   the fields the user may import, labelled in Arabic, with required columns marked ` *`.
+   The CSV starts with a UTF-8 BOM so Excel shows Arabic correctly; the workbook is
+   right-to-left with a bold header. Columns of a filled template map automatically.
 2. **Upload and mapping.** Columns are matched to fields by key or Arabic label, and the
    user corrects the mapping.
 3. **Mode.** Choose «إضافة فقط» or «إضافة أو تحديث» (upsert). Upsert matches existing
@@ -153,7 +157,7 @@ The routes are listed below. `POST` needs a read-write token.
 * `POST /api/v1/imports/:id/start`
 * `GET /api/v1/imports`
 * `GET /api/v1/imports/:id`
-* `GET /api/v1/resources/:resource/imports/template`
+* `GET /api/v1/resources/:resource/imports/template` (`?format=xlsx` for a workbook)
 
 Each file has the same limits as in the interface: 5 MB, 100 columns and 5,000 rows.
 
@@ -172,15 +176,30 @@ interface ImportAdapter {
 }
 ```
 
-* **Built in.** CSV (`csvImportAdapter`) is the only built-in format.
+* **Built in.** CSV (`csvImportAdapter`) and Excel (`xlsxImportAdapter`, `.xlsx`, binary).
 * **Registering another format.** Pass `new ImportBatches(…, { adapters: [adapter] })` or
   call `imports.registerAdapter(adapter)` in `app/services/adula.ts`. The upload screen
   then accepts the adapter's extensions.
 * **How a file finds its adapter.** A named `format` wins. Otherwise the file extension
   decides, then `detect()`.
-* **XLSX.** No XLSX parser is bundled yet: one needs the owner's approval (see
-  [GAPS](../GAPS.md)). Once a parser is approved, an XLSX adapter is a single file
-  registered this way.
+* **Excel (xlsx).** Only the first sheet is read; its first row holds the headers.
+  `guardXlsx` checks every file before the parser sees it:
+  * a password-protected or legacy `.xls` file is refused with «الملف محمي بكلمة مرور أو
+    بصيغة Excel قديمة (xls)…»;
+  * the zip structure must be consistent: each entry listed once, local headers matching
+    the directory, nothing hidden between entries, CRCs correct;
+  * every entry is inflated with its real size counted: at most 48 MiB per entry, 64 MiB
+    in all and 200 entries. A zip bomb stops at the limit with «حجم محتوى الملف بعد فك
+    الضغط يتجاوز الحد المسموح»;
+  * XML parts must be UTF-8 without a DOCTYPE or entities;
+  * rows and cells are counted, with or without cell references, before parsing: 5000 data
+    rows, 100 columns and 500,000 shared strings at most;
+  * the parser then reads a rebuilt archive that holds only the checked parts.
+
+  Cells become text: numbers without exponent, dates as `YYYY-MM-DD` (or an ISO time when
+  they have one), booleans as «نعم»/«لا». Formulas are not evaluated; a formula cell gives
+  its cached value. A corrupt file is refused with «تعذر قراءة ملف Excel: الملف تالف أو ليس
+  بصيغة xlsx», never with the parser's text.
 
 ## Sync jobs
 

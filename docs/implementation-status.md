@@ -56,7 +56,7 @@ All three share one version and are published together from a `v<version>` tag
 * Integrations: signed outgoing webhooks with retries, signed inbound webhooks with
   deduplication, API tokens with `/api/v1`, per-caller OpenAPI and a generated typed
   TypeScript client (`/api/v1/client.ts`, `adula:client`), imports through the worker with
-  format adapters (CSV built in), templates, dry run and upsert, scheduled sync jobs with
+  format adapters (CSV and guarded xlsx built in), CSV and Excel templates, dry run and upsert, scheduled sync jobs with
   run history, RTL print page with optional Gotenberg PDF, optional MCP tools (`adula/mcp`).
 * Workflows: versioned workflows with condition, update, notify, approval, decision,
   delay, http and end steps; row locks, bounded retries, failed-runs screen;
@@ -133,10 +133,12 @@ Japa and `node:test` run more cases than declarations where a helper registers t
 * `adula:resource:migration` adds columns, join tables and unique indexes only; type
   changes and search-vector changes need a hand-written migration.
 * CSV import does not map multiSelect or manyToMany fields.
-* XLSX import and SAML SSO are not available. Two-factor authentication (TOTP) and
+* Excel import reads the first sheet only and does not evaluate formulas; SAML SSO is
+  not available. Two-factor authentication (TOTP) and
   OAuth/OIDC SSO are described in [authentication.md](authentication.md); the typed
   TypeScript API client in [integration.md](integration.md).
-* Exports are capped at 5000 rows; restore follows the delete permission (ADR 046).
+* Exports (CSV or Excel) are capped at 5000 rows; restore follows the delete permission
+  (ADR 046).
 * Arabic is the base language; English is optional for the framework's own strings
   ([languages.md](languages.md)).
 

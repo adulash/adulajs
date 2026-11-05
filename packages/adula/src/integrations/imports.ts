@@ -19,6 +19,9 @@ import {
   type ImportAdapter,
   type ImportFile,
 } from './import_adapters.js'
+import { XLSX_MIME_TYPE, xlsxImportAdapter } from './xlsx.js'
+import { guardFormula } from '../admin/resource/export.js'
+import writeXlsxFile from 'write-excel-file/node'
 
 /** Batch states before dry runs; kept for compatibility. See ImportBatchStatus. */
 export type ImportStatus = 'mapping' | 'queued' | 'running' | 'done' | 'failed'
@@ -76,7 +79,7 @@ export type ImportBatchRecord = Omit<ImportBatch, 'status' | 'targets'> & {
 }
 export type ActorSource = { load(id: number): Promise<Actor> }
 export type ImportBatchesOptions = {
-  /** Extra file formats; CSV is always available. See ImportAdapter. */
+  /** Extra file formats; CSV and xlsx are always available. See ImportAdapter. */
   adapters?: ImportAdapter[]
 }
 export type ImportCreateInput = {
@@ -187,7 +190,7 @@ class DryRunRollback extends Error {}
  * Upsert mode updates the live record matched by a unique field and creates the rest.
  */
 export class ImportBatches {
-  private formats: ImportAdapter[] = [csvImportAdapter]
+  private formats: ImportAdapter[] = [csvImportAdapter, xlsxImportAdapter]
 
   constructor(
     private db: Knex,
@@ -200,7 +203,7 @@ export class ImportBatches {
   }
 
   /**
-   * Adds a file format, for example an XLSX adapter. A later adapter with the same
+   * Adds a file format, for example an ODS adapter. A later adapter with the same
    * name replaces the earlier one; CSV stays the fallback for text without an extension.
    */
   registerAdapter(adapter: ImportAdapter) {
@@ -271,6 +274,27 @@ export class ImportBatches {
     return {
       fileName: `${name}-template.csv`,
       content: `\uFEFF${Papa.unparse([headers])}\n`,
+    }
+  }
+
+  /**
+   * The same template as an Excel workbook: one right-to-left sheet whose bold header row
+   * holds the actor's importable fields, required ones marked with `*`.
+   */
+  async xlsxTemplate(name: string, actor: Actor, mode: ImportMode = 'create') {
+    const targets = this.targets(name, actor, mode)
+    const header = targets.map((target) => ({
+      value: guardFormula(`${target.label}${target.required ? ' *' : ''}`),
+      fontWeight: 'bold' as const,
+    }))
+    const content = await writeXlsxFile([header], {
+      rightToLeft: true,
+      stickyRowsCount: 1,
+    }).toBuffer()
+    return {
+      fileName: `${name}-template.xlsx`,
+      mimeType: XLSX_MIME_TYPE,
+      content: new Uint8Array(content.buffer, content.byteOffset, content.byteLength),
     }
   }
 

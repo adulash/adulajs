@@ -117,8 +117,9 @@ only while its author may still share it and only when it queries fields the rea
 query. The URL form is
 `filters[status][in]=open,closed`, `filters[total][gte]=1000`, `filters[notes][empty]=true`.
 
-«تصدير النتائج» downloads a CSV of every record matching the current search and filters,
-not just the loaded rows, with the columns the user may read. Exports above 5000 rows are
+«تصدير النتائج» offers «ملف Excel (xlsx)» or «ملف CSV» of every record matching the
+current search and filters, not just the loaded rows, with the columns the user may read.
+The workbook is right-to-left with typed numbers, amounts and dates. Exports above 5000 rows are
 refused with a request to narrow the filters.
 
 Selecting rows shows a bulk bar with the actions the user may take: delete, submit,
@@ -155,12 +156,11 @@ a widget over data the viewer cannot read is not shown.
 
 ## CSV import
 
-Generic index pages offer "استيراد CSV" to users who may create records. Columns
+Generic index pages offer «استيراد من ملف» (Excel or CSV) to users who may create records. Columns
 are matched to writable fields, the worker saves each row through
 `ResourceService` with the importer's permissions, and `/imports` shows progress
 and row errors. Templates, dry-run checks, upsert by a unique field, the import API and
-format adapters are described in [Integration](integration.md#imports). XLSX is not
-supported yet ([GAPS](../GAPS.md)).
+format adapters are described in [Integration](integration.md#imports).
 
 ## Printing
 

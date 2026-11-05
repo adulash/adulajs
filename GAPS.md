@@ -87,8 +87,9 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
 * Encrypted cloud backups (ADR 051) are verified only against local fakes of Google Drive and
   Microsoft Graph; there is no restore from inside the application (recovery uses
   `backup:open` and the restore commands) and no remote retention.
-* XLSX import is pending the owner's approval of a parser; the `ImportAdapter`
-  registration point is ready and CSV import works (docs/integration.md).
+* Excel import (2.3.0, #161) reads the first sheet of an `.xlsx` file only; `.xls`,
+  `.ods`, password-protected workbooks and formulas (other than their cached values) are
+  not supported (docs/integration.md).
 
 ## Language and documentation
 
