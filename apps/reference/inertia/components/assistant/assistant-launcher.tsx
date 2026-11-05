@@ -145,8 +145,9 @@ export default function AssistantLauncher() {
             type="button"
             aria-label={t('المساعد الذكي')}
             aria-expanded={open}
+            data-testid="assistant-launcher"
             onClick={() => setOpen(true)}
-            className={`relative grid size-9 place-items-center rounded-full transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 ${open ? 'bg-accent text-foreground' : 'text-muted-foreground'}`}
+            className={`relative grid size-9 place-items-center rounded-full transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 ${open ? 'bg-accent text-primary' : 'text-muted-foreground'}`}
           >
             <Bot size={18} strokeWidth={1.6} aria-hidden />
           </button>
