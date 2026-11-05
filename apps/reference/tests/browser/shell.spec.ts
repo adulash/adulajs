@@ -126,6 +126,74 @@ test.group('Workspace shell in the browser', (group) => {
     await stored(member.user.id, 'shell.sidebar', 'expanded')
   })
 
+  test('every module group in the collapsed rail shows an icon and its name as a tooltip (#153)', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    // The groups the server permits this user, in its order.
+    const actor = await adula().actors.load(admin.user.id)
+    const navigation = adula().resources.navigation(actor)
+    const expected = [
+      ...new Map(navigation.map((entry) => [entry.module, entry.moduleLabel ?? entry.module])),
+    ]
+    assert.isAbove(expected.length, 1)
+    await knex()('settings').insert({
+      key: 'preference.shell.sidebar',
+      scope: 'user',
+      scope_id: String(admin.user.id),
+      value: JSON.stringify('icons'),
+    })
+    await browserContext.loginAs(admin.user)
+    const page = await visit('/')
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.locator('[data-workspace-shell][data-sidebar="icons"]').waitFor()
+    const rail = page.locator('#workspace-sidebar')
+    const groups = rail.locator('button[data-module]')
+    await groups.first().waitFor()
+    // The name appears under the mouse.
+    await groups.first().hover()
+    await page.getByRole('tooltip', { name: expected[0][1] }).waitFor()
+    const shown: (string | null)[] = []
+    for (let index = 0; index < (await groups.count()); index++)
+      shown.push(await groups.nth(index).getAttribute('data-module'))
+    assert.deepEqual(
+      shown,
+      expected.map(([module]) => module)
+    )
+    for (const [module, label] of expected) {
+      const button = rail.locator(`button[data-module="${module}"]`)
+      // An icon, not a letter: an svg and no visible text; the name stays accessible.
+      assert.equal(await button.locator('svg').count(), 1)
+      const text = await button.innerText()
+      assert.equal(text.trim(), '')
+      assert.equal(await button.getAttribute('aria-label'), label)
+      // Keyboard focus shows the name as a tooltip (Radix opens one on focus).
+      await button.focus()
+      await page.getByRole('tooltip', { name: label }).waitFor()
+      // The icon is drawn in a visible color in this theme (light or dark suite).
+      const [color, background] = await page.evaluate<[string, string]>(
+        `[getComputedStyle(document.querySelector('#workspace-sidebar button[data-module="${module}"] svg')).color, getComputedStyle(document.querySelector('#workspace-sidebar')).backgroundColor]`
+      )
+      assert.notEqual(color, background)
+    }
+    await page.screenshot({
+      path: join(
+        await screenshotDir(),
+        `shell-rail-icons-${process.env.ADULA_TEST_THEME ?? 'light'}.png`
+      ),
+    })
+    // The group still opens its pages.
+    const [firstModule] = expected[0]
+    await rail.locator(`button[data-module="${firstModule}"]`).click()
+    const menu = page.getByRole('menu')
+    await menu.getByRole('menuitem').first().waitFor()
+    assert.deepEqual(
+      await menu.getByRole('menuitem').allTextContents(),
+      navigation.filter((entry) => entry.module === firstModule).map((entry) => entry.label)
+    )
+  })
+
   test('the top layout opens one menu per permitted module with its pages, by keyboard too (#154)', async ({
     browserContext,
     visit,
