@@ -45,14 +45,14 @@ export default function UsersIndex({ users, search }: Props) {
           placeholder="البريد أو الاسم"
           value={term}
           onChange={(event) => setTerm(event.target.value)}
-          className="max-w-sm bg-white"
+          className="max-w-sm bg-card"
         />
         <Button type="submit" variant="outline">
           <Search size={16} />
           بحث
         </Button>
       </form>
-      <section className="overflow-hidden rounded-xl border border-border bg-white">
+      <section className="overflow-hidden rounded-xl border border-border bg-card">
         <Table>
           <TableHeader>
             <TableRow>

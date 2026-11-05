@@ -28,6 +28,8 @@ import { activeImpersonation } from '#services/impersonation'
 import { HttpChannelSettings } from 'adula'
 import { SyncJobs } from 'adula'
 import { syncJobDefinitions } from '#start/sync_jobs'
+import { UserPreferences } from 'adula'
+import { preferences } from '#start/preferences'
 
 export { IMPERSONATOR_KEY } from '#services/impersonation'
 
@@ -68,6 +70,10 @@ export function adula() {
       { post: createOutboundPoster(outboundPolicy()), timeZone }
     ),
     delegations: new WorkflowDelegations(knex, { timeZone }),
+    // Declared in start/preferences.ts (ADR 049); each user reads and writes only their own.
+    preferences: new UserPreferences(knex, preferences, (key, error) =>
+      logger.warn({ err: error, key }, 'stored preference no longer validates')
+    ),
     imports: new ImportBatches(knex, registry, resources, actors),
     // Declared in start/sync_jobs.ts; the scheduler queues them and the worker runs them.
     syncJobs: new SyncJobs(knex, resources, syncJobDefinitions, {

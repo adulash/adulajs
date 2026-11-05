@@ -88,7 +88,7 @@ export default function Sessions({ sessions, currentSessionId }: Props) {
       )}
 
       <section
-        className="overflow-hidden rounded-xl border border-border bg-white shadow-[0_2px_10px_#1c302804]"
+        className="overflow-hidden rounded-xl border border-border bg-card shadow-[0_2px_10px_color-mix(in_oklab,var(--foreground)_2%,transparent)]"
         aria-label="قائمة الجلسات"
       >
         <Table>

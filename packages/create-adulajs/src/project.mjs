@@ -228,9 +228,10 @@ export async function renderProject(target, template, { name, identity, packageF
   files['inertia/layouts/workspace.tsx'] = files['inertia/layouts/workspace.tsx']
     .replaceAll('>عدولة<', '>{brand.company}<')
     .replace('التطبيق المرجعي', '{brand.company}')
+    // The company mark's letter, whatever its indentation (tests/brand-anchors.test.mjs).
     .replace(
-      '            ع\n',
-      '            {brand.logo ? <img src={brand.logo} alt="" className="size-10 object-contain" /> : brand.company.charAt(0)}\n'
+      /^([ \t]*)ع$/m,
+      '$1{brand.logo ? <img src={brand.logo} alt="" className="size-full object-contain" /> : brand.company.charAt(0)}'
     )
     .replace('text-white', 'text-primary-foreground')
   files['inertia/pages/home.tsx'] = files['inertia/pages/home.tsx'].replace(

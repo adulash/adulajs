@@ -101,7 +101,7 @@ export function RecordAssignments({
   }
 
   return (
-    <section aria-label="المهام المسندة" className="rounded-xl border bg-white">
+    <section aria-label="المهام المسندة" className="rounded-xl border bg-card">
       <div className="flex items-center gap-2 border-b px-7 py-4">
         <ListChecks size={16} className="text-muted-foreground" />
         <h2 className="text-sm font-semibold">المهام المسندة</h2>
@@ -200,7 +200,7 @@ export function RecordAssignments({
               />
             </div>
             {error && (
-              <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800">
+              <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
                 {error}
               </p>
             )}

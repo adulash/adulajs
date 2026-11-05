@@ -322,7 +322,7 @@ export function DelegationDialog({
             />
           </div>
           {error && (
-            <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800">
+            <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
               {error}
             </p>
           )}
@@ -378,11 +378,11 @@ export function DelegationTable({
   return (
     <>
       {error && (
-        <p role="alert" className="mb-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800">
+        <p role="alert" className="mb-3 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </p>
       )}
-      <div className="overflow-x-auto rounded-xl border bg-white">
+      <div className="overflow-x-auto rounded-xl border bg-card">
         <Table aria-label={caption} className="min-w-[680px]">
           <TableHeader>
             <TableRow>

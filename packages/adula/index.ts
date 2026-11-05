@@ -350,7 +350,16 @@ export type {
   CalendarSystem,
   CalendarPreference,
   DigitsPreference,
+  NavigationLayout,
 } from './src/core/ui_preferences.js'
+export {
+  UserPreferences,
+  definePreference,
+  isPreferenceSetting,
+  PREFERENCE_PREFIX,
+  PREFERENCE_MAX_BYTES,
+} from './src/core/user_preferences.js'
+export type { PreferenceDefinition } from './src/core/user_preferences.js'
 export { moveOrgUnit } from './src/org/org_service.js'
 export { publishOutbox, consumeEvent } from './src/events/outbox.js'
 export type { Jobs, DomainEvent, Listener } from './src/events/outbox.js'

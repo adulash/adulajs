@@ -672,12 +672,14 @@ function page(input: Page, printed: string) {
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
+<meta name="color-scheme" content="light">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:">
 <title>${escapeHtml(input.title)}</title>
 <style>
 @page { size: ${PAGE_SIZES[input.paper]} ${input.orientation}; margin: 16mm 14mm; }
 * { box-sizing: border-box; }
-body { font-family: "Noto Sans Arabic", "Segoe UI", Tahoma, sans-serif; color: #1c1917; font-size: 11pt; margin: 0; }
+:root { color-scheme: light; }
+body { font-family: "Noto Sans Arabic", "Segoe UI", Tahoma, sans-serif; color: #1c1917; background: #fff; font-size: 11pt; margin: 0; }
 header.doc { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #1c1917; padding-bottom: 6mm; margin-bottom: 6mm; }
 h1 { font-size: 17pt; margin: 0; } h2 { font-size: 12.5pt; margin: 7mm 0 3mm; } h3, h4 { margin: 4mm 0 2mm; }
 p { margin: 1.5mm 0; }

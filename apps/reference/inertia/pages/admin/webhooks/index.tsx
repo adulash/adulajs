@@ -134,7 +134,7 @@ export default function WebhooksIndex({ webhooks, events, inbound }: Props) {
         {webhooks.map((webhook) => (
           <li
             key={webhook.id}
-            className="flex flex-wrap items-start justify-between gap-3 rounded-xl border bg-white px-5 py-4"
+            className="flex flex-wrap items-start justify-between gap-3 rounded-xl border bg-card px-5 py-4"
           >
             <div className="min-w-0 flex-1 space-y-1">
               <p className="flex flex-wrap items-center gap-2 font-semibold">
@@ -143,7 +143,7 @@ export default function WebhooksIndex({ webhooks, events, inbound }: Props) {
                   {webhook.active ? 'مفعّل' : 'متوقف'}
                 </Badge>
                 {webhook.failing > 0 && (
-                  <Badge variant="outline" className="border-red-300 text-red-800">
+                  <Badge variant="outline" className="border-destructive/30 text-destructive">
                     {webhook.failing} فشل نهائي
                   </Badge>
                 )}
@@ -240,7 +240,7 @@ export default function WebhooksIndex({ webhooks, events, inbound }: Props) {
               </div>
             )}
             {error && (
-              <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800">
+              <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
                 {error}
               </p>
             )}

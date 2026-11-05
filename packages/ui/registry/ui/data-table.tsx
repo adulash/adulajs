@@ -84,7 +84,7 @@ import {
 /** Below this figure the server counts exactly instead of estimating (#111). */
 export const EXACT_COUNT_LIMIT = 1000
 /** The actions column while the table scrolls sideways: pinned, with a shadow toward the cells. */
-const pinned = 'sticky end-0 z-[1] shadow-[0_0_12px_#1c30281f]'
+const pinned = 'sticky end-0 z-[1] shadow-[0_0_12px_color-mix(in_oklab,var(--foreground)_12%,transparent)]'
 /** Rows above this count render through the virtualizer (plan section 13). */
 export const VIRTUAL_ROWS = 200
 const ROW_HEIGHT = 52
@@ -482,7 +482,7 @@ export function DataTable({
       aria-label={t('قائمة {resource}', { resource: resource.label })}
       // overflow-clip keeps the rounded corners without becoming a scroll container, so the
       // header sticks to the workspace scroller (#109).
-      className="min-w-0 overflow-clip rounded-xl border border-border bg-white shadow-[0_2px_10px_#1c302804]"
+      className="min-w-0 overflow-clip rounded-xl border border-border bg-card shadow-[0_2px_10px_color-mix(in_oklab,var(--foreground)_2%,transparent)]"
     >
       <div className="flex flex-wrap items-center justify-between gap-4 border-b px-5 py-4">
         <div className="flex flex-wrap items-center gap-3">

@@ -28,6 +28,7 @@ import {
   oauthThrottle,
   passwordChangeThrottle,
   passwordThrottle,
+  preferenceThrottle,
   signupThrottle,
   twoFactorManageThrottle,
   twoFactorThrottle,
@@ -49,6 +50,7 @@ const UserInvitationsController = () => import('#controllers/user_invitations_co
 const OauthController = () => import('#controllers/oauth_controller')
 const ProfileController = () => import('#controllers/profile_controller')
 const LanguageController = () => import('#controllers/language_controller')
+const PreferencesController = () => import('#controllers/preferences_controller')
 const TwoFactorController = () => import('#controllers/two_factor_controller')
 const TwoFactorChallengeController = () => import('#controllers/two_factor_challenge_controller')
 const AccountSessionsController = () => import('#controllers/account_sessions_controller')
@@ -253,6 +255,13 @@ router
     router.patch('account/profile', [ProfileController, 'update'])
     router.post('account/password', [ProfileController, 'password']).use(passwordChangeThrottle)
     router.put('account/language', [LanguageController, 'update'])
+    // Per-user interface preferences (ADR 049): sidebar, layout, theme, arrangements.
+    router
+      .put('account/preferences/:key', [PreferencesController, 'update'])
+      .use(preferenceThrottle)
+    router
+      .delete('account/preferences/:key', [PreferencesController, 'destroy'])
+      .use(preferenceThrottle)
     router
       .put('account/notification-channels', [ProfileController, 'channels'])
       .use(channelChangeThrottle)

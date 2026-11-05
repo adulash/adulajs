@@ -236,6 +236,52 @@ export class Assignments {
     return 'isTransaction' in db && db.isTransaction ? insert(db) : this.db.transaction(insert)
   }
 
+  /**
+   * The numbers the open list shows: every item the user may act on today, own or held
+   * through a delegation (ADR 044), on records the user can still open. The «مهامي» badge
+   * reads this, so the badge and the list agree (#156).
+   */
+  async openCounts(actor: Actor): Promise<{ open: number; approvals: number }> {
+    const checked = new Map<string, Promise<boolean>>()
+    return this.#counts(actor, this.today(), (resource, recordId) => {
+      const key = `${resource} ${recordId}`
+      let result = checked.get(key)
+      if (!result) {
+        result = this.resources.permits(resource, recordId, actor)
+        checked.set(key, result)
+      }
+      return result
+    })
+  }
+
+  // Counted like the open list, after the same record check, over the newest records.
+  async #counts(
+    actor: Actor,
+    today: string,
+    viewable: (resource: string, recordId: number) => Promise<boolean>
+  ) {
+    const groups = await this.db('assignments as a')
+      .where('a.status', 'open')
+      .modify(actionableBy(this.db, actor.id, today))
+      .groupBy('a.resource', 'a.record_id')
+      .orderByRaw('max(a.id) DESC')
+      .limit(COUNT_RECORDS)
+      .select(
+        'a.resource',
+        'a.record_id',
+        this.db.raw('count(*)::integer AS open'),
+        this.db.raw('count(a.workflow_run_id)::integer AS approvals')
+      )
+    let open = 0
+    let approvals = 0
+    for (const group of groups)
+      if (await viewable(String(group.resource), Number(group.record_id))) {
+        open += Number(group.open)
+        approvals += Number(group.approvals)
+      }
+    return { open, approvals }
+  }
+
   /** The signed-in user's own tasks, open first; records they can no longer read are hidden. */
   async mine(
     actor: Actor,
@@ -304,28 +350,7 @@ export class Assignments {
           data.push(this.present(row, actor, scope))
       }
     }
-    // Counted like the open list (ADR 044): every item the user may act on today, own or
-    // held through a delegation, after the same record check, so the badge never counts
-    // work on records the user can no longer open.
-    const groups = await this.db('assignments as a')
-      .where('a.status', 'open')
-      .modify(actionableBy(this.db, actor.id, today))
-      .groupBy('a.resource', 'a.record_id')
-      .orderByRaw('max(a.id) DESC')
-      .limit(COUNT_RECORDS)
-      .select(
-        'a.resource',
-        'a.record_id',
-        this.db.raw('count(*)::integer AS open'),
-        this.db.raw('count(a.workflow_run_id)::integer AS approvals')
-      )
-    let open = 0
-    let approvals = 0
-    for (const group of groups)
-      if (await viewable(String(group.resource), Number(group.record_id))) {
-        open += Number(group.open)
-        approvals += Number(group.approvals)
-      }
+    const { open, approvals } = await this.#counts(actor, today, viewable)
     return {
       data: await this.titled(data, actor),
       nextCursor: more && last !== null ? String(last) : null,

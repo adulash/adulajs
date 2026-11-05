@@ -51,7 +51,7 @@ export default function SequencesIndex({ sequences }: Props) {
         title="الترقيم التسلسلي"
         description="أرقام المستندات التي تصدر تلقائياً. يمكن تقديم الرقم التالي فقط؛ الرجوع يكرر أرقاماً صدرت لسجلات قائمة."
       />
-      <section className="overflow-hidden rounded-xl border border-border bg-white">
+      <section className="overflow-hidden rounded-xl border border-border bg-card">
         <Table>
           <TableHeader>
             <TableRow>

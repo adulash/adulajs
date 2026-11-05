@@ -532,6 +532,10 @@
       "kind": "FunctionDeclaration",
       "type": "(definition: DashboardDefinition) => DashboardDefinition"
     },
+    "definePreference": {
+      "kind": "FunctionDeclaration",
+      "type": "<T extends JsonValue>(definition: PreferenceDefinition<T>) => PreferenceDefinition<T>"
+    },
     "defineResource": {
       "kind": "FunctionDeclaration",
       "type": "<const F extends Record<string, Field>>(input: ResourceInput<F>) => Omit<Resource, \"fields\" | \"list\" | \"form\" | \"show\" | \"hidden\" | \"serialize\" | \"title\" | \"unique\"> & { fields: F; unique?: readonly (readonly (\"orgUnitId\" | (keyof F & string))[])[] | undefined; list: readonly (keyof F & string)[]; form: readonly (keyof F & string)[]; show: readonly (keyof F & string)[]; hidden?: readonly (keyof F & string)[] | undefined; serialize?: readonly (keyof F & string)[] | undefined; title?: readonly (keyof F & string)[] | undefined; } & Resource"
@@ -852,6 +856,10 @@
       "kind": "FunctionDeclaration",
       "type": "(field: Field | undefined) => boolean"
     },
+    "isPreferenceSetting": {
+      "kind": "FunctionDeclaration",
+      "type": "(key: string) => boolean"
+    },
     "isProtectedSetting": {
       "kind": "FunctionDeclaration",
       "type": "(key: string) => boolean"
@@ -1052,6 +1060,10 @@
       "kind": "VariableDeclaration",
       "type": "100"
     },
+    "NavigationLayout": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"sidebar\" | \"top\""
+    },
     "nextStep": {
       "kind": "FunctionDeclaration",
       "type": "(definition: WorkflowDefinition, current: string, event: WorkflowEvent) => string"
@@ -1155,6 +1167,18 @@
     "phoneAddress": {
       "kind": "FunctionDeclaration",
       "type": "(value: unknown) => string"
+    },
+    "PREFERENCE_MAX_BYTES": {
+      "kind": "VariableDeclaration",
+      "type": "4096"
+    },
+    "PREFERENCE_PREFIX": {
+      "kind": "VariableDeclaration",
+      "type": "\"preference.\""
+    },
+    "PreferenceDefinition": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ key: string; default: T; validate: (value: unknown) => T; }"
     },
     "PRINT_HELPERS": {
       "kind": "VariableDeclaration",
@@ -1758,7 +1782,7 @@
     },
     "UiPreferences": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ calendar: CalendarPreference; confirmDialogClose: boolean; pageTransitions: boolean; digits?: DigitsPreference | undefined; }"
+      "type": "{ calendar: CalendarPreference; confirmDialogClose: boolean; pageTransitions: boolean; digits?: DigitsPreference | undefined; layout?: NavigationLayout | undefined; layoutUserChoice?: boolean | undefined; }"
     },
     "UNBOUND_UPLOAD_TTL_MS": {
       "kind": "VariableDeclaration",
@@ -1791,6 +1815,10 @@
     "UserPage": {
       "kind": "TypeAliasDeclaration",
       "type": "{ data: UserSummary[]; nextCursor: number | null; }"
+    },
+    "UserPreferences": {
+      "kind": "ClassDeclaration",
+      "type": "typeof UserPreferences"
     },
     "UserRoleAssignment": {
       "kind": "TypeAliasDeclaration",

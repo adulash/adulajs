@@ -199,3 +199,12 @@ export const twoFactorManageThrottle = limiter.define('two_factor_manage', (ctx)
     .usingKey(`user:${ctx.auth.user?.id ?? ctx.request.ip()}`)
     .limitExceeded(withMessage)
 )
+
+/** Interface preference changes: 60 per minute per signed-in user. */
+export const preferenceThrottle = limiter.define('preferences', (ctx) =>
+  limiter
+    .allowRequests(60)
+    .every('1 minute')
+    .usingKey(`user:${ctx.auth.user?.id ?? ctx.request.ip()}`)
+    .limitExceeded(withMessage)
+)

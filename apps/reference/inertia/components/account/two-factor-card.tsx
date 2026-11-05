@@ -47,6 +47,8 @@ type Panel = 'enrol' | 'regenerate' | 'disable' | null
 
 const ENROL_QUERY = 'two-factor'
 const RECOVERY_TOTAL = 10
+// A QR code keeps a light quiet zone in every theme, or authenticator apps cannot scan it.
+const QR_SURFACE = 'bg-white' // colors-allow: QR codes scan only on a light background
 
 /** Groups a base32 secret in fours so it can be typed into an authenticator by hand. */
 const grouped = (secret: string) => secret.match(/.{1,4}/g)?.join(' ') ?? secret
@@ -403,7 +405,7 @@ export function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorProps }) {
                 <img
                   src={enrolment.qrDataUri}
                   alt="رمز QR لإضافة الحساب إلى تطبيق المصادقة"
-                  className="mx-auto size-48 rounded-lg border bg-white p-2"
+                  className={`mx-auto size-48 rounded-lg border p-2 ${QR_SURFACE}`}
                 />
               )}
               <section className="space-y-2" aria-labelledby="two-factor-secret-label">

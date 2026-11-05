@@ -17,6 +17,12 @@ const registryDirectory = new URL('../registry/ui/', import.meta.url)
 const referenceFiles = [
   'layouts/workspace.tsx',
   'components/admin-nav.tsx',
+  'components/account-menu.tsx',
+  'components/tasks-button.tsx',
+  'components/top-navigation.tsx',
+  'components/nav-order-dialog.tsx',
+  'components/notification-bell.tsx',
+  'components/preferences.ts',
   'components/language-setting.tsx',
   'pages/auth/login.tsx',
   'pages/home.tsx',

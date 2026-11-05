@@ -331,7 +331,7 @@ export function ResourceForm({
           </AlertDescription>
         </Alert>
       )}
-      <section className="rounded-xl border bg-white">
+      <section className="rounded-xl border bg-card">
         <div className="border-b px-7 py-5">
           <h2 className="text-sm font-semibold">{t('تفاصيل السجل')}</h2>
           <p className="mt-2 text-xs text-muted-foreground">
