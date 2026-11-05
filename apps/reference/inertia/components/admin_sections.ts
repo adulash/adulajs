@@ -1,5 +1,6 @@
 import {
   Activity,
+  DatabaseBackup,
   GitBranch,
   Hash,
   History,
@@ -92,6 +93,7 @@ export const adminSections: AdminSection[] = [
     icon: Activity,
     pages: [
       { id: 'jobs', href: '/admin/jobs', label: 'تشغيل النظام', icon: Activity },
+      { id: 'backups', href: '/admin/backups', label: 'النسخ الاحتياطي', icon: DatabaseBackup },
       { id: 'workflows', href: '/admin/workflows', label: 'تدفقات فاشلة', icon: GitBranch },
       { id: 'activity', href: '/admin/activity', label: 'سجل النشاط', icon: History },
     ],
