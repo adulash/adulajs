@@ -3,6 +3,7 @@ import db from '@adonisjs/lucid/services/db'
 import { AdulaError, Settings } from 'adula'
 import { adula } from '#services/adula'
 import { syncJobDefinitions } from '#start/sync_jobs'
+import { cloudBackups } from '#services/cloud_backups'
 // Exactly one scheduler process is deployed. The worker owns outbox publication.
 scheduler.command('backup:verify').hourly().withoutOverlapping()
 // The monthly drill restores the latest snapshot and opens a record with its attachment.
@@ -33,6 +34,22 @@ for (const job of syncJobDefinitions) {
     .cron(job.cron)
     .withoutOverlapping()
 }
+// Downloadable and cloud backups (ADR 051): queue the scheduled runs that are due, recover
+// runs a stopped worker left behind and delete expired downloads.
+scheduler
+  .call(async () => {
+    await cloudBackups().queueDue()
+  })
+  .everyFifteenMinutes()
+  .withoutOverlapping()
+scheduler
+  .call(async () => {
+    const backups = cloudBackups()
+    await backups.recoverStale()
+    await backups.pruneExpired()
+  })
+  .hourly()
+  .withoutOverlapping()
 scheduler
   .call(async () => {
     await new Settings(db.connection().getWriteClient()).set(

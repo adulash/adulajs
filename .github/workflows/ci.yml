@@ -89,6 +89,8 @@ jobs:
       - run: pnpm check:api
       - run: pnpm lint
       - run: pnpm test
+      # The browser suite again with dark as every user's theme (#155).
+      - run: pnpm test:browser:dark
       - name: Retain browser traces of failed tests
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

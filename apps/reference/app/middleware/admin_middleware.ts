@@ -29,7 +29,8 @@ async function openTasks(userId: number) {
   const runtime = adula()
   try {
     const actor = await runtime.actors.load(userId)
-    const { open } = await runtime.assignments.mine(actor, { limit: 1 })
+    // The counting code of the «مهامي» list, without loading a page of rows (#156).
+    const { open } = await runtime.assignments.openCounts(actor)
     return open
   } catch (error) {
     logger.error({ err: error, userId }, 'my tasks badge count failed')
@@ -62,8 +63,10 @@ export async function sharedAdminProps(ctx: HttpContext) {
     setupPending: ctx.inertia.always(isAdmin && (await setupPending())),
     canImport: ctx.inertia.always(userId ? await canImport(userId) : false),
     // The same count as «مهامي»: items the user may act on today, after the record check,
-    // so the badge never counts work on records the user can no longer open.
-    openTasks: ctx.inertia.always(userId ? await openTasks(userId) : 0),
+    // so the badge never counts work on records the user can no longer open. It costs one
+    // grouped query plus one record check per record (up to 1000), so it is deferred: the
+    // page renders first, and partial reloads compute it only when they ask for it (#156).
+    openTasks: ctx.inertia.defer(async () => (userId ? await openTasks(userId) : 0)),
     canInviteUsers: ctx.inertia.always(
       userId ? await new UserInvitations(knex).canInvite(userId) : false
     ),

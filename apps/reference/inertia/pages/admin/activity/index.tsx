@@ -124,7 +124,7 @@ export default function ActivityIndex({ activity, facets, filters }: Props) {
       />
       <form
         onSubmit={apply}
-        className="mb-6 grid gap-3 rounded-xl border border-border bg-white p-5 md:grid-cols-6"
+        className="mb-6 grid gap-3 rounded-xl border border-border bg-card p-5 md:grid-cols-6"
       >
         <div className="space-y-1">
           <Label htmlFor="filter-resource">الكيان</Label>
@@ -188,7 +188,7 @@ export default function ActivityIndex({ activity, facets, filters }: Props) {
           تصفية
         </Button>
       </form>
-      <section className="overflow-hidden rounded-xl border border-border bg-white">
+      <section className="overflow-hidden rounded-xl border border-border bg-card">
         <Table>
           <TableHeader>
             <TableRow>

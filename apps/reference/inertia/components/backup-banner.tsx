@@ -9,7 +9,7 @@ export function BackupBanner() {
   return (
     <div
       role="alert"
-      className="flex flex-wrap items-center gap-3 bg-destructive px-5 py-3 text-sm text-white lg:px-10"
+      className="flex flex-wrap items-center gap-3 bg-destructive px-5 py-3 text-sm text-destructive-foreground lg:px-10"
     >
       <TriangleAlert size={18} />
       <span className="font-semibold">لا توجد نسخة احتياطية خارجية سليمة خلال آخر 48 ساعة.</span>

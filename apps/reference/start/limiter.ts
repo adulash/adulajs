@@ -113,6 +113,15 @@ export const apiThrottle = limiter.define('api', (ctx) =>
     .limitExceeded(withMessage)
 )
 
+/** Backup connections and runs (ADR 051): heavy and audited, so a handful per minute. */
+export const backupThrottle = limiter.define('backups', (ctx) =>
+  limiter
+    .allowRequests(5)
+    .every('1 minute')
+    .usingKey(`backups:${ctx.auth.user?.id ?? ctx.request.ip()}`)
+    .limitExceeded(withMessage)
+)
+
 /**
  * CSV exports (ADR 046): 10 per minute per user, beside the resource API limit. One
  * export reads up to 5000 rows, so it is far heavier than a list page.
@@ -220,6 +229,15 @@ export const assistantTestThrottle = limiter.define('assistant_test', (ctx) =>
   limiter
     .allowRequests(5)
     .every('15 minutes')
+    .usingKey(`user:${ctx.auth.user?.id ?? ctx.request.ip()}`)
+    .limitExceeded(withMessage)
+)
+
+/** Interface preference changes: 60 per minute per signed-in user. */
+export const preferenceThrottle = limiter.define('preferences', (ctx) =>
+  limiter
+    .allowRequests(60)
+    .every('1 minute')
     .usingKey(`user:${ctx.auth.user?.id ?? ctx.request.ip()}`)
     .limitExceeded(withMessage)
 )

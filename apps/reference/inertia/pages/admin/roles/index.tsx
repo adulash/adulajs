@@ -55,7 +55,7 @@ export default function RolesIndex({ roles }: Props) {
       />
       <form
         onSubmit={create}
-        className="mb-6 grid gap-3 rounded-xl border border-border bg-white p-5 md:grid-cols-[1fr_1fr_140px_auto]"
+        className="mb-6 grid gap-3 rounded-xl border border-border bg-card p-5 md:grid-cols-[1fr_1fr_140px_auto]"
       >
         <div className="space-y-1">
           <Label htmlFor="role-name">اسم الدور</Label>
@@ -98,7 +98,7 @@ export default function RolesIndex({ roles }: Props) {
           إنشاء دور
         </Button>
       </form>
-      <section className="overflow-hidden rounded-xl border border-border bg-white">
+      <section className="overflow-hidden rounded-xl border border-border bg-card">
         <Table>
           <TableHeader>
             <TableRow>

@@ -20,6 +20,8 @@ import BackupRestoreFiles from './backup_restore_files.js'
 import BackupRestoreTest from './backup_restore_test.js'
 import BackupVerify from './backup_verify.js'
 import BackupVerifySnapshot from './backup_verify_snapshot.js'
+import BackupSeal from './backup_seal.js'
+import BackupOpen from './backup_open.js'
 import App from './app.js'
 import Client from './client.js'
 import SlaEvaluate from './sla_evaluate.js'
@@ -46,6 +48,8 @@ const commands = [
   BackupRestoreTest,
   BackupVerify,
   BackupVerifySnapshot,
+  BackupSeal,
+  BackupOpen,
   App,
   Client,
   SlaEvaluate,

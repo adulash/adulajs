@@ -11,7 +11,7 @@ import {
   parseResourceToolArgs,
   runResourceTool,
   createOutboundRequester,
-  OutboundResponseTooLarge,
+  OutboundResponseTooLargeError,
 } from '../index.js'
 import type { Actor, SecretBox } from '../index.js'
 import { admin, db, reader, registry, setup } from './helpers.js'
@@ -649,9 +649,9 @@ test.group('AI assistant', (group) => {
             headers: {},
             body: '{}',
             signal: AbortSignal.timeout(5000),
-            maxBytes: 10,
+            maxResponseBytes: 10,
           }),
-        OutboundResponseTooLarge as never
+        OutboundResponseTooLargeError as never
       )
       // Without the private-target policy a loopback provider is refused.
       await assert.rejects(() =>
@@ -659,7 +659,7 @@ test.group('AI assistant', (group) => {
           headers: {},
           body: '{}',
           signal: AbortSignal.timeout(5000),
-          maxBytes: 10,
+          maxResponseBytes: 10,
         })
       )
     } finally {

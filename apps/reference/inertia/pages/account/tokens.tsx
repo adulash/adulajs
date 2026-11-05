@@ -78,7 +78,7 @@ export default function ApiTokens({ tokens }: Props) {
         {tokens.map((token) => (
           <li
             key={token.id}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white px-5 py-4"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-5 py-4"
           >
             <div className="space-y-1">
               <p className="flex items-center gap-2 font-semibold">
@@ -154,7 +154,7 @@ export default function ApiTokens({ tokens }: Props) {
               />
             </div>
             {error && (
-              <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800">
+              <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
                 {error}
               </p>
             )}

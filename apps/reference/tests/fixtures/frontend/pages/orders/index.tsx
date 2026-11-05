@@ -117,7 +117,7 @@ export default function Orders({ result, canCreate, canEdit, showTotal }: Props)
         </div>
       </div>
       <section
-        className="overflow-hidden rounded-xl border border-border bg-white shadow-[0_2px_10px_#1c302804]"
+        className="overflow-hidden rounded-xl border border-border bg-card shadow-[0_2px_10px_color-mix(in_oklab,var(--foreground)_2%,transparent)]"
         aria-label="قائمة الطلبات"
       >
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border px-6 py-5">
@@ -158,7 +158,7 @@ export default function Orders({ result, canCreate, canEdit, showTotal }: Props)
             <label htmlFor="order-status-filter">الحالة</label>
             <select
               id="order-status-filter"
-              className="rounded-md border border-border bg-white px-3 py-2 text-xs"
+              className="rounded-md border border-border bg-card px-3 py-2 text-xs"
               value={query.get('filters[status]') ?? ''}
               onChange={(event) => navigate({ 'filters[status]': event.target.value || undefined })}
             >
@@ -207,7 +207,7 @@ export default function Orders({ result, canCreate, canEdit, showTotal }: Props)
                 <TableCell>
                   <Badge
                     variant={row.docStatus === 1 ? 'default' : 'secondary'}
-                    className={`text-[10px] font-medium ${row.docStatus === 2 ? 'bg-red-50 text-red-800' : ''}`}
+                    className={`text-[10px] font-medium ${row.docStatus === 2 ? 'bg-destructive/10 text-destructive' : ''}`}
                   >
                     {row.docStatus === 1 ? 'معتمد' : row.docStatus === 2 ? 'ملغي' : 'مسودة'}
                   </Badge>

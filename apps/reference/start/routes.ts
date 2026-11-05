@@ -21,6 +21,7 @@ import {
   channelChangeThrottle,
   channelCodeThrottle,
   channelTestThrottle,
+  backupThrottle,
   exportThrottle,
   healthThrottle,
   inboundThrottle,
@@ -30,6 +31,7 @@ import {
   oauthThrottle,
   passwordChangeThrottle,
   passwordThrottle,
+  preferenceThrottle,
   signupThrottle,
   twoFactorManageThrottle,
   twoFactorThrottle,
@@ -51,6 +53,7 @@ const UserInvitationsController = () => import('#controllers/user_invitations_co
 const OauthController = () => import('#controllers/oauth_controller')
 const ProfileController = () => import('#controllers/profile_controller')
 const LanguageController = () => import('#controllers/language_controller')
+const PreferencesController = () => import('#controllers/preferences_controller')
 const TwoFactorController = () => import('#controllers/two_factor_controller')
 const TwoFactorChallengeController = () => import('#controllers/two_factor_challenge_controller')
 const AccountSessionsController = () => import('#controllers/account_sessions_controller')
@@ -60,6 +63,7 @@ const AdminRolesController = () => import('#controllers/admin/roles_controller')
 const AdminOrgUnitsController = () => import('#controllers/admin/org_units_controller')
 const AdminActivityController = () => import('#controllers/admin/activity_controller')
 const AdminJobsController = () => import('#controllers/admin/jobs_controller')
+const AdminBackupsController = () => import('#controllers/admin/backups_controller')
 const AdminSettingsController = () => import('#controllers/admin/settings_controller')
 const AssistantController = () => import('#controllers/assistant_controller')
 const AdminAssistantController = () => import('#controllers/admin/assistant_controller')
@@ -269,6 +273,13 @@ router
     router.patch('account/profile', [ProfileController, 'update'])
     router.post('account/password', [ProfileController, 'password']).use(passwordChangeThrottle)
     router.put('account/language', [LanguageController, 'update'])
+    // Per-user interface preferences (ADR 049): sidebar, layout, theme, arrangements.
+    router
+      .put('account/preferences/:key', [PreferencesController, 'update'])
+      .use(preferenceThrottle)
+    router
+      .delete('account/preferences/:key', [PreferencesController, 'destroy'])
+      .use(preferenceThrottle)
     router
       .put('account/notification-channels', [ProfileController, 'channels'])
       .use(channelChangeThrottle)
@@ -355,6 +366,16 @@ router
     router.delete('org-units/:id', [AdminOrgUnitsController, 'destroy'])
     router.get('activity', [AdminActivityController, 'index'])
     router.get('jobs', [AdminJobsController, 'index'])
+    // Downloadable and cloud backups (ADR 051); every handler re-checks manage all.
+    router.get('backups', [AdminBackupsController, 'index'])
+    router
+      .post('backups/connect/:provider', [AdminBackupsController, 'connect'])
+      .use(backupThrottle)
+    router.get('backups/oauth/:provider/callback', [AdminBackupsController, 'callback'])
+    router.delete('backups/connections/:provider', [AdminBackupsController, 'disconnect'])
+    router.put('backups/connections/:provider/schedule', [AdminBackupsController, 'schedule'])
+    router.post('backups/runs', [AdminBackupsController, 'run']).use(backupThrottle)
+    router.get('backups/runs/:id/download', [AdminBackupsController, 'download'])
     router.post('jobs/:id/retry', [AdminJobsController, 'retry'])
     router.post('jobs/sync/:name/run', [AdminJobsController, 'runSync'])
     router.get('jobs/sync/:name/runs', [AdminJobsController, 'syncRuns'])

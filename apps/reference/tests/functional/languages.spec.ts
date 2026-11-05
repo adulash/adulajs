@@ -68,9 +68,9 @@ test.group('Optional interface languages', (group) => {
 
     // The document itself follows the language.
     const englishHtml = await client.get('/resources/customers').loginAs(english.user).headers(html)
-    assert.include(englishHtml.text(), '<html lang="en" dir="ltr">')
+    assert.include(englishHtml.text(), '<html lang="en" dir="ltr" ')
     const arabicHtml = await client.get('/resources/customers').loginAs(arabic.user).headers(html)
-    assert.include(arabicHtml.text(), '<html lang="ar" dir="rtl">')
+    assert.include(arabicHtml.text(), '<html lang="ar" dir="rtl" ')
 
     // Framework errors: AdulaError and VineJS validation messages.
     const missing = await client

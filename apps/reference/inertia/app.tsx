@@ -7,6 +7,9 @@ import { createInertiaApp, router, type ResolvedComponent } from '@inertiajs/rea
 import { TuyauProvider } from '@adonisjs/inertia/react'
 import { resolvePageComponent } from '@adonisjs/inertia/helpers'
 import fixturePages from '~/fixture_pages'
+import { TooltipProvider } from '~/components/ui/tooltip'
+import { applyTheme, isTheme } from '~/components/theme'
+import { preferenceOverride } from '~/components/preferences'
 import './css/adula.css'
 
 const appName = import.meta.env.VITE_APP_NAME || 'AdulaJS'
@@ -15,10 +18,20 @@ const appName = import.meta.env.VITE_APP_NAME || 'AdulaJS'
  * The server renders `lang` and `dir` into the HTML; client navigations can switch the
  * interface language (for example after saving it), so keep them in sync with the page.
  */
-function syncDocumentLanguage(props: { [key: string]: unknown; locale?: unknown; dir?: unknown }) {
+function syncDocument(props: {
+  [key: string]: unknown
+  locale?: unknown
+  dir?: unknown
+  preferences?: unknown
+}) {
   const root = document.documentElement
   root.lang = typeof props.locale === 'string' ? props.locale : 'ar'
   root.dir = props.dir === 'ltr' ? 'ltr' : 'rtl'
+  // The theme a user picked in this page view wins until the server renders it (ADR 049).
+  const picked = preferenceOverride('shell.theme')
+  const stored = (props.preferences as Record<string, unknown> | undefined)?.['shell.theme']
+  const theme = isTheme(picked) ? picked : stored
+  if (isTheme(theme)) applyTheme(theme)
 }
 
 createInertiaApp({
@@ -31,15 +44,19 @@ createInertiaApp({
     )
   },
   setup({ el, App, props }) {
-    syncDocumentLanguage(props.initialPage.props)
-    router.on('navigate', (event) => syncDocumentLanguage(event.detail.page.props))
+    syncDocument(props.initialPage.props)
+    router.on('navigate', (event) => syncDocument(event.detail.page.props))
     createRoot(el).render(
       <TuyauProvider client={client}>
-        <App {...props} />
+        {/* One provider for every tooltip, such as the collapsed sidebar's icon labels. */}
+        <TooltipProvider delayDuration={300}>
+          <App {...props} />
+        </TooltipProvider>
       </TuyauProvider>
     )
   },
   progress: {
-    color: '#4B5563',
+    // A theme token, so the progress bar follows the light and dark themes.
+    color: 'var(--muted-foreground)',
   },
 })

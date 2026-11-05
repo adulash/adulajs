@@ -77,7 +77,7 @@ export function SyncJobsSection({ jobs }: { jobs: SyncJobSummary[] }) {
     }
   }
   return (
-    <section className="mb-8 overflow-hidden rounded-xl border border-border bg-white">
+    <section className="mb-8 overflow-hidden rounded-xl border border-border bg-card">
       <div className="border-b border-border px-5 py-4">
         <h2 className="font-semibold">مهام المزامنة</h2>
         <p className="mt-1 text-xs text-muted-foreground">

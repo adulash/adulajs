@@ -58,6 +58,15 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
 * `WorkflowDefinition.machine` and the `xstate` dependency remain until the next major
   version (ADR 044).
 
+## Workspace shell
+
+* Modules have no chosen icon: the collapsed sidebar shows a module's first letter and the
+  top layout shows its name (ADR 049).
+* The menu order and theme are per user, not per organization unit; there is no
+  administrator default for either beyond the layout.
+* Printed documents are always light; there is no dark print style.
+* The shell still scrolls the window behind the fixed sidebar (#106, 2.3.0).
+
 ## Security and integration
 
 * Two-factor authentication has had no written human ASVS review yet (ADR 027).
@@ -70,6 +79,9 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
   provider (OpenRouter by default) and is not evaluated for answer quality. Its `core.ai`
   permission works only through a deployment-wide role: `ActorStore` drops non-resource
   rules from org-scoped role assignments.
+* Encrypted cloud backups (ADR 051) are verified only against local fakes of Google Drive and
+  Microsoft Graph; there is no restore from inside the application (recovery uses
+  `backup:open` and the restore commands) and no remote retention.
 * XLSX import is pending the owner's approval of a parser; the `ImportAdapter`
   registration point is ready and CSV import works (docs/integration.md).
 

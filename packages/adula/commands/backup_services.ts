@@ -14,7 +14,7 @@ export type ArchivedAttachment = {
 }
 
 export type BackupSnapshotService = {
-  createSnapshot(directory: string): Promise<void>
+  createSnapshot(directory: string, options?: { workDirectory?: string }): Promise<void>
   verifySnapshot(directory: string): Promise<ArchivedAttachment[] | null>
   extractSnapshot(directory: string, target: string): Promise<void>
   verifyAttachments(

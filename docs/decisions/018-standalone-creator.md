@@ -46,7 +46,7 @@ administrator browser login. CI retains all three tested archives for publicatio
 Docker startup must also be exercised on a Docker-capable host; the original
 workstation has no Docker. These checks do not close the separate 1.0 gates.
 
-Amendment (2.2.2, #151): the interactive creator no longer asks for a company identity file.
+Amendment (2.3.0, #151): the interactive creator no longer asks for a company identity file.
 `--identity` stays an optional, non-interactive option (not deprecated). Without it the generated
 project records the identity as pending in `docs/design-identity.md`, and the managed AGENTS
 kickoff rule asks for it before the first design. Without `--yes`, piped input answers the

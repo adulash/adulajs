@@ -1,5 +1,5 @@
 import {
-  OutboundResponseTooLarge,
+  OutboundResponseTooLargeError,
   OutboundTargetError,
   createOutboundRequester,
   outboundErrorCategory,
@@ -76,10 +76,10 @@ export function createChatClient(options: OutboundOptions = {}): ChatClient {
         },
         body: JSON.stringify(body),
         signal,
-        maxBytes: ASSISTANT_RESPONSE_LIMIT,
+        maxResponseBytes: ASSISTANT_RESPONSE_LIMIT,
       })
     } catch (error) {
-      if (error instanceof OutboundResponseTooLarge) throw new AssistantError('too-large')
+      if (error instanceof OutboundResponseTooLargeError) throw new AssistantError('too-large')
       if (error instanceof OutboundTargetError) throw new AssistantError(error.category)
       throw new AssistantError(outboundErrorCategory(error))
     }

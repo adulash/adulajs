@@ -14,6 +14,19 @@
       --gray-12: oklch(14.5% 0 0);
     }
 
+    /* The dark theme (#155) reverses the gray scale; surfaces and status colors use the theme tokens. */
+    :where(.dark) :scope {
+      --gray-1: oklch(26.9% 0 0);
+      --gray-2: oklch(14.5% 0 0);
+      --gray-3: oklch(30% 0 0);
+      --gray-4: oklch(37.1% 0 0);
+      --gray-6: oklch(70.8% 0 0);
+      --gray-7: oklch(80% 0 0);
+      --gray-8: oklch(87% 0 0);
+      --gray-10: oklch(92.2% 0 0);
+      --gray-12: oklch(98.5% 0 0);
+    }
+
     * {
       box-sizing: border-box;
       margin: 0;
@@ -82,7 +95,7 @@
       flex-direction: column;
       justify-content: space-between;
       min-height: calc(100vh - 65px);
-      background: #fff;
+      background: var(--card);
       border: 1px solid var(--gray-3);
     }
 
@@ -176,11 +189,11 @@
     }
     input[data-invalid='true'],
     textarea[data-invalid='true'] {
-      border-color: #fb2c36;
+      border-color: var(--destructive);
     }
     input[data-invalid='true'] + div,
     textarea[data-invalid='true'] + div {
-      color: #fb2c36;
+      color: var(--destructive);
       font-size: 14px;
       font-weight: 500;
       margin-top: 2px;
@@ -188,7 +201,7 @@
 
     button {
       background: var(--gray-12);
-      color: #fff;
+      color: var(--gray-1);
       border: none;
       padding: 10px;
       font-weight: 500;
@@ -199,7 +212,7 @@
 
     /* Alerts */
     .alert {
-      background: #fff;
+      background: var(--card);
       position: relative;
       padding: 12px 16px;
       font-size: 14px;
@@ -210,14 +223,14 @@
       animation: scale-up 0.2s cubic-bezier(0.39, 0.575, 0.565, 1) both;
     }
     .alert-destructive {
-      color: #fb2c36;
-      background: #fb2c361a;
-      border-color: #fb2c36;
+      color: var(--destructive);
+      background: color-mix(in oklab, var(--destructive) 10%, transparent);
+      border-color: var(--destructive);
     }
     .alert-success {
-      color: #00a63e;
-      background: #00a63e1a;
-      border-color: #00a63e;
+      color: var(--success);
+      background: color-mix(in oklab, var(--success) 10%, transparent);
+      border-color: var(--success);
     }
     .flash-container {
       position: fixed;

@@ -138,7 +138,7 @@ export default function MyTasks({ assignments, tab, decisions }: Props) {
         </Tabs>
       </div>
       {error && (
-        <p role="alert" className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800">
+        <p role="alert" className="mb-4 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </p>
       )}
@@ -146,7 +146,7 @@ export default function MyTasks({ assignments, tab, decisions }: Props) {
         {rows.map((item) => (
           <li
             key={item.id}
-            className="flex flex-wrap items-start justify-between gap-3 rounded-xl border bg-white px-5 py-4"
+            className="flex flex-wrap items-start justify-between gap-3 rounded-xl border bg-card px-5 py-4"
           >
             <div className="min-w-0 flex-1 space-y-1">
               <p className="flex flex-wrap items-center gap-2 font-semibold">
@@ -188,7 +188,7 @@ export default function MyTasks({ assignments, tab, decisions }: Props) {
                     className={
                       item.status === 'open' &&
                       (item.sla ? item.sla === 'overdue' : item.dueOn < today)
-                        ? 'flex items-center gap-1 font-medium text-red-700'
+                        ? 'flex items-center gap-1 font-medium text-destructive'
                         : 'flex items-center gap-1'
                     }
                   >

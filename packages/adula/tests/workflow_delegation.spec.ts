@@ -405,6 +405,8 @@ test.group('Workflow approval delegation', (group) => {
     const page = await assignments().mine(deputy)
     assert.equal(page.open, 1)
     assert.equal(page.approvals, 1)
+    // The delegate's «مهامي» badge counts the approval held for the manager (#156).
+    assert.deepEqual(await assignments().openCounts(deputy), { open: 1, approvals: 1 })
     assert.lengthOf(page.data, 1)
     assert.include(page.data[0], {
       id: Number(pending.id),
