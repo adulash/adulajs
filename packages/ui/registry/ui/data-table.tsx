@@ -668,7 +668,7 @@ export function DataTable({
                 </li>
               ))}
               <li>
-                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={clearFilters}>
+                <Button variant="ghost" size="xs" onClick={clearFilters}>
                   <X size={14} />
                   {t('مسح التصفية')}
                 </Button>
@@ -1038,8 +1038,8 @@ function SavedViewsBar({
         >
           <Button
             variant="ghost"
-            size="sm"
-            className="h-7 rounded-full px-2 text-xs"
+            size="xs"
+            className="rounded-full"
             onClick={() => onApply(view)}
           >
             {view.name}
@@ -1073,21 +1073,20 @@ function SavedViewsBar({
             <Checkbox checked={shared} onCheckedChange={(value) => setShared(value === true)} />
             {t('مشترك')}
           </label>
-          <Button type="submit" size="sm" className="h-8" disabled={busy || !name.trim()}>
+          <Button type="submit" size="sm" disabled={busy || !name.trim()}>
             {t('حفظ')}
           </Button>
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="h-8"
             onClick={() => setNaming(false)}
           >
             {t('إلغاء')}
           </Button>
         </form>
       ) : (
-        <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setNaming(true)}>
+        <Button variant="outline" size="sm" onClick={() => setNaming(true)}>
           <BookmarkPlus size={14} />
           {t('حفظ العرض الحالي')}
         </Button>
