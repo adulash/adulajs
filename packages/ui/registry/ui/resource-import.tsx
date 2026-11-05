@@ -8,7 +8,7 @@ import { Button } from "~/components/ui/button";
 import { FileInput } from "~/components/ui/file-input";
 import { Label } from "~/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "~/components/ui/radio-group";
-import { Dialog } from "~/components/ui/dialog";
+import { Dialog, DialogClose } from "~/components/ui/dialog";
 import { LongDialogContent } from "~/components/ui/long-dialog";
 import {
   Select,
@@ -148,6 +148,14 @@ export function ResourceImport({
     return () => clearInterval(timer);
   }, [step, batch?.id]);
   const unique = batch?.targets.filter((target) => target.unique) ?? [];
+  // Closing asks first only when the reader changed something: a chosen file, or a mapping,
+  // mode or match field that differs from what the upload suggested. Undoing a change is clean.
+  const sameMapping = (a: Record<string, string>, b: Record<string, string>) =>
+    Object.keys(a).length === Object.keys(b).length &&
+    Object.entries(a).every(([column, target]) => b[column] === target);
+  const mappingChanged =
+    batch !== null &&
+    (!sameMapping(mapping, batch.mapping) || mode !== "create" || matchField !== "");
   const upload = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!file) return;
@@ -246,13 +254,11 @@ export function ResourceImport({
                   تعديل المطابقة
                 </Button>
               )}
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setOpen(false)}
-              >
-                إلغاء
-              </Button>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  إلغاء
+                </Button>
+              </DialogClose>
               {step === "upload" && (
                 <Button
                   type="submit"
@@ -284,7 +290,12 @@ export function ResourceImport({
           }
         >
           {step === "upload" && (
-            <form id="import-upload" className="space-y-3" onSubmit={upload}>
+            <form
+              id="import-upload"
+              className="space-y-3"
+              onSubmit={upload}
+              data-dirty={String(file !== null)}
+            >
               <div className="space-y-2">
                 <Label id="import-file-label" htmlFor="import-file">
                   الملف
@@ -331,6 +342,7 @@ export function ResourceImport({
             <form
               id="import-mapping"
               className="space-y-4"
+              data-dirty={String(mappingChanged)}
               onSubmit={(event) => {
                 event.preventDefault();
                 void run(false);

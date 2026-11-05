@@ -134,4 +134,77 @@ ${headers.map(() => 'قيمة').join(',')}
       })
     }
   })
+
+  test('the import dialog closes at once until something is chosen or changed', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(clerk.user)
+    const page = await visit('/resources/ui_samples')
+    const open = page.getByRole('button', { name: 'استيراد من ملف' })
+    const dialog = page.getByRole('dialog', { name: 'استيراد إلى عينات الواجهة' })
+    const confirm = page.getByRole('dialog', { name: 'إغلاق النموذج؟' })
+    const closedClean = async (how: string) => {
+      await dialog.waitFor({ state: 'hidden' })
+      assert.equal(await confirm.count(), 0, `${how}: asked to confirm a clean dialog`)
+    }
+    // Nothing chosen yet: Escape, the close button, «إلغاء» and a click outside all close.
+    await open.click()
+    await dialog.waitFor()
+    await page.keyboard.press('Escape')
+    await closedClean('Escape')
+    await open.click()
+    await dialog.getByRole('button', { name: 'إغلاق', exact: true }).click()
+    await closedClean('close button')
+    await open.click()
+    await dialog.getByRole('button', { name: 'إلغاء', exact: true }).click()
+    await closedClean('إلغاء')
+    await open.click()
+    await dialog.waitFor()
+    await page.mouse.click(5, 5)
+    await closedClean('outside click')
+
+    // A chosen file is a change: every way out asks first, and «متابعة التحرير» keeps it.
+    await open.click()
+    await dialog.getByLabel('الملف').setInputFiles({
+      name: 'samples.csv',
+      mimeType: 'text/csv',
+      buffer: Buffer.from(`البيان,الوحدة
+إغلاق,${clerk.orgUnitId}
+`),
+    })
+    await page.keyboard.press('Escape')
+    await confirm.waitFor()
+    await confirm.getByRole('button', { name: 'متابعة التحرير' }).click()
+    await confirm.waitFor({ state: 'hidden' })
+    await dialog.getByText('samples.csv').waitFor()
+    await dialog.getByRole('button', { name: 'إلغاء', exact: true }).click()
+    await confirm.waitFor()
+    await confirm.getByRole('button', { name: 'متابعة التحرير' }).click()
+
+    // The mapping the upload suggested is clean; a change asks, and undoing it is clean again.
+    await dialog.getByRole('button', { name: 'رفع الملف' }).click()
+    const column = dialog.getByRole('combobox', { name: 'حقل العمود البيان' })
+    await column.waitFor()
+    const shown = await column.innerText()
+    const suggested = shown.trim()
+    const other = suggested === 'تجاهل العمود' ? 'العنوان *' : 'تجاهل العمود'
+    await column.click()
+    await page.getByRole('option', { name: other, exact: true }).click()
+    // Escape goes to the dialog only once the option list has closed.
+    await page.getByRole('listbox').waitFor({ state: 'hidden' })
+    const form = dialog.locator('form#import-mapping')
+    assert.equal(await form.getAttribute('data-dirty'), 'true')
+    await page.keyboard.press('Escape')
+    await confirm.waitFor()
+    await confirm.getByRole('button', { name: 'متابعة التحرير' }).click()
+    await confirm.waitFor({ state: 'hidden' })
+    await column.click()
+    await page.getByRole('option', { name: suggested, exact: true }).click()
+    await page.getByRole('listbox').waitFor({ state: 'hidden' })
+    assert.equal(await form.getAttribute('data-dirty'), 'false')
+    await page.keyboard.press('Escape')
+    await closedClean('mapping restored')
+  })
 })

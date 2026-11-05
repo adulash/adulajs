@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/com
 import { useConfirmAction } from '~/components/ui/confirm-action'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -168,9 +169,11 @@ function ScheduleDialog({
             </Select>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>
-              إلغاء
-            </Button>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                إلغاء
+              </Button>
+            </DialogClose>
             <Button type="submit" disabled={saving}>
               حفظ الجدولة
             </Button>
