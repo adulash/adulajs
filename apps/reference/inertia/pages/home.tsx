@@ -177,7 +177,10 @@ function Overview({ overview, props }: { overview: OverviewState; props: Props }
           ))}
         </div>
       ) : (
-        <p className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+        <p
+          className="rounded-xl border border-dashed p-12 text-center text-muted-foreground"
+          data-testid="overview-empty"
+        >
           {t('لا توجد عناصر ظاهرة. أظهر عنصرًا من «تخصيص».')}
         </p>
       )}
