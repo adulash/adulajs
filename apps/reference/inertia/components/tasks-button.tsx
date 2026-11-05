@@ -4,6 +4,7 @@ import { ListChecks } from 'lucide-react'
 import { useMessages } from '~/components/ui/messages'
 import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
 import { isActivePath } from '~/components/shell_navigation'
+import { headerIconClass } from '~/components/header_icon'
 
 /**
  * «مهامي» beside the notification bell (#156). The badge is the number the page lists as
@@ -24,7 +25,7 @@ export function TasksButton() {
           aria-label={count ? t('مهامي، {count} مفتوحة', { count }) : t('مهامي')}
           aria-current={active ? 'page' : undefined}
           data-testid="my-tasks-button"
-          className={`relative grid size-9 place-items-center rounded-full transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 ${active ? 'bg-accent text-foreground' : 'text-muted-foreground'}`}
+          className={headerIconClass(active)}
         >
           <ListChecks size={18} strokeWidth={1.6} aria-hidden />
           {count > 0 && (

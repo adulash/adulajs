@@ -24,6 +24,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '~/components/ui/dropdown-menu'
+import { Separator } from '~/components/ui/separator'
 import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
 import { AccountMenu } from '~/components/account-menu'
 import {
@@ -485,7 +486,7 @@ function IconRail({
             badgeLabel={t('{count} مفتوحة', { count: entry.badge })}
           />
         ))}
-        {modules.length > 0 && <span className="my-2 h-px w-8 bg-border" aria-hidden />}
+        {modules.length > 0 && <Separator className="my-2 w-8 data-[orientation=horizontal]:w-8" />}
         {modules.map((group) => {
           const active = group.links.some((entry) => isActive(entry.href))
           const Icon = icons.get(group.module)!
@@ -512,6 +513,7 @@ function IconRail({
                     <Link
                       href={entry.href}
                       aria-current={isActive(entry.href) ? 'page' : undefined}
+                      className="aria-[current=page]:font-semibold aria-[current=page]:text-primary"
                     >
                       <ClipboardList />
                       {entry.label}

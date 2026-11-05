@@ -3,7 +3,7 @@ import db from '@adonisjs/lucid/services/db'
 import { adula } from '#services/adula'
 import { seedActor, screenshotDir, type UiActor } from '#tests/helpers/ui_fixtures'
 import { join } from 'node:path'
-import type { Locator } from 'playwright'
+import type { Locator, Page } from 'playwright'
 
 const knex = () => db.connection().getWriteClient()
 
@@ -19,6 +19,29 @@ async function settledBox(locator: Locator) {
     previous = current
   }
   throw new Error('The element kept moving for 5 seconds')
+}
+
+/** The computed value of a utility class's property, read from a probe element. */
+async function tokenStyle(page: Page, className: string, property: 'backgroundColor' | 'color') {
+  return page.evaluate<string>(
+    `(() => { const probe = document.createElement('span'); probe.className = '${className}'; document.body.append(probe); const value = getComputedStyle(probe).${property}; probe.remove(); return value })()`
+  )
+}
+
+/** Computed styles once their color transitions have finished (two equal reads). */
+async function settledStyles(page: Page, selector: string, properties: string[]) {
+  const read = () =>
+    page.evaluate<string[]>(
+      `(() => { const style = getComputedStyle(document.querySelector(${JSON.stringify(selector)})); return ${JSON.stringify(properties)}.map((property) => style[property]) })()`
+    )
+  let previous = await read()
+  for (const started = Date.now(); Date.now() - started < 5_000;) {
+    await new Promise((resolve) => setTimeout(resolve, 150))
+    const current = await read()
+    if (current.join() === previous.join()) return current
+    previous = current
+  }
+  throw new Error(`${selector} kept changing for 5 seconds`)
 }
 
 async function stored(userId: number, key: string, value: unknown) {
@@ -256,11 +279,40 @@ test.group('Workspace shell in the browser', (group) => {
       )
       await page.keyboard.press('Escape')
       await menu.waitFor({ state: 'detached' })
+      // Each module entry carries its icon (the collapsed sidebar's shape), then the chevron.
+      const svgs = trigger.locator('svg')
+      const shapes: string[] = []
+      for (let index = 0; index < (await svgs.count()); index++)
+        shapes.push((await svgs.nth(index).getAttribute('class')) ?? '')
+      assert.lengthOf(shapes, 2)
+      assert.notInclude(shapes[0], 'lucide-chevron-down')
+      assert.include(shapes[1], 'lucide-chevron-down')
       // Opening a page from the menu navigates and marks the module as current.
       await trigger.click()
       await page.getByRole('menuitem', { name: pages[pages.length - 1].label }).click()
       await page.waitForURL((url) => url.pathname === pages[pages.length - 1].href.split('?')[0])
       assert.equal(await trigger.getAttribute('data-current'), 'true')
+      // The current entry is filled like the sidebar's active entry, without an underline.
+      await page.mouse.move(700, 800)
+      const [border, background, color] = await settledStyles(
+        page,
+        `[data-top-navigation] [data-module="${module.module}"]`,
+        ['borderBottomWidth', 'backgroundColor', 'color']
+      )
+      assert.equal(border, '0px')
+      assert.equal(background, await tokenStyle(page, 'bg-accent', 'backgroundColor'))
+      assert.equal(color, await tokenStyle(page, 'text-primary', 'color'))
+      // Inside its menu, the current page stands out: semibold and in the primary color.
+      await trigger.click()
+      const current = page.getByRole('menu').locator('a[aria-current="page"]')
+      await current.waitFor()
+      const [weight, currentColor] = await page.evaluate<[string, string]>(
+        `(() => { const style = getComputedStyle(document.querySelector('[role="menu"] a[aria-current="page"]')); return [style.fontWeight, style.color] })()`
+      )
+      assert.equal(weight, '600')
+      assert.equal(currentColor, await tokenStyle(page, 'text-primary', 'color'))
+      await page.keyboard.press('Escape')
+      await page.getByRole('menu').waitFor({ state: 'detached' })
     }
     // «مهامي» and the bell stay in the header.
     await page.getByTestId('my-tasks-button').waitFor()
@@ -380,6 +432,19 @@ test.group('Workspace shell in the browser', (group) => {
       const header = page.locator('header')
       await header.getByTestId('my-tasks-button').waitFor()
       await header.getByRole('link', { name: /^الإشعارات/ }).waitFor()
+      // Both header icons are named by a tooltip on keyboard focus, and share one shape.
+      for (const [testId, name] of [
+        ['notifications-button', 'الإشعارات'],
+        ['my-tasks-button', 'مهامي'],
+      ]) {
+        await page.getByTestId(testId).focus()
+        await page.getByRole('tooltip', { name }).waitFor()
+      }
+      const shape = (testId: string) =>
+        page.evaluate<string>(
+          `(() => { const element = document.querySelector('[data-testid="${testId}"]'); const style = getComputedStyle(element); return [element.getBoundingClientRect().width, style.borderRadius, element.querySelector('svg').getAttribute('stroke-width')].join(' ') })()`
+        )
+      assert.equal(await shape('notifications-button'), await shape('my-tasks-button'))
       assert.equal(
         await page.locator('#workspace-sidebar').getByRole('link', { name: /مهامي/ }).count(),
         0
@@ -390,6 +455,14 @@ test.group('Workspace shell in the browser', (group) => {
       await page.getByText('مراجعة العقد').waitFor()
       await page.getByText('الاتصال بالعميل').waitFor()
       assert.equal(await tasks.getAttribute('aria-current'), 'page')
+      // Its active state is the shell's: the accent fill and the primary color.
+      await page.mouse.move(700, 800)
+      const [active, activeColor] = await settledStyles(page, '[data-testid="my-tasks-button"]', [
+        'backgroundColor',
+        'color',
+      ])
+      assert.equal(active, await tokenStyle(page, 'bg-accent', 'backgroundColor'))
+      assert.equal(activeColor, await tokenStyle(page, 'text-primary', 'color'))
     } finally {
       await knex()('assignments').where('assignee_id', member.user.id).delete()
       await knex()('customers').where('id', Number(customer.id)).delete()

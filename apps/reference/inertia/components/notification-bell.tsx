@@ -5,6 +5,9 @@ import { Transmit } from '@adonisjs/transmit-client'
 import { Bell } from 'lucide-react'
 import { toast } from 'sonner'
 import { useMessages } from '~/components/ui/messages'
+import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
+import { headerIconClass } from '~/components/header_icon'
+import { isActivePath } from '~/components/shell_navigation'
 
 const HIDDEN_GRACE_MS = 10_000
 let client: Transmit | undefined
@@ -158,21 +161,29 @@ export function NotificationBell() {
   }, [userId])
   if (!page.props.account) return null
   const count = page.props.unreadNotifications ?? 0
+  const active = isActivePath(page.url, '/notifications')
   return (
-    <Link
-      href="/notifications"
-      aria-label={count ? t('الإشعارات، {count} غير مقروء', { count }) : t('الإشعارات')}
-      className="relative grid size-9 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-    >
-      <Bell size={18} strokeWidth={1.6} />
-      {count > 0 && (
-        <span
-          data-testid="unread-count"
-          className="absolute -end-0.5 -top-0.5 min-w-4 rounded-full bg-destructive px-1 text-center text-[10px] font-semibold leading-4 text-destructive-foreground"
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Link
+          href="/notifications"
+          aria-label={count ? t('الإشعارات، {count} غير مقروء', { count }) : t('الإشعارات')}
+          aria-current={active ? 'page' : undefined}
+          data-testid="notifications-button"
+          className={headerIconClass(active)}
         >
-          {count}
-        </span>
-      )}
-    </Link>
+          <Bell size={18} strokeWidth={1.6} aria-hidden />
+          {count > 0 && (
+            <span
+              data-testid="unread-count"
+              className="absolute -end-0.5 -top-0.5 min-w-4 rounded-full bg-destructive px-1 text-center text-[10px] font-semibold leading-4 text-destructive-foreground"
+            >
+              {count}
+            </span>
+          )}
+        </Link>
+      </TooltipTrigger>
+      <TooltipContent>{t('الإشعارات')}</TooltipContent>
+    </Tooltip>
   )
 }

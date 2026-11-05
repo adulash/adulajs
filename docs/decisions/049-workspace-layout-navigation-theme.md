@@ -63,8 +63,10 @@ and the collapsed module groups live in `localStorage`.
   header (owner: drop-down menus). Daily-work entries are links; each module entry opens a
   drop-down menu of that module's pages, and «الإدارة» opens one of its sections (the
   registry DropdownMenu: arrow keys, Escape, focus return and RTL alignment come with it).
-  The entry holding the current page is marked, and the current page inside its menu
-  carries `aria-current`.
+  The entry holding the current page uses the shell's active pattern (`bg-accent
+  font-semibold text-primary`, no underline), each module entry shows the same icon as in
+  the collapsed sidebar, and the current page inside any menu carries `aria-current` and
+  stands out (`aria-[current=page]:font-semibold aria-[current=page]:text-primary`).
 * Module icons in the rail (amended before the 2.3.0 release, owner's decision): the first
   version showed each module's first letter, which reads as noise in Arabic. The rail now
   shows an icon from the project-owned `components/module_icons.ts`: `MODULE_ICONS` maps a
@@ -127,6 +129,10 @@ and the collapsed module groups live in `localStorage`.
   the open count as a badge. The count is `Assignments.openCounts(actor)`, the same counting
   code `mine()` uses for the page header, so the badge and the list agree, delegated
   approvals included (ADR 044). The bell's realtime refresh reloads it too.
+* The header's icon buttons (the bell, «مهامي», the assistant) share one shape from
+  `components/header_icon.ts`: a round 36 px target (`size-9 rounded-full`), the icon at
+  strokeWidth 1.6, a shadcn Tooltip with its name, and `bg-accent text-primary` while its
+  page is open.
 
 ## Consequences
 
