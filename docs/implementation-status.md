@@ -66,6 +66,10 @@ All three share one version and are published together from a `v<version>` tag
   job.
 * Attachments: private storage on Drive disks (filesystem or S3), authorized download,
   upload grants, `adula:storage:migrate`, upload pruning.
+* Built-in assistant (ADR 052): `Assistant`, `AssistantSettings` and `createChatClient`
+  over an OpenRouter key sealed in `ai.assistant`; reads through the shared resource tool
+  runner as the signed-in user, proposes writes that run only after the user confirms,
+  per-user rate and daily token limits, `core.ai` audit entries, `adula:assistant:prune`.
 * Operations: outbox and jobs, scheduler/worker heartbeats, `backup:create`,
   `backup:verify`, `backup:restore-files`, `backup:restore-test`,
   `adula:restore:reconcile` (see [operations](operations.md)).

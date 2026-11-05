@@ -355,6 +355,35 @@ An `opt-in` channel needs `address()` and gets the confirmation-code flow automa
 Register it in `app/services/notification_channels.ts`, and pass `retired` keys only
 from a successful configuration read.
 
+## AI assistant
+
+An optional assistant answers questions inside the system through an OpenAI-compatible
+chat-completions provider, OpenRouter by default (ADR 052). It reads records with the
+signed-in user's permissions through the same tool runner as MCP, and it can only propose
+changes; a change runs when the user confirms it in a review dialog.
+
+### What the deployment provides
+
+* An OpenRouter API key from the organisation's own OpenRouter account. An administrator
+  enters it in «الإدارة ← المساعد الذكي»; it is sealed with `APP_KEY` and never shown
+  again. Rotating `APP_KEY` without keeping the old key in the key list makes the stored
+  key unreadable: enter it again.
+* The model identifier as OpenRouter lists it (for example `openai/gpt-4o-mini`), an
+  optional persona, and the limits: questions per minute per user, a daily token budget
+  per user, the longest reply, tool steps per question and the provider timeout.
+* The provider address only when it is not `https://openrouter.ai/api/v1`. Changing it
+  clears the stored key. Private or plain-HTTP addresses need `WEBHOOKS_ALLOW_PRIVATE=true`.
+* `core.ai / use` in a role assigned to users across the whole deployment (not limited to
+  a unit), and «السماح باقتراح التعديلات» if users may have the assistant propose changes.
+* The provider's own retention and data-use settings, which are the deployment's
+  responsibility. The notice every user accepts lists what is sent: the question and
+  conversation, the records the user may read (without hidden fields), and resource names.
+
+### Operations
+
+`adula:assistant:prune` runs daily from the scheduler. Every tool call is in the activity
+log under `core.ai` with the conversation number, without record contents.
+
 ## Webhooks
 
 * **Outgoing webhooks** (`/admin/webhooks`): an HTTPS endpoint subscribes to record
