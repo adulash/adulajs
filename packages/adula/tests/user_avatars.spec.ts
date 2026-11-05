@@ -7,9 +7,9 @@ import {
   avatarHeaders,
   avatarUrl,
   findAttachment,
-  sanitizeAvatarImage,
   staleUploads,
 } from '../index.js'
+import { sanitizeAvatarImage } from '../src/core/avatar_image.js'
 import { db, setup } from './helpers.js'
 
 function chunk(type: string, data: Buffer = Buffer.alloc(0)) {

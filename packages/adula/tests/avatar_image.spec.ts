@@ -1,6 +1,8 @@
 import { test } from '@japa/runner'
 import { crc32, deflateSync } from 'node:zlib'
-import { AVATAR_LIMITS, AdulaError, sanitizeAvatarImage } from '../index.js'
+import sharp from 'sharp'
+import { AVATAR_LIMITS, AdulaError, prepareAvatarImage } from '../index.js'
+import { sanitizeAvatarImage } from '../src/core/avatar_image.js'
 
 // Fixtures are built here byte by byte, so each test states exactly what the file contains.
 // This suite needs no database.
@@ -260,5 +262,77 @@ test.group('Profile picture sanitizer (ADR 050)', () => {
         }
       }
     }
+  })
+
+  test('prepareAvatarImage re-encodes the picture, removing payloads inside the pixel data', async ({
+    assert,
+  }) => {
+    // Stored (level 0) deflate keeps the "pixels" byte for byte, so a script hides in IDAT.
+    const payload = Buffer.from('<script>alert(document.cookie)</script>', 'latin1')
+    const width = 64
+    const rows = Array.from({ length: 64 }, () => {
+      const row = Buffer.alloc(1 + width * 3, 0x20)
+      row[0] = 0
+      payload.copy(row, 1)
+      return row
+    })
+    const header = Buffer.alloc(13)
+    header.writeUInt32BE(width, 0)
+    header.writeUInt32BE(64, 4)
+    header[8] = 8
+    header[9] = 2
+    const input = Buffer.concat([
+      SIGNATURE,
+      pngChunk('IHDR', header),
+      pngChunk('tEXt', Buffer.from('Author someone@example.test')),
+      pngChunk('IDAT', deflateSync(Buffer.concat(rows), { level: 0 })),
+      pngChunk('IEND'),
+    ])
+    assert.include(input.toString('latin1'), '<script>')
+    const image = await prepareAvatarImage(input)
+    assert.equal(image.type, 'png')
+    assert.equal(image.width, 64)
+    assert.notInclude(image.bytes.toString('latin1'), '<script>')
+    assert.notInclude(image.bytes.toString('latin1'), 'someone@example.test')
+    const decoded = await sharp(image.bytes).metadata()
+    assert.equal(decoded.format, 'png')
+    assert.isUndefined(decoded.exif)
+
+    // A WebP with EXIF stays a WebP without it.
+    const webpInput = await sharp({
+      create: { width: 80, height: 80, channels: 3, background: { r: 10, g: 120, b: 90 } },
+    })
+      .webp()
+      .withExif({ IFD0: { Copyright: 'secret-owner' } })
+      .toBuffer()
+    const webpImage = await prepareAvatarImage(webpInput)
+    assert.equal(webpImage.type, 'webp')
+    assert.equal(webpImage.width, 80)
+    assert.notInclude(webpImage.bytes.toString('latin1'), 'secret-owner')
+  })
+
+  test('prepareAvatarImage refuses what the pre-check refuses and undecodable pixel data', async ({
+    assert,
+  }) => {
+    const refusedAsync = async (bytes: Buffer, code: string) => {
+      try {
+        await prepareAvatarImage(bytes)
+      } catch (error) {
+        assert.instanceOf(error, AdulaError)
+        assert.equal((error as AdulaError).code, code)
+        return
+      }
+      assert.fail(`expected ${code}`)
+    }
+    await refusedAsync(Buffer.from('<svg/>'), 'E_AVATAR_TYPE')
+    await refusedAsync(png({ width: 600, height: 600 }), 'E_AVATAR_DIMENSIONS')
+    // Valid container, broken compressed data: the decoder fails and the upload is refused.
+    const broken = Buffer.concat([
+      SIGNATURE,
+      ihdr(64, 64),
+      pngChunk('IDAT', Buffer.from('not a zlib stream at all')),
+      pngChunk('IEND'),
+    ])
+    await refusedAsync(broken, 'E_AVATAR_CORRUPT')
   })
 })

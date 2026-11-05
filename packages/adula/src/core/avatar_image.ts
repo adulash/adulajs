@@ -228,3 +228,37 @@ export function sanitizeAvatarImage(input: Uint8Array): AvatarImage {
     bytes: again.bytes,
   }
 }
+
+/**
+ * Prepares an uploaded profile picture for storage (ADR 050). `sanitizeAvatarImage` first
+ * checks the bytes without decoding them (type, size, header, dimensions, animation), so
+ * nothing unexpected reaches the decoder. libvips then decodes the single still frame
+ * within a pixel budget and re-encodes it, which drops every metadata chunk and any payload
+ * hidden inside the compressed pixel data. The result is checked again before it is stored.
+ */
+export async function prepareAvatarImage(input: Uint8Array): Promise<AvatarImage> {
+  const checked = sanitizeAvatarImage(input)
+  const { default: sharp } = await import('sharp')
+  const options = {
+    limitInputPixels: AVATAR_LIMITS.maxSide * AVATAR_LIMITS.maxSide,
+    animated: false,
+    failOn: 'error' as const,
+  }
+  let encoded: Buffer
+  try {
+    const image = sharp(checked.bytes, options)
+    const metadata = await image.metadata()
+    if ((metadata.pages ?? 1) !== 1) throw new AdulaError(422, 'E_AVATAR_TYPE', ANIMATED_MESSAGE)
+    // Metadata is kept only when asked for (withMetadata), so the output carries none.
+    encoded =
+      checked.type === 'png'
+        ? await image.png({ compressionLevel: 9, adaptiveFiltering: true }).toBuffer()
+        : await image.webp({ quality: 90, effort: 4 }).toBuffer()
+    if (encoded.length > AVATAR_LIMITS.maxBytes && checked.type === 'png')
+      encoded = await sharp(checked.bytes, options).webp({ quality: 85, effort: 4 }).toBuffer()
+  } catch (error) {
+    if (error instanceof AdulaError) throw error
+    throw corrupt()
+  }
+  return sanitizeAvatarImage(encoded)
+}

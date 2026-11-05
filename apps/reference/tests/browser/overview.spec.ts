@@ -31,9 +31,9 @@ test.group('Personal overview browser acceptance (#159)', (group) => {
   const shownIds = (page: any) =>
     page
       .locator('[data-testid="overview-widgets"] > [data-widget]')
-      .evaluateAll((nodes: Element[]) =>
-        nodes.map((node) => node.getAttribute('data-widget'))
-      ) as Promise<string[]>
+      .evaluateAll("(nodes) => nodes.map((node) => node.getAttribute('data-widget'))") as Promise<
+      string[]
+    >
 
   test('hide a widget, drag another, reload and find the arrangement', async ({
     browserContext,
@@ -86,7 +86,9 @@ test.group('Personal overview browser acceptance (#159)', (group) => {
     const rows = () =>
       dialog
         .locator('[data-sortable-item]')
-        .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('data-sortable-item')))
+        .evaluateAll(
+          "(nodes) => nodes.map((node) => node.getAttribute('data-sortable-item'))"
+        ) as Promise<string[]>
     const first = await rows()
 
     // Escape during a move puts the row back and keeps the dialog open.

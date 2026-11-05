@@ -384,7 +384,7 @@ export type {
 export { UsersAdmin } from './src/core/users.js'
 export { UserAvatars, avatarUrl, avatarHeaders } from './src/core/user_avatars.js'
 export type { AvatarRecord, RemovedAvatarFile } from './src/core/user_avatars.js'
-export { sanitizeAvatarImage, AVATAR_LIMITS } from './src/core/avatar_image.js'
+export { prepareAvatarImage, AVATAR_LIMITS } from './src/core/avatar_image.js'
 export type { AvatarImage } from './src/core/avatar_image.js'
 export { UserInvitations, type InvitationDelivery } from './src/core/user_invitations.js'
 export type { UserSummary, UserPage, UserRoleAssignment, UserOrgUnit } from './src/core/users.js'

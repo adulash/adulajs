@@ -29,6 +29,7 @@ export const controllers = {
   Avatars: () => import('#controllers/avatars_controller'),
   Dashboards: () => import('#controllers/dashboards_controller'),
   Delegations: () => import('#controllers/delegations_controller'),
+  Home: () => import('#controllers/home_controller'),
   Imports: () => import('#controllers/imports_controller'),
   InboundWebhooks: () => import('#controllers/inbound_webhooks_controller'),
   Language: () => import('#controllers/language_controller'),

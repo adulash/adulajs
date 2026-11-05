@@ -1180,6 +1180,10 @@
       "kind": "FunctionDeclaration",
       "type": "(value: unknown) => string"
     },
+    "prepareAvatarImage": {
+      "kind": "FunctionDeclaration",
+      "type": "(input: Uint8Array<ArrayBufferLike>) => Promise<AvatarImage>"
+    },
     "PRINT_HELPERS": {
       "kind": "VariableDeclaration",
       "type": "readonly [\"date\", \"money\", \"number\", \"digits\", \"label\", \"total\"]"
@@ -1511,10 +1515,6 @@
     "runWithLanguage": {
       "kind": "FunctionDeclaration",
       "type": "<T>(language: string, callback: () => T) => T"
-    },
-    "sanitizeAvatarImage": {
-      "kind": "FunctionDeclaration",
-      "type": "(input: Uint8Array<ArrayBufferLike>) => AvatarImage"
     },
     "sanitizePrintHtml": {
       "kind": "FunctionDeclaration",

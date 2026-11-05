@@ -29,6 +29,12 @@ import { actorId, knex, mutate, optionalId, positiveId, text, wantsJson } from '
 const service = () => new UsersAdmin(knex())
 const RESOURCE = 'core.users'
 
+/** The viewed user's versioned picture URL, or null so the page shows initials. */
+async function viewedAvatarUrl(userId: number) {
+  const avatar = await new UserAvatars(knex()).find(userId)
+  return avatar ? avatarUrl(userId, avatar.version) : null
+}
+
 export default class UsersController {
   async index(ctx: HttpContext) {
     // `q` is the documented search parameter of administration lists; `search` stays an alias.
@@ -63,10 +69,7 @@ export default class UsersController {
       twoFactor: { enabled, enabledAt, recoveryRemaining },
       privilegedRoleIds,
       // The viewed user's profile picture (ADR 050), versioned; null shows the initials.
-      avatarUrl: await (async () => {
-        const version = (await new UserAvatars(knex()).versions([user.id])).get(user.id)
-        return version ? avatarUrl(user.id, version) : null
-      })(),
+      avatarUrl: await viewedAvatarUrl(user.id),
     }
     // The JSON body keeps `user`; the page receives the viewed account as `target` so it
     // never replaces the signed-in account the shell reads.

@@ -35,10 +35,8 @@ export default class InertiaMiddleware extends BaseInertiaMiddleware {
     const language = requestLanguage(ctx)
     const actor = auth?.user ? await adula().actors.load(auth.user.id) : undefined
     if (auth?.user) {
-      const version = (
-        await new UserAvatars(db.connection().getWriteClient()).versions([auth.user.id])
-      ).get(auth.user.id)
-      auth.user.$extras.avatarUrl = version ? avatarUrl(auth.user.id, version) : null
+      const avatar = await new UserAvatars(db.connection().getWriteClient()).find(auth.user.id)
+      auth.user.$extras.avatarUrl = avatar ? avatarUrl(auth.user.id, avatar.version) : null
     }
     const account = auth?.user ? UserTransformer.transform(auth.user) : undefined
 

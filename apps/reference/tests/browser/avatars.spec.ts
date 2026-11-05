@@ -100,10 +100,9 @@ test.group('Profile picture browser acceptance (#158)', (group) => {
       String(await image.getAttribute('src')),
       new RegExp(`^/users/${owner.user.id}/avatar\\?v=\\d+$`)
     )
-    const size = await image.evaluate((element) => {
-      const img = element as HTMLImageElement
-      return [img.naturalWidth, img.naturalHeight]
-    })
+    const size = (await image.evaluate(
+      '(img) => [img.naturalWidth, img.naturalHeight]'
+    )) as number[]
     assert.isAtMost(size[0], 512)
     assert.equal(size[0], size[1])
     await page.screenshot({ path: join(await screenshotDir(), 'avatar-profile.png') })
@@ -116,10 +115,7 @@ test.group('Profile picture browser acceptance (#158)', (group) => {
     await panel.getByText('تعليق بصورة').waitFor()
     const avatar = panel.locator(`img[src="/users/${owner.user.id}/avatar"]`)
     await avatar.waitFor()
-    assert.isAbove(
-      await avatar.evaluate((element) => (element as HTMLImageElement).naturalWidth),
-      0
-    )
+    assert.isAbove((await avatar.evaluate('(img) => img.naturalWidth')) as number, 0)
   })
 
   test('an administrator replaces a picture; removing it brings the initials back', async ({

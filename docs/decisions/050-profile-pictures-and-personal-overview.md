@@ -1,7 +1,7 @@
 # ADR 050 — Profile pictures and the personal overview
 
-Date: 2026-11-05. Status: proposed; the points marked «owner» need the owner's
-confirmation. Issues #158 and #159.
+Date: 2026-11-05. Status: accepted; the owner decided the points marked «owner» on
+2026-11-05. Issues #158 and #159.
 
 ## Context
 
@@ -37,23 +37,31 @@ preferences.
     anything is stored;
   * it validates the PNG header fields, chunk order and CRCs, and the WebP RIFF size and
     frame/canvas agreement;
-  * it rewrites the container. A PNG keeps only IHDR, PLTE, tRNS, IDAT and IEND, so text,
-    EXIF, ICC and time chunks are dropped. A WebP drops EXIF, XMP and ICCP and clears their
-    VP8X flags. Bytes after the image end are discarded;
-  * SVG, GIF, JPEG, HTML, polyglots and animations are refused.
+  * SVG, GIF, JPEG, HTML, polyglots and animations are refused;
+  * only then does `prepareAvatarImage` decode the still frame with `sharp` (libvips)
+    within a pixel budget (`limitInputPixels` of 512 × 512, `animated: false`,
+    `failOn: 'error'`, one page) and re-encode it to the same format. The re-encoded file
+    carries no metadata and none of the original compressed bytes, so a payload hidden
+    inside the pixel data does not survive. A PNG that would exceed 1 MB is saved as WebP;
+  * the result passes the same checks again before it is stored.
+
+  `sanitizeAvatarImage` stays as the pre-check: it bounds what reaches the native decoder
+  and gives exact Arabic errors. It also rewrites the container without ancillary chunks,
+  and the re-encoded output is checked with it.
 * **Writers.** The user, through `POST/DELETE /account/avatar`. Administrators
   (`manage all`, the `admin` middleware), through `POST/DELETE /admin/users/:id/avatar`.
   Anyone else gets 403. An administrator acting as the user cannot change it, because the
   picture outlives the session. Every change is logged (`avatar_updated`,
   `avatar_removed`): under `users` for the user's own changes, under `core.users` for an
   administrator's.
-* **Replacing and removing (owner).** The previous picture's row and file are deleted:
+* **Replacing and removing (owner: approved).** The previous picture's row and file are deleted:
   a personal photo should not outlive its removal. A soft-deleted row whose file was
   removed would make `backup:create` fail (ADR 023). This departs from ADR 047's
-  «file kept» rule for field attachments. The choice is one constant
+  «file kept» rule for field attachments; the owner approved it as an exception for
+  profile pictures only, and ADR 047 notes it. The choice is one constant
   (`REMOVED_PICTURES` in `core/user_avatars.ts`); `'keep'` soft-deletes and keeps the file
   instead.
-* **Readers (owner).** Every signed-in user may read every user's picture at
+* **Readers (owner: approved).** Every signed-in, active user may read every user's picture at
   `GET /users/:id/avatar`, because pictures appear beside names on shared records,
   comments and pickers across organization units. Guests are refused. A user without a
   picture answers 404, and the interface shows initials.
@@ -95,24 +103,26 @@ preferences.
   «استعادة الافتراضي».
 * This arranges code-defined widgets; it is not a dashboard editor (GAPS.md).
 
-### No new dependencies (owner)
+### Dependencies (owner)
 
-Neither `sharp` nor a drag-and-drop library is added.
-* **The cost of `sharp`.** Decoding and re-encoding with it would also neutralize payload
-  bytes hidden inside the compressed pixel data (IDAT, VP8 data), and would add an exact
-  pixel limit. But it puts a native binary in every created system, plus `allowBuilds`
-  and platform prebuilds.
-* **The residual risk.** Such payload bytes remain in stored pictures. They cannot run: the
-  file is served only as an image with `nosniff` and a sandboxing CSP, and browsers decode
-  images in their sandboxed image decoders.
-* **Drag and drop.** The `sortable-list` component implements it with pointer events and
-  the keyboard.
+The owner chose `sharp` (exact pin `0.35.5` in `packages/adula`, recorded in
+adulajs-plan.md) so that every picture is decoded and re-encoded, not only checked.
+* **Why.** Checking and rewriting the container alone keeps the original compressed pixel
+  bytes, so a payload hidden there would remain in the stored file.
+* **Cost.** `sharp` ships platform binaries (`@img/sharp-*`, optional dependencies chosen
+  by pnpm for the platform, Linux included in the lockfile) and an install check that
+  pnpm runs only for names in `allowBuilds`. `sharp: true` is added there: the root
+  `pnpm-workspace.yaml`, which created systems copy, and the consumer test workspace.
+  The module is imported only when a picture is uploaded.
+
+No drag-and-drop library is added: the `sortable-list` component implements it with
+pointer events and the keyboard.
 
 ## Consequences
 
 * New copied components: `user-avatar`, `slider`, `sortable-list`. `resource-dashboard`
   exports `DashboardWidgetCard`. Systems re-copy the record components to show pictures.
-* New public API: `UserAvatars`, `avatarUrl`, `avatarHeaders`, `sanitizeAvatarImage`,
+* New public API: `UserAvatars`, `avatarUrl`, `avatarHeaders`, `prepareAvatarImage`,
   `AVATAR_LIMITS` and the types `AvatarRecord`, `RemovedAvatarFile`, `AvatarImage`;
   `Dashboards.overview` and the types `OverviewBuiltin`, `OverviewLayout`,
   `OverviewState`, `OverviewWidget`; the optional `overview` on

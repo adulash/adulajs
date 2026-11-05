@@ -9,7 +9,7 @@ import {
   AdulaError,
   UserAvatars,
   avatarHeaders,
-  sanitizeAvatarImage,
+  prepareAvatarImage,
   type RemovedAvatarFile,
 } from 'adula'
 import { acting, activeImpersonation } from '#services/impersonation'
@@ -69,8 +69,8 @@ export default class AvatarsController {
     return mutate(
       ctx,
       async () => {
-        // The body parser checks the type by the file's first bytes; the sanitizer checks
-        // again and rewrites the file, so neither the name nor the declared type is trusted.
+        // The body parser checks the type by the file's first bytes; prepareAvatarImage checks
+        // again, then decodes and re-encodes it, so neither the name nor the declared type is trusted.
         const file = ctx.request.file('avatar', {
           size: AVATAR_LIMITS.maxBytes,
           extnames: ['png', 'webp'],
@@ -80,7 +80,7 @@ export default class AvatarsController {
           throw new AdulaError(422, 'E_AVATAR_SIZE', 'حجم الصورة الشخصية يتجاوز ١ ميغابايت')
         if (!file.isValid || !file.tmpPath)
           throw new AdulaError(422, 'E_AVATAR_TYPE', 'الصورة الشخصية يجب أن تكون بصيغة PNG أو WebP')
-        const image = sanitizeAvatarImage(await readFile(file.tmpPath))
+        const image = await prepareAvatarImage(await readFile(file.tmpPath))
         const diskName = env.get('DRIVE_DISK')
         const path = `avatars/${userId}/${randomUUID()}.${image.extname}`
         const disk = drive.use(diskName as never)
