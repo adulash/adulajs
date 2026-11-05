@@ -76,9 +76,8 @@ test.group('Workspace shell in the browser', (group) => {
     assert.equal(await collapse.getAttribute('aria-controls'), 'workspace-sidebar')
     await collapse.focus()
     await page.keyboard.press('Enter')
-    await page.waitForFunction(
-      'document.querySelector("[data-workspace-shell]").dataset.sidebar === "icons"'
-    )
+    // The page CSP forbids string evaluation inside waitForFunction; wait on locators.
+    await page.locator('[data-workspace-shell][data-sidebar="icons"]').waitFor()
     // The rail sits at the start (the right in RTL) and is narrow.
     const box = (await sidebar.boundingBox())!
     assert.isBelow(box.width, 90)
@@ -90,9 +89,8 @@ test.group('Workspace shell in the browser', (group) => {
     await stored(member.user.id, 'shell.sidebar', 'icons')
 
     await page.reload()
-    await page.waitForFunction(
-      'document.querySelector("[data-workspace-shell]").dataset.sidebar === "icons"'
-    )
+    // The page CSP forbids string evaluation inside waitForFunction; wait on locators.
+    await page.locator('[data-workspace-shell][data-sidebar="icons"]').waitFor()
     assert.equal(await shell.getAttribute('data-sidebar'), 'icons')
 
     // Hide it: the page uses the whole width; the account menu moves to the header.
@@ -210,7 +208,7 @@ test.group('Workspace shell in the browser', (group) => {
     const lightText = await background()
     await page.getByRole('button', { name: 'قائمة الحساب' }).click()
     await page.getByRole('menuitemradio', { name: 'داكن' }).click()
-    await page.waitForFunction('document.documentElement.classList.contains("dark")')
+    await page.locator('html.dark').waitFor({ state: 'attached' })
     assert.notEqual(await background(), lightText)
     await stored(member.user.id, 'shell.theme', 'dark')
 
@@ -225,9 +223,9 @@ test.group('Workspace shell in the browser', (group) => {
     await page.emulateMedia({ colorScheme: 'light' })
     await page.getByRole('button', { name: 'قائمة الحساب' }).click()
     await page.getByRole('menuitemradio', { name: 'حسب الجهاز' }).click()
-    await page.waitForFunction('!document.documentElement.classList.contains("dark")')
+    await page.locator('html:not(.dark)').waitFor({ state: 'attached' })
     await page.emulateMedia({ colorScheme: 'dark' })
-    await page.waitForFunction('document.documentElement.classList.contains("dark")')
+    await page.locator('html.dark').waitFor({ state: 'attached' })
     await stored(member.user.id, 'shell.theme', 'system')
     await page.reload()
     assert.isTrue(await dark())
