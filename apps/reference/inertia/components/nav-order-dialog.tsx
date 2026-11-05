@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowDown, ArrowUp } from 'lucide-react'
+import { ArrowDown, ArrowUp, RotateCcw } from 'lucide-react'
 import { Button } from '~/components/ui/button'
 import {
   Dialog,
@@ -164,11 +164,12 @@ export function NavOrderDialog({
             {announcement}
           </p>
           <DialogFooter className="mt-6 gap-2 sm:justify-between">
-            <Button type="button" variant="outline" disabled={busy} onClick={() => void reset()}>
+            <Button type="button" variant="ghost" disabled={busy} onClick={() => void reset()}>
+              <RotateCcw size={16} aria-hidden />
               {t('استعادة الترتيب الافتراضي')}
             </Button>
             <div className="flex gap-2">
-              <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
+              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
                 {t('إلغاء')}
               </Button>
               <Button type="submit" disabled={busy || !dirty}>

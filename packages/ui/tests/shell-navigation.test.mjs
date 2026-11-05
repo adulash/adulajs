@@ -13,7 +13,7 @@ import {
   sectionFor,
   visibleSections,
 } from '../../../apps/reference/inertia/components/admin_sections.ts'
-import { moduleIcon } from '../../../apps/reference/inertia/components/module_icons.ts'
+import { moduleIcons } from '../../../apps/reference/inertia/components/module_icons.ts'
 
 const icon = () => null
 const ids = (list) => list.map((entry) => entry.id)
@@ -120,16 +120,25 @@ test('pages that do not apply are hidden and empty sections disappear', () => {
   assert.equal(sectionFor('/admin/setup', { setupPending: false }, sections), null)
 })
 
-test('module groups get an icon: the project map first, else a stable neutral shape', () => {
-  const sales = () => null
+test('module groups get distinct icons: the project map first, else stable neutral shapes', () => {
+  const sales = () => 'sales'
   const fallbacks = [() => 'a', () => 'b', () => 'c']
-  assert.equal(moduleIcon('sales', { sales }, fallbacks), sales)
-  // Without an entry the same module always gets the same shape, from the neutral set.
-  const first = moduleIcon('inventory', {}, fallbacks)
-  assert.ok(fallbacks.includes(first))
-  assert.equal(moduleIcon('inventory', {}, fallbacks), first)
-  // Inherited object keys are not entries.
-  assert.ok(fallbacks.includes(moduleIcon('constructor', {}, fallbacks)))
-  // The default map and set always yield a component.
-  assert.equal(typeof moduleIcon('ui_samples'), 'object')
+  const shapes = (modules, icons = {}) => moduleIcons(modules, icons, fallbacks)
+  assert.equal(shapes(['sales', 'stock'], { sales }).get('sales'), sales)
+  // Distinct while the shapes last, whatever the names hash to.
+  const three = shapes(['inventory', 'payroll', 'fleet'])
+  assert.equal(new Set(three.values()).size, 3)
+  for (const icon of three.values()) assert.ok(fallbacks.includes(icon))
+  // Stable: the same modules get the same shapes in any menu order.
+  const again = shapes(['fleet', 'inventory', 'payroll'])
+  for (const [module, icon] of three) assert.equal(again.get(module), icon)
+  // A mapped icon is not handed to another module.
+  const mapped = shapes(['x', 'y'], { x: fallbacks[0] })
+  assert.notEqual(mapped.get('y'), fallbacks[0])
+  // Inherited object keys are not entries; beyond the set, shapes repeat but always exist.
+  assert.ok(fallbacks.includes(shapes(['constructor']).get('constructor')))
+  assert.equal(shapes(['a1', 'a2', 'a3', 'a4']).size, 4)
+  // The default map and set give the reference modules distinct components.
+  const defaults = moduleIcons(['customers', 'orders', 'suppliers', 'tasks', 'ui_samples'])
+  assert.equal(new Set(defaults.values()).size, 5)
 })

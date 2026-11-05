@@ -1,11 +1,16 @@
 import {
+  Archive,
   Blocks,
   Boxes,
   Briefcase,
+  Building2,
+  ClipboardCheck,
   FileStack,
   FolderKanban,
   Layers,
+  Library,
   Package,
+  Shapes,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -17,7 +22,7 @@ import {
  */
 export const MODULE_ICONS: Record<string, LucideIcon> = {}
 
-/** Neutral shapes for modules without an entry; one module always gets the same one. */
+/** Neutral shapes for modules without an entry. */
 const FALLBACK_ICONS: readonly LucideIcon[] = [
   Boxes,
   Layers,
@@ -26,16 +31,54 @@ const FALLBACK_ICONS: readonly LucideIcon[] = [
   Briefcase,
   FileStack,
   Blocks,
+  Archive,
+  Building2,
+  ClipboardCheck,
+  Library,
+  Shapes,
 ]
 
-export function moduleIcon(
-  module: string,
+function hash(text: string) {
+  let value = 0
+  for (const character of text) value = (value * 31 + character.codePointAt(0)!) >>> 0
+  return value
+}
+
+/**
+ * One icon per module, distinct whenever the shapes allow it. A module with an entry in
+ * `icons` uses it; the others start from a shape derived from their name, so a module
+ * keeps its shape between visits, and move to the next unused shape when another module
+ * shown beside it already took that one. Only when every shape is taken do two modules
+ * share one.
+ */
+export function moduleIcons(
+  modules: readonly string[],
   icons: Record<string, LucideIcon> = MODULE_ICONS,
   fallbacks: readonly LucideIcon[] = FALLBACK_ICONS
-): LucideIcon {
-  const chosen = Object.hasOwn(icons, module) ? icons[module] : undefined
-  if (chosen) return chosen
-  let hash = 0
-  for (const character of module) hash = (hash * 31 + character.codePointAt(0)!) >>> 0
-  return fallbacks[hash % fallbacks.length]
+): Map<string, LucideIcon> {
+  const assigned = new Map<string, LucideIcon>()
+  const used = new Set<LucideIcon>()
+  for (const module of modules) {
+    const chosen = Object.hasOwn(icons, module) ? icons[module] : undefined
+    if (chosen) {
+      assigned.set(module, chosen)
+      used.add(chosen)
+    }
+  }
+  // Sorted, so the assignment does not depend on the user's menu order.
+  for (const module of [...new Set(modules)].sort()) {
+    if (assigned.has(module)) continue
+    const start = hash(module) % fallbacks.length
+    let icon = fallbacks[start]
+    for (let step = 0; step < fallbacks.length; step++) {
+      const candidate = fallbacks[(start + step) % fallbacks.length]
+      if (!used.has(candidate)) {
+        icon = candidate
+        break
+      }
+    }
+    assigned.set(module, icon)
+    used.add(icon)
+  }
+  return assigned
 }
