@@ -169,11 +169,20 @@ export default function Workspace({ children }: { children: ReactNode }) {
       { href: '/my-tasks', label: t('مهامي') },
       ...(page.props.navigation ?? []),
       ...adminLinks.map((entry) => ({ ...entry, label: t(entry.label) })),
+      // The account pages, named as in the account menu.
+      { href: '/account/profile', label: t('الملف الشخصي') },
+      { href: '/account/sessions', label: t('الجلسات') },
+      { href: '/account/tokens', label: t('رموز API') },
+      { href: '/account/delegations', label: t('التفويض أثناء الغياب') },
     ]
       .filter((entry) => entry.href !== '/')
       .sort((a, b) => b.href.length - a.href.length)
       .find((entry) => isActive(entry.href))?.label ??
-    (page.url.startsWith('/admin') ? t('الإدارة') : t('نظرة عامة'))
+    (page.url.startsWith('/admin')
+      ? t('الإدارة')
+      : page.url.startsWith('/account')
+        ? t('حسابي')
+        : t('نظرة عامة'))
 
   // The arrangement dialog lists only entries this user can see.
   const orderGroups: OrderGroup[] = [
@@ -324,7 +333,7 @@ export default function Workspace({ children }: { children: ReactNode }) {
       )}
       <div className="lg:ps-(--shell-sidebar)">
         <header className="flex h-[72px] items-center justify-between gap-3 border-b border-border bg-background/80 px-5 backdrop-blur lg:px-10">
-          <div className="flex min-w-0 items-center gap-3 text-xs text-muted-foreground">
+          <div className="flex min-w-0 items-center gap-3 text-xs text-muted-foreground" data-breadcrumb>
             {sidebar ? (
               <SidebarControls mode={mode} onChange={(next) => void setMode(next)} />
             ) : (
@@ -334,7 +343,9 @@ export default function Workspace({ children }: { children: ReactNode }) {
               </Link>
             )}
             <span className="font-semibold text-foreground lg:hidden">عدولة</span>
-            <span className={sidebar ? '' : 'lg:hidden'}>{t('مساحة العمل')}</span>
+            <span className={sidebar ? '' : 'lg:hidden'}>
+              {page.url.startsWith('/account') ? t('حسابي') : t('مساحة العمل')}
+            </span>
             <span className={sidebar ? '' : 'lg:hidden'}>/</span>
             <span className={`truncate text-foreground ${sidebar ? '' : 'lg:hidden'}`}>
               {current}
