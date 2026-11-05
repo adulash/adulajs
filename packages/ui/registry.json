@@ -976,6 +976,20 @@
           "type": "registry:ui"
         }
       ]
+    },
+    {
+      "name": "long-dialog",
+      "type": "registry:ui",
+      "registryDependencies": [
+        "dialog"
+      ],
+      "dependencies": [],
+      "files": [
+        {
+          "path": "registry/ui/long-dialog.tsx",
+          "type": "registry:ui"
+        }
+      ]
     }
   ]
 }

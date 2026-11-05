@@ -366,6 +366,39 @@ test.group('Workspace shell in the browser', (group) => {
     await page.getByRole('menuitemradio', { name: 'قائمة علوية' }).waitFor({ state: 'detached' })
   })
 
+  test('the account menu sets «ترتيب القائمة…» apart, and account pages name themselves in the breadcrumb', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(member.user)
+    const page = await visit('/account/profile')
+    await page.setViewportSize({ width: 1440, height: 900 })
+    // The breadcrumb names the account and the page, not the overview.
+    const breadcrumb = page.locator('header [data-breadcrumb]')
+    await breadcrumb.getByText('الملف الشخصي', { exact: true }).waitFor()
+    const text = (value: string) => value.replaceAll(/\s+/g, ' ')
+    const trail = text(await breadcrumb.innerText())
+    assert.include(trail, 'حسابي / الملف الشخصي')
+    assert.notInclude(trail, 'نظرة عامة')
+    assert.notInclude(trail, 'مساحة العمل')
+    // A separator directly precedes «ترتيب القائمة…», after the theme choices.
+    await page.getByRole('button', { name: 'قائمة الحساب' }).click()
+    const arrange = page.getByRole('menuitem', { name: 'ترتيب القائمة…' })
+    await arrange.waitFor()
+    assert.deepEqual(
+      await page.evaluate<[string | null, string | null]>(
+        `(() => { const items = [...document.querySelectorAll('[role="menu"] [role="menuitem"]')]; const item = items.find((element) => element.textContent.includes('ترتيب القائمة')); const before = item.previousElementSibling; return [before.getAttribute('role'), before.previousElementSibling?.getAttribute('role') ?? null] })()`
+      ),
+      ['separator', 'group']
+    )
+    // Other account pages too.
+    await page.keyboard.press('Escape')
+    await page.goto('/account/sessions')
+    await breadcrumb.getByText('الجلسات', { exact: true }).waitFor()
+    assert.include(text(await breadcrumb.innerText()), 'حسابي / الجلسات')
+  })
+
   test('the theme switches from the account menu, before the first paint and by the device (#155)', async ({
     browserContext,
     visit,

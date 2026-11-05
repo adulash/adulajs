@@ -12,14 +12,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '~/components/ui/select'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '~/components/ui/dialog'
+import { Dialog } from '~/components/ui/dialog'
+import { LongDialogContent } from '~/components/ui/long-dialog'
 
 export type MailSetupProps = {
   mailReadiness: MailReadiness
@@ -88,14 +82,15 @@ export function MailSetupDialog({
   const preset = mailPresets.find((item) => item.id === presetId) ?? mailPresets[0]
   return (
     <Dialog mode="edit" open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>إعداد البريد</DialogTitle>
-          <DialogDescription>
-            يرسل النظام البريد عبر خادم SMTP لدى مزودك. تبقى بيانات الدخول في بيئة النظام، ولا
-            يحفظها النظام هنا.
-          </DialogDescription>
-        </DialogHeader>
+      <LongDialogContent
+        title="إعداد البريد"
+        description="يرسل النظام البريد عبر خادم SMTP لدى مزودك. تبقى بيانات الدخول في بيئة النظام، ولا يحفظها النظام هنا."
+        footer={
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            إغلاق
+          </Button>
+        }
+      >
         <div className="space-y-4 text-sm">
           <MailReadinessNotice readiness={mailReadiness} />
           <ol className="list-[arabic-indic] space-y-4 ps-5" data-testid="mail-setup-steps">
@@ -139,12 +134,7 @@ export function MailSetupDialog({
             </AlertDescription>
           </Alert>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            إغلاق
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+      </LongDialogContent>
     </Dialog>
   )
 }
