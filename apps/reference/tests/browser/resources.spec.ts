@@ -531,6 +531,12 @@ test.group('Generic resource browser acceptance', (group) => {
     await page.getByRole('button', { name: viewName, exact: true }).click()
     await page.waitForURL(/filters%5Bquantity%5D%5Bgte%5D=2/)
     await page.assertElementsCount('tbody tr[aria-rowindex]', 2)
+    // Its «×» is the registry's ghost icon button; it keeps its name and deletes the view.
+    const remove = page.getByRole('button', { name: `حذف العرض ${viewName}`, exact: true })
+    assert.equal(await remove.getAttribute('data-slot'), 'button')
+    assert.equal(await remove.getAttribute('data-variant'), 'ghost')
+    await remove.click()
+    await page.getByRole('button', { name: viewName, exact: true }).waitFor({ state: 'detached' })
 
     // The server export writes the whole filtered set, beyond the rows loaded into the page.
     const user = admin.user.id

@@ -43,6 +43,17 @@ test('registry buttons take their height from the button size scale, not classNa
   assert.deepEqual(found, {})
 })
 
+test('a saved view is deleted through the registry Button, not a hand-styled native button', async () => {
+  // The «×» beside a saved view is a ghost icon-xs Button, rounded to sit inside its pill.
+  const source = await readFile(new URL('../registry/ui/data-table.tsx', import.meta.url), 'utf8')
+  const remove = /<(\w+)\b([^>]*?)aria-label=\{t\('حذف العرض \{name\}'/s.exec(source)
+  assert.ok(remove, 'the saved view delete control is missing')
+  assert.equal(remove[1], 'Button')
+  assert.match(remove[2], /variant="ghost"/)
+  assert.match(remove[2], /size="icon-xs"/)
+  assert.match(remove[2], /className="rounded-full"/)
+})
+
 test('file fields compose FileInput instead of the native control and its English text', async () => {
   // The browser's own file control shows "Choose File / No file chosen" in its own language
   // and styling. Only FileInput may render a file input, and every other file input in the
