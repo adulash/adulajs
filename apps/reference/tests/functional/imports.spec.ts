@@ -3,7 +3,13 @@ import db from '@adonisjs/lucid/services/db'
 import { adula } from '#services/adula'
 import { seedActor, type UiActor } from '#tests/helpers/ui_fixtures'
 import { readXlsxTable } from 'adula'
-import { bufferXlsxResponses, XLSX_TYPE, xlsxWorkbook, zipFiles } from '#tests/helpers/xlsx_files'
+import {
+  bufferXlsxResponses,
+  XLSX_PACKAGE_PARTS,
+  XLSX_TYPE,
+  xlsxWorkbook,
+  zipFiles,
+} from '#tests/helpers/xlsx_files'
 
 const json = { Accept: 'application/json' }
 const knex = () => db.connection().getWriteClient()
@@ -98,7 +104,8 @@ test.group('CSV imports over HTTP', (group) => {
       .loginAs(clerk.user)
       .withCsrfToken()
       .headers(json)
-      .file('file', zipFiles({ 'readme.txt': 'x' }), { filename: 'x.xlsx', contentType: XLSX_TYPE })
+      // A spreadsheet package whose workbook part is missing.
+      .file('file', zipFiles(XLSX_PACKAGE_PARTS), { filename: 'x.xlsx', contentType: XLSX_TYPE })
     corrupt.assertStatus(422)
     assert.equal(corrupt.body().error.message, 'تعذر قراءة ملف Excel: الملف تالف أو ليس بصيغة xlsx')
   })

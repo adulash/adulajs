@@ -3,7 +3,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto'
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { existsSync } from 'node:fs'
-import { readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import type { ApiRequest } from '@japa/api-client'
 import app from '@adonisjs/core/services/app'
@@ -154,6 +154,9 @@ test.group('Downloadable and cloud backups', (group) => {
   group.each.setup(async () => {
     await knex()('backup_runs').delete()
     await knex()('backup_connections').delete()
+    // Run and connection ids restart in every test; earlier audit rows would share them.
+    await knex()('activities').where({ resource: 'core.backups' }).delete()
+    await rm(join(directory, 'files'), { recursive: true, force: true })
   })
   group.teardown(async () => {
     overrideCloudBackups({})
@@ -213,7 +216,7 @@ test.group('Downloadable and cloud backups', (group) => {
     started.assertStatus(200)
     const url = new URL(started.body().url)
     assert.equal(url.searchParams.get('scope'), 'https://www.googleapis.com/auth/drive.file')
-    const pending = started.session()['backups.oauth']
+    const pending = started.session()['backups_oauth']
     assert.equal(url.searchParams.get('state'), pending.state)
     assert.notInclude(started.body().url, pending.verifier)
 
@@ -222,7 +225,7 @@ test.group('Downloadable and cloud backups', (group) => {
         .get(`/admin/backups/oauth/google/callback?state=${state}&code=good-code${extra}`)
         .loginAs(admin)
         .redirects(0)
-      return session ? request.withSession({ 'backups.oauth': session }) : request
+      return session ? request.withSession({ backups_oauth: session }) : request
     }
     // Wrong state, no pending connection, an expired one and one started by someone else.
     for (const [state, session] of [
@@ -255,7 +258,7 @@ test.group('Downloadable and cloud backups', (group) => {
     assert.equal(row.account_label, 'backups@example.test')
     assert.equal(drive.tokens.at(-1)?.get('code_verifier'), pending.verifier)
     // The state is single-use: the session no longer holds it.
-    assert.isUndefined(accepted.session()['backups.oauth'])
+    assert.isUndefined(accepted.session()['backups_oauth'])
   })
 
   test('a download backup is a real encrypted snapshot that expires', async ({
@@ -400,6 +403,8 @@ test.group('Downloadable and cloud backups', (group) => {
     const file = join(directory, `command-${unique}.adulabackup`)
     const opened = join(directory, `command-open-${unique}`)
     const wrong = join(directory, `command-wrong-${unique}`)
+    // The test does not depend on an earlier test having created the directory.
+    await mkdir(directory, { recursive: true })
     try {
       await createSnapshot(snapshot, { workDirectory: directory })
       await writeFile(join(snapshot, 'COMPLETE'), '')
