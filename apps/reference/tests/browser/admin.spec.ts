@@ -673,4 +673,98 @@ test.group('Administration screens in the browser', (group) => {
     assert.equal(log[0].changes.reason, reason)
     assert.isNumber(log[1].changes.durationSeconds)
   })
+
+  test('the users table keeps long values inside its frame at 1440×900 in light and dark', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    const long = `${unique}-${'a'.repeat(48)}`
+    const wide = await User.create({
+      fullName: `مستخدم باسم طويل جدًا لاختبار التفاف الجدول ${unique}`,
+      email: `very-long-address-for-the-users-table-${long}@example.test`,
+      password: 'browser-test-only-password',
+    })
+    const [role] = await knex()('roles')
+      .insert({ name: `role-with-a-very-long-name-${long}` })
+      .returning('id')
+    const [unit] = await knex()('org_units')
+      .insert({
+        name: `وحدة باسم طويل ${long}`,
+        type: 'department',
+        path: `${rootPath}.w${unique}`,
+      })
+      .returning('id')
+    await knex()('user_roles').insert({ user_id: wide.id, role_id: role.id })
+    await knex()('user_org_units').insert({ user_id: wide.id, org_unit_id: unit.id })
+    const theme = (value: string) => ({
+      key: 'preference.shell.theme',
+      scope: 'user',
+      scope_id: String(admin.id),
+      value: JSON.stringify(value),
+    })
+    try {
+      // The full sidebar is the default and narrows the workspace the most.
+      await knex()('settings')
+        .whereIn('key', ['preference.shell.sidebar', 'preference.shell.theme'])
+        .where({ scope: 'user', scope_id: String(admin.id) })
+        .delete()
+      await browserContext.loginAs(admin)
+      for (const mode of ['light', 'dark'] as const) {
+        await knex()('settings')
+          .insert(theme(mode))
+          .onConflict(['key', 'scope', 'scope_id'])
+          .merge()
+        const page = await visit(`/admin/users?q=${unique}-`)
+        await page.setViewportSize({ width: 1440, height: 900 })
+        assert.equal(
+          await page.evaluate<boolean>('document.documentElement.classList.contains("dark")'),
+          mode === 'dark'
+        )
+        await page.locator('[data-workspace-shell][data-sidebar="expanded"]').waitFor()
+        const row = page.getByRole('row').filter({ hasText: wide.email })
+        await row.getByRole('link', { name: 'تفاصيل' }).waitFor()
+        const sizes = await page.evaluate<{
+          page: [number, number]
+          table: [number, number]
+          frame: [number, number]
+          cells: [number, number][]
+        }>(`(() => {
+          const span = (el) => { const r = el.getBoundingClientRect(); return [r.left, r.right] }
+          const table = document.querySelector('main table')
+          const frame = table.closest('section')
+          return {
+            page: [document.documentElement.scrollWidth, document.documentElement.clientWidth],
+            table: [table.parentElement.scrollWidth, table.parentElement.clientWidth],
+            frame: span(frame),
+            cells: [...table.querySelectorAll('th, td')].map(span),
+          }
+        })()`)
+        assert.isAtMost(sizes.page[0], sizes.page[1], `${mode}: the page scrolls sideways`)
+        assert.isAtMost(
+          sizes.table[0],
+          sizes.table[1],
+          `${mode}: the table is wider than its frame`
+        )
+        for (const [left, right] of sizes.cells) {
+          assert.isAtLeast(left, sizes.frame[0] - 1, `${mode}: a cell starts outside the frame`)
+          assert.isAtMost(right, sizes.frame[1] + 1, `${mode}: a cell ends outside the frame`)
+        }
+        await mkdir(app.makePath('../../.work/screenshots'), { recursive: true })
+        await page.screenshot({
+          path: app.makePath(`../../.work/screenshots/admin-users-long-values-${mode}.png`),
+        })
+        await page.close()
+      }
+    } finally {
+      await knex()('settings')
+        .where({ key: 'preference.shell.theme', scope: 'user', scope_id: String(admin.id) })
+        .delete()
+      await knex()('user_roles').where('user_id', wide.id).delete()
+      await knex()('user_org_units').where('user_id', wide.id).delete()
+      await knex()('users').where('id', wide.id).delete()
+      await knex()('roles').where('id', role.id).delete()
+      await knex()('org_units').where('id', unit.id).delete()
+    }
+  })
 })
