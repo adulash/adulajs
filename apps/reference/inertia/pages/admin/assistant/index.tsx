@@ -26,7 +26,9 @@ import {
 import { failure, json } from '~/components/account/request'
 
 type Props = { settings: AssistantSettingsView }
-type Draft = Omit<AssistantSettingsView, 'hasKey' | 'updatedAt'>
+// The provider address is not an owner setting: OpenRouter is the default and a custom
+// address (tests, a proxy) is set on the server (ADR 052).
+type Draft = Omit<AssistantSettingsView, 'hasKey' | 'updatedAt' | 'baseUrl'>
 const LIMITS: [keyof Draft, string, string][] = [
   ['requestsPerMinute', 'الأسئلة في الدقيقة لكل مستخدم', '1 – 60'],
   ['dailyTokenBudget', 'حصة الرموز اليومية لكل مستخدم', '1000 – 2000000'],
@@ -37,30 +39,47 @@ const LIMITS: [keyof Draft, string, string][] = [
 const reload = () => router.reload({ only: ['settings', 'assistant'] })
 
 function draftOf(settings: AssistantSettingsView): Draft {
-  const { hasKey: _hasKey, updatedAt: _updatedAt, ...draft } = settings
+  const { hasKey: _hasKey, updatedAt: _updatedAt, baseUrl: _baseUrl, ...draft } = settings
   return draft
 }
 
 export default function AdminAssistant({ settings }: Props) {
   const { confirm, confirmation } = useConfirmAction()
   const [draft, setDraft] = useState<Draft | null>(null)
-  const [key, setKey] = useState<string | null>(null)
+  // The new key, write-only: typed here, sent once, never read back.
+  const [key, setKey] = useState('')
+  const [changingKey, setChangingKey] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+
+  const openSettings = () => {
+    setError('')
+    setKey('')
+    setChangingKey(false)
+    setDraft(draftOf(settings))
+  }
+
+  const closeSettings = () => {
+    setDraft(null)
+    setKey('')
+  }
 
   const save = async (event: FormEvent) => {
     event.preventDefault()
     if (!draft) return
+    const newKey = key.trim()
+    if (draft.enabled && !settings.hasKey && !newKey) {
+      setError('أدخل مفتاح OpenRouter قبل تفعيل المساعد.')
+      return
+    }
     setBusy(true)
     setError('')
     try {
-      const response = await axios.put('/admin/assistant', draft, json)
-      setDraft(null)
-      toast.success(
-        settings.hasKey && !response.data.data.hasKey
-          ? 'تم الحفظ، وحُذف المفتاح لأن عنوان المزوّد تغيّر. أدخل المفتاح من جديد.'
-          : 'تم حفظ إعداد المساعد.'
-      )
+      // The key first, so enabling never runs ahead of it.
+      if (newKey) await axios.put('/admin/assistant/key', { key: newKey }, json)
+      await axios.put('/admin/assistant', draft, json)
+      closeSettings()
+      toast.success(newKey ? 'تم حفظ الإعداد والمفتاح مشفّرًا.' : 'تم حفظ إعداد المساعد.')
       reload()
     } catch (caught) {
       setError(failure(caught, 'تعذر حفظ إعداد المساعد.'))
@@ -69,22 +88,21 @@ export default function AdminAssistant({ settings }: Props) {
     }
   }
 
-  const saveKey = async (event: FormEvent) => {
-    event.preventDefault()
-    if (key === null) return
-    setBusy(true)
-    setError('')
-    try {
-      await axios.put('/admin/assistant/key', { key }, json)
-      setKey(null)
-      toast.success('تم حفظ المفتاح مشفّرًا.')
-      reload()
-    } catch (caught) {
-      setError(failure(caught, 'تعذر حفظ المفتاح.'))
-    } finally {
-      setBusy(false)
-    }
-  }
+  const removeKey = () =>
+    confirm({
+      title: 'حذف مفتاح OpenRouter؟',
+      description: 'يتوقف المساعد فورًا لكل المستخدمين حتى تُدخل مفتاحًا جديدًا.',
+      destructive: true,
+      label: 'حذف المفتاح',
+      action: async () => {
+        await axios.delete('/admin/assistant/key', json)
+        setChangingKey(false)
+        setKey('')
+        setDraft((current) => (current ? { ...current, enabled: false } : current))
+        toast.success('تم حذف المفتاح.')
+        reload()
+      },
+    })
 
   const test = async () => {
     setBusy(true)
@@ -130,12 +148,12 @@ export default function AdminAssistant({ settings }: Props) {
                 </dd>
               </div>
               <div className="space-y-1">
-                <dt className="text-xs text-muted-foreground">مفتاح المزوّد</dt>
+                <dt className="text-xs text-muted-foreground">مفتاح OpenRouter</dt>
                 <dd data-testid="assistant-key-state">
                   {settings.hasKey ? (
-                    <Badge>مُعَدّ</Badge>
+                    <Badge>مفتاح محفوظ</Badge>
                   ) : (
-                    <Badge variant="outline">غير مُعَدّ</Badge>
+                    <Badge variant="outline">لا يوجد مفتاح</Badge>
                   )}
                 </dd>
               </div>
@@ -155,49 +173,15 @@ export default function AdminAssistant({ settings }: Props) {
               </div>
             </dl>
             <div className="flex flex-wrap gap-2">
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setError('')
-                  setDraft(draftOf(settings))
-                }}
-              >
+              <Button variant={settings.hasKey ? 'outline' : 'default'} onClick={openSettings}>
                 <Settings2 size={14} />
-                تعديل الإعداد
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setError('')
-                  setKey('')
-                }}
-              >
-                <KeyRound size={14} />
-                {settings.hasKey ? 'تغيير المفتاح' : 'إدخال المفتاح'}
+                {settings.hasKey ? 'تعديل الإعداد' : 'إعداد المساعد'}
               </Button>
               {settings.hasKey && (
-                <>
-                  <Button variant="outline" disabled={busy} onClick={test}>
-                    <PlugZap size={14} />
-                    اختبار الاتصال
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() =>
-                      confirm({
-                        title: 'حذف مفتاح المزوّد؟',
-                        description: 'يتوقف المساعد فورًا لكل المستخدمين حتى تُدخل مفتاحًا جديدًا.',
-                        action: async () => {
-                          await axios.delete('/admin/assistant/key', json)
-                          reload()
-                        },
-                      })
-                    }
-                  >
-                    <Trash2 size={14} />
-                    حذف المفتاح
-                  </Button>
-                </>
+                <Button variant="outline" disabled={busy} onClick={test}>
+                  <PlugZap size={14} />
+                  اختبار الاتصال
+                </Button>
               )}
             </div>
           </CardContent>
@@ -218,18 +202,70 @@ export default function AdminAssistant({ settings }: Props) {
       <Dialog
         mode="edit"
         open={draft !== null}
-        onOpenChange={(open) => !open && !busy && setDraft(null)}
+        onOpenChange={(open) => !open && !busy && closeSettings()}
       >
         <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
-          <form onSubmit={save} className="space-y-5">
+          <form onSubmit={save} className="space-y-5" autoComplete="off">
             <DialogHeader>
               <DialogTitle>إعداد المساعد</DialogTitle>
               <DialogDescription>
-                تغيير عنوان المزوّد يحذف المفتاح المحفوظ حتى لا يُرسل إلى عنوان آخر.
+                مفتاح OpenRouter والنموذج وحدود الاستخدام. يُحفظ المفتاح مشفّرًا ولا يُعرض مرة أخرى.
               </DialogDescription>
             </DialogHeader>
             {draft && (
               <>
+                <div className="space-y-2">
+                  <Label htmlFor="assistant-key" id="assistant-key-label">
+                    مفتاح OpenRouter (API key)
+                  </Label>
+                  {settings.hasKey && !changingKey ? (
+                    <div
+                      role="group"
+                      aria-labelledby="assistant-key-label"
+                      className="flex flex-wrap items-center gap-2"
+                    >
+                      <Badge>مفتاح محفوظ</Badge>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={busy}
+                        onClick={() => setChangingKey(true)}
+                      >
+                        <KeyRound size={14} />
+                        تغيير المفتاح
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={busy}
+                        onClick={removeKey}
+                      >
+                        <Trash2 size={14} />
+                        حذف المفتاح
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <Input
+                        id="assistant-key"
+                        type="password"
+                        dir="ltr"
+                        autoComplete="new-password"
+                        spellCheck={false}
+                        placeholder="sk-or-v1-…"
+                        value={key}
+                        onChange={(event) => setKey(event.target.value)}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {settings.hasKey
+                          ? 'أدخل المفتاح الجديد، أو اتركه فارغًا لإبقاء المفتاح المحفوظ.'
+                          : 'أنشئه من حساب المؤسسة لدى OpenRouter. يُحفظ مشفّرًا ولا يُعرض مرة أخرى.'}
+                      </p>
+                    </>
+                  )}
+                </div>
                 <div className="flex items-center justify-between gap-4">
                   <Label htmlFor="assistant-enabled">تفعيل المساعد</Label>
                   <Switch
@@ -251,16 +287,6 @@ export default function AdminAssistant({ settings }: Props) {
                   <p className="text-xs text-muted-foreground">
                     كما يظهر في قائمة نماذج OpenRouter.
                   </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="assistant-url">عنوان المزوّد</Label>
-                  <Input
-                    id="assistant-url"
-                    dir="ltr"
-                    required
-                    value={draft.baseUrl}
-                    onChange={(event) => update('baseUrl', event.target.value)}
-                  />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="assistant-prompt">تعليمات المساعد وشخصيته</Label>
@@ -314,12 +340,7 @@ export default function AdminAssistant({ settings }: Props) {
               </p>
             )}
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={busy}
-                onClick={() => setDraft(null)}
-              >
+              <Button type="button" variant="outline" disabled={busy} onClick={closeSettings}>
                 إلغاء
               </Button>
               <Button type="submit" disabled={busy}>
@@ -330,47 +351,6 @@ export default function AdminAssistant({ settings }: Props) {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        mode="edit"
-        open={key !== null}
-        onOpenChange={(open) => !open && !busy && setKey(null)}
-      >
-        <DialogContent className="sm:max-w-md">
-          <form onSubmit={saveKey} className="space-y-5" autoComplete="off">
-            <DialogHeader>
-              <DialogTitle>مفتاح OpenRouter</DialogTitle>
-              <DialogDescription>
-                يُحفظ المفتاح مشفّرًا ولا يُعرض مرة أخرى. أنشئه من حساب المؤسسة لدى OpenRouter.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-2">
-              <Label htmlFor="assistant-key">المفتاح</Label>
-              <Input
-                id="assistant-key"
-                type="password"
-                dir="ltr"
-                required
-                autoComplete="off"
-                value={key ?? ''}
-                onChange={(event) => setKey(event.target.value)}
-              />
-            </div>
-            {error && (
-              <p role="alert" className="text-sm text-destructive">
-                {error}
-              </p>
-            )}
-            <DialogFooter>
-              <Button type="button" variant="outline" disabled={busy} onClick={() => setKey(null)}>
-                إلغاء
-              </Button>
-              <Button type="submit" disabled={busy}>
-                حفظ المفتاح
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
       {confirmation}
     </>
   )

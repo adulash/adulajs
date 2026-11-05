@@ -9,6 +9,11 @@ import { adula } from '#services/adula'
 
 // Never a real key: the fake below only checks that this exact value arrives.
 const TEST_KEY = 'test-key-not-real'
+/** The opened provider key, as only the server-side client sees it. */
+const storedKey = () =>
+  adula()
+    .assistantSettings.runtime()
+    .then((runtime) => runtime.key)
 
 type Reply = Record<string, unknown>
 /** A local fake of OpenRouter's chat-completions API answering a scripted queue. */
@@ -146,8 +151,12 @@ test.group('Built-in assistant (ADR 052)', (group) => {
   })
 
   async function configure(client: any, extra: Record<string, unknown> = {}) {
-    const saved = await asJson(client.put('/admin/assistant').loginAs(admin)).json({
+    // The provider address is a server-side setting; the form never sends one.
+    const runtime = adula()
+    await runtime.assistantSettings.save(await runtime.actors.load(admin.id), {
       baseUrl: fake.url,
+    })
+    const saved = await asJson(client.put('/admin/assistant').loginAs(admin)).json({
       model: 'test/model',
       ...extra,
     })
@@ -208,6 +217,53 @@ test.group('Built-in assistant (ADR 052)', (group) => {
     assert.notInclude(JSON.stringify(stored.value), TEST_KEY)
     const activity = await knex()('activities').where('resource', 'core.ai')
     assert.notInclude(JSON.stringify(activity), TEST_KEY)
+  })
+
+  test('the OpenRouter key is saved, replaced and deleted; the address is not a form field', async ({
+    client,
+    assert,
+  }) => {
+    await configure(client)
+    const before = await knex()('settings').where('key', 'ai.assistant').first()
+    // The form cannot redirect the stored key to another host.
+    const address = await asJson(client.put('/admin/assistant').loginAs(admin)).json({
+      baseUrl: 'https://example.test/api/v1',
+    })
+    address.assertStatus(422)
+    assert.equal(address.body().error.code, 'E_AI_INPUT')
+    const kept = await knex()('settings').where('key', 'ai.assistant').first()
+    assert.equal(kept.value.baseUrl, fake.url)
+    assert.equal(kept.value.secret, before.value.secret)
+
+    const REPLACEMENT = 'test-key-replacement-not-real'
+    const replaced = await asJson(client.put('/admin/assistant/key').loginAs(admin)).json({
+      key: REPLACEMENT,
+    })
+    replaced.assertStatus(200)
+    assert.isTrue(replaced.body().data.hasKey)
+    assert.notInclude(replaced.text(), REPLACEMENT)
+    const sealed = await knex()('settings').where('key', 'ai.assistant').first()
+    assert.notEqual(sealed.value.secret, before.value.secret)
+    assert.notInclude(JSON.stringify(sealed.value), REPLACEMENT)
+    assert.equal(await storedKey(), REPLACEMENT)
+
+    const removed = await asJson(client.delete('/admin/assistant/key').loginAs(admin)).json({})
+    removed.assertStatus(200)
+    assert.isFalse(removed.body().data.hasKey)
+    assert.isFalse(removed.body().data.enabled)
+    const cleared = await knex()('settings').where('key', 'ai.assistant').first()
+    assert.notProperty(cleared.value, 'secret')
+    assert.isNull(await storedKey())
+
+    // Each step is in the activity log, as an action and booleans only.
+    const actions = await knex()('activities')
+      .where({ resource: 'core.ai', actor_id: admin.id })
+      .orderBy('id')
+      .select('action', 'changes')
+    const trail = actions.map((row) => row.action)
+    assert.includeMembers(trail, ['settings.update', 'key.set', 'key.clear'])
+    assert.notInclude(JSON.stringify(actions), REPLACEMENT)
+    assert.notInclude(JSON.stringify(actions), TEST_KEY)
   })
 
   test('access needs sign-in, CSRF, JSON, the core.ai permission and the notice', async ({

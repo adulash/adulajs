@@ -50,11 +50,19 @@ and without vendor SDKs.
   user's name, e-mail or id, settings, secrets, hidden or levelled fields, or attachments.
   An Arabic notice says so; each user accepts it before the first question, and an
   impersonating administrator cannot accept it for them.
-* **Key.** Stored in the system setting `ai.assistant`, sealed with the host's SecretBox
-  (APP_KEY). `isSealedSetting` covers `ai.*`, so the generic settings screen lists it
-  read-only without the secret. The administration sees only `hasKey`; the key is never
-  in props, responses, activity or logs, and its route accepts JSON only so it is never
-  flashed. Changing the provider address clears the key, so a key cannot be redirected.
+* **Key.** The settings dialog's first field is «مفتاح OpenRouter (API key)», a
+  write-only password field; once a key is stored it shows «مفتاح محفوظ» with «تغيير
+  المفتاح» and «حذف المفتاح». The key is stored in the system setting `ai.assistant`,
+  sealed with the host's SecretBox (APP_KEY). `isSealedSetting` covers `ai.*`, so the
+  generic settings screen lists it read-only without the secret. The administration sees
+  only `hasKey`; the key is never in props, responses, activity or logs, and its route
+  accepts JSON only so it is never flashed. Saving, replacing and deleting it are logged
+  as `key.set` and `key.clear` without the value.
+* **Provider address.** Not an owner setting: OpenRouter's `https://openrouter.ai/api/v1`
+  is the default, and the administration form neither shows nor accepts an address
+  (`PUT /admin/assistant` refuses `baseUrl`). Tests and deployments behind a compatible
+  proxy set it on the server through `assistantSettings.save(actor, { baseUrl })`.
+  Changing it clears the key, so a key cannot be redirected.
 * **Outbound HTTP.** `createOutboundRequester` applies the guarded client's URL and address
   rules (pinned DNS, public addresses unless `WEBHOOKS_ALLOW_PRIVATE`, no redirects) and
   sends through ADR 051's `pinnedRequest` with a response cap (1 MiB). Provider errors keep only a category; bodies are discarded. The

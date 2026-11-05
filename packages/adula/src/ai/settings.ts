@@ -123,9 +123,11 @@ export class AssistantSettings {
       next.model = model
     }
     if (data.systemPrompt !== undefined) {
-      if (typeof data.systemPrompt !== 'string' || data.systemPrompt.length > 4000)
+      // An emptied field arrives as null (AdonisJS converts empty strings): no persona.
+      const prompt = data.systemPrompt === null ? '' : data.systemPrompt
+      if (typeof prompt !== 'string' || prompt.length > 4000)
         throw new AdulaError(422, 'E_AI_PROMPT', 'تعليمات المساعد نص لا يتجاوز 4000 حرف')
-      next.systemPrompt = data.systemPrompt
+      next.systemPrompt = prompt
     }
     for (const key of Object.keys(ASSISTANT_LIMITS) as LimitKey[])
       if (data[key] !== undefined) {

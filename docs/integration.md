@@ -384,14 +384,17 @@ changes; a change runs when the user confirms it in a review dialog.
 ### What the deployment provides
 
 * An OpenRouter API key from the organisation's own OpenRouter account. An administrator
-  enters it in «الإدارة ← المساعد الذكي»; it is sealed with `APP_KEY` and never shown
-  again. Rotating `APP_KEY` without keeping the old key in the key list makes the stored
+  enters it as the first field of «الإدارة ← المساعد الذكي ← إعداد المساعد»; it is sealed
+  with `APP_KEY` and never shown again, and the same dialog replaces or deletes it. Rotating `APP_KEY` without keeping the old key in the key list makes the stored
   key unreadable: enter it again.
 * The model identifier as OpenRouter lists it (for example `openai/gpt-4o-mini`), an
   optional persona, and the limits: questions per minute per user, a daily token budget
   per user, the longest reply, tool steps per question and the provider timeout.
-* The provider address only when it is not `https://openrouter.ai/api/v1`. Changing it
-  clears the stored key. Private or plain-HTTP addresses need `WEBHOOKS_ALLOW_PRIVATE=true`.
+* Nothing for the provider address: it is `https://openrouter.ai/api/v1` and is not on
+  the administration form. Only a deployment behind an OpenAI-compatible proxy sets it,
+  from server code (for example `node ace repl`) with
+  `adula().assistantSettings.save(actor, { baseUrl })`. Changing it clears the stored key.
+  Private or plain-HTTP addresses need `WEBHOOKS_ALLOW_PRIVATE=true`.
 * `core.ai / use` in a role assigned to users across the whole deployment (not limited to
   a unit), and «السماح باقتراح التعديلات» if users may have the assistant propose changes.
 * The provider's own retention and data-use settings, which are the deployment's
