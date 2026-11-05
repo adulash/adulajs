@@ -27,7 +27,7 @@ test('registry components compose the registry Select instead of native lists', 
 
 test('registry buttons take their height from the button size scale, not className', async () => {
   // Button sizes (xs, sm, default, lg, icon-*) keep controls aligned; a height in className
-  // drifts from that scale. Existing overrides are listed so that no new one is added.
+  // drifts from that scale. No registry button may set its own height.
   const { readdir } = await import('node:fs/promises')
   const dir = new URL('../registry/ui/', import.meta.url)
   const found = {}
@@ -39,11 +39,7 @@ test('registry buttons take their height from the button size scale, not classNa
     )
     if (overrides.length) found[name] = overrides.length
   }
-  assert.deepEqual(found, {
-    'data-table.tsx': 5,
-    'list-filters.tsx': 1,
-    'resource-bulk.tsx': 1,
-  })
+  assert.deepEqual(found, {})
 })
 
 test('file fields compose FileInput instead of the native control and its English text', async () => {
