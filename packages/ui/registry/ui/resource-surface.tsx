@@ -1,16 +1,55 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
+import { createPortal } from 'react-dom'
 import { router } from '@inertiajs/react'
 import { Link } from '@adonisjs/inertia/react'
 import axios from 'axios'
 import { Button } from '~/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '~/components/ui/dialog'
+import { Dialog, DialogClose } from '~/components/ui/dialog'
+import { LongDialogContent } from '~/components/ui/long-dialog'
 import { useMessages } from '~/components/ui/messages'
+
+type FooterSlot = { slot: HTMLElement | null; register: () => () => void }
+const RecordFooterContext = createContext<FooterSlot | null>(null)
+
+// Secondary actions sit at the start (me-auto on their group), then «إلغاء»/«إغلاق», then the
+// primary action: the shared dialog footer rule.
+const footerClass = 'flex w-full flex-wrap items-center gap-2'
+
+/**
+ * A record's actions. Inside a record dialog they move to its fixed footer (the long dialog
+ * pattern, ADR 016), so they stay on screen while the body scrolls; on a record page they
+ * render in place. Buttons that submit a form must name it with `form`, because the footer
+ * is outside the form's markup.
+ */
+export function RecordFooter({ children }: { children: ReactNode }) {
+  const surface = useContext(RecordFooterContext)
+  const register = surface?.register
+  useEffect(() => register?.(), [register])
+  if (!surface) return <div className={footerClass}>{children}</div>
+  return surface.slot ? createPortal(children, surface.slot) : null
+}
+
+/** «إغلاق» for a record dialog's footer; nothing on a record page, which has its own way back. */
+export function RecordFooterClose() {
+  const { t } = useMessages()
+  if (!useContext(RecordFooterContext)) return null
+  return (
+    <DialogClose asChild>
+      <Button type="button" variant="outline">
+        {t('إغلاق')}
+      </Button>
+    </DialogClose>
+  )
+}
 
 export type ResourcePresentation = 'dialog' | 'page'
 
@@ -209,6 +248,15 @@ export function ResourceSurface({
   const [open, setOpen] = useState(true)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   useEffect(() => () => clearTimeout(closeTimer.current), [])
+  // The footer appears once the record body registers actions for it; other bodies keep
+  // their own buttons and the dialog shows no empty footer.
+  const [slot, setSlot] = useState<HTMLElement | null>(null)
+  const [footers, setFooters] = useState(0)
+  const register = useCallback(() => {
+    setFooters((count) => count + 1)
+    return () => setFooters((count) => count - 1)
+  }, [])
+  const footer = useMemo(() => ({ slot, register }), [slot, register])
   if (presentation === 'page')
     return (
       <section dir={dir} className="space-y-6">
@@ -249,19 +297,20 @@ export function ResourceSurface({
         }
       }}
     >
-      <DialogContent
+      {/* The long dialog pattern: fixed header and footer, only the body scrolls. */}
+      <LongDialogContent
         dir={dir}
-        // Anchored to the top, so sections that load after opening extend the dialog downward
-        // instead of moving it. Clipped, not hidden: focus cannot scroll the header away; the
-        // body is the only scroller.
-        className="top-4 flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] translate-y-0 flex-col gap-0 overflow-clip p-0 sm:top-[5dvh] sm:max-h-[90dvh] sm:max-w-5xl"
+        width="full"
+        title={title}
+        description={description}
+        footer={
+          footers > 0 ? (
+            <div ref={setSlot} data-slot="record-footer" className={footerClass} />
+          ) : undefined
+        }
       >
-        <DialogHeader className="shrink-0 border-b px-6 py-5 pe-12 text-start">
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        <div className="min-h-0 scroll-py-6 overflow-y-auto overscroll-contain p-4 sm:p-6">{children}</div>
-      </DialogContent>
+        <RecordFooterContext.Provider value={footer}>{children}</RecordFooterContext.Provider>
+      </LongDialogContent>
     </Dialog>
   )
 }

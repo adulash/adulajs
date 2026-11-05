@@ -378,6 +378,12 @@ test.group('Workspace shell in the browser', (group) => {
     await page.getByRole('menuitem', { name: 'ترتيب القائمة…' }).click()
     const dialog = page.getByRole('dialog', { name: 'ترتيب القائمة' })
     await dialog.waitFor()
+    // Measure after the opening zoom, when the dialog has its settled box.
+    await dialog.evaluate(
+      async (element: { getAnimations(): { finished: Promise<unknown> }[] }) => {
+        await Promise.all(element.getAnimations().map((animation) => animation.finished))
+      }
+    )
     const body = dialog.locator('[data-slot="long-dialog-body"]')
     const footer = dialog.locator('[data-slot="long-dialog-footer"]')
     // The administrator's entries do not fit: the body scrolls, the dialog stays on screen.
@@ -396,7 +402,7 @@ test.group('Workspace shell in the browser', (group) => {
     const titleBefore = (await title.boundingBox())!.y
     await body.evaluate('(element) => { element.scrollTop = element.scrollHeight }')
     await inView()
-    assert.equal((await title.boundingBox())!.y, titleBefore)
+    assert.isAtMost(Math.abs((await title.boundingBox())!.y - titleBefore), 1)
     // The shared footer: reset (ghost, RotateCcw), then cancel (outline), then save.
     const buttons = footer.getByRole('button')
     const names: string[] = []

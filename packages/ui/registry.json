@@ -573,6 +573,7 @@
         "resource-actions",
         "resource-field",
         "resource-value",
+        "resource-surface",
         "messages"
       ],
       "dependencies": [
@@ -699,6 +700,7 @@
         "record-assignments",
         "record-workflows",
         "record-print",
+        "resource-surface",
         "messages",
         "user-avatar"
       ],
@@ -803,6 +805,7 @@
       "registryDependencies": [
         "button",
         "dialog",
+        "long-dialog",
         "messages"
       ],
       "dependencies": [],
