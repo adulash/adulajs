@@ -68,6 +68,9 @@ temporary path.
   static cron per job, while backup frequency is per destination and set from the page.
 * Errors are stored as a category and a fixed Arabic text, never the raw message (pg_dump
   output or provider bodies could name hosts or users).
+* A snapshot follows ADR 023: an attachment row whose file is missing fails the whole run
+  (category `snapshot`) rather than producing an archive that silently lacks files. The
+  cause, for example the missing path, goes to the server log only.
 
 ### Authorization and audit
 
