@@ -49,8 +49,8 @@ and the collapsed module groups live in `localStorage`.
   rail, the top bar and the small-screen row all render it, so they show the same pages and
   the same permissions by construction.
 * The sidebar has three modes (`shell.sidebar`): `expanded`, `icons` (a 4.5 rem rail whose
-  entries keep their accessible names, with tooltips; modules become one letter button that
-  opens a menu of their pages) and `hidden`. Two header buttons control it, each with a
+  entries keep their accessible names, with tooltips; each module becomes one icon button that
+  opens a menu of its pages, named by its tooltip and accessible name) and `hidden`. Two header buttons control it, each with a
   truthful `aria-expanded` and `aria-controls`; there is no global shortcut (Ctrl+B opens
   bookmarks in Firefox and means bold in editors). Widths use the `--shell-sidebar` CSS
   variable and logical properties, so RTL and LTR mirror. The fixed `<aside>` keeps the
@@ -65,8 +65,14 @@ and the collapsed module groups live in `localStorage`.
   registry DropdownMenu: arrow keys, Escape, focus return and RTL alignment come with it).
   The entry holding the current page is marked, and the current page inside its menu
   carries `aria-current`.
-* Modules have no chosen icon: an optional icon on `Module`/`ResourceNavigation` would add
-  public API and an icon map for little gain while resources share one icon (GAPS).
+* Module icons in the rail (amended before the 2.3.0 release, owner's decision): the first
+  version showed each module's first letter, which reads as noise in Arabic. The rail now
+  shows an icon from the project-owned `components/module_icons.ts`: `MODULE_ICONS` maps a
+  module name to a lucide icon, and a module without an entry gets a neutral shape chosen
+  stably from its name, so the same module always looks the same. The tooltip and the
+  accessible name carry the module's name. `Module` and `ResourceNavigation` gain no icon
+  option: that would add public API, and the project map gives each system its own icons
+  without it (GAPS).
 
 ### Navigation order (#157)
 

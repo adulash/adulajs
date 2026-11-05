@@ -13,6 +13,7 @@ import {
   sectionFor,
   visibleSections,
 } from '../../../apps/reference/inertia/components/admin_sections.ts'
+import { moduleIcon } from '../../../apps/reference/inertia/components/module_icons.ts'
 
 const icon = () => null
 const ids = (list) => list.map((entry) => entry.id)
@@ -117,4 +118,18 @@ test('pages that do not apply are hidden and empty sections disappear', () => {
   assert.equal(visibleSections({ setupPending: false }, sections).length, 0)
   assert.equal(visibleSections({ setupPending: true }, sections).length, 1)
   assert.equal(sectionFor('/admin/setup', { setupPending: false }, sections), null)
+})
+
+test('module groups get an icon: the project map first, else a stable neutral shape', () => {
+  const sales = () => null
+  const fallbacks = [() => 'a', () => 'b', () => 'c']
+  assert.equal(moduleIcon('sales', { sales }, fallbacks), sales)
+  // Without an entry the same module always gets the same shape, from the neutral set.
+  const first = moduleIcon('inventory', {}, fallbacks)
+  assert.ok(fallbacks.includes(first))
+  assert.equal(moduleIcon('inventory', {}, fallbacks), first)
+  // Inherited object keys are not entries.
+  assert.ok(fallbacks.includes(moduleIcon('constructor', {}, fallbacks)))
+  // The default map and set always yield a component.
+  assert.equal(typeof moduleIcon('ui_samples'), 'object')
 })

@@ -44,6 +44,7 @@ import { TasksButton } from '~/components/tasks-button'
 import { TopNavigation } from '~/components/top-navigation'
 import { NavOrderDialog, type OrderGroup } from '~/components/nav-order-dialog'
 import { RailLink, railItemClass, useRailSide } from '~/components/rail-link'
+import { moduleIcon } from '~/components/module_icons'
 import { usePreference } from '~/components/preferences'
 import { resolvedTheme, type Theme } from '~/components/theme'
 import {
@@ -486,15 +487,17 @@ function IconRail({
         {modules.length > 0 && <span className="my-2 h-px w-8 bg-border" aria-hidden />}
         {modules.map((group) => {
           const active = group.links.some((entry) => isActive(entry.href))
+          const Icon = moduleIcon(group.module)
           return (
             <DropdownMenu key={group.module}>
               <Tooltip>
                 <TooltipTrigger asChild>
                   <DropdownMenuTrigger
                     aria-label={group.label}
-                    className={`${railItemClass(active)} text-sm font-semibold`}
+                    data-module={group.module}
+                    className={railItemClass(active)}
                   >
-                    <span aria-hidden>{group.label.trim().charAt(0)}</span>
+                    <Icon size={19} strokeWidth={1.6} aria-hidden />
                   </DropdownMenuTrigger>
                 </TooltipTrigger>
                 <TooltipContent side={side}>{group.label}</TooltipContent>

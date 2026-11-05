@@ -65,8 +65,9 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
 
 ## Workspace shell
 
-* Modules have no chosen icon: the collapsed sidebar shows a module's first letter and the
-  top layout shows its name (ADR 049).
+* Modules declare no icon in the framework: the collapsed sidebar takes it from the
+  project-owned `components/module_icons.ts` (a neutral shape when a module has no entry),
+  and the top layout shows the module's name (ADR 049).
 * The menu order and theme are per user, not per organization unit; there is no
   administrator default for either beyond the layout.
 * Printed documents are always light; there is no dark print style.
