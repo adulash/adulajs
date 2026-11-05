@@ -149,7 +149,7 @@ export function SortableList<T extends SortableItem>({
               <Button
                 type="button"
                 variant="ghost"
-                size="icon"
+                size="icon-sm"
                 ref={(node) => {
                   if (node) handles.current.set(item.id, node)
                   else handles.current.delete(item.id)
@@ -158,7 +158,7 @@ export function SortableList<T extends SortableItem>({
                 aria-pressed={picked?.id === item.id}
                 aria-describedby="sortable-list-hint"
                 data-sortable-picked={picked?.id === item.id || undefined}
-                className="size-8 cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
+                className="cursor-grab touch-none active:cursor-grabbing"
                 onKeyDown={(event) => keyDown(event, item)}
                 onBlur={() => picked?.id === item.id && setPicked(null)}
                 onPointerDown={(event) => pointerDown(event, item)}
@@ -172,8 +172,7 @@ export function SortableList<T extends SortableItem>({
               <Button
                 type="button"
                 variant="ghost"
-                size="icon"
-                className="size-8"
+                size="icon-sm"
                 disabled={index === 0}
                 aria-label={t('نقل {item} للأعلى', { item: item.label })}
                 onClick={() => commit(move(items, item.id, index - 1), item.id, 'moved')}
@@ -183,8 +182,7 @@ export function SortableList<T extends SortableItem>({
               <Button
                 type="button"
                 variant="ghost"
-                size="icon"
-                className="size-8"
+                size="icon-sm"
                 disabled={index === items.length - 1}
                 aria-label={t('نقل {item} للأسفل', { item: item.label })}
                 onClick={() => commit(move(items, item.id, index + 1), item.id, 'moved')}
