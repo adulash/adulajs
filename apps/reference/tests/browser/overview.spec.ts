@@ -37,6 +37,8 @@ test.group('Personal overview browser acceptance (#159)', (group) => {
       values.push(String(await element.getAttribute(attribute)))
     return values
   }
+  const rowsIn = (dialog: any) =>
+    attributes(dialog.locator('[data-sortable-item]'), 'data-sortable-item')
   const shownIds = (page: any) =>
     attributes(page.locator('[data-testid="overview-widgets"] > [data-widget]'), 'data-widget')
 
@@ -134,6 +136,46 @@ test.group('Personal overview browser acceptance (#159)', (group) => {
     await page.getByRole('heading', { name: 'نظرة عامة' }).waitFor()
     const restored = await shownIds(page)
     assert.deepEqual(restored.slice(0, 4), first.slice(0, 4))
+  })
+
+  test('hiding every widget leaves the page empty state with its dashed frame', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(wide.user)
+    const page = await visit('/')
+    await page.getByRole('heading', { name: 'نظرة عامة' }).waitFor()
+    await page.getByRole('button', { name: 'تخصيص' }).click()
+    const dialog = page.getByRole('dialog', { name: 'تخصيص النظرة العامة' })
+    const switches = dialog.getByRole('switch', { checked: true })
+    await switches.first().waitFor()
+    while ((await switches.count()) > 0) await switches.first().click()
+    const rows = await rowsIn(dialog)
+    assert.isAbove(rows.length, 0)
+    assert.equal(await dialog.getByRole('switch', { checked: false }).count(), rows.length)
+    await dialog.getByRole('button', { name: 'حفظ', exact: true }).click()
+    await dialog.waitFor({ state: 'hidden' })
+
+    await page.reload()
+    await page.getByRole('heading', { name: 'نظرة عامة' }).waitFor()
+    const empty = page.getByTestId('overview-empty')
+    await empty.waitFor()
+    assert.include(await empty.innerText(), 'لا توجد عناصر ظاهرة')
+    assert.equal(await page.locator('[data-testid="overview-widgets"]').count(), 0)
+    // The page's shared empty state: a dashed, rounded frame with centred muted text.
+    const frame = await empty.evaluate((node) => {
+      const style = (globalThis as any).getComputedStyle(node)
+      return {
+        border: style.borderTopStyle,
+        align: style.textAlign,
+        radius: style.borderTopLeftRadius,
+      }
+    })
+    assert.equal(frame.border, 'dashed')
+    assert.equal(frame.align, 'center')
+    assert.notEqual(frame.radius, '0px')
+    await page.screenshot({ path: join(await screenshotDir(), 'overview-empty.png') })
   })
 
   test('a widget the user may not see never appears, on the page or in the dialog', async ({
