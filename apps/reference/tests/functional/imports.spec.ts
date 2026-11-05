@@ -2,6 +2,8 @@ import { test } from '@japa/runner'
 import db from '@adonisjs/lucid/services/db'
 import { adula } from '#services/adula'
 import { seedActor, type UiActor } from '#tests/helpers/ui_fixtures'
+import { readXlsxTable } from 'adula'
+import { bufferXlsxResponses, XLSX_TYPE, xlsxWorkbook, zipFiles } from '#tests/helpers/xlsx_files'
 
 const json = { Accept: 'application/json' }
 const knex = () => db.connection().getWriteClient()
@@ -60,6 +62,47 @@ test.group('CSV imports over HTTP', (group) => {
     assert.equal(imported.created_by, clerk.user.id)
   })
 
+  test('an Excel workbook uploads like CSV; a zip bomb is refused in Arabic', async ({
+    client,
+    assert,
+  }) => {
+    const workbook = xlsxWorkbook([
+      ['ملاحظات', 'orgUnitId'],
+      ['من ملف Excel', String(clerk.orgUnitId)],
+    ])
+    const uploaded = await client
+      .post('/resources/orders/imports')
+      .loginAs(clerk.user)
+      .withCsrfToken()
+      .headers(json)
+      .file('file', workbook, { filename: 'orders.xlsx', contentType: XLSX_TYPE })
+    uploaded.assertStatus(201)
+    const batch = uploaded.body().data
+    assert.deepEqual(batch.mapping, { 0: 'notes', 1: 'orgUnitId' })
+    assert.equal(batch.total, 1)
+    // 70 MiB of zeros in a part the reader never reads still counts against the limit.
+    const bomb = xlsxWorkbook([['ملاحظات']], {
+      'xl/media/bomb.xml': new Uint8Array(70 * 1024 * 1024),
+    })
+    const refused = await client
+      .post('/resources/orders/imports')
+      .loginAs(clerk.user)
+      .withCsrfToken()
+      .headers(json)
+      .file('file', bomb, { filename: 'bomb.xlsx', contentType: XLSX_TYPE })
+    refused.assertStatus(422)
+    assert.equal(refused.body().error.code, 'E_IMPORT_FILE')
+    assert.equal(refused.body().error.message, 'حجم محتوى الملف بعد فك الضغط يتجاوز الحد المسموح')
+    const corrupt = await client
+      .post('/resources/orders/imports')
+      .loginAs(clerk.user)
+      .withCsrfToken()
+      .headers(json)
+      .file('file', zipFiles({ 'readme.txt': 'x' }), { filename: 'x.xlsx', contentType: XLSX_TYPE })
+    corrupt.assertStatus(422)
+    assert.equal(corrupt.body().error.message, 'تعذر قراءة ملف Excel: الملف تالف أو ليس بصيغة xlsx')
+  })
+
   test('users without create permission cannot upload', async ({ client }) => {
     const response = await client
       .post('/resources/orders/imports')
@@ -74,6 +117,7 @@ test.group('CSV imports over HTTP', (group) => {
 test.group('Import templates, dry runs and upserts over the API', (group) => {
   let partner: UiActor
   let creator: UiActor
+  group.setup(() => bufferXlsxResponses())
   group.setup(async () => {
     partner = await seedActor([{ subject: 'customers', action: 'manage' }], {
       fullName: 'مسؤول العملاء',
@@ -112,6 +156,21 @@ test.group('Import templates, dry runs and upserts over the API', (group) => {
     const body = response.text()
     assert.isTrue(body.startsWith('\uFEFF'))
     assert.equal(body.slice(1).trim(), 'اسم العميل *,البريد الإلكتروني')
+    const workbook = await client
+      .get('/resources/customers/imports/template')
+      .qs({ format: 'xlsx' })
+      .loginAs(partner.user)
+    workbook.assertStatus(200)
+    assert.equal(workbook.header('content-type'), XLSX_TYPE)
+    assert.include(workbook.header('content-disposition') ?? '', 'customers-template.xlsx')
+    const table = await readXlsxTable(new Uint8Array(workbook.body() as Buffer))
+    assert.deepEqual(table.headers, ['اسم العميل *', 'البريد الإلكتروني'])
+    const unknown = await client
+      .get('/resources/customers/imports/template')
+      .qs({ format: 'ods' })
+      .loginAs(partner.user)
+      .headers(json)
+    unknown.assertStatus(422)
     const denied = await client
       .get('/resources/orders/imports/template')
       .loginAs(partner.user)

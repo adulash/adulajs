@@ -42,7 +42,7 @@ Workflow steps: condition, update, notify, approval, decision, delay, http, end.
 - **Records and collaboration:** `RecordCollaboration`, `followerListeners`, `Assignments`, `SavedViews`, `logActivity`
 - **Documents and workflows:** `defineWorkflow`, `WorkflowEngine`, `workflowListeners`, `WorkflowDelegations`
 - **Notifications and messages:** `notify`, `notifyWithTemplate`, `MessageTemplates`, `deliverNotificationMail`, `listenForNotifications`, `NotificationsAdmin`
-- **Integration:** `Webhooks`, `signWebhook`, `InboundWebhooks`, `openApiDocument`, `apiClientSource`, `ImportBatches`, `renderPrintHtml`, `htmlToPdf`
+- **Integration:** `Webhooks`, `signWebhook`, `InboundWebhooks`, `openApiDocument`, `apiClientSource`, `ImportBatches`, `xlsxImportAdapter`, `renderPrintHtml`, `htmlToPdf`
 - **Security:** `UserInvitations`, `UsersAdmin`, `RolesAdmin`
 - **Data and operations:** `sequence`, `Settings`, `SettingsAdmin`, `publishOutbox`, `consumeEvent`, `recordMutation`, `moveOrgUnit`, `migrateStorage`, `verifyBackup`, `runtimeHealth`
 
@@ -68,4 +68,3 @@ Workflow steps: condition, update, notify, approval, decision, delay, http, end.
 - Runtime plugins
 - A visual workflow editor
 - Multi-tenant SaaS in one database (one deployment per organization)
-- XLSX import until a maintained parser passes the dependency rule (GAP-006)

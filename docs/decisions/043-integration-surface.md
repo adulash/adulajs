@@ -1,7 +1,9 @@
 # ADR 043 — Integration surface: generated client, import adapters, sync jobs, notification channels
 
 Date: 2026-10-18. Status: accepted for implementation under the owner's post-review plan
-(Phase 4, integration).
+(Phase 4, integration). Amended in 2.3.0 (#161): the owner approved read-excel-file,
+write-excel-file and fflate, and xlsx is now a built-in adapter next to CSV (see
+docs/integration.md, «File formats»).
 
 ## Context
 

@@ -11,7 +11,13 @@ import * as form from './resource/editor.js'
 import * as write from './resource/write.js'
 import { transition } from './resource/lifecycle.js'
 import { restore } from './resource/trash.js'
-import { exportCsv, type CsvExport, type ExportOptions } from './resource/export.js'
+import {
+  exportCsv,
+  exportXlsx,
+  type CsvExport,
+  type ExportOptions,
+  type XlsxExport,
+} from './resource/export.js'
 import type { AggregateOptions, AggregateRow, ListOptions } from './resource/query.js'
 import type { SystemSaveOptions } from './resource/write.js'
 
@@ -23,8 +29,8 @@ export type {
   ListFilterScalar,
   ListFilterValue,
 } from './resource/query.js'
-export { EXPORT_ROW_LIMIT } from './resource/export.js'
-export type { CsvExport, ExportOptions } from './resource/export.js'
+export { EXPORT_ROW_LIMIT, guardFormula } from './resource/export.js'
+export type { CsvExport, ExportOptions, XlsxExport } from './resource/export.js'
 export type { SystemSaveOptions } from './resource/write.js'
 
 /**
@@ -273,6 +279,14 @@ export class ResourceService {
    */
   async export(name: string, actor: Actor, options: ExportOptions = {}): Promise<CsvExport> {
     return exportCsv(this.context, name, actor, options)
+  }
+
+  /**
+   * The same export as an Excel workbook: one right-to-left sheet with a bold header, typed
+   * numbers, amounts and dates, the same limit and an audit entry with `format: 'xlsx'`.
+   */
+  async exportXlsx(name: string, actor: Actor, options: ExportOptions = {}): Promise<XlsxExport> {
+    return exportXlsx(this.context, name, actor, options)
   }
 
   /**

@@ -89,7 +89,7 @@ export function ImportReport({ batch }: { batch: ImportBatch }) {
 export function ResourceImport({
   resource,
   label,
-  accept = '.csv,text/csv',
+  accept = '.csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 }: {
   resource: string
   label: string
@@ -187,7 +187,8 @@ export function ResourceImport({
     }
   }
   const description = {
-    upload: 'ملف CSV بترميز UTF-8، صفه الأول عناوين الأعمدة، حتى 5000 صف. نزّل القالب لتبدأ بالأعمدة الصحيحة.',
+    upload:
+      'ملف Excel (xlsx، الورقة الأولى فقط) أو CSV بترميز UTF-8، صفه الأول عناوين الأعمدة، حتى 5000 صف. نزّل القالب لتبدأ بالأعمدة الصحيحة.',
     mapping: `طابِق أعمدة الملف (${batch?.total ?? 0} صفاً) مع الحقول، ثم تحقق دون حفظ أو ابدأ الاستيراد.`,
     validating: `جارٍ التحقق من الصفوف دون حفظ: ${batch?.processed ?? 0} من ${batch?.total ?? 0}.`,
     report: 'نتيجة التحقق لكل صف. لم يُحفظ شيء بعد؛ ابدأ الاستيراد أو ارجع لتعديل المطابقة.',
@@ -196,7 +197,7 @@ export function ResourceImport({
     <>
       <Button variant="outline" onClick={() => setOpen(true)}>
         <FileUp size={16} />
-        استيراد CSV
+        استيراد من ملف
       </Button>
       <Dialog
         open={open}
@@ -221,12 +222,20 @@ export function ResourceImport({
                   onChange={(event) => setFile(event.target.files?.[0] ?? null)}
                 />
               </div>
-              <Button type="button" variant="link" size="sm" className="px-0" asChild>
-                <a href={`/resources/${resource}/imports/template`} download>
-                  <Download size={14} />
-                  تنزيل قالب CSV
-                </a>
-              </Button>
+              <div className="flex flex-wrap gap-x-4">
+                <Button type="button" variant="link" size="sm" className="px-0" asChild>
+                  <a href={`/resources/${resource}/imports/template?format=xlsx`} download>
+                    <Download size={14} />
+                    تنزيل قالب Excel
+                  </a>
+                </Button>
+                <Button type="button" variant="link" size="sm" className="px-0" asChild>
+                  <a href={`/resources/${resource}/imports/template`} download>
+                    <Download size={14} />
+                    تنزيل قالب CSV
+                  </a>
+                </Button>
+              </div>
             </form>
           )}
           {step === 'mapping' && batch && (

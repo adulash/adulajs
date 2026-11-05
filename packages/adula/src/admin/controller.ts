@@ -99,22 +99,32 @@ export function createResourceController(
     }
     async export(ctx: HttpContext) {
       return this.#execute(ctx, async ({ resources, actor }, resource) => {
+        const format = exportFormat(ctx)
         const { search, sort, direction, filters, tag } = this.#listOptions(ctx)
-        const file = await resources.export(resource.name, actor, {
+        const options = {
           search,
           sort,
           direction,
           filters,
           tag,
           trashed: ctx.request.input('trashed') === 'true' || ctx.request.input('trashed') === true,
-        })
-        ctx.response.header('Content-Type', 'text/csv; charset=utf-8')
+        }
+        const file =
+          format === 'xlsx'
+            ? await resources.exportXlsx(resource.name, actor, options)
+            : await resources.export(resource.name, actor, options)
+        ctx.response.header(
+          'Content-Type',
+          format === 'xlsx' ? XLSX_CONTENT_TYPE : 'text/csv; charset=utf-8'
+        )
         ctx.response.header(
           'Content-Disposition',
           `attachment; filename="${file.asciiFilename}"; filename*=UTF-8''${rfc5987(file.filename)}`
         )
         ctx.response.header('Cache-Control', 'no-store')
-        ctx.response.send(file.content)
+        ctx.response.send(
+          typeof file.content === 'string' ? file.content : Buffer.from(file.content)
+        )
       })
     }
     async restore(ctx: HttpContext) {
@@ -296,6 +306,17 @@ export function createResourceController(
 }
 
 /** RFC 5987 ext-value encoding of a UTF-8 file name. */
+const XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+
+/** `?format=csv|xlsx`, or an Accept header naming the spreadsheet type; CSV by default. */
+function exportFormat(ctx: HttpContext): 'csv' | 'xlsx' {
+  const format = ctx.request.input('format')
+  if (format === undefined || format === null || format === '')
+    return (ctx.request.header('accept') ?? '').includes('spreadsheetml') ? 'xlsx' : 'csv'
+  if (format === 'csv' || format === 'xlsx') return format
+  throw new AdulaError(422, 'E_EXPORT_FORMAT', 'صيغة التصدير غير مدعومة')
+}
+
 function rfc5987(value: string) {
   return encodeURIComponent(value).replace(
     /['()*]/g,

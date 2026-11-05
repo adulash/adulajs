@@ -1,7 +1,9 @@
 # ADR 046 — List layer: filter operators, server export, bulk actions, restore, dashboards
 
 Date: 2026-10-18. Status: proposed (Phase 3 of the post-review programme); the points
-marked «owner» need the owner's confirmation.
+marked «owner» need the owner's confirmation. Amended in 2.3.0 (#161): the export also
+writes an Excel workbook (`?format=xlsx` or an Excel `Accept` header) with the same rows,
+limit and audit; the audit records `format`.
 
 ## Context
 

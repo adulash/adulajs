@@ -655,7 +655,8 @@ export function openApiDocument(
                     },
                     format: {
                       type: 'string',
-                      description: "Import adapter name, for example 'csv' (default: detected)",
+                      description:
+                        "Import adapter name, for example 'csv' or 'xlsx' (default: detected)",
                     },
                     encoding: {
                       enum: ['base64'],
@@ -688,7 +689,7 @@ export function openApiDocument(
         get: {
           tags: [tag, 'Imports'],
           operationId: operationId('importTemplate'),
-          summary: `CSV template for importing ${tag}`,
+          summary: `CSV or Excel template for importing ${tag}`,
           parameters: [
             {
               name: 'mode',
@@ -696,11 +697,22 @@ export function openApiDocument(
               description: 'upsert also needs update permission',
               schema: { enum: modes },
             },
+            {
+              name: 'format',
+              in: 'query',
+              description: 'csv (default) or xlsx',
+              schema: { enum: ['csv', 'xlsx'] },
+            },
           ],
           responses: {
             200: {
-              description: 'CSV header row',
-              content: { 'text/csv': { schema: { type: 'string' } } },
+              description: 'The header row, as CSV or as an Excel workbook',
+              content: {
+                'text/csv': { schema: { type: 'string' } },
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+                  schema: { type: 'string', format: 'binary' },
+                },
+              },
             },
             403: error,
           },

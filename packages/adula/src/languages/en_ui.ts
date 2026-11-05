@@ -261,6 +261,8 @@ export const englishInterfaceMessages: Partial<
   'ui.list.exportResults': 'Export results',
   'ui.list.exporting': 'Exporting...',
   'ui.list.exportFailed': 'Could not export the results. Try again.',
+  'ui.list.exportXlsx': 'Excel file (xlsx)',
+  'ui.list.exportCsv': 'CSV file',
   'ui.list.activeFilters': 'Applied filters',
   'ui.list.removeFilter': 'Remove the {field} filter',
   'ui.list.rangeBoth': 'From {from} to {to}',

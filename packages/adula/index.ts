@@ -22,9 +22,10 @@ export { accessibleBy, authorizationSql, conditionSql } from './src/auth/sql.js'
 export { ACTOR_ID, resolveActorConditions } from './src/auth/conditions.js'
 export { ResourceService, canQueryField } from './src/admin/resource_service.js'
 export type { AggregateOptions, AggregateRow, ListOptions } from './src/admin/resource_service.js'
-export { EXPORT_ROW_LIMIT } from './src/admin/resource_service.js'
+export { EXPORT_ROW_LIMIT, guardFormula } from './src/admin/resource_service.js'
 export type {
   CsvExport,
+  XlsxExport,
   ExportOptions,
   ListFilterScalar,
   ListFilterValue,
@@ -188,6 +189,14 @@ export type {
   ImportStartOptions,
 } from './src/integrations/imports.js'
 export { csvImportAdapter, importFile } from './src/integrations/import_adapters.js'
+export {
+  guardXlsx,
+  readXlsxTable,
+  xlsxImportAdapter,
+  XLSX_LIMITS,
+  XLSX_MIME_TYPE,
+} from './src/integrations/xlsx.js'
+export type { GuardedXlsx, XlsxLimits } from './src/integrations/xlsx.js'
 export type { ImportAdapter, ImportFile, ImportTable } from './src/integrations/import_adapters.js'
 export { createImportModesSchema, createImportLeasesSchema } from './src/database/schema.js'
 export { openApiDocument } from './src/integrations/openapi.js'

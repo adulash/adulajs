@@ -635,9 +635,9 @@ employee every filter is refused with 422 `E_FILTER`, a sort by a field with 403
 `E_FIELD_FORBIDDEN` and saving a view with 403 `E_FIELD_FORBIDDEN`.
 
 With a filter applied, choose «حفظ العرض الحالي», name it («المرضية هذا الشهر»), and tick
-«مشترك» to share it with everyone who can open the list. «تصدير النتائج» downloads a CSV of
-every matching record; more than 5000 is refused with 422 `E_EXPORT_LIMIT`. The CSV holds
-the columns you may read. Selecting rows offers
+«مشترك» to share it with everyone who can open the list. «تصدير النتائج» then «ملف Excel
+(xlsx)» or «ملف CSV» downloads every matching record; more than 5000 is refused with 422
+`E_EXPORT_LIMIT`. The file holds the columns you may read. Selecting rows offers
 bulk «اعتماد», delete and, under «المحذوفات», restore.
 
 **You should see:** the list narrows to matching requests, the chips under «التصفية

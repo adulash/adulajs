@@ -128,6 +128,15 @@ test('the server export keeps the list query without its cursor or page size', (
     '/resources/invoices/export?search=a&filters[total][gte]=10&sort=total'
   )
   assert.equal(exportHref('invoices', new URLSearchParams()), '/resources/invoices/export')
+  // xlsx is a query parameter; csv stays the default and a stale format is dropped.
+  assert.equal(
+    exportHref('invoices', new URLSearchParams('sort=total'), 'xlsx'),
+    '/resources/invoices/export?sort=total&format=xlsx'
+  )
+  assert.equal(
+    exportHref('invoices', new URLSearchParams('format=xlsx&sort=total')),
+    '/resources/invoices/export?sort=total'
+  )
   // The caller's parameters are not modified.
   assert.equal(params.get('cursor'), 'xyz')
 })

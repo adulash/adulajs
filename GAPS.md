@@ -66,8 +66,9 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
 * SSO covers OAuth/OIDC sign-in through GitHub, Google and Microsoft Entra ID; there is
   no SAML and no SCIM provisioning.
 * The generated API client is TypeScript only; other languages use `/api/v1/openapi.json`.
-* XLSX import is pending the owner's approval of a parser; the `ImportAdapter`
-  registration point is ready and CSV import works (docs/integration.md).
+* Excel import (2.3.0, #161) reads the first sheet of an `.xlsx` file only; `.xls`,
+  `.ods`, password-protected workbooks and formulas (other than their cached values) are
+  not supported (docs/integration.md).
 
 ## Language and documentation
 

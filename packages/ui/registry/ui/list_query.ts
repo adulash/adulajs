@@ -230,11 +230,20 @@ export function fromSavedFilter(value: unknown): FieldFilter | null {
   return null
 }
 
-/** `GET /resources/:name/export` with the list's query (search, filters, tag, sort) but no cursor. */
-export function exportHref(resource: string, params: URLSearchParams) {
+/**
+ * `GET /resources/:name/export` with the list's query (search, filters, tag, sort) but no
+ * cursor; `format` 'xlsx' asks for an Excel workbook instead of CSV.
+ */
+export function exportHref(
+  resource: string,
+  params: URLSearchParams,
+  format: 'csv' | 'xlsx' = 'csv'
+) {
   const query = new URLSearchParams(params)
   query.delete('cursor')
   query.delete('limit')
+  query.delete('format')
+  if (format === 'xlsx') query.set('format', 'xlsx')
   const suffix = query.toString()
   return `/resources/${resource}/export${suffix ? `?${suffix}` : ''}`
 }

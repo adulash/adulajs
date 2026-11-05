@@ -1,7 +1,11 @@
 import { test } from '@japa/runner'
 import { BaseModel } from '@adonisjs/lucid/orm'
+import { strToU8, unzipSync, zipSync } from 'fflate'
+import writeXlsxFile from 'write-excel-file/node'
 import {
+  guardXlsx,
   ImportBatches,
+  readXlsxTable,
   ResourceRegistry,
   ResourceService,
   createResourceTable,
@@ -192,7 +196,7 @@ test.group('Import formats and templates', (group) => {
 
   test('registered adapters are detected and import end to end', async ({ assert }) => {
     const batches = imports()
-    assert.deepEqual(batches.extensions(), ['csv', 'txt', 'jsonl', 'psv'])
+    assert.deepEqual(batches.extensions(), ['csv', 'txt', 'xlsx', 'jsonl', 'psv'])
     const lines = '{"الاسم":"عميل سطري"}\n{"الاسم":"عميل ثان"}\n'
     const batch = await batches.create('customers', admin, {
       fileName: 'customers.jsonl',
@@ -223,8 +227,15 @@ test.group('Import formats and templates', (group) => {
       format: 'jsonl',
     })
     assert.deepEqual(named.sample, [['بالاسم']])
-    const unknown = await failure(() =>
+    // xlsx is built in (#161): a corrupt workbook is a file error with a fixed Arabic message,
+    // never the parser's text; a format without an adapter stays E_IMPORT_FORMAT.
+    const corrupt = await failure(() =>
       batches.create('customers', admin, { fileName: 'book.xlsx', content: Buffer.from('PK') })
+    )
+    assert.equal(corrupt.code, 'E_IMPORT_FILE')
+    assert.equal(corrupt.message, 'تعذر قراءة ملف Excel: الملف تالف أو ليس بصيغة xlsx')
+    const unknown = await failure(() =>
+      batches.create('customers', admin, { fileName: 'book.ods', content: Buffer.from('PK') })
     )
     assert.equal(unknown.code, 'E_IMPORT_FORMAT')
     const broken = await failure(() =>
@@ -256,6 +267,72 @@ test.group('Import formats and templates', (group) => {
     assert.equal(denied.status, 403)
     const noUpdate = await failure(async () => imports().template('customers', reader, 'upsert'))
     assert.equal(noUpdate.status, 403)
+  })
+
+  test('the Excel template has the same headers and an uploaded workbook maps back', async ({
+    assert,
+  }) => {
+    const template = await imports().xlsxTemplate('orders', reader)
+    assert.equal(template.fileName, 'orders-template.xlsx')
+    assert.equal(
+      template.mimeType,
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    const csvHeaders = imports().template('orders', reader).content.slice(1).trim().split(',')
+    const sheet = guardXlsx(template.content)
+    const xml = new TextDecoder().decode(unzipSync(sheet.archive)[sheet.sheetPath])
+    assert.include(xml, 'rightToLeft="1"')
+    const parsed = await readXlsxTable(template.content)
+    assert.deepEqual(parsed.headers, csvHeaders)
+    assert.lengthOf(parsed.rows, 0)
+    // A filled-in copy imports through the built-in adapter, with typed cells as text.
+    const filled = await writeXlsxFile([
+      parsed.headers,
+      parsed.headers.map((header) =>
+        header.includes('الوحدة') ? 2 : header === 'ملاحظات' ? 'من Excel' : null
+      ),
+    ]).toBuffer()
+    const batch = await imports().create('orders', reader, {
+      fileName: 'orders.xlsx',
+      content: new Uint8Array(filled),
+    })
+    assert.equal(batch.total, 1)
+    assert.equal(Object.keys(batch.mapping).length, parsed.headers.length)
+    assert.include(batch.sample[0], 'من Excel')
+    assert.include(batch.sample[0], '2')
+    // The JSON API sends binary formats as base64.
+    const encoded = await imports().create('orders', reader, {
+      fileName: 'orders.xlsx',
+      content: Buffer.from(filled).toString('base64'),
+      encoding: 'base64',
+    })
+    assert.equal(encoded.total, 1)
+    const denied = await failure(async () => imports().xlsxTemplate('orders', viewer))
+    assert.equal(denied.status, 403)
+  })
+
+  test('an Excel zip bomb upload is refused before any row is read', async ({ assert }) => {
+    const MAIN = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main'
+    const REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'
+    const bomb = zipSync(
+      {
+        'xl/workbook.xml': strToU8(
+          `<workbook xmlns="${MAIN}" xmlns:r="${REL}"><sheets><sheet name="S" sheetId="1" r:id="rId1"/></sheets></workbook>`
+        ),
+        'xl/_rels/workbook.xml.rels': strToU8(
+          `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${REL}/worksheet" Target="worksheets/sheet1.xml"/></Relationships>`
+        ),
+        'xl/worksheets/sheet1.xml': new Uint8Array(70 * 1024 * 1024),
+      },
+      { level: 9 }
+    )
+    const before = await db('import_batches').count('* as count')
+    const refused = await failure(() =>
+      imports().create('customers', admin, { fileName: 'bomb.xlsx', content: bomb })
+    )
+    assert.equal(refused.code, 'E_IMPORT_FILE')
+    assert.equal(refused.message, 'حجم محتوى الملف بعد فك الضغط يتجاوز الحد المسموح')
+    assert.deepEqual(await db('import_batches').count('* as count'), before)
   })
 
   test('a dry run validates every row without leaving any trace, then imports for real', async ({

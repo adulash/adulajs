@@ -3,6 +3,8 @@ import db from '@adonisjs/lucid/services/db'
 import User from '#models/user'
 import { adula } from '#services/adula'
 import { seedActor, type UiActor } from '#tests/helpers/ui_fixtures'
+import { readXlsxTable } from 'adula'
+import { bufferXlsxResponses, XLSX_TYPE } from '#tests/helpers/xlsx_files'
 import { insertProbes, installProbes, resetProbes } from '#tests/helpers/list_probes'
 
 /**
@@ -257,6 +259,7 @@ test.group('List layer: server export', (group) => {
     })
     outsider = await seedActor([{ subject: 'all', action: 'manage' }], { level: 1 })
     managerToken = await bearer(manager.user)
+    bufferXlsxResponses()
     return remove
   })
   group.each.setup(async () => {
@@ -354,6 +357,58 @@ test.group('List layer: server export', (group) => {
       ['Beta', '', 'مغلقة', '10', '2500.00', '2026-02-01', '', ''],
       ['Gamma', 'ن', 'مفتوحة', '15', '', '2026-03-01', '', ''],
     ])
+  })
+
+  test('format=xlsx or an Excel Accept header returns the same rows as a workbook', async ({
+    client,
+    assert,
+  }) => {
+    const query = { filters: { qty: { lte: 20 } }, sort: 'qty' }
+    const response = await client
+      .get('/api/v1/resources/list_probes/export')
+      .qs({ ...query, format: 'xlsx' })
+      .header('Authorization', `Bearer ${managerToken}`)
+    response.assertStatus(200)
+    assert.equal(response.header('content-type'), XLSX_TYPE)
+    const day = new Date().toISOString().slice(0, 10)
+    assert.include(response.header('content-disposition'), `filename="list_probes-${day}.xlsx"`)
+    assert.equal(response.header('cache-control'), 'no-store')
+    const table = await readXlsxTable(new Uint8Array(response.body() as Buffer))
+    assert.deepEqual(table.headers.slice(0, 6), [
+      'العنوان',
+      'ملاحظة',
+      'الحالة',
+      'الكمية',
+      'المبلغ',
+      'الاستحقاق',
+    ])
+    assert.deepEqual(
+      table.rows.map((row) => row.slice(0, 6)),
+      [
+        ['Alpha', '', 'مفتوحة', '5', '1000', '2026-01-10'],
+        ['Beta', '', 'مغلقة', '10', '2500', '2026-02-01'],
+        ['Gamma', 'ن', 'مفتوحة', '15', '', '2026-03-01'],
+      ]
+    )
+    const [entry] = await knex()('activities')
+      .where({ resource: 'core.exports', action: 'exported', actor_id: manager.user.id })
+      .orderBy('id', 'desc')
+    const changes = typeof entry.changes === 'string' ? JSON.parse(entry.changes) : entry.changes
+    assert.equal(changes.format, 'xlsx')
+    const accepted = await client
+      .get('/resources/list_probes/export')
+      .qs(query)
+      .loginAs(manager.user)
+      .header('Accept', `${XLSX_TYPE}, application/json`)
+    accepted.assertStatus(200)
+    assert.equal(accepted.header('content-type'), XLSX_TYPE)
+    const unknown = await client
+      .get('/resources/list_probes/export')
+      .qs({ format: 'pdf' })
+      .loginAs(manager.user)
+      .headers(json)
+    unknown.assertStatus(422)
+    assert.equal(unknown.body().error.code, 'E_EXPORT_FORMAT')
   })
 
   test('hidden and higher-level fields are omitted for a low-level actor', async ({
