@@ -56,3 +56,12 @@ resource's title fields and the actor may not create its records, so that applic
 not presented to the role (#141). A rule meant only for references therefore names title
 fields; declare the resource's `title` when the default title fields are not the ones the
 role needs. A `reference` flag on rules was not added in a patch release.
+
+## Addendum (2.3.0): the shell after ADR 049
+
+«مهامي» is no longer a sidebar entry: it is an icon beside the notification bell whose badge
+is `Assignments.openCounts()`, the counting code of the list itself, so the earlier
+consequence (badge and list could differ) no longer applies (#156). Inside the
+administration the sidebar shows one entry per section and the section's pages are
+sub-tabs in the page (#157); outside it, administration stays one entry. The sidebar can
+collapse to icons or hide, a top layout exists, and users can reorder entries (ADR 049).

@@ -58,7 +58,7 @@ export default function NotificationsIndex({ notifications }: Props) {
         {rows.map((item) => (
           <li
             key={item.id}
-            className={`flex flex-wrap items-start justify-between gap-3 rounded-xl border bg-white px-5 py-4 ${item.readAt ? 'border-border' : 'border-primary/40 shadow-[0_2px_10px_#1c302808]'}`}
+            className={`flex flex-wrap items-start justify-between gap-3 rounded-xl border bg-card px-5 py-4 ${item.readAt ? 'border-border' : 'border-primary/40 shadow-[0_2px_10px_color-mix(in_oklab,var(--foreground)_3%,transparent)]'}`}
           >
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-2 font-semibold">

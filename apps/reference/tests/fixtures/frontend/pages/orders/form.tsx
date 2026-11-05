@@ -188,7 +188,7 @@ export default function OrderForm({ editor }: { editor: ResourceEditor }) {
                 <AlertDescription>{failure}</AlertDescription>
               </Alert>
             )}
-            <section className="rounded-xl border border-border bg-white">
+            <section className="rounded-xl border border-border bg-card">
               <div className="border-b border-border px-7 py-5">
                 <h2 className="text-sm font-semibold">تفاصيل الطلب</h2>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -309,7 +309,7 @@ export default function OrderForm({ editor }: { editor: ResourceEditor }) {
               </div>
             </section>
             {editor.inline.lines && (
-              <section className="rounded-xl border border-border bg-white p-7">
+              <section className="rounded-xl border border-border bg-card p-7">
                 <div className="mb-5 flex items-center justify-between">
                   <h2 className="text-sm font-semibold">بنود الطلب</h2>
                   <Button
@@ -416,7 +416,7 @@ export default function OrderForm({ editor }: { editor: ResourceEditor }) {
               </Button>
             </div>
           </div>
-          <aside className="rounded-xl border border-border bg-white p-6">
+          <aside className="rounded-xl border border-border bg-card p-6">
             <FileText className="mb-4 text-primary" size={26} strokeWidth={1.4} />
             <h2 className="text-sm font-semibold">قبل الحفظ</h2>
             <p className="mt-3 text-xs leading-7 text-muted-foreground">

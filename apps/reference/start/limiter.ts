@@ -14,6 +14,7 @@ import limiter from '@adonisjs/limiter/services/main'
 import type { HttpContext } from '@adonisjs/core/http'
 import { trustedProxy } from '#config/app'
 import { isDirectProxyRequest } from '#services/trusted_proxies'
+import { adula } from '#services/adula'
 
 const message = 'محاولات كثيرة في وقت قصير. انتظر دقيقة ثم حاول مجدداً.'
 const withMessage = (error: { setMessage(value: string): unknown }) => {
@@ -112,6 +113,15 @@ export const apiThrottle = limiter.define('api', (ctx) =>
     .limitExceeded(withMessage)
 )
 
+/** Backup connections and runs (ADR 051): heavy and audited, so a handful per minute. */
+export const backupThrottle = limiter.define('backups', (ctx) =>
+  limiter
+    .allowRequests(5)
+    .every('1 minute')
+    .usingKey(`backups:${ctx.auth.user?.id ?? ctx.request.ip()}`)
+    .limitExceeded(withMessage)
+)
+
 /**
  * CSV exports (ADR 046): 10 per minute per user, beside the resource API limit. One
  * export reads up to 5000 rows, so it is far heavier than a list page.
@@ -196,6 +206,38 @@ export const twoFactorManageThrottle = limiter.define('two_factor_manage', (ctx)
   limiter
     .allowRequests(5)
     .every('15 minutes')
+    .usingKey(`user:${ctx.auth.user?.id ?? ctx.request.ip()}`)
+    .limitExceeded(withMessage)
+)
+
+/**
+ * Assistant turns, confirmations and rejections per signed-in user (ADR 052). The count is
+ * the administrator's setting, bounded by ASSISTANT_LIMITS; the daily token budget applies
+ * on top of it.
+ */
+export const assistantThrottle = limiter.define('assistant', async (ctx) => {
+  const { requestsPerMinute } = await adula().assistantSettings.read()
+  return limiter
+    .allowRequests(requestsPerMinute)
+    .every('1 minute')
+    .usingKey(`user:${ctx.auth.user?.id ?? ctx.request.ip()}`)
+    .limitExceeded(withMessage)
+})
+
+/** Provider connection tests from the assistant settings: 5 per 15 minutes per administrator. */
+export const assistantTestThrottle = limiter.define('assistant_test', (ctx) =>
+  limiter
+    .allowRequests(5)
+    .every('15 minutes')
+    .usingKey(`user:${ctx.auth.user?.id ?? ctx.request.ip()}`)
+    .limitExceeded(withMessage)
+)
+
+/** Interface preference changes: 60 per minute per signed-in user. */
+export const preferenceThrottle = limiter.define('preferences', (ctx) =>
+  limiter
+    .allowRequests(60)
+    .every('1 minute')
     .usingKey(`user:${ctx.auth.user?.id ?? ctx.request.ip()}`)
     .limitExceeded(withMessage)
 )

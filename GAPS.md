@@ -32,6 +32,11 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
   there is no opt-in to show a parent's title alone to such readers (#148).
 * Dashboards show counts, sums and grouped values as tiles and ranked bars; there are
   no time-series charts and no dashboard editor (dashboards are defined in code).
+  Users show, hide and order code-defined widgets on their own overview (ADR 050); they
+  cannot define new widgets.
+* Profile pictures are PNG or still WebP of at most 512 pixels, re-encoded on upload
+  (ADR 050). Every signed-in user may see every user's picture, and workflow history still
+  shows names without pictures.
 
 ## Notifications, printing and files
 
@@ -58,6 +63,15 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
 * `WorkflowDefinition.machine` and the `xstate` dependency remain until the next major
   version (ADR 044).
 
+## Workspace shell
+
+* Modules have no chosen icon: the collapsed sidebar shows a module's first letter and the
+  top layout shows its name (ADR 049).
+* The menu order and theme are per user, not per organization unit; there is no
+  administrator default for either beyond the layout.
+* Printed documents are always light; there is no dark print style.
+* The shell still scrolls the window behind the fixed sidebar (#106, 2.3.0).
+
 ## Security and integration
 
 * Two-factor authentication has had no written human ASVS review yet (ADR 027).
@@ -66,6 +80,13 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
 * SSO covers OAuth/OIDC sign-in through GitHub, Google and Microsoft Entra ID; there is
   no SAML and no SCIM provisioning.
 * The generated API client is TypeScript only; other languages use `/api/v1/openapi.json`.
+* The built-in assistant (ADR 052) has no streaming, talks to one OpenAI-compatible
+  provider (OpenRouter by default) and is not evaluated for answer quality. Its `core.ai`
+  permission works only through a deployment-wide role: `ActorStore` drops non-resource
+  rules from org-scoped role assignments.
+* Encrypted cloud backups (ADR 051) are verified only against local fakes of Google Drive and
+  Microsoft Graph; there is no restore from inside the application (recovery uses
+  `backup:open` and the restore commands) and no remote retention.
 * Excel import (2.3.0, #161) reads the first sheet of an `.xlsx` file only; `.xls`,
   `.ods`, password-protected workbooks and formulas (other than their cached values) are
   not supported (docs/integration.md).

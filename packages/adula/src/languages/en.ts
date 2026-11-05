@@ -274,6 +274,16 @@ export const englishMessages: Readonly<Record<string, string>> = Object.freeze({
   'errors.E_UPLOAD_LIMIT':
     'You have many uploaded files not yet saved to a record. Save the open records or wait until they are cleaned up.',
   'errors.E_FILE_REQUIRED': 'Choose a file to upload',
+  'errors.E_AVATAR_TYPE': 'The profile picture must be a PNG or WebP image',
+  'errors.E_AVATAR_TYPE.animated': 'The profile picture must be a still image',
+  'errors.E_AVATAR_CORRUPT': 'The image file is damaged or incomplete',
+  'errors.E_AVATAR_SIZE': 'The profile picture is larger than 1 MB',
+  'errors.E_AVATAR_DIMENSIONS':
+    'The profile picture must be between 32 and 512 pixels on each side',
+  'errors.E_AVATAR_REQUIRED': 'Choose an image to upload',
+  'errors.E_AVATAR_IMPERSONATING': 'The profile picture cannot be changed while impersonating',
+  'flash.avatar.updated': 'The profile picture was saved.',
+  'flash.avatar.removed': 'The profile picture was removed.',
   'errors.E_ATTACHMENT_FILE_MISSING': 'The attachment file is not available in storage',
   'flash.password_reset_controller.1':
     'If the email is registered with us, you will receive a message with a reset link within minutes.',

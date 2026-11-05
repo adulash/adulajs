@@ -69,7 +69,7 @@ export default function OrgUnitsIndex({ units }: Props) {
         {units.map((unit) => (
           <li
             key={unit.id}
-            className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-white px-4 py-3"
+            className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card px-4 py-3"
             style={{ marginInlineStart: `${(unit.depth - 1) * 24}px` }}
           >
             <span className="min-w-48 flex-1">

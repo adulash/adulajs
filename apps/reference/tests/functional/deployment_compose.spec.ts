@@ -76,6 +76,32 @@ test.group('Production deployment (Compose)', () => {
     assert.notMatch(init, /environment|APP_KEY|PASSWORD/)
   })
 
+  test('sealed backups live on a private volume shared by web and worker only', async ({
+    assert,
+  }) => {
+    const { service, environment, text } = await compose()
+    const mount = 'backup_files:/app/apps/reference/storage/backups'
+    // The worker merges the web service (<<: *application) and inherits its volumes.
+    assert.include(service('web'), mount)
+    assert.include(service('worker'), '<<: *application')
+    assert.notMatch(service('worker'), /^ {4}volumes:/m)
+    for (const name of ['scheduler', 'backup', 'backup-permissions', 'caddy'])
+      assert.notInclude(service(name), 'backup_files', `${name} must not see sealed backups`)
+    assert.match(text, /^ {2}backup_files:$/m)
+    // The OAuth clients and the archive key reach the application services only.
+    const runtime = environment('runtime-environment')
+    for (const key of [
+      'BACKUP_ENCRYPTION_KEY',
+      'BACKUP_GOOGLE_CLIENT_SECRET',
+      'BACKUP_MICROSOFT_CLIENT_SECRET',
+    ]) {
+      assert.notInclude(runtime, key)
+      assert.include(environment('application-environment'), key)
+    }
+    const dockerfile = await readFile(app.makePath('Dockerfile'), 'utf8')
+    assert.include(dockerfile, 'chmod 700 storage/backups')
+  })
+
   test('redis requires a password at start-up and its health check authenticates', async ({
     assert,
   }) => {

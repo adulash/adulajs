@@ -53,7 +53,9 @@ files it already holds follow it: each row is locked, checked to be bound to thi
 and field, and moved to the new unit without the uploader check, so a record whose files
 came from several colleagues can still be moved (single attachments use the same path).
 A newly added id still needs the full claim. A removed id is released (the row is soft-deleted and the file kept
-for restore drills, as for one file). Reordering only rewrites the column. The record
+for restore drills, as for one file). Profile pictures are the one exception the owner
+approved: a replaced or removed picture loses its row and its file (ADR 050). Reordering
+only rewrites the column. The record
 audit carries the before and after id arrays. Copies skip attachments as before; pruning
 removes each never-bound upload separately.
 

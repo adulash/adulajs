@@ -38,10 +38,14 @@ export function attachmentDisk(name: string) {
   return drive.use(name as 'local' | 's3')
 }
 
-/** The dump and attachment inventory share one PostgreSQL MVCC snapshot. */
-export async function createSnapshot(directory: string) {
+/**
+ * The dump and attachment inventory share one PostgreSQL MVCC snapshot. Attachments are staged
+ * in `workDirectory` when given (encrypted backups keep their plaintext in a private directory),
+ * otherwise in the system temporary directory.
+ */
+export async function createSnapshot(directory: string, options: { workDirectory?: string } = {}) {
   await mkdir(directory) // Never reuse a partially or fully published snapshot.
-  const objects = await mkdtemp(join(tmpdir(), 'adula-backup-'))
+  const objects = await mkdtemp(join(options.workDirectory ?? tmpdir(), 'adula-backup-'))
   try {
     const entries: ArchivedAttachment[] = []
     await db

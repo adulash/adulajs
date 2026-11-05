@@ -426,6 +426,51 @@
       ]
     },
     {
+      "name": "slider",
+      "type": "registry:ui",
+      "dependencies": [
+        "cn@0.3.0",
+        "radix-ui@1.6.7"
+      ],
+      "files": [
+        {
+          "path": "registry/ui/slider.tsx",
+          "type": "registry:ui"
+        }
+      ]
+    },
+    {
+      "name": "user-avatar",
+      "type": "registry:ui",
+      "dependencies": [
+        "cn@0.3.0",
+        "radix-ui@1.6.7"
+      ],
+      "files": [
+        {
+          "path": "registry/ui/user-avatar.tsx",
+          "type": "registry:ui"
+        }
+      ]
+    },
+    {
+      "name": "sortable-list",
+      "type": "registry:ui",
+      "registryDependencies": [
+        "button",
+        "messages"
+      ],
+      "dependencies": [
+        "lucide-react@1.47.0"
+      ],
+      "files": [
+        {
+          "path": "registry/ui/sortable-list.tsx",
+          "type": "registry:ui"
+        }
+      ]
+    },
+    {
       "name": "resource-value",
       "type": "registry:ui",
       "registryDependencies": [
@@ -469,7 +514,8 @@
         "hijri-calendar",
         "calendar-date",
         "ui-preferences",
-        "messages"
+        "messages",
+        "user-avatar"
       ],
       "dependencies": [
         "axios@1.19.0",
@@ -554,7 +600,8 @@
         "tabs",
         "ui-preferences",
         "resource-value",
-        "messages"
+        "messages",
+        "user-avatar"
       ],
       "dependencies": [
         "lucide-react@1.47.0",
@@ -579,7 +626,8 @@
         "dialog",
         "select",
         "ui-preferences",
-        "resource-value"
+        "resource-value",
+        "user-avatar"
       ],
       "dependencies": [
         "lucide-react@1.47.0",
@@ -651,7 +699,8 @@
         "record-assignments",
         "record-workflows",
         "record-print",
-        "messages"
+        "messages",
+        "user-avatar"
       ],
       "dependencies": [
         "lucide-react@1.47.0"

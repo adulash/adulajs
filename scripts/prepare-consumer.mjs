@@ -96,7 +96,7 @@ export async function prepareConsumer({ baseline } = {}) {
     pkg.devDependencies[name] = pins.devDependencies[name]
   await writeFile(join(target, 'package.json'), `${JSON.stringify(pkg, null, 2)}\n`)
   // An independent workspace installs tarballs rather than resolving the source packages.
-  await writeFile(join(target, 'pnpm-workspace.yaml'), `packages:\n  - '.'\nallowBuilds:\n  '@swc/core': true\n  esbuild: true\n  '@parcel/watcher': true\noverrides:\n  'eslint-plugin-react>eslint': '${pins.devDependencies.eslint}'\n`)
+  await writeFile(join(target, 'pnpm-workspace.yaml'), `packages:\n  - '.'\nallowBuilds:\n  '@swc/core': true\n  esbuild: true\n  '@parcel/watcher': true\n  sharp: true\noverrides:\n  'eslint-plugin-react>eslint': '${pins.devDependencies.eslint}'\n`)
   const env = {
     TZ: 'UTC', NODE_ENV: 'development', HOST: '127.0.0.1', PORT: 3341, LOG_LEVEL: 'error',
     APP_KEY: randomBytes(32).toString('base64url'), APP_URL: 'http://127.0.0.1:3341', SESSION_DRIVER: 'memory',

@@ -3,6 +3,7 @@ import axios from 'axios'
 import { AtSign, Bell, BellOff, MessageSquare, Pencil, Tag, Trash2, X } from 'lucide-react'
 import type { MentionCandidate, RecordCollaborationState, ResourceDescription } from 'adula'
 import { Badge } from '~/components/ui/badge'
+import { UserAvatar } from '~/components/ui/user-avatar'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Textarea } from '~/components/ui/textarea'
@@ -90,7 +91,7 @@ export function RecordCollaboration({
 
   if (!state)
     return (
-      <section aria-label="التعاون حول السجل" className="rounded-xl border bg-white p-7">
+      <section aria-label="التعاون حول السجل" className="rounded-xl border bg-card p-7">
         <p className="text-xs text-muted-foreground" role="status">
           {error || 'جارٍ تحميل التعليقات…'}
         </p>
@@ -98,7 +99,7 @@ export function RecordCollaboration({
     )
 
   return (
-    <section aria-label="التعاون حول السجل" className="rounded-xl border bg-white">
+    <section aria-label="التعاون حول السجل" className="rounded-xl border bg-card">
       <div className="flex flex-wrap items-center gap-3 border-b px-7 py-4">
         <MessageSquare size={16} className="text-muted-foreground" />
         <h2 className="text-sm font-semibold">التعاون حول السجل</h2>
@@ -173,7 +174,7 @@ export function RecordCollaboration({
         )}
       </div>
       {error && (
-        <p role="alert" className="border-b bg-red-50 px-7 py-3 text-xs text-red-800">
+        <p role="alert" className="border-b bg-destructive/10 px-7 py-3 text-xs text-destructive">
           {error}
         </p>
       )}
@@ -190,6 +191,7 @@ export function RecordCollaboration({
             {state.comments.map((comment) => (
               <li key={comment.id} className="rounded-lg border px-4 py-3">
                 <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <UserAvatar user={{ id: comment.authorId, name: comment.authorName }} size="xs" />
                   <span className="font-medium text-foreground">
                     {comment.authorName ?? `مستخدم #${comment.authorId}`}
                   </span>
@@ -314,7 +316,7 @@ export function RecordCollaboration({
                 />
                 {mentions.map((user) => (
                   <Badge key={user.id} variant="outline" className="gap-1">
-                    @{user.name}
+                    <UserAvatar user={user} size="xs" />@{user.name}
                     <button
                       type="button"
                       aria-label={`إزالة الإشارة إلى ${user.name}`}
@@ -359,10 +361,10 @@ export function RecordCollaboration({
                   {state.changes.map((change) => (
                     <tr key={change.id} className="border-b last:border-0">
                       <td className="px-4 py-2 font-medium">{fieldLabel(change.field)}</td>
-                      <td className="px-4 py-2 text-red-800 line-through">
+                      <td className="px-4 py-2 text-destructive line-through">
                         {shown(change.before)}
                       </td>
-                      <td className="px-4 py-2 text-emerald-800">{shown(change.after)}</td>
+                      <td className="px-4 py-2 text-success">{shown(change.after)}</td>
                       <td className="px-4 py-2 text-xs text-muted-foreground">
                         {change.actorName ?? '—'} ·{' '}
                         <time dateTime={change.createdAt}>
@@ -428,6 +430,7 @@ function MentionPicker({
                   setOpen(false)
                 }}
               >
+                <UserAvatar user={user} size="xs" />
                 {user.name}
               </CommandItem>
             ))}

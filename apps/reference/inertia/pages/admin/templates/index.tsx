@@ -63,7 +63,7 @@ export default function TemplatesIndex({ templates }: Props) {
           نصوص الإشعارات والبريد. التعديل محفوظ لهذا النشر، ويمكن إعادته إلى النص الافتراضي.
         </p>
       </div>
-      <div className="overflow-x-auto rounded-xl border bg-white">
+      <div className="overflow-x-auto rounded-xl border bg-card">
         <table className="w-full min-w-[720px] text-sm">
           <thead className="bg-muted text-xs text-muted-foreground">
             <tr>
@@ -96,7 +96,7 @@ export default function TemplatesIndex({ templates }: Props) {
                 <td className="px-5 py-3">{template.subject}</td>
                 <td className="px-5 py-3">
                   {template.mail ? (
-                    <span className="flex items-center gap-1 text-emerald-800">
+                    <span className="flex items-center gap-1 text-success">
                       <Mail size={14} /> يُرسل
                     </span>
                   ) : (
