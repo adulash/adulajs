@@ -215,7 +215,7 @@ test.group('Assistant panel in the browser (ADR 052)', (group) => {
     assert.equal(await dialog.locator('input[type="url"], #assistant-url').count(), 0)
   })
 
-  test('the settings dialog scrolls to a usable save button at 1440×900', async ({
+  test('the settings dialog keeps its footer in view and scrolls its body at 1440×900', async ({
     browserContext,
     visit,
     assert,
@@ -227,15 +227,41 @@ test.group('Assistant panel in the browser (ADR 052)', (group) => {
     const dialog = page.getByRole('dialog', { name: 'إعداد المساعد' })
     const save = dialog.getByRole('button', { name: 'حفظ', exact: true })
     await save.waitFor()
-    // The dialog itself scrolls (the shared long-dialog pattern, as in mail-setup); once
-    // scrolled to, Save lies inside the dialog and the viewport and nothing covers it.
-    await save.scrollIntoViewIfNeeded()
-    const box = (await save.boundingBox())!
-    const frame = (await dialog.boundingBox())!
-    assert.isAtLeast(box.y, frame.y)
-    assert.isAtMost(box.y + box.height, frame.y + frame.height)
-    assert.isAtMost(box.y + box.height, 900)
+    // The long dialog pattern (ADR 016): Save sits in the fixed footer, inside the dialog and
+    // the viewport and clickable before any scrolling.
+    const inView = async () => {
+      const box = (await save.boundingBox())!
+      const frame = (await dialog.boundingBox())!
+      return (
+        box.y >= frame.y &&
+        box.y + box.height <= frame.y + frame.height &&
+        box.y + box.height <= 900
+      )
+    }
+    assert.isTrue(await inView())
+    assert.deepEqual(
+      await dialog.locator('[data-slot="long-dialog-footer"]').getByRole('button').allInnerTexts(),
+      ['إلغاء', 'حفظ']
+    )
     await save.click({ trial: true, timeout: 2000 })
+    // Only the body scrolls: it is taller than its box, and reaching the last field moves
+    // the body, not the footer.
+    type Metrics = { scrollHeight: number; clientHeight: number; scrollTop: number }
+    const metrics = () =>
+      page.evaluate(`(() => {
+        const body = document.querySelector('[data-slot="long-dialog-body"]')
+        return { scrollHeight: body.scrollHeight, clientHeight: body.clientHeight, scrollTop: body.scrollTop }
+      })()`) as Promise<Metrics>
+    const before = await metrics()
+    assert.isAbove(before.scrollHeight, before.clientHeight)
+    const footerBefore = (await save.boundingBox())!.y
+    const last = dialog.getByLabel('السماح باقتراح التعديلات')
+    await last.scrollIntoViewIfNeeded()
+    assert.isTrue(await last.isVisible())
+    const after = await metrics()
+    assert.isAbove(after.scrollTop, 0)
+    assert.equal((await save.boundingBox())!.y, footerBefore)
+    assert.isTrue(await inView())
   })
 
   // Last: it deletes the key the other tests use (group.setup stores it again next run).

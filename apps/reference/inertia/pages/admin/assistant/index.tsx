@@ -15,14 +15,8 @@ import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Switch } from '~/components/ui/switch'
 import { Textarea } from '~/components/ui/textarea'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '~/components/ui/dialog'
+import { Dialog } from '~/components/ui/dialog'
+import { LongDialogContent } from '~/components/ui/long-dialog'
 import { failure, json } from '~/components/account/request'
 
 type Props = { settings: AssistantSettingsView }
@@ -204,14 +198,22 @@ export default function AdminAssistant({ settings }: Props) {
         open={draft !== null}
         onOpenChange={(open) => !open && !busy && closeSettings()}
       >
-        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
-          <form onSubmit={save} className="space-y-5" autoComplete="off">
-            <DialogHeader>
-              <DialogTitle>إعداد المساعد</DialogTitle>
-              <DialogDescription>
-                مفتاح OpenRouter والنموذج وحدود الاستخدام. يُحفظ المفتاح مشفّرًا ولا يُعرض مرة أخرى.
-              </DialogDescription>
-            </DialogHeader>
+        <LongDialogContent
+          title="إعداد المساعد"
+          description="مفتاح OpenRouter والنموذج وحدود الاستخدام. يُحفظ المفتاح مشفّرًا ولا يُعرض مرة أخرى."
+          footer={
+            <>
+              <Button type="button" variant="outline" disabled={busy} onClick={closeSettings}>
+                إلغاء
+              </Button>
+              {/* The footer sits outside the scrolling body, so it submits the form by id. */}
+              <Button type="submit" form="assistant-settings" disabled={busy}>
+                حفظ
+              </Button>
+            </>
+          }
+        >
+          <form id="assistant-settings" onSubmit={save} className="space-y-5" autoComplete="off">
             {draft && (
               <>
                 <div className="space-y-2">
@@ -339,16 +341,8 @@ export default function AdminAssistant({ settings }: Props) {
                 {error}
               </p>
             )}
-            <DialogFooter>
-              <Button type="button" variant="outline" disabled={busy} onClick={closeSettings}>
-                إلغاء
-              </Button>
-              <Button type="submit" disabled={busy}>
-                حفظ
-              </Button>
-            </DialogFooter>
           </form>
-        </DialogContent>
+        </LongDialogContent>
       </Dialog>
 
       {confirmation}
