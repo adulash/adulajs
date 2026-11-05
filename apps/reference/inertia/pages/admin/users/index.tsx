@@ -8,6 +8,7 @@ import { AdminHeader } from '~/components/admin-nav'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Badge } from '~/components/ui/badge'
+import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
 import {
   Table,
   TableBody,
@@ -72,25 +73,24 @@ export default function UsersIndex({ users, search }: Props) {
                     {user.email}
                   </span>
                 </TableCell>
-                <TableCell className="whitespace-normal">
+                <TableCell className="min-w-0">
                   <span className="flex flex-wrap gap-1">
                     {user.roles.length === 0 && (
                       <span className="text-xs text-muted-foreground">بلا أدوار</span>
                     )}
                     {user.roles.map((role) => (
-                      <Badge key={role.id} variant="secondary" className={wrapping}>
-                        {role.role}
-                        {role.orgUnit ? ` · ${role.orgUnit}` : ''}
-                      </Badge>
+                      <NameBadge key={role.id} variant="secondary">
+                        {role.orgUnit ? `${role.role} · ${role.orgUnit}` : role.role}
+                      </NameBadge>
                     ))}
                   </span>
                 </TableCell>
-                <TableCell className="whitespace-normal">
+                <TableCell className="min-w-0">
                   <span className="flex flex-wrap gap-1">
                     {user.orgUnits.map((unit) => (
-                      <Badge key={unit.id} variant="outline" className={wrapping}>
+                      <NameBadge key={unit.id} variant="outline">
                         {unit.name}
-                      </Badge>
+                      </NameBadge>
                     ))}
                   </span>
                 </TableCell>
@@ -128,8 +128,22 @@ export default function UsersIndex({ users, search }: Props) {
     </>
   )
 }
-// Long role, unit and address values wrap inside their cells so every column, including the
-// details link, stays within the table frame at desktop widths with the sidebar expanded.
-const wrapping = 'h-auto max-w-full shrink rounded-md whitespace-normal wrap-anywhere text-start'
+/**
+ * A role or unit name as a standard Badge. Badges wrap whole onto the next line of their cell; a
+ * single name longer than the cell is cut with an ellipsis and shown in full in a Tooltip, so
+ * every column stays inside the table frame with the sidebar expanded.
+ */
+function NameBadge({ variant, children }: { variant: 'secondary' | 'outline'; children: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge variant={variant} className="max-w-full" tabIndex={0}>
+          <span className="max-w-48 truncate">{children}</span>
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent>{children}</TooltipContent>
+    </Tooltip>
+  )
+}
 
 UsersIndex.layout = (page: ReactElement) => <Workspace>{page}</Workspace>

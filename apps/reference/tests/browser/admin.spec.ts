@@ -10,6 +10,13 @@ import { mkdir } from 'node:fs/promises'
 
 /** The browser global read inside page.evaluate (the test project has no DOM types). */
 type Styled = { getComputedStyle: (element: unknown) => { listStyleType: string } }
+type Shaped = {
+  getComputedStyle: (element: unknown) => { borderTopLeftRadius: string; whiteSpace: string }
+}
+type Measured = {
+  getBoundingClientRect: () => { height: number; left: number; right: number }
+  firstElementChild: { scrollWidth: number; clientWidth: number } | null
+}
 
 test.group('Administration screens in the browser', (group) => {
   let admin: User
@@ -784,6 +791,36 @@ test.group('Administration screens in the browser', (group) => {
           assert.isAtLeast(left, sizes.frame[0] - 1, `${mode}: a cell starts outside the frame`)
           assert.isAtMost(right, sizes.frame[1] + 1, `${mode}: a cell ends outside the frame`)
         }
+        // A name longer than its cell keeps the standard pill Badge: one line, fully rounded,
+        // cut with an ellipsis inside the frame, and shown in full in a Tooltip.
+        const roleName = `role-with-a-very-long-name-${long}`
+        const badge = row
+          // TooltipTrigger replaces the Badge's data-slot; its variant attribute remains.
+          .locator('[data-variant="secondary"]')
+          .filter({ hasText: 'role-with-a-very-long-name' })
+        const shape = await badge.evaluate((element) => {
+          const style = (globalThis as unknown as Shaped).getComputedStyle(element)
+          const box = (element as unknown as Measured).getBoundingClientRect()
+          const text = (element as unknown as Measured).firstElementChild!
+          return {
+            radius: Number.parseFloat(style.borderTopLeftRadius),
+            whiteSpace: style.whiteSpace,
+            height: box.height,
+            left: box.left,
+            right: box.right,
+            cut: text.scrollWidth > text.clientWidth,
+          }
+        })
+        assert.isAtLeast(shape.radius, shape.height / 2, `${mode}: the badge stays rounded-full`)
+        assert.equal(shape.whiteSpace, 'nowrap')
+        assert.isTrue(shape.cut, `${mode}: the long name is cut inside its badge`)
+        assert.isAtLeast(shape.left, sizes.frame[0] - 1, `${mode}: the badge starts inside`)
+        assert.isAtMost(shape.right, sizes.frame[1] + 1, `${mode}: the badge ends inside`)
+        await badge.hover()
+        const tooltip = page.getByRole('tooltip')
+        await tooltip.waitFor({ state: 'attached' })
+        const tip = await tooltip.textContent()
+        assert.equal(tip?.trim(), roleName)
         await mkdir(app.makePath('../../.work/screenshots'), { recursive: true })
         await page.screenshot({
           path: app.makePath(`../../.work/screenshots/admin-users-long-values-${mode}.png`),
