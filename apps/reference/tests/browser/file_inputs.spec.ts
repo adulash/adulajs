@@ -43,9 +43,16 @@ test.group('Translated file fields', (group) => {
     assert.equal(await scope.locator('input[type="file"]:visible').count(), 0)
     const choose = scope.getByRole('button', { name: 'اختيار ملف', exact: true })
     await choose.waitFor()
-    // The button uses the sm size of the button scale (h-8), not a height of its own.
-    const box = await choose.boundingBox()
-    assert.equal(box?.height, 32)
+    // The button uses the sm size of the button scale (h-8), not a height of its own. Its
+    // computed height is read, exactly, not the bounding box, which the dialog's opening zoom
+    // scales while it runs.
+    const height = await choose.evaluate((button) => {
+      const view = globalThis as unknown as {
+        getComputedStyle: (node: unknown) => { height: string }
+      }
+      return view.getComputedStyle(button).height
+    })
+    assert.equal(height, '32px')
     await scope.getByText('لم يُختر أي ملف').waitFor()
 
     // Keyboard users reach the button, hear the field label with it and open the picker.
