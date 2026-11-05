@@ -39,6 +39,7 @@ test('registry buttons take their height from the button size scale, not classNa
     )
     if (overrides.length) found[name] = overrides.length
   }
+  // No exceptions remain: every registry button uses the size scale.
   assert.deepEqual(found, {})
 })
 

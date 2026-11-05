@@ -366,6 +366,63 @@ test.group('Workspace shell in the browser', (group) => {
     await page.getByRole('menuitemradio', { name: 'قائمة علوية' }).waitFor({ state: 'detached' })
   })
 
+  test('the menu order dialog keeps its header and footer on a phone while its lists scroll', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(admin.user)
+    const page = await visit('/')
+    await page.setViewportSize({ width: 375, height: 812 })
+    await page.getByRole('button', { name: 'قائمة الحساب' }).click()
+    await page.getByRole('menuitem', { name: 'ترتيب القائمة…' }).click()
+    const dialog = page.getByRole('dialog', { name: 'ترتيب القائمة' })
+    await dialog.waitFor()
+    const body = dialog.locator('[data-slot="long-dialog-body"]')
+    const footer = dialog.locator('[data-slot="long-dialog-footer"]')
+    // The administrator's entries do not fit: the body scrolls, the dialog stays on screen.
+    const [scrollHeight, clientHeight] = await page.evaluate<[number, number]>(
+      `(() => { const body = document.querySelector('[role="dialog"] [data-slot="long-dialog-body"]'); return [body.scrollHeight, body.clientHeight] })()`
+    )
+    assert.isAbove(scrollHeight, clientHeight)
+    const inView = async () => {
+      const box = (await footer.boundingBox())!
+      assert.isAtLeast(box.y, 0)
+      assert.isAtMost(box.y + box.height, 812)
+    }
+    await inView()
+    // Scrolling to the last entry leaves the header and the footer where they were.
+    const title = dialog.getByRole('heading', { name: 'ترتيب القائمة' })
+    const titleBefore = (await title.boundingBox())!.y
+    await body.evaluate('(element) => { element.scrollTop = element.scrollHeight }')
+    await inView()
+    assert.equal((await title.boundingBox())!.y, titleBefore)
+    // The shared footer: reset (ghost, RotateCcw), then cancel (outline), then save.
+    const buttons = footer.getByRole('button')
+    const names: string[] = []
+    const variants: (string | null)[] = []
+    for (let index = 0; index < (await buttons.count()); index++) {
+      const name = await buttons.nth(index).innerText()
+      names.push(name.trim())
+      variants.push(await buttons.nth(index).getAttribute('data-variant'))
+    }
+    assert.deepEqual(names, ['استعادة الترتيب الافتراضي', 'إلغاء', 'حفظ الترتيب'])
+    assert.deepEqual(variants, ['ghost', 'outline', 'default'])
+    assert.equal(await footer.locator('svg.lucide-rotate-ccw').count(), 1)
+    for (let index = 0; index < 3; index++) await page.assertVisible(buttons.nth(index))
+    // Saving from the fixed footer still submits the lists' form.
+    await dialog
+      .getByRole('button', { name: /^تحريك .+ لأسفل$/ })
+      .first()
+      .click()
+    await footer.getByRole('button', { name: 'حفظ الترتيب' }).click()
+    await dialog.waitFor({ state: 'detached' })
+    const saved = await knex()('settings')
+      .where({ key: 'preference.shell.navOrder', scope: 'user', scope_id: String(admin.user.id) })
+      .first()
+    assert.exists(saved)
+  })
+
   test('the account menu sets «ترتيب القائمة…» apart, and account pages name themselves in the breadcrumb', async ({
     browserContext,
     visit,
