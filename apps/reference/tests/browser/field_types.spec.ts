@@ -345,10 +345,18 @@ test.group('Field type widgets in the generated UI', (group) => {
       const reason = page.getByLabel('السبب', { exact: true })
       await reason.waitFor()
       await reason.fill('سبب مكتوب')
+      const search = page.getByRole('combobox', { name: 'تصفية الخيارات', exact: true })
       await page.getByRole('combobox', { name: 'الحالة', exact: true }).click()
+      // The click takes the focus off the previous field; the popover then focuses its search box.
+      await search.waitFor()
+      assert.isTrue(await page.evaluate<boolean>("document.activeElement?.tagName !== 'TEXTAREA'"))
+      await page.waitForFunction(
+        "document.activeElement?.getAttribute('aria-label') === 'تصفية الخيارات'"
+      )
       await page.keyboard.type('اسكان')
       // The typed text went to the search box, not to the previous field.
       assert.equal(await reason.inputValue(), 'سبب مكتوب')
+      assert.equal(await search.inputValue(), 'اسكان')
       const options = page.getByRole('option')
       await page.assertElementsCount('[role="option"]', 1)
       assert.equal(await options.first().innerText(), 'إسكان')
@@ -358,7 +366,11 @@ test.group('Field type widgets in the generated UI', (group) => {
         .getByText('إسكان', { exact: true })
         .waitFor()
       await page.getByRole('combobox', { name: 'الحالة', exact: true }).click()
+      await page.waitForFunction(
+        "document.activeElement?.getAttribute('aria-label') === 'تصفية الخيارات'"
+      )
       await page.keyboard.type('اراده')
+      await page.assertElementsCount('[role="option"]', 1)
       assert.equal(await options.first().innerText(), 'إرادة')
       await page.keyboard.press('Escape')
 
