@@ -44,7 +44,6 @@ test('registry buttons take their height from the button size scale, not classNa
     'list-filters.tsx': 1,
     'resource-bulk.tsx': 1,
     'resource-field.tsx': 3,
-    'sortable-list.tsx': 2,
   })
 })
 
