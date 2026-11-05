@@ -98,7 +98,7 @@ export function MailSetupDialog({
         </DialogHeader>
         <div className="space-y-4 text-sm">
           <MailReadinessNotice readiness={mailReadiness} />
-          <ol className="list-decimal space-y-4 ps-5" data-testid="mail-setup-steps">
+          <ol className="list-[arabic-indic] space-y-4 ps-5" data-testid="mail-setup-steps">
             <li className="space-y-2 ps-1">
               <Label htmlFor="mail-preset">اختر مزود البريد:</Label>
               <Select value={presetId} onValueChange={setPresetId}>

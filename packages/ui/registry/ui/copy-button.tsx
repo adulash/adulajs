@@ -29,7 +29,7 @@ export function CopyButton({ value, label, ariaLabel, iconOnly, className }: Cop
   return (
     <Button
       type="button"
-      size={iconOnly ? 'icon' : 'sm'}
+      size={iconOnly ? 'icon-sm' : 'sm'}
       variant="outline"
       className={className}
       aria-label={iconOnly || ariaLabel ? (ariaLabel ?? text) : undefined}
