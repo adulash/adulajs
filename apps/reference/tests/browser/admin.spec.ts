@@ -801,4 +801,119 @@ test.group('Administration screens in the browser', (group) => {
       await knex()('org_units').where('id', unit.id).delete()
     }
   })
+
+  test('long dialogs keep the header and footer fixed while the body scrolls with a visible scrollbar', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    type Box = {
+      scrollTop: number
+      scrollHeight: number
+      clientHeight: number
+      offsetWidth: number
+      clientWidth: number
+    }
+    const theme = (value: string) => ({
+      key: 'preference.shell.theme',
+      scope: 'user',
+      scope_id: String(admin.id),
+      value: JSON.stringify(value),
+    })
+    const viewports = [
+      { name: 'desktop', width: 1440, height: 900 },
+      { name: 'mobile', width: 375, height: 812 },
+    ]
+    try {
+      await browserContext.loginAs(admin)
+      for (const mode of ['light', 'dark'] as const) {
+        await knex()('settings')
+          .insert(theme(mode))
+          .onConflict(['key', 'scope', 'scope_id'])
+          .merge()
+        for (const viewport of viewports) {
+          const label = `${mode} ${viewport.name}`
+          const page = await visit('/admin/setup')
+          await page.setViewportSize({ width: viewport.width, height: viewport.height })
+          assert.equal(
+            await page.evaluate<boolean>('document.documentElement.classList.contains("dark")'),
+            mode === 'dark'
+          )
+          const surfaces = [
+            { open: 'إعداد الدخول الخارجي', title: 'الدخول الخارجي — اختياري' },
+            { open: 'إعداد البريد', title: 'إعداد البريد' },
+          ]
+          for (const surface of surfaces) {
+            await page.getByRole('button', { name: surface.open, exact: true }).click()
+            const dialog = page.getByRole('dialog', { name: surface.title })
+            await dialog.waitFor()
+            const body = dialog.locator('[data-slot="long-dialog-body"]')
+            const header = dialog.getByRole('heading', { name: surface.title })
+            const footer = dialog.locator('[data-slot="long-dialog-footer"]')
+            const metrics = () =>
+              body.evaluate((element) => {
+                const box = element as unknown as Box
+                return {
+                  scrollTop: box.scrollTop,
+                  scrollHeight: box.scrollHeight,
+                  clientHeight: box.clientHeight,
+                  offsetWidth: box.offsetWidth,
+                  clientWidth: box.clientWidth,
+                }
+              })
+            const before = await metrics()
+            // The scrollbar is laid out (not an idle overlay) in both themes.
+            assert.isAbove(before.offsetWidth - before.clientWidth, 0, `${label}: scrollbar width`)
+            // Measure after the opening animation: the box stops changing between frames.
+            const settled = async (locator: typeof header) => {
+              let previous = JSON.stringify(await locator.boundingBox())
+              for (let attempt = 0; attempt < 50; attempt++) {
+                await page.waitForTimeout(50)
+                const next = JSON.stringify(await locator.boundingBox())
+                if (next === previous)
+                  return JSON.parse(next) as NonNullable<
+                    Awaited<ReturnType<typeof locator.boundingBox>>
+                  >
+                previous = next
+              }
+              throw new Error(`${label}: the dialog kept moving`)
+            }
+            const headerBefore = await settled(header)
+            const footerBefore = await settled(footer)
+            assert.isAtMost(
+              footerBefore.y + footerBefore.height,
+              viewport.height,
+              `${label}: footer on screen`
+            )
+            assert.isAtLeast(headerBefore.y, 0, `${label}: header on screen`)
+            if (surface.open === 'إعداد الدخول الخارجي') {
+              // This guide is taller than the dialog on both screens: only the body moves.
+              assert.isAbove(
+                before.scrollHeight,
+                before.clientHeight,
+                `${label}: ${surface.title} overflows`
+              )
+              await body.hover()
+              await page.mouse.wheel(0, 2000)
+              let after = await metrics()
+              for (let attempt = 0; attempt < 20 && after.scrollTop === 0; attempt++) {
+                await page.waitForTimeout(50)
+                after = await metrics()
+              }
+              assert.isAbove(after.scrollTop, 0, `${label}: body scrolled`)
+              assert.deepEqual(await header.boundingBox(), headerBefore, `${label}: header stayed`)
+              assert.deepEqual(await footer.boundingBox(), footerBefore, `${label}: footer stayed`)
+            }
+            await footer.getByRole('button', { name: 'إغلاق', exact: true }).click()
+            await dialog.waitFor({ state: 'hidden' })
+          }
+          await page.close()
+        }
+      }
+    } finally {
+      await knex()('settings')
+        .where({ key: 'preference.shell.theme', scope: 'user', scope_id: String(admin.id) })
+        .delete()
+    }
+  })
 })
