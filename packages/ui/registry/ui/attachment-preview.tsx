@@ -1,14 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Download, Eye } from 'lucide-react'
 import { Button } from '~/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '~/components/ui/dialog'
+import { Dialog, DialogClose } from '~/components/ui/dialog'
+import { LongDialogContent } from '~/components/ui/long-dialog'
 import { useMessages } from '~/components/ui/messages'
 
 /** The parts of an attachment summary a preview needs (ADR 047). */
@@ -79,7 +73,7 @@ function TextPreview({ file }: { file: PreviewFile }) {
     <div className="space-y-2">
       <pre
         dir="auto"
-        className="max-h-[65vh] overflow-auto rounded-md border bg-muted p-3 text-xs whitespace-pre-wrap"
+        className="overflow-x-auto rounded-md border bg-muted p-3 text-xs whitespace-pre-wrap"
       >
         {state.text}
       </pre>
@@ -105,16 +99,35 @@ export function AttachmentPreviewDialog({
   const { t, dir } = useMessages()
   return (
     <Dialog mode="view" open={open} onOpenChange={onOpenChange}>
-      <DialogContent dir={dir} className="sm:max-w-4xl">
-        <DialogHeader>
-          <DialogTitle className="truncate pe-6">{file.name}</DialogTitle>
-          <DialogDescription>{t('معاينة المرفق. يمكنك تنزيله من الزر أدناه.')}</DialogDescription>
-        </DialogHeader>
+      <LongDialogContent
+        dir={dir}
+        width="full"
+        title={<span className="block truncate">{file.name}</span>}
+        description={t('معاينة المرفق. يمكنك تنزيله من الزر أدناه.')}
+        footer={
+          <>
+            {/* Download is the secondary action and sits at the start; «إغلاق» ends the row. */}
+            <Button asChild variant="outline" className="sm:me-auto">
+              <a href={file.url} download={file.name}>
+                <Download size={15} />
+                {t('تنزيل')}
+              </a>
+            </Button>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                {t('إغلاق')}
+              </Button>
+            </DialogClose>
+          </>
+        }
+      >
+        {/* The whole image fits the body (dialog height less header and footer), so no
+            scrolling is needed to see it; object-contain keeps its proportions. */}
         {open && file.preview === 'image' && (
           <img
             src={previewUrl(file)}
             alt={file.name}
-            className="mx-auto max-h-[65vh] max-w-full rounded-md border object-contain"
+            className="mx-auto max-h-[calc(90dvh-14rem)] max-w-full rounded-md border object-contain"
           />
         )}
         {open && file.preview === 'pdf' && (
@@ -125,15 +138,7 @@ export function AttachmentPreviewDialog({
           />
         )}
         {open && file.preview === 'text' && <TextPreview file={file} />}
-        <DialogFooter>
-          <Button asChild variant="outline">
-            <a href={file.url} download={file.name}>
-              <Download size={15} />
-              {t('تنزيل')}
-            </a>
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+      </LongDialogContent>
     </Dialog>
   )
 }

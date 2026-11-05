@@ -5,7 +5,7 @@ import adulaConfig from '#config/adula'
 import { adula } from '#services/adula'
 import { registry } from '#start/modules'
 import { listeners } from '#start/listeners'
-import { seedActor, type UiActor } from '#tests/helpers/ui_fixtures'
+import { longDialogLayout, seedActor, type UiActor } from '#tests/helpers/ui_fixtures'
 import User from '#models/user'
 
 const knex = () => db.connection().getWriteClient()
@@ -99,5 +99,62 @@ test.group('Out-of-office delegation in the browser (ADR 044)', (group) => {
     const approved = run.history.find((entry) => entry.event === 'approved')
     assert.equal(approved?.actorName, 'نائبة المديرة')
     assert.equal(approved?.onBehalfOfName, 'مديرة القسم الغائبة')
+  })
+
+  test('the delegation dialog closes at once while clean and asks only after a change', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(manager)
+    const page = await visit('/account/delegations')
+    await page.setViewportSize({ width: 375, height: 812 })
+    const open = page.getByRole('button', { name: 'تفويض جديد' })
+    const dialog = page.getByRole('dialog', { name: 'تفويض موافقاتي' })
+    const guard = page.getByRole('dialog', { name: 'إغلاق النموذج؟' })
+
+    // Untouched: Escape, the close button and a click outside each close it immediately.
+    await open.click()
+    await dialog.waitFor()
+    assert.deepEqual(await longDialogLayout(dialog, 812), {
+      footerOnScreen: true,
+      headerOnScreen: true,
+      bodyScrolls: true,
+    })
+    await page.keyboard.press('Escape')
+    await dialog.waitFor({ state: 'hidden' })
+    await open.click()
+    await dialog.getByRole('button', { name: 'إغلاق', exact: true }).click()
+    await dialog.waitFor({ state: 'hidden' })
+    await open.click()
+    await dialog.waitFor()
+    await page.mouse.click(4, 806)
+    await dialog.waitFor({ state: 'hidden' })
+
+    // Typing and putting the original value back is clean: «إلغاء» closes without asking.
+    await open.click()
+    const note = dialog.getByLabel(/ملاحظة/)
+    await note.fill('مسودة')
+    await note.fill('')
+    await dialog.getByRole('button', { name: 'إلغاء', exact: true }).click()
+    await dialog.waitFor({ state: 'hidden' })
+    assert.equal(await guard.count(), 0)
+
+    // A real change asks first; «متابعة التحرير» keeps the draft, «إغلاق دون حفظ» discards it.
+    await open.click()
+    await note.fill('إجازة لم تُحفظ')
+    await dialog.getByRole('button', { name: 'إلغاء', exact: true }).click()
+    await guard.waitFor()
+    await guard.getByRole('button', { name: 'متابعة التحرير', exact: true }).click()
+    await guard.waitFor({ state: 'hidden' })
+    assert.equal(await note.inputValue(), 'إجازة لم تُحفظ')
+    await page.keyboard.press('Escape')
+    await guard.waitFor()
+    await guard.getByRole('button', { name: 'إغلاق دون حفظ', exact: true }).click()
+    await dialog.waitFor({ state: 'hidden' })
+    await open.click()
+    assert.equal(await note.inputValue(), '')
+    await page.keyboard.press('Escape')
+    await dialog.waitFor({ state: 'hidden' })
   })
 })

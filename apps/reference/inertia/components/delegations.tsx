@@ -12,14 +12,8 @@ import {
   CommandItem,
   CommandList,
 } from '~/components/ui/command'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '~/components/ui/dialog'
+import { Dialog, DialogClose } from '~/components/ui/dialog'
+import { LongDialogContent } from '~/components/ui/long-dialog'
 import { Label } from '~/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
 import {
@@ -211,6 +205,8 @@ export function DelegationDialog({
   const [delegator, setDelegator] = useState<Candidate | null>(null)
   const [delegate, setDelegate] = useState<Candidate | null>(null)
   const [startsOn, setStartsOn] = useState(today)
+  // The start date the dialog opened with; a value equal to it is not a change.
+  const [openedOn, setOpenedOn] = useState(today)
   const [endsOn, setEndsOn] = useState('')
   const [note, setNote] = useState('')
   const [error, setError] = useState('')
@@ -219,11 +215,19 @@ export function DelegationDialog({
     if (!open) return
     setDelegator(null)
     setDelegate(null)
-    setStartsOn(systemToday(timeZone))
+    const start = systemToday(timeZone)
+    setStartsOn(start)
+    setOpenedOn(start)
     setEndsOn('')
     setNote('')
     setError('')
   }, [open, timeZone])
+  const dirty =
+    delegator !== null ||
+    delegate !== null ||
+    startsOn !== openedOn ||
+    endsOn !== '' ||
+    note !== ''
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     if (admin && !delegator) return setError('اختر صاحب الموافقات.')
@@ -253,15 +257,33 @@ export function DelegationDialog({
   }
   return (
     <Dialog mode="edit" open={open} onOpenChange={onOpenChange}>
-      <DialogContent dir="rtl" className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{admin ? 'تفويض موافقات مستخدم' : 'تفويض موافقاتي'}</DialogTitle>
-          <DialogDescription>
-            تنتقل الموافقات التي تُطلب خلال المدة إلى المفوَّض إليه، ويقرر فيها نيابة عن صاحبها.
-            المهام اليدوية لا تُفوَّض.
-          </DialogDescription>
-        </DialogHeader>
-        <form id="delegation-form" className="space-y-4" noValidate onSubmit={submit}>
+      <LongDialogContent
+        dir="rtl"
+        width="md"
+        title={admin ? 'تفويض موافقات مستخدم' : 'تفويض موافقاتي'}
+        description="تنتقل الموافقات التي تُطلب خلال المدة إلى المفوَّض إليه، ويقرر فيها نيابة عن صاحبها. المهام اليدوية لا تُفوَّض."
+        footer={
+          <>
+            <DialogClose asChild>
+              <Button type="button" variant="outline" disabled={busy}>
+                إلغاء
+              </Button>
+            </DialogClose>
+            <Button type="submit" form="delegation-form" disabled={busy}>
+              <UserRoundCheck size={15} />
+              حفظ التفويض
+            </Button>
+          </>
+        }
+      >
+        <form
+          id="delegation-form"
+          className="space-y-4"
+          noValidate
+          onSubmit={submit}
+          // Closing asks first only when a value differs from the one the dialog opened with.
+          data-dirty={String(dirty)}
+        >
           {admin && (
             <div className="space-y-2">
               <Label htmlFor="delegation-delegator">صاحب الموافقات</Label>
@@ -327,16 +349,7 @@ export function DelegationDialog({
             </p>
           )}
         </form>
-        <DialogFooter>
-          <Button type="button" variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>
-            إلغاء
-          </Button>
-          <Button type="submit" form="delegation-form" disabled={busy}>
-            <UserRoundCheck size={15} />
-            حفظ التفويض
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+      </LongDialogContent>
     </Dialog>
   )
 }
