@@ -586,7 +586,7 @@ test.group('Transactional resource service', (group) => {
     // Creating customers starts from their entry, so it stays.
     assert.include(withRule({ subject: 'customers', action: 'create' }), 'customers')
     // The role still links its orders to customers it reads by title.
-    const [customer] = await db('customers').insert({ name: 'عميل للعنوان' }).returning('id')
+    const customer = await service.save('customers', admin, { name: 'عميل للعنوان' })
     const saved = await service.save('orders', titleOnly, {
       orgUnitId: 2,
       notes: 'مرتبط',
@@ -597,7 +597,7 @@ test.group('Transactional resource service', (group) => {
   test('a record shows its unit by name and never relates a parent the reader cannot view', async ({
     assert,
   }) => {
-    const [customer] = await db('customers').insert({ name: 'عميل مخفي' }).returning('id')
+    const customer = await service.save('customers', admin, { name: 'عميل مخفي' })
     const record = await service.save('orders', admin, {
       orgUnitId: 2,
       notes: 'وحدة',
