@@ -7,14 +7,8 @@ import Workspace from '~/layouts/workspace'
 import { useDateTimeFormatter } from '~/components/admin-nav'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '~/components/ui/dialog'
+import { Dialog } from '~/components/ui/dialog'
+import { LongDialogContent } from '~/components/ui/long-dialog'
 import { ImportReport, ImportSummary } from '~/components/ui/resource-import'
 
 type Props = { batches: ImportBatch[] }
@@ -66,13 +60,22 @@ function ValidatedBatch({ id, onClose }: { id: number | null; onClose: () => voi
   }
   return (
     <Dialog open={id !== null} onOpenChange={(value) => !value && onClose()}>
-      <DialogContent dir="rtl" className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>تقرير التحقق {batch ? `— ${batch.fileName}` : ''}</DialogTitle>
-          <DialogDescription>
-            نتيجة كل صف كما سيُستورد. لم يُحفظ شيء بعد.
-          </DialogDescription>
-        </DialogHeader>
+      <LongDialogContent
+        dir="rtl"
+        width="xl"
+        title={`تقرير التحقق ${batch ? `— ${batch.fileName}` : ''}`}
+        description="نتيجة كل صف كما سيُستورد. لم يُحفظ شيء بعد."
+        footer={
+          <>
+            <Button type="button" variant="outline" onClick={onClose}>
+              إغلاق
+            </Button>
+            <Button type="button" disabled={!batch || busy} onClick={() => void start()}>
+              بدء الاستيراد
+            </Button>
+          </>
+        }
+      >
         {batch ? (
           <div className="space-y-3">
             <ImportSummary batch={batch} />
@@ -86,15 +89,7 @@ function ValidatedBatch({ id, onClose }: { id: number | null; onClose: () => voi
             {error}
           </p>
         )}
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose}>
-            إغلاق
-          </Button>
-          <Button type="button" disabled={!batch || busy} onClick={() => void start()}>
-            بدء الاستيراد
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+      </LongDialogContent>
     </Dialog>
   )
 }
