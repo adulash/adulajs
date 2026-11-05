@@ -28,8 +28,19 @@ function smallPool(): Knex {
   })
 }
 
-/** Grants users 2 and 4 a deployment-wide orders view role, so ActorStore loads real rules. */
+/**
+ * Grants users 2 and 4 an orders view role and membership of unit 1.2 (orders are scoped:
+ * a reader must belong to the record's unit or an ancestor), so ActorStore loads real rules.
+ */
 async function seedOrderReaders() {
+  const members = await db('user_org_units')
+    .insert([
+      { user_id: 2, org_unit_id: 2 },
+      { user_id: 4, org_unit_id: 2 },
+    ])
+    .onConflict()
+    .ignore()
+    .returning(['user_id', 'org_unit_id'])
   const [role] = await db('roles')
     .insert({ name: `orders-readers-${randomUUID()}` })
     .returning('id')
@@ -42,6 +53,8 @@ async function seedOrderReaders() {
     await db('user_roles').where('role_id', role.id).del()
     await db('role_rules').where('role_id', role.id).del()
     await db('roles').where('id', role.id).del()
+    // Only the memberships this seed added; existing ones stay.
+    for (const member of members) await db('user_org_units').where(member).del()
   }
 }
 
