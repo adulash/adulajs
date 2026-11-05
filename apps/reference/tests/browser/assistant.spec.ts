@@ -137,6 +137,19 @@ test.group('Assistant panel in the browser (ADR 052)', (group) => {
     await panel.getByText('**لا** يوجد <b>تنسيق</b>', { exact: true }).waitFor()
     assert.equal(await panel.locator('b').count(), 0)
 
+    // The daily budget names its unit in the Arabic form its number takes (CLDR plural rules).
+    const remaining = (await panel.getByText(/^المتبقي اليوم: /).textContent()) ?? ''
+    const count = Number(remaining.match(/\d+/)?.[0] ?? Number.NaN)
+    const unit = {
+      zero: `${count} رمز`,
+      one: 'رمز واحد',
+      two: 'رمزان',
+      few: `${count} رموز`,
+      many: `${count} رمزًا`,
+      other: `${count} رمز`,
+    }[new Intl.PluralRules('ar').select(count)]
+    assert.equal(remaining, `المتبقي اليوم: ${unit}`)
+
     const current = await knex()('orders').where('id', orderId).first()
     replies.push(propose('ملاحظة مرفوضة', Number(current.version)), text('اقترحت التعديل.'))
     await panel.getByLabel('سؤالك').fill('عدّل الملاحظة')
@@ -170,5 +183,36 @@ test.group('Assistant panel in the browser (ADR 052)', (group) => {
     await page.getByRole('button', { name: 'تعديل الإعداد', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: 'إعداد المساعد' })
     assert.equal(await dialog.getByLabel('معرّف النموذج').inputValue(), 'test/model')
+  })
+
+  test('the settings dialog keeps its save button in view at 1440×900', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(admin)
+    const page = await visit('/admin/assistant')
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.getByRole('button', { name: 'تعديل الإعداد', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'إعداد المساعد' })
+    const save = dialog.getByRole('button', { name: 'حفظ', exact: true })
+    await save.waitFor()
+    // Not merely present: inside the dialog and the viewport, and not covered by anything.
+    const inView = async () => {
+      const box = (await save.boundingBox())!
+      const frame = (await dialog.boundingBox())!
+      return (
+        box.y >= frame.y &&
+        box.y + box.height <= frame.y + frame.height &&
+        box.y + box.height <= 900
+      )
+    }
+    assert.isTrue(await inView())
+    await save.click({ trial: true, timeout: 2000 })
+    // The last field is reached by scrolling inside the dialog, and the button stays in view.
+    const last = dialog.getByLabel('السماح باقتراح التعديلات')
+    await last.scrollIntoViewIfNeeded()
+    assert.isTrue(await last.isVisible())
+    assert.isTrue(await inView())
   })
 })

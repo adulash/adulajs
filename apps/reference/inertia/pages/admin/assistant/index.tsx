@@ -132,7 +132,11 @@ export default function AdminAssistant({ settings }: Props) {
               <div className="space-y-1">
                 <dt className="text-xs text-muted-foreground">مفتاح المزوّد</dt>
                 <dd data-testid="assistant-key-state">
-                  {settings.hasKey ? <Badge>مُعَدّ</Badge> : <Badge variant="outline">غير مُعَدّ</Badge>}
+                  {settings.hasKey ? (
+                    <Badge>مُعَدّ</Badge>
+                  ) : (
+                    <Badge variant="outline">غير مُعَدّ</Badge>
+                  )}
                 </dd>
               </div>
               <div className="space-y-1">
@@ -201,7 +205,9 @@ export default function AdminAssistant({ settings }: Props) {
         <Card>
           <CardHeader>
             <CardTitle>البيانات المرسلة إلى المزوّد</CardTitle>
-            <CardDescription>يرى كل مستخدم هذا التنبيه ويوافق عليه قبل سؤاله الأول.</CardDescription>
+            <CardDescription>
+              يرى كل مستخدم هذا التنبيه ويوافق عليه قبل سؤاله الأول.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <AssistantNotice />
@@ -209,100 +215,117 @@ export default function AdminAssistant({ settings }: Props) {
         </Card>
       </div>
 
-      <Dialog mode="edit" open={draft !== null} onOpenChange={(open) => !open && !busy && setDraft(null)}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
-          <form onSubmit={save} className="space-y-5">
-            <DialogHeader>
+      <Dialog
+        mode="edit"
+        open={draft !== null}
+        onOpenChange={(open) => !open && !busy && setDraft(null)}
+      >
+        {/* The header and the save footer stay in view; only the fields scroll (#162). */}
+        <DialogContent className="flex max-h-[90dvh] flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
+          <form onSubmit={save} className="flex min-h-0 flex-1 flex-col">
+            <DialogHeader className="p-6 pb-4">
               <DialogTitle>إعداد المساعد</DialogTitle>
               <DialogDescription>
                 تغيير عنوان المزوّد يحذف المفتاح المحفوظ حتى لا يُرسل إلى عنوان آخر.
               </DialogDescription>
             </DialogHeader>
-            {draft && (
-              <>
-                <div className="flex items-center justify-between gap-4">
-                  <Label htmlFor="assistant-enabled">تفعيل المساعد</Label>
-                  <Switch
-                    id="assistant-enabled"
-                    checked={draft.enabled}
-                    onCheckedChange={(value) => update('enabled', value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="assistant-model">معرّف النموذج</Label>
-                  <Input
-                    id="assistant-model"
-                    dir="ltr"
-                    required
-                    value={draft.model}
-                    placeholder="openai/gpt-4o-mini"
-                    onChange={(event) => update('model', event.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">كما يظهر في قائمة نماذج OpenRouter.</p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="assistant-url">عنوان المزوّد</Label>
-                  <Input
-                    id="assistant-url"
-                    dir="ltr"
-                    required
-                    value={draft.baseUrl}
-                    onChange={(event) => update('baseUrl', event.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="assistant-prompt">تعليمات المساعد وشخصيته</Label>
-                  <Textarea
-                    id="assistant-prompt"
-                    rows={5}
-                    maxLength={4000}
-                    value={draft.systemPrompt}
-                    placeholder="مثال: أنت مساعد قسم المشتريات، تجيب بإيجاز وبلغة رسمية."
-                    onChange={(event) => update('systemPrompt', event.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    تُضاف بعد قواعد النظام الثابتة، ولا تغيّر صلاحيات المستخدم.
-                  </p>
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
-                  {LIMITS.map(([name, label, range]) => (
-                    <div key={name} className="space-y-2">
-                      <Label htmlFor={`assistant-${name}`}>{label}</Label>
-                      <Input
-                        id={`assistant-${name}`}
-                        type="number"
-                        dir="ltr"
-                        required
-                        value={String(draft[name])}
-                        onChange={(event) => update(name, Number(event.target.value) as never)}
-                      />
-                      <p className="text-xs text-muted-foreground tabular-nums">{range}</p>
-                    </div>
-                  ))}
-                </div>
-                <div className="flex items-start justify-between gap-4 rounded-lg border p-3">
-                  <div className="space-y-1">
-                    <Label htmlFor="assistant-writes">السماح باقتراح التعديلات</Label>
+            <div
+              data-slot="dialog-body"
+              className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 pb-4"
+            >
+              {draft && (
+                <>
+                  <div className="flex items-center justify-between gap-4">
+                    <Label htmlFor="assistant-enabled">تفعيل المساعد</Label>
+                    <Switch
+                      id="assistant-enabled"
+                      checked={draft.enabled}
+                      onCheckedChange={(value) => update('enabled', value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="assistant-model">معرّف النموذج</Label>
+                    <Input
+                      id="assistant-model"
+                      dir="ltr"
+                      required
+                      value={draft.model}
+                      placeholder="openai/gpt-4o-mini"
+                      onChange={(event) => update('model', event.target.value)}
+                    />
                     <p className="text-xs text-muted-foreground">
-                      يقترح المساعد إنشاء السجلات أو تعديلها أو حذفها، ولا يُنفَّذ شيء إلا بعد مراجعة
-                      المستخدم وموافقته.
+                      كما يظهر في قائمة نماذج OpenRouter.
                     </p>
                   </div>
-                  <Switch
-                    id="assistant-writes"
-                    checked={draft.allowWriteProposals}
-                    onCheckedChange={(value) => update('allowWriteProposals', value)}
-                  />
-                </div>
-              </>
-            )}
-            {error && (
-              <p role="alert" className="text-sm text-destructive">
-                {error}
-              </p>
-            )}
-            <DialogFooter>
-              <Button type="button" variant="outline" disabled={busy} onClick={() => setDraft(null)}>
+                  <div className="space-y-2">
+                    <Label htmlFor="assistant-url">عنوان المزوّد</Label>
+                    <Input
+                      id="assistant-url"
+                      dir="ltr"
+                      required
+                      value={draft.baseUrl}
+                      onChange={(event) => update('baseUrl', event.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="assistant-prompt">تعليمات المساعد وشخصيته</Label>
+                    <Textarea
+                      id="assistant-prompt"
+                      rows={5}
+                      maxLength={4000}
+                      value={draft.systemPrompt}
+                      placeholder="مثال: أنت مساعد قسم المشتريات، تجيب بإيجاز وبلغة رسمية."
+                      onChange={(event) => update('systemPrompt', event.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      تُضاف بعد قواعد النظام الثابتة، ولا تغيّر صلاحيات المستخدم.
+                    </p>
+                  </div>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {LIMITS.map(([name, label, range]) => (
+                      <div key={name} className="space-y-2">
+                        <Label htmlFor={`assistant-${name}`}>{label}</Label>
+                        <Input
+                          id={`assistant-${name}`}
+                          type="number"
+                          dir="ltr"
+                          required
+                          value={String(draft[name])}
+                          onChange={(event) => update(name, Number(event.target.value) as never)}
+                        />
+                        <p className="text-xs text-muted-foreground tabular-nums">{range}</p>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-start justify-between gap-4 rounded-lg border p-3">
+                    <div className="space-y-1">
+                      <Label htmlFor="assistant-writes">السماح باقتراح التعديلات</Label>
+                      <p className="text-xs text-muted-foreground">
+                        يقترح المساعد إنشاء السجلات أو تعديلها أو حذفها، ولا يُنفَّذ شيء إلا بعد
+                        مراجعة المستخدم وموافقته.
+                      </p>
+                    </div>
+                    <Switch
+                      id="assistant-writes"
+                      checked={draft.allowWriteProposals}
+                      onCheckedChange={(value) => update('allowWriteProposals', value)}
+                    />
+                  </div>
+                </>
+              )}
+              {error && (
+                <p role="alert" className="text-sm text-destructive">
+                  {error}
+                </p>
+              )}
+            </div>
+            <DialogFooter className="border-t px-6 py-4">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={busy}
+                onClick={() => setDraft(null)}
+              >
                 إلغاء
               </Button>
               <Button type="submit" disabled={busy}>
@@ -313,7 +336,11 @@ export default function AdminAssistant({ settings }: Props) {
         </DialogContent>
       </Dialog>
 
-      <Dialog mode="edit" open={key !== null} onOpenChange={(open) => !open && !busy && setKey(null)}>
+      <Dialog
+        mode="edit"
+        open={key !== null}
+        onOpenChange={(open) => !open && !busy && setKey(null)}
+      >
         <DialogContent className="sm:max-w-md">
           <form onSubmit={saveKey} className="space-y-5" autoComplete="off">
             <DialogHeader>
