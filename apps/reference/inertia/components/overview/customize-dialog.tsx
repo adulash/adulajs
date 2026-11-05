@@ -7,7 +7,7 @@ import { Switch } from '~/components/ui/switch'
 import { useMessages } from '~/components/ui/messages'
 import { useConfirmAction } from '~/components/ui/confirm-action'
 import { SortableList, keepEscapeForSorting } from '~/components/ui/sortable-list'
-import { Dialog } from '~/components/ui/dialog'
+import { Dialog, DialogClose } from '~/components/ui/dialog'
 import { LongDialogContent } from '~/components/ui/long-dialog'
 import { usePreference } from '~/components/preferences'
 
@@ -64,6 +64,10 @@ export function CustomizeOverviewDialog({
       setSaving(false)
     }
   }
+  // Clean when every row is where and as it opened, even after moving one away and back.
+  const arrangement = (list: { id: string; hidden: boolean }[]) =>
+    JSON.stringify(list.map((row) => [row.id, row.hidden]))
+  const dirty = open && rows.length > 0 && arrangement(rows) !== arrangement(overview.widgets)
   const restore = () =>
     confirm({
       title: t('استعادة الترتيب الافتراضي؟'),
@@ -97,16 +101,26 @@ export function CustomizeOverviewDialog({
               <RotateCcw size={16} />
               {t('استعادة الافتراضي')}
             </Button>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              {t('إلغاء')}
-            </Button>
-            <Button type="button" onClick={submit} disabled={saving}>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                {t('إلغاء')}
+              </Button>
+            </DialogClose>
+            <Button type="submit" form="overview-customize" disabled={saving}>
               {t('حفظ')}
             </Button>
           </>
         }
       >
-        <SortableList
+        <form
+          id="overview-customize"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void submit()
+          }}
+          data-dirty={String(dirty)}
+        >
+          <SortableList
           label={t('عناصر النظرة العامة')}
           items={rows}
           onChange={setRows}
@@ -127,6 +141,7 @@ export function CustomizeOverviewDialog({
             </label>
           )}
         />
+        </form>
       </LongDialogContent>
       {confirmation}
     </Dialog>

@@ -12,7 +12,7 @@ import { Button } from '~/components/ui/button'
 import { FileInput } from '~/components/ui/file-input'
 import { Label } from '~/components/ui/label'
 import { Slider } from '~/components/ui/slider'
-import { Dialog } from '~/components/ui/dialog'
+import { Dialog, DialogClose } from '~/components/ui/dialog'
 import { LongDialogContent } from '~/components/ui/long-dialog'
 
 /** The square the user frames; the saved picture is at most OUTPUT pixels on a side. */
@@ -213,17 +213,28 @@ export function AvatarDialog({
         description="اختر صورة ثم اضبط موضعها داخل المربع. تُحفظ الصورة مربعة بحجم لا يتجاوز ٥١٢ بكسل، وتُزال منها بيانات الموقع والجهاز."
         footer={
           <>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              إلغاء
-            </Button>
-            <Button type="button" onClick={save} disabled={!image || sending}>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                إلغاء
+              </Button>
+            </DialogClose>
+            <Button type="submit" form="avatar-form" disabled={!image || sending}>
               <ImageUp size={16} />
               حفظ الصورة
             </Button>
           </>
         }
       >
-        <div className="space-y-4">
+        <form
+          id="avatar-form"
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void save()
+          }}
+          // A chosen picture is the only change; nothing is chosen when the dialog opens.
+          data-dirty={String(image !== null)}
+        >
           <div className="space-y-2">
             <Label id="avatar-file-label" htmlFor="avatar-file">
               ملف الصورة
@@ -277,7 +288,7 @@ export function AvatarDialog({
               {problem ?? serverError}
             </p>
           )}
-        </div>
+        </form>
       </LongDialogContent>
     </Dialog>
   )

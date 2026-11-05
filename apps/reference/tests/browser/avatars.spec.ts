@@ -179,7 +179,10 @@ test.group('Profile picture browser acceptance (#158)', (group) => {
     assert.isTrue(await save.isVisible())
     assert.isTrue(await save.isEnabled())
     await page.screenshot({ path: join(await screenshotDir(), 'avatar-dialog-mobile.png') })
+    // A chosen picture is a change: «إلغاء» asks before it discards the picture.
     await dialog.getByRole('button', { name: 'إلغاء' }).click()
+    const guard = page.getByRole('dialog', { name: 'إغلاق النموذج؟' })
+    await guard.getByRole('button', { name: 'إغلاق دون حفظ', exact: true }).click()
     await dialog.waitFor({ state: 'hidden' })
   })
 })

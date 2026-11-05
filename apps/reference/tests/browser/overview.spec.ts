@@ -224,6 +224,11 @@ test.group('Personal overview browser acceptance (#159)', (group) => {
       headerOnScreen: true,
       bodyScrolls: true,
     })
+    // Nothing changed yet: «إلغاء» closes without asking.
+    await dialog.getByRole('button', { name: 'إلغاء', exact: true }).click()
+    await dialog.waitFor({ state: 'hidden' })
+    assert.equal(await page.getByRole('dialog', { name: 'إغلاق النموذج؟' }).count(), 0)
+    await page.getByRole('button', { name: 'تخصيص' }).click()
     // Secondary action first, then «إلغاء», then the primary «حفظ».
     const footer = dialog.locator('[data-slot="long-dialog-footer"]')
     const order = await attributes(footer.getByRole('button'), 'data-variant')

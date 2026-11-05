@@ -144,7 +144,7 @@ test.group('List layer browser acceptance', (group) => {
     // The per-row reason is the server's Arabic message.
     assert.match(await failure.innerText(), /[؀-ۿ]{3,}.*[؀-ۿ]{3,}$/)
     await dialog
-      .locator('[data-slot="dialog-footer"]')
+      .locator('[data-slot="long-dialog-footer"]')
       .getByRole('button', { name: 'إغلاق' })
       .click()
     // The list refreshed: the deleted task left it.
@@ -169,7 +169,7 @@ test.group('List layer browser acceptance', (group) => {
     await removal.getByRole('button', { name: 'تأكيد', exact: true }).click()
     await page.assertVisible(removal.getByText('نُفذ الإجراء: سجلان'))
     await removal
-      .locator('[data-slot="dialog-footer"]')
+      .locator('[data-slot="long-dialog-footer"]')
       .getByRole('button', { name: 'إغلاق' })
       .click()
     await page.assertVisible(page.getByText('لا توجد سجلات مطابقة'))
@@ -227,7 +227,10 @@ test.group('List layer browser acceptance', (group) => {
     const bulk = page.getByRole('dialog', { name: 'استعادة' })
     await bulk.getByRole('button', { name: 'تأكيد', exact: true }).click()
     await page.assertVisible(bulk.getByText('نُفذ الإجراء: سجلان'))
-    await bulk.locator('[data-slot="dialog-footer"]').getByRole('button', { name: 'إغلاق' }).click()
+    await bulk
+      .locator('[data-slot="long-dialog-footer"]')
+      .getByRole('button', { name: 'إغلاق' })
+      .click()
     await page.assertVisible(page.getByText('لا توجد سجلات مطابقة'))
     const live = await knex()('tasks').whereIn('id', ids).whereNull('deleted_at')
     assert.lengthOf(live, 3)
