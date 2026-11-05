@@ -80,14 +80,22 @@ function ConnectionState({ destination }: { destination: Destination }) {
   return <Badge>متصل</Badge>
 }
 
-function LastResult({ run, failures }: { run: BackupRun | null; failures: Record<string, string> }) {
+function LastResult({
+  run,
+  failures,
+}: {
+  run: BackupRun | null
+  failures: Record<string, string>
+}) {
   const formatDateTime = useDateTimeFormatter()
   if (!run) return <span className="text-muted-foreground">لم تُنشأ نسخة بعد</span>
   const failed = run.status === 'failed'
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-2">
-        <Badge variant={failed ? 'destructive' : run.status === 'succeeded' ? 'default' : 'secondary'}>
+        <Badge
+          variant={failed ? 'destructive' : run.status === 'succeeded' ? 'default' : 'secondary'}
+        >
           {STATUS[run.status]}
         </Badge>
         <span className="tabular-nums text-muted-foreground">
@@ -96,7 +104,9 @@ function LastResult({ run, failures }: { run: BackupRun | null; failures: Record
       </div>
       {failed ? (
         <p className="text-xs text-destructive">
-          {(run.errorCategory && failures[run.errorCategory]) ?? run.error ?? 'تعذر إكمال النسخ الاحتياطي'}
+          {(run.errorCategory && failures[run.errorCategory]) ??
+            run.error ??
+            'تعذر إكمال النسخ الاحتياطي'}
         </p>
       ) : (
         <p className="text-xs text-muted-foreground tabular-nums">{formatSize(run.size)}</p>
@@ -132,7 +142,9 @@ function ScheduleDialog({
               { preserveScroll: true, onFinish: () => setSaving(false), onSuccess: onClose }
             )
           }}
-          data-dirty={destination?.connection ? String(value !== destination.connection.schedule) : undefined}
+          data-dirty={
+            destination?.connection ? String(value !== destination.connection.schedule) : undefined
+          }
         >
           <DialogHeader>
             <DialogTitle>جدولة النسخ إلى {kind ? NAMES[kind] : ''}</DialogTitle>
@@ -243,8 +255,7 @@ export default function BackupsIndex({ backups, failures }: Props) {
           : 'يحذف النظام إذن الوصول المحفوظ لديه. تبقى النسخ المرفوعة في حسابك، ويمكنك سحب الإذن أيضًا من إعدادات حساب Microsoft.',
       label: 'فصل الوجهة',
       destructive: true,
-      action: () =>
-        router.delete(`/admin/backups/connections/${kind}`, { preserveScroll: true }),
+      action: () => router.delete(`/admin/backups/connections/${kind}`, { preserveScroll: true }),
     })
 
   return (
@@ -260,8 +271,8 @@ export default function BackupsIndex({ backups, failures }: Props) {
           <KeyRound size={16} />
           <AlertTitle>التشفير مفعّل</AlertTitle>
           <AlertDescription>
-            تُشفّر كل نسخة بالمفتاح BACKUP_ENCRYPTION_KEY. احتفظ بنسخة منه خارج الخادم: لا يمكن
-            فتح أي نسخة احتياطية دونه.
+            تُشفّر كل نسخة بالمفتاح BACKUP_ENCRYPTION_KEY. احتفظ بنسخة منه خارج الخادم: لا يمكن فتح
+            أي نسخة احتياطية دونه.
           </AlertDescription>
         </Alert>
       ) : (
@@ -269,8 +280,8 @@ export default function BackupsIndex({ backups, failures }: Props) {
           <KeyRound size={16} />
           <AlertTitle>مفتاح تشفير النسخ الاحتياطية غير مضبوط</AlertTitle>
           <AlertDescription>
-            أضف المتغير BACKUP_ENCRYPTION_KEY إلى بيئة التشغيل (32 بايتًا عشوائيًا بترميز base64)
-            ثم أعد التشغيل. احفظ نسخة منه خارج الخادم، فالنسخ لا تُفتح دونه.
+            أضف المتغير BACKUP_ENCRYPTION_KEY إلى بيئة التشغيل (32 بايتًا عشوائيًا بترميز base64) ثم
+            أعد التشغيل. احفظ نسخة منه خارج الخادم، فالنسخ لا تُفتح دونه.
           </AlertDescription>
         </Alert>
       )}
@@ -296,13 +307,24 @@ export default function BackupsIndex({ backups, failures }: Props) {
                 const { kind, connection } = destination
                 const provider = kind === 'download' ? null : kind
                 const usable =
-                  backups.configured &&
-                  (kind === 'download' || connection?.status === 'connected')
+                  backups.configured && (kind === 'download' || connection?.status === 'connected')
+                // Actions stay visible when they cannot run yet, with the reason beside them.
+                const blocked =
+                  provider && !destination.configured
+                    ? 'يتطلب الربط إعداد بيئة التشغيل.'
+                    : !backups.configured &&
+                        (kind === 'download' || connection?.status === 'connected')
+                      ? 'يتطلب النسخ مفتاح التشفير.'
+                      : null
                 return (
                   <TableRow key={kind}>
                     <TableCell>
                       <div className="flex items-center gap-2 font-medium">
-                        {kind === 'download' ? <HardDriveDownload size={16} /> : <CloudUpload size={16} />}
+                        {kind === 'download' ? (
+                          <HardDriveDownload size={16} />
+                        ) : (
+                          <CloudUpload size={16} />
+                        )}
                         {NAMES[kind]}
                       </div>
                       {connection?.accountLabel && (
@@ -318,26 +340,45 @@ export default function BackupsIndex({ backups, failures }: Props) {
                       <LastResult run={destination.lastRun} failures={failures} />
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {connection ? SCHEDULES[connection.schedule] : kind === 'download' ? 'يدوي' : '—'}
+                      {connection
+                        ? SCHEDULES[connection.schedule]
+                        : kind === 'download'
+                          ? 'يدوي'
+                          : '—'}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="whitespace-normal">
                       <div className="flex flex-wrap justify-end gap-2">
                         {busy.has(kind) ? (
                           <Badge variant="secondary">جارٍ الإنشاء…</Badge>
                         ) : (
-                          usable && (
-                            <Button size="sm" onClick={() => start(kind)}>
+                          (kind === 'download' || connection?.status === 'connected') && (
+                            <Button
+                              size="sm"
+                              disabled={!usable}
+                              aria-describedby={blocked ? `${kind}-blocked` : undefined}
+                              onClick={() => start(kind)}
+                            >
                               نسخ الآن
                             </Button>
                           )
                         )}
-                        {provider && destination.configured && connection?.status === 'connected' && (
-                          <Button size="sm" variant="outline" onClick={() => setScheduling(destination)}>
+                        {provider && connection?.status === 'connected' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setScheduling(destination)}
+                          >
                             جدولة
                           </Button>
                         )}
-                        {provider && destination.configured && connection?.status !== 'connected' && (
-                          <Button size="sm" variant="outline" onClick={() => setConnecting(provider)}>
+                        {provider && connection?.status !== 'connected' && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={!destination.configured}
+                            aria-describedby={blocked ? `${kind}-blocked` : undefined}
+                            onClick={() => setConnecting(provider)}
+                          >
                             <Link2 size={16} />
                             {connection ? 'إعادة الربط' : 'ربط'}
                           </Button>
@@ -349,6 +390,14 @@ export default function BackupsIndex({ backups, failures }: Props) {
                           </Button>
                         )}
                       </div>
+                      {blocked && (
+                        <p
+                          id={`${kind}-blocked`}
+                          className="mt-1 text-end text-xs text-muted-foreground"
+                        >
+                          {blocked}
+                        </p>
+                      )}
                     </TableCell>
                   </TableRow>
                 )
@@ -391,7 +440,10 @@ export default function BackupsIndex({ backups, failures }: Props) {
                     </TableCell>
                     <TableCell className="text-end">
                       <Button size="sm" variant="outline" asChild>
-                        <a href={`/admin/backups/runs/${run.id}/download`} download={run.fileName ?? undefined}>
+                        <a
+                          href={`/admin/backups/runs/${run.id}/download`}
+                          download={run.fileName ?? undefined}
+                        >
                           <Download size={16} />
                           تنزيل
                         </a>
