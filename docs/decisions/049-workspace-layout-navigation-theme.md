@@ -97,7 +97,9 @@ and the collapsed module groups live in `localStorage`.
 * The sidebar shows one entry per section (and the setup while pending); outside the
   administration it stays one «الإدارة» entry (ADR 036). The layout renders the current
   section's pages as vertical sub-tabs at the start side (one scrolling row on small
-  screens); pages need no change. The longest matching address wins, so nested pages
+  screens); pages need no change. The current tab carries `aria-current="page"` and the
+  sidebar's active pattern (`bg-accent font-semibold text-primary`, no border or bar), like
+  every active navigation entry. The longest matching address wins, so nested pages
   (`/admin/backups/restore`) keep their own tab. The failure badge sits on the operations
   section inside the administration.
 
