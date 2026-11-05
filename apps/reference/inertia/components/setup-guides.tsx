@@ -6,8 +6,13 @@ import { CopyButton } from '~/components/ui/copy-button'
 /** One environment variable: its name, what to put in it and whether it can stay empty. */
 export type GuideVariable = { name: string; value?: string; hint: string; optional?: boolean }
 
-/** One numbered step: a short sentence, then optional variables or a command to copy. */
-export type GuideStep = { text: string; variables?: GuideVariable[]; command?: string }
+/** One numbered step: a short sentence, then environment lines, project files or a command. */
+export type GuideStep = {
+  text: string
+  variables?: GuideVariable[]
+  files?: { path: string; hint: string }[]
+  command?: string
+}
 
 /** A setup guide shown in a dialog: one intro sentence, numbered steps and an optional warning. */
 export type SetupGuide = { title: string; intro: string; steps: GuideStep[]; warning?: string }
@@ -20,10 +25,10 @@ export const setupGuides = {
       { text: 'راجع اسم الشركة وشعارها وألوانها وخطوطها كما تظهر في النظام.' },
       {
         text: 'لتعديل الهوية، يحدّثها فريق المشروع في هذه الملفات ثم يعيد بناء النظام:',
-        variables: [
-          { name: 'docs/design-identity.md', hint: 'وصف الهوية وحالة كل عنصر' },
-          { name: 'company-identity.json', hint: 'الاسم والألوان والخطوط' },
-          { name: 'inertia/css/brand.css', hint: 'ألوان الواجهة' },
+        files: [
+          { path: 'docs/design-identity.md', hint: 'وصف الهوية وحالة كل عنصر' },
+          { path: 'company-identity.json', hint: 'الاسم والألوان والخطوط' },
+          { path: 'inertia/css/brand.css', hint: 'ألوان الواجهة' },
         ],
       },
       { text: 'اضغط «أعتمد الهوية الحالية» عندما تطابق الهوية المعروضة ما تريده.' },
@@ -132,22 +137,41 @@ export const setupGuides = {
 
 export type SetupGuideKey = keyof typeof setupGuides
 
-function Variable({ variable }: { variable: GuideVariable }) {
-  const text = variable.value ? `${variable.name}=${variable.value}` : variable.name
+/**
+ * The lines an administrator pastes into the system environment, in the same form as the mail
+ * setup lines: required values first, optional ones commented out so an empty value never
+ * fails the environment validation.
+ */
+export function envLines(variables: GuideVariable[]) {
+  return variables
+    .map((variable) => `${variable.optional ? '# ' : ''}${variable.name}=${variable.value ?? ''}`)
+    .join('\n')
+}
+
+function Variables({ variables }: { variables: GuideVariable[] }) {
+  const lines = envLines(variables)
   return (
-    <li className="flex items-center gap-2">
-      <code dir="ltr" className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-        {text}
-      </code>
-      <span className="text-muted-foreground">{variable.hint}</span>
-      {variable.optional && <Badge variant="outline">اختياري</Badge>}
-      <CopyButton
-        value={text}
-        iconOnly
-        ariaLabel={`نسخ ${text}`}
-        className="ms-auto size-7 shrink-0"
-      />
-    </li>
+    <div className="space-y-2">
+      <pre
+        dir="ltr"
+        data-testid="setup-guide-env-lines"
+        className="overflow-x-auto rounded-md border bg-muted/40 p-3 font-mono text-xs"
+      >
+        {lines}
+      </pre>
+      <ul className="space-y-1" aria-label="المتغيرات">
+        {variables.map((variable) => (
+          <li key={variable.name} className="flex flex-wrap items-center gap-2">
+            <code dir="ltr" className="font-mono text-xs">
+              {variable.name}
+            </code>
+            <span className="text-muted-foreground">{variable.hint}</span>
+            {variable.optional && <Badge variant="outline">اختياري</Badge>}
+          </li>
+        ))}
+      </ul>
+      <CopyButton value={lines} label="نسخ الأسطر" />
+    </div>
   )
 }
 
@@ -155,14 +179,20 @@ function Variable({ variable }: { variable: GuideVariable }) {
 export function SetupGuideSteps({ guide }: { guide: SetupGuide }) {
   return (
     <div className="space-y-4 text-sm">
-      <ol className="list-decimal space-y-3 ps-5" data-testid="setup-guide-steps">
+      <ol className="list-[arabic-indic] space-y-3 ps-5" data-testid="setup-guide-steps">
         {guide.steps.map((step) => (
           <li key={step.text} className="space-y-2 ps-1">
             <p>{step.text}</p>
-            {step.variables && (
-              <ul className="space-y-1.5" aria-label="المتغيرات">
-                {step.variables.map((variable) => (
-                  <Variable key={variable.name} variable={variable} />
+            {step.variables && <Variables variables={step.variables} />}
+            {step.files && (
+              <ul className="space-y-1" aria-label="الملفات">
+                {step.files.map((file) => (
+                  <li key={file.path} className="flex flex-wrap items-center gap-2">
+                    <code dir="ltr" className="font-mono text-xs">
+                      {file.path}
+                    </code>
+                    <span className="text-muted-foreground">{file.hint}</span>
+                  </li>
                 ))}
               </ul>
             )}
@@ -171,12 +201,7 @@ export function SetupGuideSteps({ guide }: { guide: SetupGuide }) {
                 <code dir="ltr" className="flex-1 font-mono text-xs break-all">
                   {step.command}
                 </code>
-                <CopyButton
-                  value={step.command}
-                  iconOnly
-                  ariaLabel={`نسخ ${step.command}`}
-                  className="size-7 shrink-0"
-                />
+                <CopyButton value={step.command} iconOnly ariaLabel={`نسخ ${step.command}`} />
               </div>
             )}
           </li>

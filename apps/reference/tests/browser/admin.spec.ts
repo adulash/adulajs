@@ -8,6 +8,9 @@ import UserInvitationNotification from '#mails/user_invitation_notification'
 import app from '@adonisjs/core/services/app'
 import { mkdir } from 'node:fs/promises'
 
+/** The browser global read inside page.evaluate (the test project has no DOM types). */
+type Styled = { getComputedStyle: (element: unknown) => { listStyleType: string } }
+
 test.group('Administration screens in the browser', (group) => {
   let admin: User
   let member: User
@@ -199,7 +202,7 @@ test.group('Administration screens in the browser', (group) => {
     await page.getByText('اعتمد المدير الهوية الحالية', { exact: true }).waitFor()
   })
 
-  test('storage setup guide lists ordered steps and copies variable names', async ({
+  test('storage setup guide lists ordered steps and copies its environment lines', async ({
     browserContext,
     visit,
     assert,
@@ -219,18 +222,42 @@ test.group('Administration screens in the browser', (group) => {
     await dialog.getByRole('heading', { name: 'إعداد الملفات' }).waitFor()
     const steps = dialog.getByTestId('setup-guide-steps').locator(':scope > li')
     assert.equal(await steps.count(), 4)
+    // Steps are numbered ١. ٢. ٣. like the page's section titles, still as an ordered list.
+    for (let index = 0; index < 4; index++)
+      assert.equal(
+        await steps
+          .nth(index)
+          .evaluate(
+            (item) => (globalThis as unknown as Styled).getComputedStyle(item).listStyleType
+          ),
+        'arabic-indic'
+      )
     assert.include(await steps.nth(0).innerText(), 'أضف المتغيرات التالية')
     assert.include(await steps.nth(2).innerText(), 'فحص التخزين')
     assert.include(await steps.nth(3).innerText(), 'node ace adula:storage:migrate local s3')
-    const variables = steps.nth(0).getByRole('listitem')
+    // The same copy pattern as the mail setup: environment lines in one block, copied at once;
+    // the optional endpoint is commented out so an empty value never fails validation.
+    const lines = [
+      'DRIVE_DISK=s3',
+      'AWS_ACCESS_KEY_ID=',
+      'AWS_SECRET_ACCESS_KEY=',
+      'AWS_REGION=',
+      'S3_BUCKET=',
+      '# AWS_ENDPOINT=',
+    ].join('\n')
+    assert.equal(await steps.nth(0).getByTestId('setup-guide-env-lines').innerText(), lines)
+    const variables = steps.nth(0).getByRole('list', { name: 'المتغيرات' }).getByRole('listitem')
     assert.equal(await variables.count(), 6)
     assert.include(await variables.last().innerText(), 'AWS_ENDPOINT')
     assert.include(await variables.last().innerText(), 'اختياري')
-    await dialog.getByRole('button', { name: 'نسخ DRIVE_DISK=s3', exact: true }).click()
-    await dialog.getByRole('button', { name: 'نسخ AWS_REGION', exact: true }).click()
+    await steps.nth(0).getByRole('button', { name: 'نسخ الأسطر', exact: true }).click()
+    await steps.nth(0).getByRole('button', { name: 'تم النسخ', exact: true }).waitFor()
+    await dialog
+      .getByRole('button', { name: 'نسخ node ace adula:storage:migrate local s3', exact: true })
+      .click()
     assert.deepEqual(
       await page.evaluate(() => (globalThis as unknown as { copied: string[] }).copied),
-      ['DRIVE_DISK=s3', 'AWS_REGION']
+      [lines, 'node ace adula:storage:migrate local s3']
     )
     assert.include(await dialog.getByRole('alert').innerText(), 'لا ينقل الملفات القائمة')
   })
@@ -253,7 +280,14 @@ test.group('Administration screens in the browser', (group) => {
     await page.getByRole('button', { name: 'إعداد البريد', exact: true }).click()
     const dialog = page.getByRole('dialog')
     await dialog.getByRole('heading', { name: 'إعداد البريد' }).waitFor()
-    assert.equal(await dialog.getByTestId('mail-setup-steps').locator(':scope > li').count(), 4)
+    const mailSteps = dialog.getByTestId('mail-setup-steps').locator(':scope > li')
+    assert.equal(await mailSteps.count(), 4)
+    assert.deepEqual(
+      await mailSteps.evaluateAll((items) =>
+        items.map((item) => (globalThis as unknown as Styled).getComputedStyle(item).listStyleType)
+      ),
+      ['arabic-indic', 'arabic-indic', 'arabic-indic', 'arabic-indic']
+    )
     assert.include(
       await dialog.getByTestId('mail-env-lines').innerText(),
       'SMTP_HOST=smtp.gmail.com'

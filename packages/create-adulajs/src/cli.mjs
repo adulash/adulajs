@@ -49,10 +49,10 @@ export const help = `Create a new business system with AdonisJS and AdulaJS
   --connection local.json      PostgreSQL and Redis profile for existing services
   --database name              Fresh database name; existing databases are rejected
   --packages directory         Local core and UI archives for pre-publication testing
-  --yes                       Noninteractive; requires company and administrator email
+  --yes                        Noninteractive; requires company and administrator email
+  --help                       Show help
 
 Without --yes, missing values are asked for; piped input answers them, one line each.
-  --help                      Show help
 
 Requires Node.js 24+ and npm. Installs pnpm, AdonisJS, adula, the Arabic UI,
 databases, administrator and agent skills. External SMTP, OAuth and S3 require
