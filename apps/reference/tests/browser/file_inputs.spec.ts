@@ -29,7 +29,11 @@ test.group('Translated file fields', (group) => {
   async function checkField(
     page: Page,
     scope: Locator,
-    field: { label: string; file: { name: string; mimeType: string; buffer: Buffer } },
+    field: {
+      label: string
+      hint?: string
+      file: { name: string; mimeType: string; buffer: Buffer }
+    },
     assert: { equal: Function; isTrue: Function; include: Function }
   ) {
     // No native file control is visible, only the translated button and its empty state.
@@ -39,6 +43,9 @@ test.group('Translated file fields', (group) => {
     assert.equal(await scope.locator('input[type="file"]:visible').count(), 0)
     const choose = scope.getByRole('button', { name: 'اختيار ملف', exact: true })
     await choose.waitFor()
+    // The button uses the sm size of the button scale (h-8), not a height of its own.
+    const box = await choose.boundingBox()
+    assert.equal(box?.height, 32)
     await scope.getByText('لم يُختر أي ملف').waitFor()
 
     // Keyboard users reach the button, hear the field label with it and open the picker.
@@ -47,6 +54,8 @@ test.group('Translated file fields', (group) => {
     for (const id of ((await choose.getAttribute('aria-describedby')) ?? '').split(' '))
       described.push(((await page.locator(`[id="${id}"]`).textContent()) ?? '').trim())
     assert.include(described, field.label)
+    // A hint the page gives the field, such as the accepted types, is read with the button.
+    if (field.hint) assert.include(described, field.hint)
     const chooser = page.waitForEvent('filechooser')
     await page.keyboard.press('Enter')
     const picker = await chooser
@@ -104,6 +113,7 @@ test.group('Translated file fields', (group) => {
       dialog,
       {
         label: 'ملف الصورة',
+        hint: 'الأنواع المقبولة: PNG وJPEG وWebP.',
         file: { name: 'ملاحظات.txt', mimeType: 'text/plain', buffer: Buffer.from('نص') },
       },
       assert
