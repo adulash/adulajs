@@ -122,6 +122,8 @@ export const arabicInterfaceMessages = {
   'ui.field.replace': 'استبدال',
   'ui.field.remove': 'إزالة',
   'ui.field.chooseFile': 'اختيار ملف',
+  'ui.field.changeFile': 'تغيير الملف',
+  'ui.field.noFileChosen': 'لم يُختر أي ملف',
   'ui.field.uploading': 'جارٍ الرفع {progress}%',
   'ui.field.upload': 'رفع {field}',
   'ui.field.optionsFailed': 'تعذر تحميل الخيارات',

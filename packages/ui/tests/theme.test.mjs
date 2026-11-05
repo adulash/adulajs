@@ -24,3 +24,25 @@ test('registry components compose the registry Select instead of native lists', 
     if (name.endsWith('.tsx'))
       assert.doesNotMatch(await readFile(new URL(name, dir), 'utf8'), /<select[\s>]/, name)
 })
+
+test('file fields compose FileInput instead of the native control and its English text', async () => {
+  // The browser's own file control shows "Choose File / No file chosen" in its own language
+  // and styling. Only FileInput may render a file input, and every other file input in the
+  // registry or the reference application must be hidden behind a translated control.
+  const { readdir } = await import('node:fs/promises')
+  const { sep } = await import('node:path')
+  const roots = [
+    new URL('../registry/ui/', import.meta.url),
+    new URL('../../../apps/reference/inertia/', import.meta.url),
+  ]
+  const native = []
+  for (const root of roots)
+    for (const name of await readdir(root, { recursive: true })) {
+      if (!name.endsWith('.tsx') || name.split(sep).join('/').startsWith('components/ui/')) continue
+      const source = await readFile(new URL(name.split(sep).join('/'), root), 'utf8')
+      for (const match of source.matchAll(/<(?:input|Input)\b[^>]*?type="file"[^>]*>/gs))
+        if (name !== 'file-input.tsx' && !/className="sr-only"|\bhidden\b/.test(match[0]))
+          native.push(name)
+    }
+  assert.deepEqual(native, [])
+})
