@@ -25,6 +25,29 @@ test('registry components compose the registry Select instead of native lists', 
       assert.doesNotMatch(await readFile(new URL(name, dir), 'utf8'), /<select[\s>]/, name)
 })
 
+test('registry buttons take their height from the button size scale, not className', async () => {
+  // Button sizes (xs, sm, default, lg, icon-*) keep controls aligned; a height in className
+  // drifts from that scale. Existing overrides are listed so that no new one is added.
+  const { readdir } = await import('node:fs/promises')
+  const dir = new URL('../registry/ui/', import.meta.url)
+  const found = {}
+  for (const name of await readdir(dir)) {
+    if (!name.endsWith('.tsx')) continue
+    const source = await readFile(new URL(name, dir), 'utf8')
+    const overrides = [...source.matchAll(/<Button\b[^>]*?className="([^"]*)"/gs)].filter(
+      ([, classes]) => /(?:^|\s)(?:min-|max-)?(?:h|size)-/.test(classes)
+    )
+    if (overrides.length) found[name] = overrides.length
+  }
+  assert.deepEqual(found, {
+    'data-table.tsx': 5,
+    'list-filters.tsx': 1,
+    'resource-bulk.tsx': 1,
+    'resource-field.tsx': 3,
+    'sortable-list.tsx': 2,
+  })
+})
+
 test('file fields compose FileInput instead of the native control and its English text', async () => {
   // The browser's own file control shows "Choose File / No file chosen" in its own language
   // and styling. Only FileInput may render a file input, and every other file input in the

@@ -62,9 +62,10 @@ function FileInput({
         type="button"
         variant="secondary"
         size="sm"
-        className="h-7"
         disabled={disabled}
-        aria-describedby={[labelId, `${id}-chosen`].filter(Boolean).join(" ")}
+        aria-describedby={[labelId, `${id}-chosen`, describedBy]
+          .filter(Boolean)
+          .join(" ")}
         onClick={() => input.current?.click()}
       >
         <FileUp size={14} aria-hidden="true" />
