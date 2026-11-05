@@ -879,6 +879,8 @@ test.group('Generic resource browser acceptance', (group) => {
       await page.getByRole('dialog', { name: 'تفاصيل · عينات الواجهة' }).waitFor()
       await page.keyboard.press('Escape')
       await page.getByRole('dialog').waitFor({ state: 'detached' })
+      // The return visit starts after the closing animation, which can outlast the dialog node.
+      await page.waitForURL((url) => url.pathname !== record)
       await page.waitForLoadState('networkidle')
       const url = new URL(page.url())
       return { origin: url.origin, path: url.pathname + url.search }
