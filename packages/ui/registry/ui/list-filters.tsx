@@ -265,10 +265,10 @@ export function FilterControl({
               <Button
                 key={String(value)}
                 type="button"
-                size="sm"
+                size="xs"
                 variant={empty === value ? 'secondary' : 'ghost'}
                 aria-pressed={empty === value}
-                className="h-7 flex-1 text-xs"
+                className="flex-1"
                 onClick={() => setDraft(empty === value ? null : { op: 'empty', empty: value })}
               >
                 {value ? t('فارغ') : t('غير فارغ')}

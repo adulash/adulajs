@@ -183,7 +183,7 @@ export function BulkBar({
           <span className="font-medium tabular-nums">
             {t('تم تحديد {count}', { count: selected.length })}
           </span>
-          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onClear}>
+          <Button variant="ghost" size="xs" onClick={onClear}>
             <X size={13} />
             {t('إلغاء التحديد')}
           </Button>

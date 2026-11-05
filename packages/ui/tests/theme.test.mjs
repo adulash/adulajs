@@ -40,9 +40,6 @@ test('registry buttons take their height from the button size scale, not classNa
     if (overrides.length) found[name] = overrides.length
   }
   assert.deepEqual(found, {
-    'data-table.tsx': 5,
-    'list-filters.tsx': 1,
-    'resource-bulk.tsx': 1,
     'resource-field.tsx': 3,
   })
 })
