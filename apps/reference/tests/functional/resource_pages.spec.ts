@@ -70,8 +70,12 @@ test.group('Generic resource page integration', (group) => {
       if (mode === 'show') {
         assert.equal(page.props.view.result.data.id, customerId)
         assert.deepEqual(page.props.view.childResources, {})
-        // Both sections arrive in one deferred request (#31).
-        assert.deepEqual(page.deferredProps, { details: ['childrenData', 'activity'] })
+        // Both sections arrive in one deferred request (#31); the shell's «مهامي» count is
+        // deferred in its own default group (#156, ADR 049).
+        assert.deepEqual(page.deferredProps, {
+          default: ['openTasks'],
+          details: ['childrenData', 'activity'],
+        })
         assert.notProperty(page.props, 'activity')
       }
     }

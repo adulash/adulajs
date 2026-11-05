@@ -3,10 +3,24 @@ import db from '@adonisjs/lucid/services/db'
 import { adula } from '#services/adula'
 import { seedActor, screenshotDir, type UiActor } from '#tests/helpers/ui_fixtures'
 import { join } from 'node:path'
+import type { Locator } from 'playwright'
 
 const knex = () => db.connection().getWriteClient()
 
 /** Waits until the user's stored preference has the value (the save runs after the click). */
+/** The element's box once it stops moving: width transitions animate over ~200 ms. */
+async function settledBox(locator: Locator) {
+  let previous = await locator.boundingBox()
+  for (const started = Date.now(); Date.now() - started < 5_000;) {
+    await new Promise((resolve) => setTimeout(resolve, 100))
+    const current = await locator.boundingBox()
+    if (previous && current && current.x === previous.x && current.width === previous.width)
+      return current
+    previous = current
+  }
+  throw new Error('The element kept moving for 5 seconds')
+}
+
 async function stored(userId: number, key: string, value: unknown) {
   const expected = JSON.stringify(value)
   for (let attempt = 0; attempt < 50; attempt++) {
@@ -78,8 +92,9 @@ test.group('Workspace shell in the browser', (group) => {
     await page.keyboard.press('Enter')
     // The page CSP forbids string evaluation inside waitForFunction; wait on locators.
     await page.locator('[data-workspace-shell][data-sidebar="icons"]').waitFor()
-    // The rail sits at the start (the right in RTL) and is narrow.
-    const box = (await sidebar.boundingBox())!
+    // The rail sits at the start (the right in RTL) and is narrow, once its width transition
+    // (page transitions are on by default) has finished.
+    const box = await settledBox(sidebar)
     assert.isBelow(box.width, 90)
     assert.isAbove(box.x + box.width, 1440 - 2)
     // Icons keep their names: an accessible name and a tooltip.
@@ -205,6 +220,10 @@ test.group('Workspace shell in the browser', (group) => {
     const dark = () => page.evaluate<boolean>('document.documentElement.classList.contains("dark")')
     const background = () =>
       page.evaluate<string>('getComputedStyle(document.body.querySelector("main")).color')
+    // Start from light explicitly: the dark suite (pnpm test:browser:dark) defaults to dark.
+    await page.getByRole('button', { name: 'قائمة الحساب' }).click()
+    await page.getByRole('menuitemradio', { name: 'فاتح' }).click()
+    await page.locator('html:not(.dark)').waitFor({ state: 'attached' })
     const lightText = await background()
     await page.getByRole('button', { name: 'قائمة الحساب' }).click()
     await page.getByRole('menuitemradio', { name: 'داكن' }).click()
@@ -311,6 +330,8 @@ test.group('Workspace shell in the browser', (group) => {
     await dialog.waitFor({ state: 'detached' })
     // Section entries only (the one-time setup may be listed first while it is pending).
     const first = async () => {
+      // allTextContents does not wait: after a reload, let the sidebar render first.
+      await sections.getByRole('link', { name: 'الإعدادات' }).waitFor()
       const titles = await sections.getByRole('link').allTextContents()
       return titles.map((title) => title.trim()).find((title) => title !== 'الإعداد الأولي')
     }
