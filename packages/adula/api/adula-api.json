@@ -172,13 +172,73 @@
       "kind": "FunctionDeclaration",
       "type": "(ability: AdulaAbility, action: string, resource: Resource, field?: string | undefined) => Sql"
     },
+    "BACKUP_ARCHIVE_EXTENSION": {
+      "kind": "VariableDeclaration",
+      "type": "\".adulabackup\""
+    },
+    "BACKUP_ARCHIVE_FILES": {
+      "kind": "VariableDeclaration",
+      "type": "readonly [\"database.dump\", \"uploads.tar.gz\", \"attachments.json\", \"SHA256SUMS\", \"COMPLETE\"]"
+    },
+    "BACKUP_FAILURE_MESSAGES": {
+      "kind": "VariableDeclaration",
+      "type": "Record<string, string>"
+    },
     "BACKUP_MAX_AGE_MS": {
       "kind": "VariableDeclaration",
       "type": "number"
     },
+    "BackupArchiveError": {
+      "kind": "ClassDeclaration",
+      "type": "typeof BackupArchiveError"
+    },
+    "BackupArchiveErrorCode": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"E_BACKUP_KEY_INVALID\" | \"E_BACKUP_FORMAT\" | \"E_BACKUP_KEY\" | \"E_BACKUP_TAMPERED\" | \"E_BACKUP_TRUNCATED\" | \"E_BACKUP_CONTENT\" | \"E_BACKUP_TARGET\""
+    },
+    "BackupConnection": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ provider: BackupProvider; status: \"revoked\" | \"connected\"; accountLabel: string | null; schedule: BackupSchedule; connectedBy: number; connectedAt: string; }"
+    },
+    "BackupKind": {
+      "kind": "TypeAliasDeclaration",
+      "type": "BackupProvider | \"download\""
+    },
     "BackupObject": {
       "kind": "TypeAliasDeclaration",
       "type": "{ key: string; size: number; modifiedAt: string; }"
+    },
+    "BackupProvider": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"google\" | \"onedrive\""
+    },
+    "BackupProviderClient": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ provider: BackupProvider; authorizeUrl(input: { state: string; codeChallenge: string; redirectUri: string; }): string; exchange(input: { code: string; verifier: string; redirectUri: string; }): Promise<{ refreshToken: string; accountLabel: string | null; }>; refresh(refreshToken: string): Promise<{ accessToken: string; refreshToken?: string | undefined; }>; upload(input: { file: string; name: string; size: number; sha256: string; accessToken: string; signal?: AbortSignal | undefined; }): Promise<{ remoteId: string; size: number; }>; revoke?(refreshToken: string): Promise<void>; }"
+    },
+    "BackupProviderError": {
+      "kind": "ClassDeclaration",
+      "type": "typeof BackupProviderError"
+    },
+    "BackupProviderErrorCategory": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"revoked\" | \"dns\" | \"connect\" | \"tls\" | \"timeout\" | \"blocked-target\" | \"secret\" | `http-status:${number}` | \"auth\" | \"quota\" | \"integrity\" | \"response\""
+    },
+    "BackupProviderOptions": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ clientId: string; clientSecret: string; outbound?: OutboundOptions | undefined; chunkSize?: number | undefined; timeoutMs?: number | undefined; retries?: number | undefined; }"
+    },
+    "BackupRun": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ id: number; kind: BackupKind; trigger: SyncTrigger; status: BackupRunStatus; requestedBy: number; fileName: string | null; size: number | null; sha256: string | null; expiresAt: string | null; errorCategory: string | null; error: string | null; createdAt: string; startedAt: string | null; finishedAt: string | null; }"
+    },
+    "BackupRunStatus": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"running\" | \"failed\" | \"queued\" | \"succeeded\" | \"expired\""
+    },
+    "BackupSchedule": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"off\" | \"daily\" | \"weekly\""
     },
     "backupStale": {
       "kind": "FunctionDeclaration",
@@ -187,6 +247,10 @@
     "BackupStatus": {
       "kind": "TypeAliasDeclaration",
       "type": "{ healthy: boolean; reason: string; checkedAt: string; }"
+    },
+    "BackupTrigger": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"schedule\" | \"manual\""
     },
     "BASE_LANGUAGE": {
       "kind": "VariableDeclaration",
@@ -328,6 +392,18 @@
       "kind": "TypeAliasDeclaration",
       "type": "\"optional\" | \"required\""
     },
+    "CloudBackups": {
+      "kind": "ClassDeclaration",
+      "type": "typeof CloudBackups"
+    },
+    "CloudBackupsOptions": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ box: SecretBox; key: Buffer<ArrayBufferLike> | null; directory: string; createSnapshot(directory: string, options: { workDirectory: string; }): Promise<void>; providers: Partial<Record<BackupProvider, BackupProviderClient>>; isAdministrator(userId: number): Promise<boolean>; downloadTtlMs?: number | undefined; timeoutMs?: number | undefined; now?: (() => Date) | undefined; }"
+    },
+    "CloudBackupStatus": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ configured: boolean; destinations: { kind: BackupKind; configured: boolean; connection: BackupConnection | null; lastRun: BackupRun | null; }[]; downloads: BackupRun[]; active: BackupRun[]; }"
+    },
     "codeTemplateVersion": {
       "kind": "FunctionDeclaration",
       "type": "(template: PrintTemplate) => string"
@@ -404,6 +480,10 @@
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>) => Promise<void>"
     },
+    "createOpenStream": {
+      "kind": "FunctionDeclaration",
+      "type": "(master: Buffer<ArrayBufferLike>) => Transform"
+    },
     "createOutboundPoster": {
       "kind": "FunctionDeclaration",
       "type": "(options?: OutboundOptions | undefined) => (value: string, init: OutboundRequest) => Promise<{ status: number; }>"
@@ -427,6 +507,10 @@
     "createSavedViewsSchema": {
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>) => Promise<void>"
+    },
+    "createSealStream": {
+      "kind": "FunctionDeclaration",
+      "type": "(master: Buffer<ArrayBufferLike>, options?: { chunkSize?: number | undefined; } | undefined) => Transform"
     },
     "createSyncJobsSchema": {
       "kind": "FunctionDeclaration",
@@ -643,6 +727,14 @@
     "formatSequence": {
       "kind": "FunctionDeclaration",
       "type": "(key: string, value: string | number | bigint) => string"
+    },
+    "GoogleDriveEndpoints": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ auth: string; token: string; api: string; upload: string; revoke: string; }"
+    },
+    "googleDriveProvider": {
+      "kind": "FunctionDeclaration",
+      "type": "(options: BackupProviderOptions & { endpoints?: Partial<GoogleDriveEndpoints> | undefined; }) => BackupProviderClient"
     },
     "grantInstallAdministrator": {
       "kind": "FunctionDeclaration",
@@ -1112,9 +1204,21 @@
       "kind": "TypeAliasDeclaration",
       "type": "{ min?: string | number | undefined; max?: string | number | undefined; }"
     },
+    "OneDriveEndpoints": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ authority: string; graph: string; }"
+    },
+    "oneDriveProvider": {
+      "kind": "FunctionDeclaration",
+      "type": "(options: BackupProviderOptions & { tenant?: string | undefined; endpoints?: Partial<OneDriveEndpoints> | undefined; }) => BackupProviderClient"
+    },
     "openApiDocument": {
       "kind": "FunctionDeclaration",
       "type": "(registry: ResourceRegistry, options: { title: string; version: string; serverUrl: string; basePath?: string | undefined; actor?: Actor | undefined; }) => { openapi: string; info: { title: string; version: string; }; servers: { url: string; }[]; security: { bearer: never[]; }[]; paths: Record<string, Schema>; components: { schemas: Record<string, Schema>; securitySchemes: { bearer: { type: string; scheme: string; description: string; }; }; }; }"
+    },
+    "openBackupArchive": {
+      "kind": "FunctionDeclaration",
+      "type": "(file: string, targetDirectory: string, master: Buffer<ArrayBufferLike>) => Promise<void>"
     },
     "OrgUnitNode": {
       "kind": "TypeAliasDeclaration",
@@ -1147,6 +1251,10 @@
     "packedResourceRules": {
       "kind": "FunctionDeclaration",
       "type": "(resource: Resource, actor: Actor) => PackRule<SubjectRawRule<string, any, Conditions>>[]"
+    },
+    "parseBackupKey": {
+      "kind": "FunctionDeclaration",
+      "type": "(value: string) => Buffer<ArrayBufferLike>"
     },
     "parseSettingValue": {
       "kind": "FunctionDeclaration",
@@ -1535,6 +1643,10 @@
     "SchemaDrift": {
       "kind": "TypeAliasDeclaration",
       "type": "{ table: string; missingTable: boolean; missingColumns: ResourceColumn[]; wrongTypes: { column: string; expected: string; actual: string; }[]; notNullColumns: string[]; missingUnique: ResourceUniqueIndex[]; staleUnique: { index: string; expected: ResourceUniqueIndex; }[]; missingJoinTables: ResourceJoinTable[]; }"
+    },
+    "sealBackupArchive": {
+      "kind": "FunctionDeclaration",
+      "type": "(snapshotDirectory: string, outFile: string, master: Buffer<ArrayBufferLike>, options?: { chunkSize?: number | undefined; } | undefined) => Promise<{ size: number; sha256: string; }>"
     },
     "SecretBox": {
       "kind": "TypeAliasDeclaration",
