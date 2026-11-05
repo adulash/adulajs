@@ -175,11 +175,23 @@ function SearchableSelect({
 }: ResourceSelectProps) {
   const { t } = useMessages()
   const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const input = useRef<HTMLInputElement>(null)
   const listId = useId()
   const empty = placeholder ?? t('اختر قيمة')
   const current = options.find((option) => String(option.value) === value)
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next) return
+        // Reopened during its closing animation, the popover keeps its content: it neither
+        // focuses the search box again nor clears the last search, so do both on every open.
+        setSearch('')
+        requestAnimationFrame(() => input.current?.focus())
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           {...trigger}
@@ -201,6 +213,9 @@ function SearchableSelect({
       <PopoverContent className="w-(--radix-popover-trigger-width) min-w-56 p-0" align="start">
         <Command filter={foldedFilter}>
           <CommandInput
+            ref={input}
+            value={search}
+            onValueChange={setSearch}
             placeholder={t('تصفية الخيارات')}
             aria-label={t('تصفية الخيارات')}
             dir="auto"
