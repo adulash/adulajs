@@ -14,6 +14,12 @@ test.group('Browser authentication lifecycle', () => {
     }
     await page.assertVisible(page.getByRole('link', { name: 'تسجيل الدخول', exact: true }))
   })
+  test('a protected page asks a guest to sign in, in Arabic', async ({ visit, assert }) => {
+    const page = await visit('/admin/print-templates')
+    await page.waitForURL((url) => url.pathname === '/login')
+    await page.getByText('سجّل الدخول للمتابعة.', { exact: true }).waitFor()
+    assert.notInclude(await page.locator('body').innerText(), 'Unauthorized access')
+  })
   test('login, profile, sessions, revoke the current session and land on login', async ({
     visit,
     assert,
