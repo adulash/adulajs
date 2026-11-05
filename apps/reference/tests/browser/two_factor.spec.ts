@@ -73,7 +73,8 @@ test.group('Browser two-factor authentication', () => {
     const secret = String(secretText).replaceAll(' ', '')
     assert.match(secret, /^[A-Z2-7]{32}$/)
     // The code field takes the focus once the secret arrives, not the footer's «إلغاء».
-    await page.waitForFunction("document.activeElement?.id === 'two-factor-enrol-code'")
+    // A CSS focus wait: a polling string predicate needs eval, which the CSP refuses.
+    await page.locator('#two-factor-enrol-code:focus').waitFor()
     const link = await dialog
       .getByRole('link', { name: 'فتح في تطبيق المصادقة' })
       .getAttribute('href')
