@@ -100,9 +100,11 @@ test.group('Profile picture browser acceptance (#158)', (group) => {
       String(await image.getAttribute('src')),
       new RegExp(`^/users/${owner.user.id}/avatar\\?v=\\d+$`)
     )
-    const size = (await image.evaluate(
-      '(img) => [img.naturalWidth, img.naturalHeight]'
-    )) as number[]
+    // A function, not a string: Playwright evaluates a string as an expression.
+    const size = await image.evaluate((img) => {
+      const picture = img as unknown as { naturalWidth: number; naturalHeight: number }
+      return [picture.naturalWidth, picture.naturalHeight]
+    })
     assert.isAtMost(size[0], 512)
     assert.equal(size[0], size[1])
     await page.screenshot({ path: join(await screenshotDir(), 'avatar-profile.png') })
@@ -115,7 +117,10 @@ test.group('Profile picture browser acceptance (#158)', (group) => {
     await panel.getByText('تعليق بصورة').waitFor()
     const avatar = panel.locator(`img[src="/users/${owner.user.id}/avatar"]`)
     await avatar.waitFor()
-    assert.isAbove((await avatar.evaluate('(img) => img.naturalWidth')) as number, 0)
+    const loaded = await avatar.evaluate(
+      (img) => (img as unknown as { naturalWidth: number }).naturalWidth
+    )
+    assert.isAbove(loaded, 0)
   })
 
   test('an administrator replaces a picture; removing it brings the initials back', async ({

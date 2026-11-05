@@ -28,12 +28,17 @@ test.group('Personal overview browser acceptance (#159)', (group) => {
       .delete()
   })
 
+  /** The `attribute` of every element the locator matches, in page order. */
+  const attributes = async (locator: any, attribute: string): Promise<string[]> => {
+    // `all()` does not wait, so wait for the first match before reading the list.
+    await locator.first().waitFor()
+    const values: string[] = []
+    for (const element of await locator.all())
+      values.push(String(await element.getAttribute(attribute)))
+    return values
+  }
   const shownIds = (page: any) =>
-    page
-      .locator('[data-testid="overview-widgets"] > [data-widget]')
-      .evaluateAll("(nodes) => nodes.map((node) => node.getAttribute('data-widget'))") as Promise<
-      string[]
-    >
+    attributes(page.locator('[data-testid="overview-widgets"] > [data-widget]'), 'data-widget')
 
   test('hide a widget, drag another, reload and find the arrangement', async ({
     browserContext,
@@ -83,12 +88,7 @@ test.group('Personal overview browser acceptance (#159)', (group) => {
     const page = await visit('/')
     await page.getByRole('button', { name: 'تخصيص' }).click()
     const dialog = page.getByRole('dialog', { name: 'تخصيص النظرة العامة' })
-    const rows = () =>
-      dialog
-        .locator('[data-sortable-item]')
-        .evaluateAll(
-          "(nodes) => nodes.map((node) => node.getAttribute('data-sortable-item'))"
-        ) as Promise<string[]>
+    const rows = () => attributes(dialog.locator('[data-sortable-item]'), 'data-sortable-item')
     const first = await rows()
 
     // Escape during a move puts the row back and keeps the dialog open.
@@ -131,6 +131,7 @@ test.group('Personal overview browser acceptance (#159)', (group) => {
       .click()
     await dialog.waitFor({ state: 'hidden' })
     await page.reload()
+    await page.getByRole('heading', { name: 'نظرة عامة' }).waitFor()
     const restored = await shownIds(page)
     assert.deepEqual(restored.slice(0, 4), first.slice(0, 4))
   })
