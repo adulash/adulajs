@@ -17,6 +17,7 @@ import type { OrgUnitNode, RoleSummary, UserSummary } from 'adula'
 import Workspace from '~/layouts/workspace'
 import { AdminHeader, useDateTimeFormatter } from '~/components/admin-nav'
 import { useConfirmAction } from '~/components/ui/confirm-action'
+import { AvatarCard } from '~/components/account/avatar-card'
 import { Button } from '~/components/ui/button'
 import { Badge } from '~/components/ui/badge'
 import { Label } from '~/components/ui/label'
@@ -52,6 +53,7 @@ type TokenSummary = {
 type Props = {
   /** The account this page shows; the signed-in account is the shared `account` prop. */
   target: UserSummary
+  avatarUrl: string | null
   roles: RoleSummary[]
   orgUnits: OrgUnitNode[]
   tokens: TokenSummary[]
@@ -161,6 +163,7 @@ export default function UserShow({
   tokens,
   twoFactor,
   privilegedRoleIds,
+  avatarUrl,
 }: Props) {
   const self = usePage<{ account?: { id: number } }>().props.account?.id === user.id
   const formatDateTime = useDateTimeFormatter()
@@ -234,6 +237,11 @@ export default function UserShow({
         )}
       </div>
       <div className="grid gap-6 lg:grid-cols-2">
+        <AvatarCard
+          user={{ id: user.id, name: user.fullName || user.email, avatarUrl }}
+          action={`${base}/avatar`}
+          own={self}
+        />
         <Card>
           <CardHeader>
             <CardTitle>الأدوار</CardTitle>

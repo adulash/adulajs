@@ -22,6 +22,11 @@ export type DashboardWidgetDefinition = {
   filters?: Record<string, unknown>
   /** Role-rule style conditions, as in ResourceService.aggregate. */
   where?: Conditions
+  /**
+   * Offers the widget on the personal overview page (ADR 050) as `dashboard.<name>.<key>`;
+   * each user shows, hides and orders it there, and it appears only when they may read it.
+   */
+  overview?: boolean
 }
 export type DashboardDefinition = {
   /** /^[a-z][a-z0-9_]*$/, used in the URL /dashboards/:name. */
@@ -54,6 +59,28 @@ export type DashboardWidgetResult = {
   rows?: DashboardGroupRow[]
   truncated: boolean
 }
+/** A widget the host draws itself on the overview (its data is already the viewer's own). */
+export type OverviewBuiltin = { id: string; label: string }
+/** A user's saved overview arrangement; ids they may not see are ignored on every read. */
+export type OverviewLayout = { order?: readonly string[]; hidden?: readonly string[] }
+export type OverviewWidget =
+  | { id: string; kind: 'builtin'; label: string; hidden: boolean }
+  | {
+      id: string
+      kind: 'dashboard'
+      label: string
+      hidden: boolean
+      dashboard: string
+      /** Computed for shown widgets only; null when hidden. */
+      data: DashboardWidgetResult | null
+    }
+export type OverviewState = {
+  /** Every widget the viewer may see, in their order; hidden ones carry no data. */
+  widgets: OverviewWidget[]
+  /** True when the saved arrangement differs from the default. */
+  customized: boolean
+}
+
 export type DashboardResult = {
   name: string
   label: string
@@ -102,6 +129,8 @@ export function defineDashboard(definition: DashboardDefinition): DashboardDefin
       throw new Error(`${where}: measure is 'count' or { sum: field }`)
     if (widget.groupBy !== undefined && typeof widget.groupBy !== 'string')
       throw new Error(`${where}: groupBy is one field name`)
+    if (widget.overview !== undefined && typeof widget.overview !== 'boolean')
+      throw new Error(`${where}: overview is true or false`)
     for (const [option, value] of [
       ['filters', widget.filters],
       ['where', widget.where],
@@ -191,6 +220,62 @@ export class Dashboards {
         dashboard.widgets.some((widget) => this.readable(widget, actor, ability))
       )
       .map((dashboard) => ({ name: dashboard.name, label: labelText(dashboard.label) }))
+  }
+
+  /**
+   * The personal overview (ADR 050): the host's built-in widgets and every `overview: true`
+   * dashboard widget the actor may read, arranged by the saved layout. Saved ids that are
+   * unknown or no longer readable are dropped, widgets added later join in default order, and
+   * only shown dashboard widgets are computed, so a stored id never reveals data.
+   */
+  async overview(
+    actor: Actor,
+    saved: OverviewLayout | null | undefined,
+    builtins: readonly OverviewBuiltin[] = []
+  ): Promise<OverviewState> {
+    const ability = buildAbility(actor.rules, this.registry.all())
+    const available = new Map<
+      string,
+      { label: string; builtin?: true; dashboard?: string; widget?: DashboardWidgetDefinition }
+    >()
+    for (const builtin of builtins)
+      available.set(builtin.id, { label: builtin.label, builtin: true })
+    for (const dashboard of this.dashboards.values())
+      for (const widget of dashboard.widgets)
+        if (widget.overview && this.readable(widget, actor, ability))
+          available.set(`dashboard.${dashboard.name}.${widget.key}`, {
+            label: labelText(widget.label),
+            dashboard: dashboard.name,
+            widget,
+          })
+    const ids = (value: unknown) =>
+      Array.isArray(value)
+        ? value.filter((id): id is string => typeof id === 'string' && available.has(id))
+        : []
+    const order = [...new Set([...ids(saved?.order), ...available.keys()])]
+    const hidden = new Set(ids(saved?.hidden))
+    const defaults = [...available.keys()]
+    const widgets: OverviewWidget[] = []
+    for (const id of order) {
+      const entry = available.get(id)!
+      const isHidden = hidden.has(id)
+      if (entry.builtin) {
+        widgets.push({ id, kind: 'builtin', label: entry.label, hidden: isHidden })
+        continue
+      }
+      widgets.push({
+        id,
+        kind: 'dashboard',
+        label: entry.label,
+        hidden: isHidden,
+        dashboard: entry.dashboard!,
+        data: isHidden ? null : await this.widget(entry.widget!, actor),
+      })
+    }
+    return {
+      widgets,
+      customized: hidden.size > 0 || order.some((id, index) => id !== defaults[index]),
+    }
   }
 
   async render(name: string, actor: Actor): Promise<DashboardResult> {

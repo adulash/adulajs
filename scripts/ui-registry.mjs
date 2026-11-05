@@ -181,7 +181,7 @@ async function register() {
     'resource-value': { registry: ['badge'], npm: ['lucide-react'] },
     'resource-actions': { registry: ['button', 'dialog', 'can'], npm: ['axios', 'sonner'] },
     'resource-field': {
-      registry: ['input', 'textarea', 'button', 'label', 'select', 'switch', 'popover', 'calendar', 'command', 'resource-value'],
+      registry: ['input', 'textarea', 'button', 'label', 'select', 'switch', 'popover', 'calendar', 'command', 'resource-value', 'user-avatar'],
       npm: ['axios', 'date-fns', 'lucide-react'],
     },
     'data-table': {
@@ -193,7 +193,7 @@ async function register() {
       npm: ['axios', 'sonner', 'lucide-react'],
     },
     'resource-show': {
-      registry: ['button', 'badge', 'skeleton', 'can', 'resource-actions', 'resource-value'],
+      registry: ['button', 'badge', 'skeleton', 'can', 'resource-actions', 'resource-value', 'user-avatar'],
       npm: ['lucide-react'],
     },
     'resource-surface': { registry: ['button', 'dialog'], npm: [] },

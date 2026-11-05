@@ -143,9 +143,15 @@ export default class BackupRestoreTest extends BaseCommand {
       } else if (await restored('attachments').whereNot('disk', 'local').first()) {
         throw new Error('Legacy snapshot does not contain non-local attachments')
       }
+      // Only files of registered resources have a record the drill can open; profile
+      // pictures (ADR 050) and other owners are verified with every file above.
       const candidate = await restored('attachments')
         .whereNull('deleted_at')
         .whereNotNull('record_id')
+        .whereIn(
+          'resource',
+          registry.all().map((entry) => entry.name)
+        )
         .orderBy('id', 'desc')
         .first()
       if (!candidate) {

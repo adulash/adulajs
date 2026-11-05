@@ -20,11 +20,12 @@ import {
   DropdownMenuTrigger,
 } from '~/components/ui/dropdown-menu'
 import { useMessages } from '~/components/ui/messages'
+import { UserAvatar } from '~/components/ui/user-avatar'
 import { usePreference } from '~/components/preferences'
 import { applyTheme, isTheme, type Theme } from '~/components/theme'
 import type { ShellLayout } from '~/components/shell_navigation'
 
-type Account = { id: number; fullName: string | null; email: string }
+type Account = { id: number; fullName: string | null; email: string; avatarUrl: string | null }
 
 /**
  * The account menu (owner: the workspace shell): profile, sessions, delegation, the theme,
@@ -49,10 +50,10 @@ export function AccountMenu({
   const user = page.props.account
   if (!user) return null
   const avatar = (
-    /* account-avatar: Team C replaces this element with <UserAvatar user={account} size="sm" /> */
-    <span className="grid size-9 shrink-0 place-items-center rounded-full bg-secondary font-semibold text-secondary-foreground">
-      {user.fullName?.slice(0, 1) || 'م'}
-    </span>
+    <UserAvatar
+      user={{ id: user.id, name: user.fullName || user.email, avatarUrl: user.avatarUrl }}
+      size="md"
+    />
   )
   const chooseTheme = (value: string) => {
     if (!isTheme(value)) return

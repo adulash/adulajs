@@ -9,6 +9,7 @@ import type {
   SerializedRecord,
 } from 'adula'
 import { Badge } from '~/components/ui/badge'
+import { UserAvatar } from '~/components/ui/user-avatar'
 import { Button } from '~/components/ui/button'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
 import { Can } from '~/components/ui/can'
@@ -255,7 +256,10 @@ export function ResourceShow({
                   <span className="font-medium">
                     {activityLabels[entry.action] ? t(activityLabels[entry.action]) : entry.action}
                   </span>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                    {entry.actorId ? (
+                      <UserAvatar user={{ id: entry.actorId, name: entry.actorName }} size="xs" />
+                    ) : null}
                     {entry.actorName ?? t('مستخدم #{id}', { id: String(entry.actorId) })}
                   </span>
                   <time

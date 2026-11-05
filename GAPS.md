@@ -32,6 +32,11 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
   there is no opt-in to show a parent's title alone to such readers (#148).
 * Dashboards show counts, sums and grouped values as tiles and ranked bars; there are
   no time-series charts and no dashboard editor (dashboards are defined in code).
+  Users show, hide and order code-defined widgets on their own overview (ADR 050); they
+  cannot define new widgets.
+* Profile pictures are PNG or still WebP of at most 512 pixels, re-encoded on upload
+  (ADR 050). Every signed-in user may see every user's picture, and workflow history still
+  shows names without pictures.
 
 ## Notifications, printing and files
 

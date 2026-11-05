@@ -6,6 +6,8 @@ allowBuilds:
   esbuild: true
   '@parcel/watcher': true
   argon2: true
+  # Profile pictures are re-encoded with libvips (ADR 050); the install checks its prebuilt binary.
+  sharp: true
   msgpackr-extract: false
   exifreader: false
 minimumReleaseAgeExclude:

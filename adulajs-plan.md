@@ -65,7 +65,7 @@ flowchart RL
 | @jrmc/adonis-mcp | 2.0.0 | كشف التطبيق للوكيل | |
 | @adonisjs/inertia | 5.0.1 | المحوّل | يشترط @inertiajs/core و@inertiajs/react ^3.4 (الحالي 3.7.1) |
 
-**مكتبات عامة لا تعتمد على الإطار:** @casl/ability 7.0.1 و@casl/react (المقيّم)، @ucast/sql 0.2.0 (غير مستقر؛ تجربة اليوم الأول تقرر، والمترجم الخاص للعمليات الست هو الأرجح)، XState 5.33 (المرحلة 4)، otpauth، TanStack Table وVirtual، react-hook-form، Zod، exceljs، papaparse، k6 للقياس.
+**مكتبات عامة لا تعتمد على الإطار:** @casl/ability 7.0.1 و@casl/react (المقيّم)، @ucast/sql 0.2.0 (غير مستقر؛ تجربة اليوم الأول تقرر، والمترجم الخاص للعمليات الست هو الأرجح)، XState 5.33 (المرحلة 4)، otpauth، sharp 0.35.5 (إعادة ترميز الصور الشخصية وإزالة بياناتها الوصفية، بقرار المالك في 2026-11-05، ADR 050)، TanStack Table وVirtual، react-hook-form، Zod، exceljs، papaparse، k6 للقياس.
 
 **مرفوضة:** @rlanz/bull-queue و@nulix/adonis-2fa وadonis-captcha-guard (لا تدعم 7)؛ @holoyan/adonisjs-permissions و-activitylog (تدعم 7 لكن AdulaJS يملك جداول التخويل والنشاط بنفسه).
 

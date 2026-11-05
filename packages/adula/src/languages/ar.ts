@@ -244,6 +244,15 @@ export const arabicMessages: Readonly<Record<string, string>> = Object.freeze({
   'errors.E_UPLOAD_LIMIT':
     'لديك ملفات مرفوعة كثيرة لم تُحفظ في سجل. احفظ السجلات المفتوحة أو انتظر حتى تُنظَّف.',
   'errors.E_FILE_REQUIRED': 'اختر ملفاً للرفع',
+  'errors.E_AVATAR_TYPE': 'الصورة الشخصية يجب أن تكون بصيغة PNG أو WebP',
+  'errors.E_AVATAR_TYPE.animated': 'الصورة الشخصية يجب أن تكون صورة ثابتة',
+  'errors.E_AVATAR_CORRUPT': 'ملف الصورة تالف أو غير مكتمل',
+  'errors.E_AVATAR_SIZE': 'حجم الصورة الشخصية يتجاوز ١ ميغابايت',
+  'errors.E_AVATAR_DIMENSIONS': 'أبعاد الصورة الشخصية يجب أن تكون بين ٣٢ و٥١٢ بكسل',
+  'errors.E_AVATAR_REQUIRED': 'اختر صورة للرفع',
+  'errors.E_AVATAR_IMPERSONATING': 'لا يمكن تغيير الصورة الشخصية أثناء انتحال الهوية',
+  'flash.avatar.updated': 'تم حفظ الصورة الشخصية.',
+  'flash.avatar.removed': 'تمت إزالة الصورة الشخصية.',
   'errors.E_ATTACHMENT_FILE_MISSING': 'ملف المرفق غير متاح على وحدة التخزين',
   'flash.password_reset_controller.1':
     'إن كان البريد مسجلاً لدينا فستصلك رسالة تحوي رابط إعادة التعيين خلال دقائق.',

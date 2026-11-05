@@ -1,5 +1,6 @@
 import { AdulaError, UserPreferences, definePreference, type PreferenceDefinition } from 'adula'
 import env from '#start/env'
+import { overviewLayout } from '#services/overview_layout'
 // adula:imports
 
 function oneOf<T extends string | null>(values: readonly T[]) {
@@ -55,6 +56,10 @@ export const SHELL_PREFERENCES: PreferenceDefinition[] = [
 ]
 
 /** Per-user interface preferences, stored in settings with scope 'user'. */
-export const preferences: PreferenceDefinition[] = [...SHELL_PREFERENCES /* adula:preferences */]
+export const preferences: PreferenceDefinition[] = [
+  ...SHELL_PREFERENCES,
+  // The user's overview arrangement (#159, ADR 050).
+  overviewLayout /* adula:preferences */,
+]
 // Checked once at boot: a bad definition stops the application before any request.
 UserPreferences.validate(preferences)

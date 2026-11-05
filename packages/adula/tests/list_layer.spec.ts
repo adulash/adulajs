@@ -824,4 +824,108 @@ test.group('Dashboards (ADR 046)', (group) => {
     assert.equal(unknown.status, 404)
     assert.equal(unknown.message, 'لوحة المؤشرات غير موجودة')
   })
+  test('the personal overview shows only readable widgets in the saved order (ADR 050)', async ({
+    assert,
+  }) => {
+    const personal = defineDashboard({
+      name: 'personal',
+      label: { ar: 'شخصي' },
+      widgets: [
+        {
+          key: 'count',
+          label: { ar: 'العدد' },
+          resource: 'list_items',
+          measure: 'count',
+          overview: true,
+        },
+        {
+          key: 'secretSum',
+          label: { ar: 'السري' },
+          resource: 'list_items',
+          measure: { sum: 'secret' },
+          overview: true,
+        },
+        {
+          key: 'orders',
+          label: { ar: 'الطلبات' },
+          resource: 'orders',
+          measure: 'count',
+          overview: true,
+        },
+        {
+          key: 'notOffered',
+          label: { ar: 'خارج النظرة' },
+          resource: 'list_items',
+          measure: 'count',
+        },
+      ],
+    })
+    assert.throws(
+      () =>
+        defineDashboard({
+          name: 'bad',
+          label: { ar: 'x' },
+          widgets: [
+            {
+              key: 'a',
+              label: { ar: 'أ' },
+              resource: 'list_items',
+              measure: 'count',
+              overview: 'yes' as never,
+            },
+          ],
+        }),
+      /overview is true or false/
+    )
+    const boards = new Dashboards(db, listRegistry, service(), [personal])
+    const builtins = [
+      { id: 'core.welcome', label: 'مرحبًا' },
+      { id: 'core.tasks', label: 'مهامي' },
+    ]
+    const ids = (state: { widgets: { id: string }[] }) => state.widgets.map((widget) => widget.id)
+
+    const first = await boards.overview(admin, null, builtins)
+    assert.deepEqual(ids(first), [
+      'core.welcome',
+      'core.tasks',
+      'dashboard.personal.count',
+      'dashboard.personal.secretSum',
+      'dashboard.personal.orders',
+    ])
+    assert.isFalse(first.customized)
+    assert.deepInclude(first.widgets[2], {
+      kind: 'dashboard',
+      hidden: false,
+      dashboard: 'personal',
+    })
+
+    // A clerk who may not read the secret field or orders never gets those widgets, even when
+    // their saved layout names them; unknown ids are dropped and new widgets are appended.
+    const saved = {
+      order: ['dashboard.personal.orders', 'dashboard.personal.secretSum', 'nothing', 'core.tasks'],
+      hidden: ['dashboard.personal.secretSum', 'core.welcome', 'nothing'],
+    }
+    const clerkView = await boards.overview(clerk(), saved, builtins)
+    assert.deepEqual(ids(clerkView), ['core.tasks', 'core.welcome', 'dashboard.personal.count'])
+    assert.deepEqual(
+      clerkView.widgets.map((widget) => widget.hidden),
+      [false, true, false]
+    )
+    assert.isTrue(clerkView.customized)
+    const count = clerkView.widgets[2]
+    assert.equal(count.kind === 'dashboard' && count.data?.value, 3)
+    assert.notInclude(JSON.stringify(clerkView), 'secret')
+
+    // The administrator's hidden widget is listed for the dialog but not computed.
+    const adminView = await boards.overview(admin, saved, builtins)
+    assert.deepEqual(ids(adminView).slice(0, 3), [
+      'dashboard.personal.orders',
+      'dashboard.personal.secretSum',
+      'core.tasks',
+    ])
+    const secret = adminView.widgets[1]
+    assert.isTrue(secret.hidden)
+    assert.isNull(secret.kind === 'dashboard' ? secret.data : 'builtin')
+    assert.deepEqual(await boards.overview(nobody(), saved, []), { widgets: [], customized: false })
+  })
 })
