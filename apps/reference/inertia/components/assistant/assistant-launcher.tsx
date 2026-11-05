@@ -15,6 +15,7 @@ import {
 } from '~/components/ui/sheet'
 import { countForm, useMessages, type Translate } from '~/components/ui/messages'
 import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
+import { headerIconClass } from '~/components/header_icon'
 import { failure, json } from '~/components/account/request'
 import { AssistantNotice } from './notice'
 import { ProposalDialog } from './proposal-dialog'
@@ -138,7 +139,6 @@ export default function AssistantLauncher() {
 
   return (
     <>
-      {/* The top-bar icon pattern of the notification bell and «مهامي». */}
       <Tooltip>
         <TooltipTrigger asChild>
           <button
@@ -147,7 +147,7 @@ export default function AssistantLauncher() {
             aria-expanded={open}
             data-testid="assistant-launcher"
             onClick={() => setOpen(true)}
-            className={`relative grid size-9 place-items-center rounded-full transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 ${open ? 'bg-accent text-primary' : 'text-muted-foreground'}`}
+            className={headerIconClass(open)}
           >
             <Bot size={18} strokeWidth={1.6} aria-hidden />
           </button>
