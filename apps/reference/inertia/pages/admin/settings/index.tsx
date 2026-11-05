@@ -143,7 +143,7 @@ export default function SettingsIndex({
                 min={1}
                 value={target}
                 onChange={(event) => setTarget(event.target.value)}
-                className="w-40 bg-white"
+                className="w-40 bg-card"
               />
             </div>
             <Button type="submit" variant="outline">
@@ -152,7 +152,7 @@ export default function SettingsIndex({
           </form>
         )}
       </div>
-      <section className="overflow-hidden rounded-xl border border-border bg-white">
+      <section className="overflow-hidden rounded-xl border border-border bg-card">
         <Table>
           <TableHeader>
             <TableRow>

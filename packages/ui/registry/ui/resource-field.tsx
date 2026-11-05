@@ -841,7 +841,7 @@ function AttachmentControl({
         }}
       />
       {shown ? (
-        <div className="flex flex-wrap items-center gap-3 rounded-md border bg-white px-3 py-2 text-sm">
+        <div className="flex flex-wrap items-center gap-3 rounded-md border bg-card px-3 py-2 text-sm">
           <Paperclip size={15} className="text-muted-foreground" />
           <a
             href={shown.url}
@@ -1048,7 +1048,7 @@ function MultipleAttachmentControl({
         }}
       />
       {ids.length > 0 && (
-        <ol className="divide-y rounded-md border bg-white text-sm" aria-label={name}>
+        <ol className="divide-y rounded-md border bg-card text-sm" aria-label={name}>
           {ids.map((fileId, index) => {
             const file = fileOf(fileId)
             const fileName = nameOf(fileId)
@@ -1526,7 +1526,7 @@ export function InlineRows({
       ? undefined
       : inline.rows.find((entry) => String(entry.id) === String(row.id))?.[key]
   return (
-    <section aria-label={label(field.label)} className="rounded-xl border bg-white">
+    <section aria-label={label(field.label)} className="rounded-xl border bg-card">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b px-7 py-4">
         <div>
           <h2 className="text-sm font-semibold">{label(field.label)}</h2>

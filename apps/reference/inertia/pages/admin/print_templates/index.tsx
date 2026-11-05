@@ -237,7 +237,7 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
           <AlertDescription>{listError}</AlertDescription>
         </Alert>
       )}
-      <div className="overflow-x-auto rounded-xl border bg-white">
+      <div className="overflow-x-auto rounded-xl border bg-card">
         <table className="w-full min-w-[760px] text-sm">
           <thead className="bg-muted text-xs text-muted-foreground">
             <tr>
@@ -512,7 +512,7 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
                     title="معاينة قالب الطباعة"
                     sandbox=""
                     srcDoc={previewHtml}
-                    className="h-[420px] w-full rounded-lg border bg-white"
+                    className="h-[420px] w-full rounded-lg border bg-card"
                   />
                 ) : (
                   <p className="rounded-lg border border-dashed px-4 py-10 text-center text-sm text-muted-foreground">

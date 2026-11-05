@@ -336,9 +336,12 @@ test.group('Assignments', (group) => {
     })
     const before = await assignments().mine(viewer)
     assert.deepEqual([before.open, before.approvals, before.data.length], [4, 1, 4])
+    // The «مهامي» badge reads openCounts: the same numbers as the list (#156).
+    assert.deepEqual(await assignments().openCounts(viewer), { open: 4, approvals: 1 })
     await db('orders').where('id', Number(second.id)).update({ org_unit_id: 3 })
     const after = await assignments().mine(viewer)
     assert.deepEqual([after.open, after.approvals, after.data.length], [2, 0, 2])
+    assert.deepEqual(await assignments().openCounts(viewer), { open: 2, approvals: 0 })
     const tasks = await assignments().mine(viewer, { kind: 'task' })
     assert.equal(tasks.open, tasks.data.length)
   })

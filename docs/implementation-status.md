@@ -48,6 +48,8 @@ All three share one version and are published together from a `v<version>` tag
   settings, sessions, impersonation with audit, activity log, runtime health, setup center.
 * Collaboration: comments with mentions, followers, tags, field history, assignments and
   one "My tasks" page for tasks and approvals.
+* Per-user interface preferences (ADR 049): `definePreference`/`UserPreferences` on the
+  settings table, `PUT`/`DELETE /account/preferences/:key`, shared `preferences` prop.
 * Notifications: message templates editable by administrators, in-app inbox with realtime
   SSE (one shared stream per browser), e-mail delivery by the worker, per-user channel
   preferences and a signed HTTP provider channel for SMS or WhatsApp.
@@ -83,7 +85,9 @@ All three share one version and are published together from a `v<version>` tag
 
 The AdonisJS 7 + Inertia/React host whose application code the creator copies into new
 systems: authentication (password recovery, sessions, optional Google/GitHub sign-in),
-administration screens, workspace with module groups and generic resource pages with record
+administration screens, a workspace with module groups (sidebar expanded, icons or hidden, or
+a top layout; per-user order; light, dark or device theme; «مهامي» beside the bell;
+administration sections with sub-tabs, ADR 049) and generic resource pages with record
 dialogs. Its production Dockerfile, Compose files, Caddy and deploy scripts stay in
 `apps/reference` ([operations](operations.md)). The educational customers/orders/tasks
 modules exist only as test fixtures under `apps/reference/tests/fixtures` (ADR 017).

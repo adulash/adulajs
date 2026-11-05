@@ -111,13 +111,13 @@ export function ResourceShow({
         {resource.submittable && (
           <Badge
             variant={result.data.docStatus === 1 ? 'default' : 'secondary'}
-            className={result.data.docStatus === 2 ? 'bg-red-50 text-red-800' : ''}
+            className={result.data.docStatus === 2 ? 'bg-destructive/10 text-destructive' : ''}
           >
             {documentStatus(result.data.docStatus, t)}
           </Badge>
         )}
       </div>
-      <dl className="grid gap-7 rounded-xl border bg-white p-7 md:grid-cols-2">
+      <dl className="grid gap-7 rounded-xl border bg-card p-7 md:grid-cols-2">
         {fields.map((field) => (
           <div
             key={field.key}
@@ -171,7 +171,7 @@ export function ResourceShow({
                 <section
                   key={field.key}
                   aria-label={label(field.label)}
-                  className="rounded-xl border bg-white"
+                  className="rounded-xl border bg-card"
                 >
                   <div className="flex items-center justify-between border-b px-7 py-4">
                     <h2 className="text-sm font-semibold">{label(field.label)}</h2>
@@ -237,7 +237,7 @@ export function ResourceShow({
       />
       <RecordCollaboration resource={resource} id={result.data.id as number} />
       <Deferred data="activity" fallback={<SectionSkeleton title={t('سجل النشاط')} rows={4} />}>
-        <section aria-label={t('سجل النشاط')} className="rounded-xl border bg-white">
+        <section aria-label={t('سجل النشاط')} className="rounded-xl border bg-card">
           <div className="flex items-center gap-2 border-b px-7 py-4">
             <History size={16} className="text-muted-foreground" />
             <h2 className="text-sm font-semibold">{t('سجل النشاط')}</h2>
@@ -295,7 +295,7 @@ function SectionSkeleton({ title, rows }: { title: string; rows: number }) {
     <section
       role="status"
       aria-label={t('جارٍ تحميل {section}', { section: title })}
-      className="rounded-xl border bg-white"
+      className="rounded-xl border bg-card"
     >
       <div className="border-b px-7 py-4">
         <Skeleton className="h-4 w-32" />

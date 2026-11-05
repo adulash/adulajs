@@ -156,12 +156,14 @@ export function renderPrintHtml(input: PrintInput) {
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
+<meta name="color-scheme" content="light">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:">
 <title>${escapeHtml(input.resource.label)} #${escapeHtml(String(input.record.id))}</title>
 <style>
 @page { size: A4; margin: 18mm 16mm; }
 * { box-sizing: border-box; }
-body { font-family: "Noto Sans Arabic", "Segoe UI", Tahoma, sans-serif; color: #1c1917; font-size: 12pt; margin: 0; }
+:root { color-scheme: light; }
+body { font-family: "Noto Sans Arabic", "Segoe UI", Tahoma, sans-serif; color: #1c1917; background: #fff; font-size: 12pt; margin: 0; }
 header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #1c1917; padding-bottom: 8mm; margin-bottom: 8mm; }
 header h1 { font-size: 18pt; margin: 0; }
 header p { margin: 2mm 0 0; color: #57534e; font-size: 10pt; }

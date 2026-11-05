@@ -1,9 +1,10 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { router, usePage } from '@inertiajs/react'
 import { Link } from '@adonisjs/inertia/react'
 import { Transmit } from '@adonisjs/transmit-client'
 import { Bell } from 'lucide-react'
 import { toast } from 'sonner'
+import { useMessages } from '~/components/ui/messages'
 
 const HIDDEN_GRACE_MS = 10_000
 let client: Transmit | undefined
@@ -111,17 +112,23 @@ export function NotificationBell() {
     account?: { id: number; email: string }
   }>()
   const userId = page.props.account?.id
+  const { t } = useMessages()
+  // The stream outlives navigations; it reads the current wording through a ref.
+  const text = useRef(t)
+  text.current = t
   useEffect(() => {
     if (!userId) return
     let leaveRealtime: (() => void) | undefined
     const onMessage = () => {
-      router.reload({ only: ['unreadNotifications'] })
-      toast('وصلك إشعار جديد', {
-        action: { label: 'عرض', onClick: () => router.visit('/notifications') },
+      // New work arrives with a notification, so «مهامي» refreshes with the bell (#156).
+      router.reload({ only: ['unreadNotifications', 'openTasks'] })
+      toast(text.current('وصلك إشعار جديد'), {
+        action: { label: text.current('عرض'), onClick: () => router.visit('/notifications') },
       })
     }
     // Asynchronous, so a catch-up never cancels the navigation the user is making.
-    const catchUp = () => router.reload({ only: ['unreadNotifications'], async: true })
+    const catchUp = () =>
+      router.reload({ only: ['unreadNotifications', 'openTasks'], async: true })
     const open = () => {
       leaveRealtime ??= joinRealtime(userId, onMessage, catchUp)
     }
@@ -154,14 +161,14 @@ export function NotificationBell() {
   return (
     <Link
       href="/notifications"
-      aria-label={count ? `الإشعارات، ${count} غير مقروء` : 'الإشعارات'}
-      className="relative grid size-9 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+      aria-label={count ? t('الإشعارات، {count} غير مقروء', { count }) : t('الإشعارات')}
+      className="relative grid size-9 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
     >
       <Bell size={18} strokeWidth={1.6} />
       {count > 0 && (
         <span
           data-testid="unread-count"
-          className="absolute -end-0.5 -top-0.5 min-w-4 rounded-full bg-destructive px-1 text-center text-[10px] font-semibold leading-4 text-white"
+          className="absolute -end-0.5 -top-0.5 min-w-4 rounded-full bg-destructive px-1 text-center text-[10px] font-semibold leading-4 text-destructive-foreground"
         >
           {count}
         </span>

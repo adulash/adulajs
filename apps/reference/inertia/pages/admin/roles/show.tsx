@@ -331,8 +331,8 @@ export default function RoleShow({ role, matrix }: Props) {
     `grid size-7 place-items-center rounded-md border transition-colors ${
       active
         ? kind === 'allow'
-          ? 'border-primary bg-primary text-white'
-          : 'border-destructive bg-destructive text-white'
+          ? 'border-primary bg-primary text-primary-foreground'
+          : 'border-destructive bg-destructive text-destructive-foreground'
         : 'border-border text-muted-foreground hover:bg-background'
     }`
   const editingSubject = editing
@@ -358,7 +358,7 @@ export default function RoleShow({ role, matrix }: Props) {
       </Alert>
       <form
         onSubmit={rename}
-        className="mb-6 grid gap-3 rounded-xl border border-border bg-white p-5 md:grid-cols-[1fr_160px_auto]"
+        className="mb-6 grid gap-3 rounded-xl border border-border bg-card p-5 md:grid-cols-[1fr_160px_auto]"
       >
         <div className="space-y-1">
           <Label htmlFor="role-name">اسم الدور</Label>
@@ -406,7 +406,7 @@ export default function RoleShow({ role, matrix }: Props) {
       </form>
       <form
         onSubmit={assignKey}
-        className="mb-6 grid gap-3 rounded-xl border border-border bg-white p-5 md:grid-cols-[1fr_auto]"
+        className="mb-6 grid gap-3 rounded-xl border border-border bg-card p-5 md:grid-cols-[1fr_auto]"
       >
         <div className="space-y-1">
           <Label htmlFor="role-key">المفتاح الثابت</Label>
@@ -432,18 +432,18 @@ export default function RoleShow({ role, matrix }: Props) {
           </Button>
         )}
       </form>
-      <section className="mb-8 overflow-hidden rounded-xl border border-border bg-white">
+      <section className="mb-8 overflow-hidden rounded-xl border border-border bg-card">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <h2 className="font-semibold">مصفوفة الصلاحيات</h2>
           <span className="flex items-center gap-4 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
-              <span className="grid size-4 place-items-center rounded bg-primary text-white">
+              <span className="grid size-4 place-items-center rounded bg-primary text-primary-foreground">
                 <Check size={10} />
               </span>
               سماح
             </span>
             <span className="flex items-center gap-1">
-              <span className="grid size-4 place-items-center rounded bg-destructive text-white">
+              <span className="grid size-4 place-items-center rounded bg-destructive text-destructive-foreground">
                 <X size={10} />
               </span>
               منع (يتقدم على السماح)
@@ -512,7 +512,7 @@ export default function RoleShow({ role, matrix }: Props) {
           </Table>
         </div>
       </section>
-      <section className="overflow-hidden rounded-xl border border-border bg-white">
+      <section className="overflow-hidden rounded-xl border border-border bg-card">
         <div className="border-b border-border px-5 py-4">
           <h2 className="font-semibold">القواعد وشروطها</h2>
           <p className="mt-1 text-xs text-muted-foreground">

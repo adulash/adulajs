@@ -1,87 +1,114 @@
 import type { ReactNode } from 'react'
 import { router, usePage } from '@inertiajs/react'
 import { Link } from '@adonisjs/inertia/react'
-import {
-  Activity,
-  History,
-  KeyRound,
-  Network,
-  Rocket,
-  Settings,
-  ShieldCheck,
-  SlidersHorizontal,
-  UserCog,
-  Users,
-  Mail,
-  Webhook,
-  GitBranch,
-  Hash,
-  ListChecks,
-  UserRoundCheck,
-  Printer,
-  type LucideIcon,
-} from 'lucide-react'
+import { Settings, ShieldCheck, UserCog } from 'lucide-react'
 import { calendarDisplay } from '~/components/ui/calendar_date'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
 import { useMessages } from '~/components/ui/messages'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
+import { RailLink } from '~/components/rail-link'
+import {
+  ALERTS_SECTION,
+  sectionFor,
+  setupPage,
+  visibleSections,
+  type AdminPage,
+  type AdminSection,
+  type AdminShellProps,
+} from '~/components/admin_sections'
 
-export type NavLink = { href: string; label: string; icon: LucideIcon }
-export type AdminGroup = { label: string; links: NavLink[] }
-
-/**
- * The administration area by concern (#34); it replaces a flat list next to daily work.
- * Labels are the Arabic interface text and are shown through `t()`.
- */
-export const adminGroups: AdminGroup[] = [
-  {
-    label: 'الأشخاص والصلاحيات',
-    links: [
-      { href: '/admin/users', label: 'المستخدمون', icon: Users },
-      { href: '/admin/roles', label: 'الأدوار والصلاحيات', icon: ShieldCheck },
-      { href: '/admin/org-units', label: 'الهيكل التنظيمي', icon: Network },
-      { href: '/admin/sessions', label: 'الجلسات', icon: KeyRound },
-      { href: '/admin/delegations', label: 'تفويضات الموافقات', icon: UserRoundCheck },
-    ],
-  },
-  {
-    label: 'الإعدادات',
-    links: [
-      { href: '/admin/settings', label: 'الإعدادات', icon: SlidersHorizontal },
-      { href: '/admin/lookups', label: 'القوائم المرجعية', icon: ListChecks },
-      { href: '/admin/sequences', label: 'الترقيم التسلسلي', icon: Hash },
-      { href: '/admin/templates', label: 'قوالب الرسائل', icon: Mail },
-      { href: '/admin/print-templates', label: 'قوالب الطباعة', icon: Printer },
-      { href: '/admin/webhooks', label: 'الربط الخارجي', icon: Webhook },
-    ],
-  },
-  {
-    label: 'المراقبة والتشغيل',
-    links: [
-      { href: '/admin/jobs', label: 'تشغيل النظام', icon: Activity },
-      { href: '/admin/workflows', label: 'تدفقات فاشلة', icon: GitBranch },
-      { href: '/admin/activity', label: 'سجل النشاط', icon: History },
-    ],
-  },
-]
-export const setupLink: NavLink = { href: '/admin/setup', label: 'الإعداد الأولي', icon: Rocket }
-export const adminLinks: NavLink[] = [setupLink, ...adminGroups.flatMap((group) => group.links)]
+export { adminLinks, adminSections, setupPage } from '~/components/admin_sections'
+export type { AdminPage, AdminSection } from '~/components/admin_sections'
 
 const linkClass = (active: boolean) =>
   `flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm transition-colors ${active ? 'bg-accent font-semibold text-primary' : 'text-muted-foreground hover:bg-background hover:text-foreground'}`
 
+type AdminNavProps = AdminShellProps & { isAdmin?: boolean; adminAlerts?: number }
+
+/** The first page a section entry opens. */
+export function sectionHref(section: AdminSection) {
+  return section.pages[0].href
+}
+
+/**
+ * The administration entries in the order the user chose (#157): the sidebar shows one
+ * entry per section, and each section's pages are sub-tabs inside the page.
+ */
+export function useAdminEntries(order: (sections: AdminSection[]) => AdminSection[] = (s) => s) {
+  const page = usePage<AdminNavProps>()
+  const props = page.props
+  const sections = order(visibleSections(props))
+  const current = sectionFor(page.url, props)
+  const setup = setupPage.visible?.(props) ? setupPage : null
+  return { sections, current, setup, alerts: props.adminAlerts ?? 0, isAdmin: !!props.isAdmin }
+}
+
 /**
  * One administration entry for administrators, pinned under daily work. Inside the
- * administration area it expands into its categories; the one-time setup is listed
+ * administration area it lists one entry per section (#157); the one-time setup is listed
  * first until it is complete. A badge signals failed workflows or a stale backup.
  */
-export function AdminNav() {
-  const page = usePage<{ isAdmin?: boolean; adminAlerts?: number; setupPending?: boolean }>()
+export function AdminNav({
+  order,
+  compact = false,
+}: {
+  order?: (sections: AdminSection[]) => AdminSection[]
+  /** The collapsed sidebar: icons with their names as tooltips (#153). */
+  compact?: boolean
+}) {
+  const page = usePage<AdminNavProps>()
   const { t } = useMessages()
-  if (!page.props.isAdmin) return null
+  const { sections, current, setup, alerts, isAdmin } = useAdminEntries(order)
+  if (!isAdmin) return null
   const inside = page.url.startsWith('/admin')
-  const alerts = page.props.adminAlerts ?? 0
+  if (compact) {
+    const alertLabel = t('{count} تنبيه إداري', { count: alerts })
+    return (
+      <div className="mt-4 flex flex-col items-center gap-1 border-t border-border pt-4">
+        <RailLink
+          href="/admin"
+          label={t('الإدارة')}
+          icon={Settings}
+          active={page.url === '/admin'}
+          badge={inside ? 0 : alerts}
+          badgeLabel={alertLabel}
+        />
+        {inside && (
+          <nav aria-label={t('التنقل الإداري')} className="flex flex-col items-center gap-1">
+            {setup && (
+              <RailLink
+                href={setup.href}
+                label={t(setup.label)}
+                icon={setup.icon}
+                active={page.url.startsWith(setup.href)}
+              />
+            )}
+            {sections.map((section) => (
+              <RailLink
+                key={section.id}
+                href={sectionHref(section)}
+                label={t(section.title)}
+                icon={section.icon}
+                active={current?.section.id === section.id}
+                badge={section.id === ALERTS_SECTION ? alerts : 0}
+                badgeLabel={alertLabel}
+              />
+            ))}
+          </nav>
+        )}
+      </div>
+    )
+  }
+  const alertBadge = alerts > 0 && (
+    <Badge
+      variant="destructive"
+      className="ms-auto px-1.5"
+      aria-label={t('{count} تنبيه إداري', { count: alerts })}
+    >
+      {alerts}
+    </Badge>
+  )
   return (
     <div className="mt-6 border-t border-border px-4 pt-5">
       <Link
@@ -91,51 +118,82 @@ export function AdminNav() {
       >
         <Settings size={17} strokeWidth={1.6} />
         {t('الإدارة')}
-        {alerts > 0 && (
-          <Badge
-            variant="destructive"
-            className="ms-auto px-1.5"
-            aria-label={t('{count} تنبيه إداري', { count: alerts })}
-          >
-            {alerts}
-          </Badge>
-        )}
+        {!inside && alertBadge}
       </Link>
       {inside && (
-        <nav aria-label={t('التنقل الإداري')} className="mt-2 space-y-4">
-          {page.props.setupPending && (
+        <nav aria-label={t('التنقل الإداري')} className="mt-2 space-y-1">
+          {setup && <AdminEntry page={setup} active={page.url.startsWith(setup.href)} />}
+          {sections.map((section) => (
             <Link
-              href={setupLink.href}
-              aria-current={page.url.startsWith(setupLink.href) ? 'page' : undefined}
-              className={linkClass(page.url.startsWith(setupLink.href))}
+              key={section.id}
+              href={sectionHref(section)}
+              aria-current={current?.section.id === section.id ? 'page' : undefined}
+              className={linkClass(current?.section.id === section.id)}
             >
-              <setupLink.icon size={17} strokeWidth={1.6} />
-              {t(setupLink.label)}
+              <section.icon size={17} strokeWidth={1.6} />
+              {t(section.title)}
+              {section.id === ALERTS_SECTION && alertBadge}
             </Link>
-          )}
-          {adminGroups.map((group) => (
-            <div key={group.label} role="group" aria-label={t(group.label)}>
-              <p className="mb-1 px-4 text-[11px] font-semibold text-muted-foreground">
-                {t(group.label)}
-              </p>
-              {group.links.map(({ href, label, icon: Icon }) => {
-                const active = page.url.startsWith(href)
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    aria-current={active ? 'page' : undefined}
-                    className={linkClass(active)}
-                  >
-                    <Icon size={17} strokeWidth={1.6} />
-                    {t(label)}
-                  </Link>
-                )
-              })}
-            </div>
           ))}
         </nav>
       )}
+    </div>
+  )
+}
+
+function AdminEntry({ page, active }: { page: AdminPage; active: boolean }) {
+  const { t } = useMessages()
+  return (
+    <Link
+      href={page.href}
+      aria-current={active ? 'page' : undefined}
+      className={linkClass(active)}
+    >
+      <page.icon size={17} strokeWidth={1.6} />
+      {t(page.label)}
+    </Link>
+  )
+}
+
+/**
+ * The pages of the current administration section as vertical sub-tabs at the start side
+ * (#157); below the large breakpoint they become one scrolling row.
+ */
+export function AdminSectionTabs({ children }: { children: ReactNode }) {
+  const page = usePage<AdminNavProps>()
+  const { t } = useMessages()
+  const current = sectionFor(page.url, page.props)
+  if (!current || current.section.pages.length < 2) return <>{children}</>
+  const { section } = current
+  return (
+    <div className="lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-8">
+      <nav
+        aria-label={t('صفحات القسم: {section}', { section: t(section.title) })}
+        className="mb-6 lg:mb-0"
+        data-admin-subtabs
+      >
+        <p className="mb-2 px-3 text-[11px] font-semibold text-muted-foreground">
+          {t(section.title)}
+        </p>
+        <ul className="flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
+          {section.pages.map((entry) => {
+            const active = entry.id === current.page.id
+            return (
+              <li key={entry.id} className="shrink-0">
+                <Link
+                  href={entry.href}
+                  aria-current={active ? 'page' : undefined}
+                  className={`flex items-center gap-2 whitespace-nowrap rounded-md border-s-2 px-3 py-2 text-sm transition-colors ${active ? 'border-primary bg-accent font-semibold text-foreground' : 'border-transparent text-muted-foreground hover:bg-accent/60 hover:text-foreground'}`}
+                >
+                  <entry.icon size={16} strokeWidth={1.6} />
+                  {t(entry.label)}
+                </Link>
+              </li>
+            )
+          })}
+        </ul>
+      </nav>
+      <div className="min-w-0">{children}</div>
     </div>
   )
 }
@@ -150,7 +208,7 @@ export function ImpersonationBar() {
   return (
     <div
       role="status"
-      className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-300 bg-amber-50 px-5 py-2 text-sm text-amber-900 lg:px-10"
+      className="flex flex-wrap items-center justify-between gap-3 border-b border-warning/30 bg-warning/10 px-5 py-2 text-sm text-warning lg:px-10"
     >
       <span className="flex items-center gap-2">
         <UserCog size={16} />

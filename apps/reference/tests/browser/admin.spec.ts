@@ -414,7 +414,15 @@ test.group('Administration screens in the browser', (group) => {
       .locator('aside')
       .getByRole('link', { name: /^الإدارة/ })
       .click()
-    await page.getByRole('link', { name: 'الأدوار والصلاحيات', exact: true }).click()
+    // A section entry, then its page as a sub-tab (#157): the shell stays mounted throughout.
+    await page
+      .getByRole('navigation', { name: 'التنقل الإداري' })
+      .getByRole('link', { name: 'الأشخاص والصلاحيات' })
+      .click()
+    await page
+      .getByRole('navigation', { name: 'صفحات القسم: الأشخاص والصلاحيات' })
+      .getByRole('link', { name: 'الأدوار والصلاحيات', exact: true })
+      .click()
     await page.getByRole('heading', { name: 'الأدوار والصلاحيات', exact: true }).waitFor()
     assert.isTrue(
       await page.evaluate<boolean>(
@@ -450,7 +458,10 @@ test.group('Administration screens in the browser', (group) => {
       await browserContext.loginAs(admin)
       const page = await visit('/')
       const main = page.getByRole('navigation', { name: 'التنقل الرئيسي' })
-      await main.getByRole('link', { name: 'مهامي' }).waitFor()
+      await main.getByRole('link', { name: 'نظرة عامة' }).waitFor()
+      // «مهامي» moved beside the notification bell (#156).
+      assert.equal(await main.getByRole('link', { name: /مهامي/ }).count(), 0)
+      await page.getByTestId('my-tasks-button').waitFor()
       // Approvals merged into My tasks; the overview has no duplicate home link.
       assert.equal(await page.getByRole('link', { name: 'صندوق الموافقات' }).count(), 0)
       assert.equal(await page.getByRole('link', { name: 'الصفحة الرئيسية' }).count(), 0)
@@ -459,14 +470,17 @@ test.group('Administration screens in the browser', (group) => {
       const entry = page.locator('aside').getByRole('link', { name: /^الإدارة/ })
       await page.assertVisible(entry.getByLabel(/تنبيه إداري/))
       await entry.click()
+      // Inside the administration: one entry per section (#157); the failure badge moves to
+      // the operations section, whose pages are sub-tabs inside the page.
       const areas = page.getByRole('navigation', { name: 'التنقل الإداري' })
       for (const category of ['الأشخاص والصلاحيات', 'الإعدادات', 'المراقبة والتشغيل'])
-        await areas.getByRole('group', { name: category }).waitFor()
-      await areas
-        .getByRole('group', { name: 'المراقبة والتشغيل' })
-        .getByRole('link', {
-          name: 'تدفقات فاشلة',
-        })
+        await areas.getByRole('link', { name: new RegExp(`^${category}`) }).waitFor()
+      const operations = areas.getByRole('link', { name: /^المراقبة والتشغيل/ })
+      await page.assertVisible(operations.getByLabel(/تنبيه إداري/))
+      await operations.click()
+      await page
+        .getByRole('navigation', { name: 'صفحات القسم: المراقبة والتشغيل' })
+        .getByRole('link', { name: 'تدفقات فاشلة' })
         .waitFor()
 
       // A member without create rights sees neither imports nor administration.

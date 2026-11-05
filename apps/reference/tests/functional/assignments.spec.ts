@@ -116,7 +116,17 @@ test.group('Assignments and my tasks over HTTP', (group) => {
         .header('Accept', 'text/html')
         .withInertia()
       page.assertStatus(200)
-      return [page.body().props.openTasks, page.body().props.assignments.open]
+      // The badge is a deferred shell prop (#156): the page renders without it, and the
+      // client then asks for it alone.
+      assert.notProperty(page.body().props, 'openTasks')
+      const deferred = await client
+        .get('/my-tasks')
+        .loginAs(clerk.user)
+        .withInertia()
+        .header('X-Inertia-Partial-Component', page.body().component)
+        .header('X-Inertia-Partial-Data', 'openTasks')
+      deferred.assertStatus(200)
+      return [deferred.body().props.openTasks, page.body().props.assignments.open]
     }
     assert.deepEqual(await badge(), [1, 1])
     // The record moves to another unit: the clerk can no longer open it or its task.

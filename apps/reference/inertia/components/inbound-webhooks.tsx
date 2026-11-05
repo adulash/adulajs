@@ -118,7 +118,7 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
         {sources.map((source) => (
           <li
             key={source.id}
-            className="flex flex-wrap items-start justify-between gap-3 rounded-xl border bg-white px-5 py-4"
+            className="flex flex-wrap items-start justify-between gap-3 rounded-xl border bg-card px-5 py-4"
           >
             <div className="min-w-0 flex-1 space-y-1">
               <p className="flex flex-wrap items-center gap-2 font-semibold">
@@ -278,7 +278,7 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
             {error && (
               <p
                 role="alert"
-                className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800 sm:col-span-2"
+                className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive sm:col-span-2"
               >
                 {error}
               </p>

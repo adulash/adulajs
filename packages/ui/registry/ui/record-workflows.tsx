@@ -79,7 +79,7 @@ export function SlaBadge({
     <span className="inline-flex flex-wrap items-center gap-1.5 text-xs">
       <Badge
         variant={state === 'overdue' ? 'destructive' : 'outline'}
-        className={state === 'due_soon' ? 'border-amber-300 bg-amber-50 text-amber-900' : undefined}
+        className={state === 'due_soon' ? 'border-warning/30 bg-warning/10 text-warning' : undefined}
       >
         <AlarmClock aria-hidden="true" />
         {slaStateLabel[state]}
@@ -98,7 +98,7 @@ export function SlaBadge({
 /** «On behalf of <name>» for an approval decided through a delegation. */
 export function OnBehalfOf({ name }: { name: string | null | undefined }) {
   return (
-    <Badge variant="outline" className="border-sky-300 bg-sky-50 text-sky-900">
+    <Badge variant="outline" className="border-info/30 bg-info/10 text-info">
       <UserRoundCheck aria-hidden="true" />
       نيابة عن {name ?? 'زميل'}
     </Badge>
@@ -197,7 +197,7 @@ export function WorkflowDecision({
             </DialogDescription>
           </DialogHeader>
           {behalf && (
-            <p className="rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-900">
+            <p className="rounded-lg bg-info/10 px-3 py-2 text-xs text-info">
               تقرر نيابة عن {behalf.name ?? 'زميل'} بموجب تفويض، ويُسجَّل القرار باسمك نيابة عنه.
             </p>
           )}
@@ -223,7 +223,7 @@ export function WorkflowDecision({
             />
           </div>
           {error && (
-            <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800">
+            <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
               {error}
             </p>
           )}
@@ -266,7 +266,7 @@ export function RecordWorkflows({ resource, id }: { resource: string; id: number
   }, [load])
   if (runs !== null && runs.length === 0) return null
   return (
-    <section aria-label="سير العمل" className="rounded-xl border bg-white">
+    <section aria-label="سير العمل" className="rounded-xl border bg-card">
       <div className="flex items-center gap-2 border-b px-7 py-4">
         <GitBranch size={16} className="text-muted-foreground" />
         <h2 className="text-sm font-semibold">سير العمل</h2>
@@ -308,7 +308,7 @@ export function RecordWorkflows({ resource, id }: { resource: string; id: number
                 </span>
               </div>
               {run.lastError && (
-                <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800">
+                <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
                   {run.lastError}
                 </p>
               )}
@@ -318,7 +318,7 @@ export function RecordWorkflows({ resource, id }: { resource: string; id: number
                     <span className="font-medium">{eventLabel[entry.event] ?? entry.event}</span>
                     {entry.actorName && <span>{entry.actorName}</span>}
                     {entry.onBehalfOfName && (
-                      <span className="text-sky-800">نيابة عن {entry.onBehalfOfName}</span>
+                      <span className="text-info">نيابة عن {entry.onBehalfOfName}</span>
                     )}
                     {entry.event === 'sla_escalated' &&
                       typeof entry.detail.action === 'string' && (

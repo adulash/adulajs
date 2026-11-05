@@ -97,14 +97,14 @@ export default function LookupsIndex({ groups, group, values }: Props) {
         </Button>
       </AdminHeader>
       {groups.length === 0 ? (
-        <section className="rounded-xl border border-border bg-white px-6 py-12 text-center text-sm text-muted-foreground">
+        <section className="rounded-xl border border-border bg-card px-6 py-12 text-center text-sm text-muted-foreground">
           لا توجد قوائم بعد. أنشئ قائمة جديدة بإضافة أول قيمة فيها.
         </section>
       ) : (
         <div className="grid gap-6 lg:grid-cols-[16rem_minmax(0,1fr)]">
           <nav
             aria-label="القوائم"
-            className="h-fit overflow-hidden rounded-xl border border-border bg-white"
+            className="h-fit overflow-hidden rounded-xl border border-border bg-card"
           >
             <p className="border-b border-border px-4 py-2.5 text-xs font-semibold text-muted-foreground">
               القوائم ({groups.length})
@@ -151,7 +151,7 @@ export default function LookupsIndex({ groups, group, values }: Props) {
                 </span>
               </div>
             )}
-            <div className="overflow-hidden rounded-xl border border-border bg-white">
+            <div className="overflow-hidden rounded-xl border border-border bg-card">
               <Table>
                 <TableHeader>
                   <TableRow>

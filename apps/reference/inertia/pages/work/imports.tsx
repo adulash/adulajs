@@ -82,7 +82,7 @@ function ValidatedBatch({ id, onClose }: { id: number | null; onClose: () => voi
           !error && <p className="text-sm text-muted-foreground">جارٍ تحميل التقرير…</p>
         )}
         {error && (
-          <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800">
+          <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
             {error}
           </p>
         )}
@@ -119,7 +119,7 @@ export default function Imports({ batches }: Props) {
       </div>
       <ul className="space-y-3">
         {batches.map((batch) => (
-          <li key={batch.id} className="space-y-2 rounded-xl border bg-white px-5 py-4">
+          <li key={batch.id} className="space-y-2 rounded-xl border bg-card px-5 py-4">
             <div className="flex flex-wrap items-center gap-2">
               <FileSpreadsheet size={16} className="text-muted-foreground" />
               <span className="font-semibold">{batch.fileName}</span>
@@ -168,7 +168,7 @@ export default function Imports({ batches }: Props) {
             )}
             {batch.errors.length > 0 && (
               <details className="text-sm">
-                <summary className="cursor-pointer text-red-800">
+                <summary className="cursor-pointer text-destructive">
                   أخطاء الصفوف ({batch.errors.length})
                 </summary>
                 <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto text-xs">

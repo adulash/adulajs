@@ -97,7 +97,7 @@ export default function JobsIndex({ health, queues, syncJobs }: Props) {
       {queues.map((queue) => (
         <section
           key={queue.name}
-          className="mb-8 overflow-hidden rounded-xl border border-border bg-white"
+          className="mb-8 overflow-hidden rounded-xl border border-border bg-card"
         >
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
             <h2 className="font-semibold">
