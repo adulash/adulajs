@@ -146,8 +146,10 @@ export function SortableList<T extends SortableItem>({
               data-active={active || undefined}
               className="flex items-center gap-2 bg-background px-2 py-1.5 data-[active]:bg-accent"
             >
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon"
                 ref={(node) => {
                   if (node) handles.current.set(item.id, node)
                   else handles.current.delete(item.id)
@@ -156,7 +158,7 @@ export function SortableList<T extends SortableItem>({
                 aria-pressed={picked?.id === item.id}
                 aria-describedby="sortable-list-hint"
                 data-sortable-picked={picked?.id === item.id || undefined}
-                className="grid size-8 shrink-0 cursor-grab touch-none place-items-center rounded-md text-muted-foreground outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50 active:cursor-grabbing"
+                className="size-8 cursor-grab touch-none text-muted-foreground active:cursor-grabbing"
                 onKeyDown={(event) => keyDown(event, item)}
                 onBlur={() => picked?.id === item.id && setPicked(null)}
                 onPointerDown={(event) => pointerDown(event, item)}
@@ -165,7 +167,7 @@ export function SortableList<T extends SortableItem>({
                 onPointerCancel={() => pointerUp(item)}
               >
                 <GripVertical size={16} />
-              </button>
+              </Button>
               <div className="min-w-0 flex-1">{renderItem ? renderItem(item) : item.label}</div>
               <Button
                 type="button"
