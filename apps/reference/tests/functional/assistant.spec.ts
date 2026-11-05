@@ -4,6 +4,7 @@ import { test } from '@japa/runner'
 import type { ApiRequest } from '@japa/api-client'
 import User from '#models/user'
 import db from '@adonisjs/lucid/services/db'
+import limiter from '@adonisjs/limiter/services/main'
 import { adula } from '#services/adula'
 
 // Never a real key: the fake below only checks that this exact value arrives.
@@ -138,6 +139,8 @@ test.group('Built-in assistant (ADR 052)', (group) => {
     await fake.close()
   })
   group.each.setup(async () => {
+    // The in-process limiter store is shared by the suite; each test starts clean.
+    await limiter.clear(['memory'])
     fake.queue.length = 0
     fake.bodies.length = 0
   })
