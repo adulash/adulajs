@@ -795,3 +795,27 @@ test.group('Authentication lifecycle', (group) => {
     limited.assertStatus(429)
   })
 })
+
+test.group('Unauthenticated requests', () => {
+  const SIGN_IN = 'سجّل الدخول للمتابعة.'
+
+  test('a protected page redirects to login with the Arabic sign-in message', async ({
+    client,
+    assert,
+  }) => {
+    const response = await client.get('/admin/print-templates').redirects(0)
+    response.assertStatus(302)
+    response.assertHeader('location', '/login')
+    assert.equal(response.flashMessages().error, SIGN_IN)
+    assert.notInclude(JSON.stringify(response.flashMessages()), 'Unauthorized access')
+  })
+
+  test('JSON requests keep the 401 response and receive the same sentence', async ({
+    client,
+    assert,
+  }) => {
+    const response = await client.get('/admin/print-templates').header('accept', 'application/json')
+    response.assertStatus(401)
+    assert.deepEqual(response.body(), { errors: [{ message: SIGN_IN }] })
+  })
+})

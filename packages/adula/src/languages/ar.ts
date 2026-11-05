@@ -268,6 +268,7 @@ export const arabicMessages: Readonly<Record<string, string>> = Object.freeze({
   'flash.user_invitations_controller.2':
     'تم إنشاء حسابك. سجّل الدخول بكلمة مرورك الجديدة؛ يعيّن المسؤول صلاحيات العمل.',
   'errors.E_BAD_CSRF_TOKEN': 'انتهت صلاحية الطلب. حدّث الصفحة وحاول مجدداً.',
+  'errors.E_UNAUTHORIZED_ACCESS': 'سجّل الدخول للمتابعة.',
   'errors.E_FORBIDDEN.8': 'هذه المنطقة للمديرين فقط',
   'errors.E_ACCOUNT_DISABLED': 'هذا الحساب معطّل',
   'errors.E_TOKEN_SCOPE': 'صلاحية الرمز لا تسمح بهذا الطلب',

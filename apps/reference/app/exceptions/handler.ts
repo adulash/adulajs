@@ -1,6 +1,7 @@
 import app from '@adonisjs/core/services/app'
 import { type HttpContext, ExceptionHandler } from '@adonisjs/core/http'
 import type { StatusPageRange, StatusPageRenderer } from '@adonisjs/core/types/http'
+import { errors as authErrors } from '@adonisjs/auth'
 import { AdulaError, localizeText, translate } from 'adula'
 import { requestLanguage } from '#services/languages'
 
@@ -48,6 +49,11 @@ export default class HttpExceptionHandler extends ExceptionHandler {
       return ctx.response.status(error.status).send({
         error: { code: error.code, message: localizeText(error.message, requestLanguage(ctx)) },
       })
+    // The auth package renders its own response (a flash and redirect to /login for pages,
+    // 401 for JSON and API requests) with its English default text; keep that response and
+    // status, and give it the catalog sentence instead.
+    if (error instanceof authErrors.E_UNAUTHORIZED_ACCESS)
+      error.message = translate('errors.E_UNAUTHORIZED_ACCESS', requestLanguage(ctx))
     if ((error as { code?: string })?.code === '23505')
       return ctx.response.conflict({
         error: {

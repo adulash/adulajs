@@ -301,6 +301,7 @@ export const englishMessages: Readonly<Record<string, string>> = Object.freeze({
   'flash.user_invitations_controller.2':
     'Your account has been created. Sign in with your new password; the administrator assigns your work permissions.',
   'errors.E_BAD_CSRF_TOKEN': 'The request has expired. Refresh the page and try again.',
+  'errors.E_UNAUTHORIZED_ACCESS': 'Sign in to continue.',
   'errors.E_FORBIDDEN.8': 'This area is for administrators only',
   'errors.E_ACCOUNT_DISABLED': 'This account is disabled',
   'errors.E_TOKEN_SCOPE': 'The token scope does not allow this request',
