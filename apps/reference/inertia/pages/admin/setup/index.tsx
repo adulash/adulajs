@@ -9,14 +9,8 @@ import { SetupGuideSteps, setupGuides, type SetupGuideKey } from '~/components/s
 import { Button } from '~/components/ui/button'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '~/components/ui/card'
 import { Badge } from '~/components/ui/badge'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from '~/components/ui/dialog'
+import { Dialog } from '~/components/ui/dialog'
+import { LongDialogContent } from '~/components/ui/long-dialog'
 
 type Props = Awaited<ReturnType<typeof setupSnapshot>>
 export default function SetupIndex(props: Props) {
@@ -222,26 +216,27 @@ export default function SetupIndex(props: Props) {
         </Card>
       </div>
       <Dialog mode="view" open={guide !== null} onOpenChange={(open) => !open && setGuide(null)}>
-        <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>{guide ? setupGuides[guide].title : ''}</DialogTitle>
-            <DialogDescription>{guide ? setupGuides[guide].intro : ''}</DialogDescription>
-          </DialogHeader>
-          {guide && <SetupGuideSteps guide={setupGuides[guide]} />}
-          <DialogFooter>
-            {guide === 'identity' && (
-              <Button
-                disabled={busy}
-                onClick={() => post('/admin/setup/identity', { confirmed: true })}
-              >
-                أعتمد الهوية الحالية
+        <LongDialogContent
+          title={guide ? setupGuides[guide].title : ''}
+          description={guide ? setupGuides[guide].intro : ''}
+          footer={
+            <>
+              <Button variant="outline" onClick={() => setGuide(null)}>
+                إغلاق
               </Button>
-            )}
-            <Button variant="outline" onClick={() => setGuide(null)}>
-              إغلاق
-            </Button>
-          </DialogFooter>
-        </DialogContent>
+              {guide === 'identity' && (
+                <Button
+                  disabled={busy}
+                  onClick={() => post('/admin/setup/identity', { confirmed: true })}
+                >
+                  أعتمد الهوية الحالية
+                </Button>
+              )}
+            </>
+          }
+        >
+          {guide && <SetupGuideSteps guide={setupGuides[guide]} />}
+        </LongDialogContent>
       </Dialog>
     </>
   )

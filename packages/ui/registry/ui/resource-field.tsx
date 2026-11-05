@@ -1092,8 +1092,7 @@ function MultipleAttachmentControl({
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon"
-                    className="size-8"
+                    size="icon-sm"
                     disabled={busy || index === 0}
                     aria-label={t('تقديم {name}', { name: fileName })}
                     onClick={() => move(fileId, -1)}
@@ -1103,8 +1102,7 @@ function MultipleAttachmentControl({
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon"
-                    className="size-8"
+                    size="icon-sm"
                     disabled={busy || index === ids.length - 1}
                     aria-label={t('تأخير {name}', { name: fileName })}
                     onClick={() => move(fileId, 1)}
@@ -1427,7 +1425,6 @@ function RelationMultiPicker({
                         type="button"
                         variant="ghost"
                         size="icon-xs"
-                        className="size-5"
                         disabled={disabled}
                         aria-label={t('إزالة {record}', { record: title })}
                         onClick={() => toggle(key)}

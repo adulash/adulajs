@@ -5,9 +5,9 @@ import type { Page } from 'playwright'
 import { screenshotDir, seedActor, type UiActor } from '#tests/helpers/ui_fixtures'
 
 /**
- * Measures the backup banner in the page: its computed background next to the tinted danger
- * surface (`color-mix` of --destructive at 10%) and the solid --destructive, and the contrast
- * of its text over what the user actually sees (the banner composited on the page behind it).
+ * Measures the backup banner in the page against the destructive Alert pattern (bg-card,
+ * text-destructive, description text-destructive/90, the shared border colour), and the contrast
+ * of its title and description over what the user actually sees (the card on the page behind).
  */
 const MEASURE_BANNER = `(() => {
   const banner = [...document.querySelectorAll('[role="alert"]')].find((node) =>
@@ -45,18 +45,29 @@ const MEASURE_BANNER = `(() => {
   const style = getComputedStyle(banner)
   const page = getComputedStyle(behind ?? document.body).backgroundColor
   const surface = paint(page, style.backgroundColor)
-  const text = paint(page, style.color)
-  const [light, dark] = [luminance(surface), luminance(text)].sort((a, b) => b - a)
+  const contrast = (color) => {
+    const [light, dark] = [luminance(surface), luminance(paint(page, style.backgroundColor, color))]
+      .sort((a, b) => b - a)
+    return (light + 0.05) / (dark + 0.05)
+  }
+  const title = getComputedStyle(banner.querySelector('[data-slot="alert-title"]')).color
+  const description = getComputedStyle(
+    banner.querySelector('[data-slot="alert-description"] a')
+  ).color
   return {
     theme: document.documentElement.classList.contains('dark') ? 'dark' : 'light',
+    slot: banner.dataset.slot,
     background: style.backgroundColor,
-    tinted: probe('backgroundColor', 'color-mix(in oklab, var(--destructive) 10%, transparent)'),
-    solid: probe('backgroundColor', 'var(--destructive)'),
-    color: style.color,
-    text: probe('color', 'var(--foreground)'),
-    icon: getComputedStyle(banner.querySelector('svg')).color,
+    card: probe('backgroundColor', 'var(--card)'),
+    border: style.borderTopColor,
+    borderToken: probe('borderTopColor', 'var(--border)'),
+    title,
     danger: probe('color', 'var(--destructive)'),
-    contrast: (light + 0.05) / (dark + 0.05),
+    description,
+    dangerMuted: probe('color', 'color-mix(in oklab, var(--destructive) 90%, transparent)'),
+    icon: getComputedStyle(banner.querySelector('svg')).color,
+    titleContrast: contrast(title),
+    descriptionContrast: contrast(description),
   }
 })()`
 
@@ -77,7 +88,7 @@ test.group('Backup surfaces', (group) => {
   const theme = (page: Page) =>
     page.evaluate<string>('document.documentElement.classList.contains("dark") ? "dark" : "light"')
 
-  test('the backup warning is a tinted danger surface, readable in the current theme', async ({
+  test('the backup warning is the destructive Alert, readable in the current theme', async ({
     browserContext,
     visit,
     assert,
@@ -90,22 +101,34 @@ test.group('Backup surfaces', (group) => {
       .waitFor()
     const banner = await page.evaluate<{
       theme: string
+      slot: string
       background: string
-      tinted: string
-      solid: string
-      color: string
-      text: string
-      icon: string
+      card: string
+      border: string
+      borderToken: string
+      title: string
       danger: string
-      contrast: number
+      description: string
+      dangerMuted: string
+      icon: string
+      titleContrast: number
+      descriptionContrast: number
     }>(MEASURE_BANNER)
     assert.equal(banner.theme, await theme(page))
-    assert.notEqual(banner.background, banner.solid, 'the banner is not a solid danger fill')
-    assert.equal(banner.background, banner.tinted)
-    assert.equal(banner.color, banner.text)
-    assert.equal(banner.icon, banner.danger, 'the icon carries the danger colour')
-    // WCAG AA for its normal-size text, over the colour the user actually sees.
-    assert.isAtLeast(banner.contrast, 4.5, `contrast ${banner.contrast.toFixed(2)}`)
+    // The destructive Alert: card surface, shared border, danger title, icon and description.
+    assert.equal(banner.slot, 'alert')
+    assert.equal(banner.background, banner.card)
+    assert.equal(banner.border, banner.borderToken)
+    assert.equal(banner.title, banner.danger)
+    assert.equal(banner.icon, banner.danger)
+    assert.equal(banner.description, banner.dangerMuted)
+    // WCAG AA for normal-size text, over the colour the user actually sees.
+    assert.isAtLeast(banner.titleContrast, 4.5, `title ${banner.titleContrast.toFixed(2)}`)
+    assert.isAtLeast(
+      banner.descriptionContrast,
+      4.5,
+      `description ${banner.descriptionContrast.toFixed(2)}`
+    )
     await page.screenshot({
       path: join(await screenshotDir(), `backup-banner-${banner.theme}.png`),
     })

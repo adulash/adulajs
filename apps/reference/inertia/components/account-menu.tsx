@@ -143,10 +143,14 @@ export function AccountMenu({
           </>
         )}
         {onArrange && (
-          <DropdownMenuItem onSelect={() => onArrange()}>
-            <ArrowDownUp />
-            {t('ترتيب القائمة…')}
-          </DropdownMenuItem>
+          <>
+            {/* Apart from the theme choices above, so it does not read as a fourth one. */}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => onArrange()}>
+              <ArrowDownUp />
+              {t('ترتيب القائمة…')}
+            </DropdownMenuItem>
+          </>
         )}
         <DropdownMenuSeparator />
         <Form route="session.destroy">
