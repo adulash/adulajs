@@ -45,11 +45,16 @@ async function service(actor: UiActor) {
   const runtime = adula()
   return { runtime, loaded: await runtime.actors.load(actor.user.id) }
 }
+/**
+ * Loads every page through the «تحميل المزيد» button. The click is dispatched without scrolling:
+ * the list scrolls with the page (#109), so scrolling the button into view would itself start
+ * the automatic load of the next page and replace the button while Playwright clicks it.
+ */
 async function loadAll(page: Page) {
   for (let round = 0; round < 8; round++) {
     const more = page.getByRole('button', { name: 'تحميل المزيد', exact: true })
     if (!(await more.isVisible())) break
-    await more.click()
+    await more.dispatchEvent('click')
     await page.getByRole('status').waitFor({ state: 'hidden' })
   }
 }
@@ -385,9 +390,15 @@ test.group('Generic resource browser acceptance', (group) => {
     )
     await sortQuantity.waitFor()
     assert.equal(await page.locator('th[aria-sort]').getAttribute('aria-sort'), 'ascending')
-    // The quantity is the first left-to-right (numeric) cell; the selection checkbox comes first.
+    // The quantity is the first left-to-right (numeric) value; the selection checkbox comes first.
+    // Cells keep the page direction and isolate their value in a `bdi` (#113).
     const firstQuantity = () =>
-      page.locator('tbody tr[aria-rowindex]').first().locator('td[dir="ltr"]').first().innerText()
+      page
+        .locator('tbody tr[aria-rowindex]')
+        .first()
+        .locator('td bdi[dir="ltr"]')
+        .first()
+        .innerText()
     assert.equal(await firstQuantity(), '1')
     await sortQuantity.click()
     await page.waitForURL(/sort=quantity&direction=desc/)
@@ -412,13 +423,26 @@ test.group('Generic resource browser acceptance', (group) => {
     await page.waitForURL(/filters%5Bstatus%5D%5Bin%5D=open%2Cclosed/)
     await page.assertElementsCount('tbody tr[aria-rowindex]', 2)
     await page.assertVisible(chips.getByText('مفتوح، مغلق'))
-    // Row actions stay pinned at the inline end of wide tables (#31).
-    assert.equal(
-      await page.evaluate<string>(
+    // Row actions stay pinned at the inline end of wide tables (#31), and only of tables whose
+    // columns do not fit, where the pinned column then carries a shadow (#109).
+    const actionsPosition = () =>
+      page.evaluate<string>(
         'getComputedStyle([...document.querySelectorAll("thead th")].at(-1)).position'
+      )
+    const viewport = page.viewportSize()!
+    const tableScroll = page.locator('[data-slot="table-scroll"]')
+    if ((await tableScroll.getAttribute('data-overflowing')) === null)
+      assert.equal(await actionsPosition(), 'static')
+    await page.setViewportSize({ width: 560, height: viewport.height })
+    await page.locator('[data-slot="table-scroll"][data-overflowing]').waitFor()
+    assert.equal(await actionsPosition(), 'sticky')
+    assert.notEqual(
+      await page.evaluate<string>(
+        'getComputedStyle([...document.querySelectorAll("thead th")].at(-1)).boxShadow'
       ),
-      'sticky'
+      'none'
     )
+    await page.setViewportSize(viewport)
     // Closing a record opened from a filtered list returns to that exact view (#31).
     const listUrl = page.url()
     const view = page.getByRole('link', { name: /عرض السجل/ }).first()
