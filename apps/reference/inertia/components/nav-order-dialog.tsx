@@ -1,14 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { ArrowDown, ArrowUp, RotateCcw } from 'lucide-react'
 import { Button } from '~/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '~/components/ui/dialog'
+import { Dialog } from '~/components/ui/dialog'
+import { LongDialogContent } from '~/components/ui/long-dialog'
 import { useMessages } from '~/components/ui/messages'
 import { applyOrder, move, replaceGroupOrder } from '~/components/shell_navigation'
 
@@ -42,6 +36,7 @@ export function NavOrderDialog({
   const [busy, setBusy] = useState(false)
   const focus = useRef<string | null>(null)
   const container = useRef<HTMLDivElement>(null)
+  const formId = useId()
 
   // Opening again starts from the saved order.
   useEffect(() => {
@@ -100,21 +95,43 @@ export function NavOrderDialog({
 
   return (
     <Dialog mode="edit" open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{t('ترتيب القائمة')}</DialogTitle>
-          <DialogDescription>
-            {t('رتّب عناصر القائمة كما يناسب عملك. يظهر الترتيب نفسه في القائمة الجانبية والعلوية.')}
-          </DialogDescription>
-        </DialogHeader>
+      {/* The long dialog pattern: fixed header and footer, only the lists scroll. */}
+      <LongDialogContent
+        width="md"
+        title={t('ترتيب القائمة')}
+        description={t(
+          'رتّب عناصر القائمة كما يناسب عملك. يظهر الترتيب نفسه في القائمة الجانبية والعلوية.'
+        )}
+        footer={
+          <>
+            <Button
+              type="button"
+              variant="ghost"
+              className="sm:me-auto"
+              disabled={busy}
+              onClick={() => void reset()}
+            >
+              <RotateCcw size={16} aria-hidden />
+              {t('استعادة الترتيب الافتراضي')}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              {t('إلغاء')}
+            </Button>
+            <Button type="submit" form={formId} disabled={busy || !dirty}>
+              {t('حفظ الترتيب')}
+            </Button>
+          </>
+        }
+      >
         <form
+          id={formId}
           data-dirty={dirty ? 'true' : 'false'}
           onSubmit={(event) => {
             event.preventDefault()
             void save()
           }}
         >
-          <div ref={container} className="max-h-[60vh] space-y-5 overflow-y-auto pe-1">
+          <div ref={container} className="space-y-5">
             {groups.map((group, groupIndex) => (
               <section key={group.id} aria-labelledby={`nav-order-${group.id}`}>
                 <h3
@@ -161,22 +178,8 @@ export function NavOrderDialog({
           <p className="sr-only" aria-live="polite">
             {announcement}
           </p>
-          <DialogFooter className="mt-6 gap-2 sm:justify-between">
-            <Button type="button" variant="ghost" disabled={busy} onClick={() => void reset()}>
-              <RotateCcw size={16} aria-hidden />
-              {t('استعادة الترتيب الافتراضي')}
-            </Button>
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                {t('إلغاء')}
-              </Button>
-              <Button type="submit" disabled={busy || !dirty}>
-                {t('حفظ الترتيب')}
-              </Button>
-            </div>
-          </DialogFooter>
         </form>
-      </DialogContent>
+      </LongDialogContent>
     </Dialog>
   )
 }
