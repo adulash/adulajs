@@ -50,7 +50,7 @@ and without vendor SDKs.
   user's name, e-mail or id, settings, secrets, hidden or levelled fields, or attachments.
   An Arabic notice says so; each user accepts it before the first question, and an
   impersonating administrator cannot accept it for them.
-* **Key.** The settings dialog's first field is «مفتاح OpenRouter (API key)», a
+* **Key.** The settings dialog's first field is «مفتاح OpenRouter» (the API key), a
   write-only password field; once a key is stored it shows «مفتاح محفوظ» with «تغيير
   المفتاح» and «حذف المفتاح». The key is stored in the system setting `ai.assistant`,
   sealed with the host's SecretBox (APP_KEY). `isSealedSetting` covers `ai.*`, so the
