@@ -133,8 +133,7 @@ export function NavOrderDialog({
                       <Button
                         type="button"
                         variant="ghost"
-                        size="icon"
-                        className="size-8"
+                        size="icon-sm"
                         data-focus={`${entry.id}:up`}
                         disabled={index === 0}
                         aria-label={t('تحريك {name} لأعلى', { name: entry.label })}
@@ -145,8 +144,7 @@ export function NavOrderDialog({
                       <Button
                         type="button"
                         variant="ghost"
-                        size="icon"
-                        className="size-8"
+                        size="icon-sm"
                         data-focus={`${entry.id}:down`}
                         disabled={index === list.length - 1}
                         aria-label={t('تحريك {name} لأسفل', { name: entry.label })}

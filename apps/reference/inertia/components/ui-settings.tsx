@@ -85,7 +85,7 @@ export function UiSettings({ initial }: { initial: UiPreferences }) {
             onChange={(layout) => setValue({ ...value, layout: layout as NavigationLayout })}
           />
           <p className="text-xs text-muted-foreground">
-            القائمة العلوية تعرض التطبيقات تبويبات أعلى الصفحة وتمنح الجداول عرضًا أكبر.
+            القائمة العلوية تعرض كل تطبيق قائمةً منسدلة أعلى الصفحة، فتمنح الجداول عرضًا أكبر.
           </p>
         </div>
         <div className="flex items-center justify-between gap-6">

@@ -17,11 +17,16 @@ import {
   type AdminSection,
 } from '~/components/admin-nav'
 import { isActivePath, type ModuleGroup } from '~/components/shell_navigation'
+import { moduleIcons } from '~/components/module_icons'
 
 type Entry = { href: string; label: string; icon?: LucideIcon; badge?: number }
 
+// The shell's active navigation pattern (navLinkClass): a filled entry, no underline.
 const itemClass = (active: boolean) =>
-  `flex items-center gap-2 whitespace-nowrap border-b-2 px-3 py-3 text-sm transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 ${active ? 'border-primary font-semibold text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`
+  `flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 ${active ? 'bg-accent font-semibold text-primary' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}`
+
+// The current page inside a menu.
+const currentItem = 'aria-[current=page]:font-semibold aria-[current=page]:text-primary'
 
 /**
  * The top layout (#154): daily work as links, then one drop-down menu per module listing
@@ -43,9 +48,11 @@ export function TopNavigation({
   const admin = useAdminEntries(orderSections)
   const isActive = (href: string) => isActivePath(page.url, href)
   const insideAdmin = page.url.startsWith('/admin')
+  // The same shapes as the collapsed sidebar.
+  const icons = moduleIcons(modules.map((group) => group.module))
   return (
     <div className="hidden border-b border-border bg-card lg:block" data-top-navigation>
-      <nav aria-label={t('التنقل الرئيسي')} className="flex items-end gap-1 overflow-x-auto px-10">
+      <nav aria-label={t('التنقل الرئيسي')} className="flex items-center gap-1 overflow-x-auto px-10 py-2">
         {work.map(({ href, label, icon: Icon, badge = 0 }) => (
           <Link
             key={href}
@@ -60,12 +67,15 @@ export function TopNavigation({
         ))}
         {modules.map((group) => {
           const active = group.links.some((entry) => isActive(entry.href))
+          const Icon = icons.get(group.module)!
           return (
             <DropdownMenu key={group.module}>
               <DropdownMenuTrigger
                 className={itemClass(active)}
                 data-current={active ? 'true' : undefined}
+                data-module={group.module}
               >
+                <Icon size={16} strokeWidth={1.6} aria-hidden />
                 {group.label}
                 <ChevronDown size={14} aria-hidden className="text-muted-foreground" />
               </DropdownMenuTrigger>
@@ -82,6 +92,7 @@ export function TopNavigation({
                     <Link
                       href={entry.href}
                       aria-current={isActive(entry.href) ? 'page' : undefined}
+                      className={currentItem}
                     >
                       <ClipboardList />
                       {entry.label}
@@ -113,7 +124,11 @@ export function TopNavigation({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64">
               <DropdownMenuItem asChild>
-                <Link href="/admin" aria-current={page.url === '/admin' ? 'page' : undefined}>
+                <Link
+                  href="/admin"
+                  aria-current={page.url === '/admin' ? 'page' : undefined}
+                  className={currentItem}
+                >
                   <Settings />
                   {t('الإدارة')}
                 </Link>
@@ -132,6 +147,7 @@ export function TopNavigation({
                   <Link
                     href={sectionHref(section)}
                     aria-current={admin.current?.section.id === section.id ? 'page' : undefined}
+                    className={currentItem}
                   >
                     <section.icon />
                     {t(section.title)}
