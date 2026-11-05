@@ -1,5 +1,6 @@
 import { test } from '@japa/runner'
 import db from '@adonisjs/lucid/services/db'
+import { preferences } from '#start/preferences'
 import { seedActor, type UiActor } from '#tests/helpers/ui_fixtures'
 
 const json = { Accept: 'application/json' }
@@ -22,7 +23,15 @@ test.group('Account preferences', (group) => {
   }) => {
     const before = await client.get('/').loginAs(owner.user).withInertia()
     before.assertStatus(200)
-    assert.deepEqual(before.body().props.preferences, {
+    // Every registered key arrives with its default; other features (#159) add their own.
+    const shared = before.body().props.preferences
+    assert.sameMembers(
+      Object.keys(shared),
+      preferences.map((definition) => definition.key)
+    )
+    for (const definition of preferences)
+      assert.deepEqual(shared[definition.key], definition.default, definition.key)
+    assert.deepInclude(shared, {
       'shell.sidebar': 'expanded',
       'shell.layout': null,
       'shell.theme': 'light',
