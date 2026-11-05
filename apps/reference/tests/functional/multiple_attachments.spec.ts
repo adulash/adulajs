@@ -1,9 +1,9 @@
 import { test } from '@japa/runner'
+import { removeAttachments } from '#tests/helpers/attachments'
 import { randomUUID } from 'node:crypto'
 import { stat } from 'node:fs/promises'
 import app from '@adonisjs/core/services/app'
 import db from '@adonisjs/lucid/services/db'
-import drive from '@adonisjs/drive/services/main'
 import type { ApiClient } from '@japa/api-client'
 import { grantUpload } from 'adula'
 import { adula } from '#services/adula'
@@ -71,14 +71,7 @@ test.group('Multiple attachments and preview (ADR 047)', (group) => {
     )
     // Same rules, another organizational unit.
     outsider = await seedActor(rules, { fullName: 'مستخدم وحدة أخرى' })
-    return async () => {
-      const rows = await knex()('attachments').whereIn('id', uploaded)
-      for (const row of rows)
-        await drive
-          .use('local')
-          .delete(row.path)
-          .catch(() => {})
-    }
+    return () => removeAttachments(uploaded)
   })
 
   async function upload(
