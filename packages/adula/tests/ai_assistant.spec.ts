@@ -213,6 +213,12 @@ test.group('AI assistant', (group) => {
       'E_AI_LIMIT'
     )
     assert.equal(await pick(failure(strict.save(admin, { enabled: true })), 'code'), 'E_AI_MODEL')
+    // An emptied persona field arrives as null from the form and means no persona.
+    assert.equal(await pick(strict.save(admin, { systemPrompt: null }), 'systemPrompt'), '')
+    assert.equal(
+      await pick(failure(strict.save(admin, { systemPrompt: 7 })), 'code'),
+      'E_AI_PROMPT'
+    )
   })
 
   test('the shared runner refuses actor arguments and keeps scope and field rules', async ({

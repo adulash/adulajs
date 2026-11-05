@@ -17,8 +17,13 @@ export default class AdminAssistantController {
 
   async update(ctx: HttpContext) {
     requireJson(ctx)
+    const body = ctx.request.body()
+    // OpenRouter is the fixed default. A custom provider address (tests, a proxy) is a
+    // server-side setting, never part of the administration form (ADR 052).
+    if (Object.hasOwn(body, 'baseUrl'))
+      throw new AdulaError(422, 'E_AI_INPUT', 'عنوان المزوّد ليس من إعدادات هذه الشاشة')
     const actor = await requestActor(ctx)
-    return { data: await adula().assistantSettings.save(actor, ctx.request.body()) }
+    return { data: await adula().assistantSettings.save(actor, body) }
   }
 
   async setKey(ctx: HttpContext) {
