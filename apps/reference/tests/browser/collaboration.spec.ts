@@ -142,7 +142,12 @@ test.group('Record collaboration browser acceptance', (group) => {
       await page.keyboard.press('Escape')
       await page.waitForURL((url) => url.pathname === '/my-tasks' && url.search === '?tab=assigned')
       await page.getByRole('heading', { name: 'مهامي' }).waitFor()
-      await page.waitForFunction(`Math.abs(window.scrollY - ${scroll}) <= 2`)
+      // The page CSP refuses a polling string predicate in waitForFunction; poll through evaluate.
+      for (const started = Date.now(); ;) {
+        if (await page.evaluate<boolean>(`Math.abs(window.scrollY - ${scroll}) <= 2`)) break
+        if (Date.now() - started > 20_000) assert.fail(`scroll did not return to ${scroll}`)
+        await new Promise((resolve) => setTimeout(resolve, 100))
+      }
       // The remembered view is used once.
       assert.isNull(
         await page.evaluate<string | null>('sessionStorage.getItem("adula:list-return")')
