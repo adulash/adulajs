@@ -112,7 +112,7 @@ Japa and `node:test` run more cases than declarations where a helper registers t
 | Reference browser (`apps/reference/tests/browser`, Playwright) | 10 | 35 |
 | Reference helpers and opt-in S3 acceptance | 2 | 8 |
 | UI (`packages/ui/tests`) | 2 | 7 |
-| Creator (`packages/create-adulajs/tests`) | 9 | 51 |
+| Creator (`packages/create-adulajs/tests`) | 10 | 52 |
 | Release (`tests/release`) | 6 | 16 |
 | Medical consumer (`tests/medical-consumer`) | 1 | 3 |
 
