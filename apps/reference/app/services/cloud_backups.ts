@@ -1,6 +1,7 @@
 import app from '@adonisjs/core/services/app'
 import encryption from '@adonisjs/core/services/encryption'
 import db from '@adonisjs/lucid/services/db'
+import logger from '@adonisjs/core/services/logger'
 import {
   CloudBackups,
   googleDriveProvider,
@@ -11,6 +12,19 @@ import {
 } from 'adula'
 import env from '#start/env'
 import { createSnapshot } from '#services/backup_snapshot'
+
+/**
+ * The run records only a failure category and a fixed Arabic message; the cause (a missing
+ * pg_dump, a refused connection, an unreadable attachment) goes to the server log for operators.
+ */
+async function loggedSnapshot(directory: string, options: { workDirectory?: string }) {
+  try {
+    await createSnapshot(directory, options)
+  } catch (error) {
+    logger.error({ err: error }, 'cloud backup snapshot failed')
+    throw error
+  }
+}
 
 /**
  * Downloadable and cloud backups (ADR 051). Archives are sealed with BACKUP_ENCRYPTION_KEY,
@@ -68,7 +82,7 @@ export function cloudBackups() {
     },
     key: backupKey(),
     directory: BACKUP_DIRECTORY(),
-    createSnapshot,
+    createSnapshot: loggedSnapshot,
     providers: backupProviders(),
     isAdministrator: activeAdministrator,
     ...overrides,

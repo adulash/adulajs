@@ -7,7 +7,8 @@ import { activeAdministrator, backupRedirectUri, cloudBackups } from '#services/
 import { actorId, mutate, positiveId, wantsJson } from './support.js'
 
 /** The pending OAuth connection, kept only in the server-side session. */
-const OAUTH_KEY = 'backups.oauth'
+/** A plain key: AdonisJS reads a dotted session key as a nested path. */
+const OAUTH_KEY = 'backups_oauth'
 const OAUTH_TTL_MS = 10 * 60 * 1000
 type PendingConnection = {
   provider: string
@@ -84,12 +85,12 @@ export default class BackupsController {
     if (!valid) {
       await backups.connectFailed(name, 'state', userId)
       ctx.session.flash('error', 'انتهت صلاحية طلب الربط أو لم يكتمل. ابدأ الربط من جديد')
-      return ctx.response.redirect('/admin/backups')
+      return ctx.response.redirect().withQs(false).toPath('/admin/backups')
     }
     if (ctx.request.input('error') || typeof code !== 'string' || !code) {
       await backups.connectFailed(name, 'provider', userId)
       ctx.session.flash('error', 'لم يكتمل الربط لدى مزود الخدمة')
-      return ctx.response.redirect('/admin/backups')
+      return ctx.response.redirect().withQs(false).toPath('/admin/backups')
     }
     try {
       await backups.completeConnect(
@@ -102,7 +103,7 @@ export default class BackupsController {
       if (!(error instanceof AdulaError)) throw error
       ctx.session.flash('error', error.message)
     }
-    return ctx.response.redirect('/admin/backups')
+    return ctx.response.redirect().withQs(false).toPath('/admin/backups')
   }
 
   async disconnect(ctx: HttpContext) {
