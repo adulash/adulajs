@@ -2,7 +2,7 @@ import { test } from '@japa/runner'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import db from '@adonisjs/lucid/services/db'
-import type { Page } from 'playwright'
+import type { Locator, Page } from 'playwright'
 import { adula } from '#services/adula'
 import {
   installSampleResources,
@@ -44,6 +44,12 @@ const knex = () => db.connection().getWriteClient()
 async function service(actor: UiActor) {
   const runtime = adula()
   return { runtime, loaded: await runtime.actors.load(actor.user.id) }
+}
+/** Waits for a dialog's opening animation, so its box is the settled one. */
+async function settled(dialog: Locator) {
+  await dialog.evaluate(async (element: { getAnimations(): { finished: Promise<unknown> }[] }) => {
+    await Promise.all(element.getAnimations().map((animation) => animation.finished))
+  })
 }
 /**
  * Loads every page through the «تحميل المزيد» button. The click is dispatched without scrolling:
@@ -699,12 +705,14 @@ test.group('Generic resource browser acceptance', (group) => {
     await page.getByRole('link', { name: `عرض السجل ${saved.id}`, exact: true }).click()
     const dialog = page.getByRole('dialog', { name: 'تفاصيل · عينات الواجهة' })
     await dialog.waitFor()
-    await dialog.evaluate(
-      async (element: { getAnimations(): { finished: Promise<unknown> }[] }) => {
-        await Promise.all(element.getAnimations().map((animation) => animation.finished))
-      }
-    )
+    await settled(dialog)
+    // The record body is the dialog's only scroller; its content height shows the late sections.
+    const content = () =>
+      page.evaluate<number>(
+        'document.querySelector("[data-slot=dialog-content] > .overflow-y-auto").scrollHeight'
+      )
     const first = (await dialog.boundingBox())!
+    const before = await content()
     await page
       .getByRole('region', { name: 'التعاون حول السجل' })
       .getByRole('button', { name: 'متابعة السجل' })
@@ -714,14 +722,19 @@ test.group('Generic resource browser acceptance', (group) => {
       .getByRole('button', { name: 'إسناد مهمة' })
       .waitFor()
     const last = (await dialog.boundingBox())!
-    // The sections did grow the dialog; it grew downward without moving its top edge (#103).
-    assert.isAbove(last.height - first.height, 20)
+    // The sections did grow the record. The dialog may already open at its height cap (90dvh),
+    // so its box need not grow; it never shrinks and its top edge never moves (#103).
+    assert.isAbove((await content()) - before, 20)
+    assert.isAtLeast(last.height, first.height)
     assert.isAtMost(Math.abs(last.y - first.y), 1)
 
     await page.keyboard.press('Escape')
     await dialog.waitFor({ state: 'hidden' })
     await page.getByRole('link', { name: `تعديل السجل ${saved.id}`, exact: true }).click()
-    await page.getByRole('dialog', { name: 'تعديل عينة' }).waitFor()
+    const editor = page.getByRole('dialog', { name: 'تعديل عينة' })
+    await editor.waitFor()
+    // Measure after the opening zoom: during it the dialog is scaled below its final width.
+    await settled(editor)
     // The form meets the dialog body's padding on both sides: no page reading cap (#102).
     const gaps = await page.evaluate<[number, number]>(`(() => {
       const form = document.querySelector('[data-slot=dialog-content] form')
@@ -890,6 +903,8 @@ test.group('Generic resource browser acceptance', (group) => {
       await page.getByRole('dialog', { name: 'تفاصيل · عينات الواجهة' }).waitFor()
       await page.keyboard.press('Escape')
       await page.getByRole('dialog').waitFor({ state: 'detached' })
+      // The return visit starts after the closing animation, which can outlast the dialog node.
+      await page.waitForURL((url) => url.pathname !== record)
       await page.waitForLoadState('networkidle')
       const url = new URL(page.url())
       return { origin: url.origin, path: url.pathname + url.search }
