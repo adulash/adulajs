@@ -69,7 +69,9 @@ and the collapsed module groups live in `localStorage`.
   version showed each module's first letter, which reads as noise in Arabic. The rail now
   shows an icon from the project-owned `components/module_icons.ts`: `MODULE_ICONS` maps a
   module name to a lucide icon, and a module without an entry gets a neutral shape chosen
-  stably from its name, so the same module always looks the same. The tooltip and the
+  stably from its name, so the same module always looks the same; when that shape is
+  already taken by another group shown beside it, the next unused one, so groups stay
+  distinct while the twelve shapes last. The tooltip and the
   accessible name carry the module's name. `Module` and `ResourceNavigation` gain no icon
   option: that would add public API, and the project map gives each system its own icons
   without it (GAPS).

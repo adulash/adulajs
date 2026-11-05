@@ -71,9 +71,12 @@ export function TopNavigation({
               </DropdownMenuTrigger>
               {/* start and end are logical: the menu aligns with its entry in RTL and LTR alike. */}
               <DropdownMenuContent align="start" className="w-60">
-                <DropdownMenuLabel className="text-xs text-muted-foreground">
-                  {group.label}
-                </DropdownMenuLabel>
+                {/* A single page needs no heading: it would repeat the entry's own name. */}
+                {group.links.length > 1 && (
+                  <DropdownMenuLabel className="text-xs text-muted-foreground">
+                    {group.label}
+                  </DropdownMenuLabel>
+                )}
                 {group.links.map((entry) => (
                   <DropdownMenuItem key={entry.href} asChild>
                     <Link

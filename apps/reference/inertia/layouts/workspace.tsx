@@ -44,7 +44,7 @@ import { TasksButton } from '~/components/tasks-button'
 import { TopNavigation } from '~/components/top-navigation'
 import { NavOrderDialog, type OrderGroup } from '~/components/nav-order-dialog'
 import { RailLink, railItemClass, useRailSide } from '~/components/rail-link'
-import { moduleIcon } from '~/components/module_icons'
+import { moduleIcons } from '~/components/module_icons'
 import { usePreference } from '~/components/preferences'
 import { resolvedTheme, type Theme } from '~/components/theme'
 import {
@@ -467,6 +467,7 @@ function IconRail({
 }) {
   const { t } = useMessages()
   const side = useRailSide()
+  const icons = moduleIcons(modules.map((group) => group.module))
   return (
     <>
       <Link href="/" className="grid h-24 place-items-center" aria-label={t('نظرة عامة')}>
@@ -487,7 +488,7 @@ function IconRail({
         {modules.length > 0 && <span className="my-2 h-px w-8 bg-border" aria-hidden />}
         {modules.map((group) => {
           const active = group.links.some((entry) => isActive(entry.href))
-          const Icon = moduleIcon(group.module)
+          const Icon = icons.get(group.module)!
           return (
             <DropdownMenu key={group.module}>
               <Tooltip>

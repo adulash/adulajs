@@ -161,8 +161,11 @@ test.group('Workspace shell in the browser', (group) => {
       shown,
       expected.map(([module]) => module)
     )
+    const shapes: (string | null)[] = []
     for (const [module, label] of expected) {
       const button = rail.locator(`button[data-module="${module}"]`)
+      // lucide names its shape in the class (lucide-boxes, lucide-layers, ...).
+      shapes.push(await button.locator('svg').getAttribute('class'))
       // An icon, not a letter: an svg and no visible text; the name stays accessible.
       assert.equal(await button.locator('svg').count(), 1)
       const text = await button.innerText()
@@ -177,6 +180,9 @@ test.group('Workspace shell in the browser', (group) => {
       )
       assert.notEqual(color, background)
     }
+    // Different modules, different shapes: two groups never share an icon (12 shapes).
+    assert.isAtMost(expected.length, 12)
+    assert.equal(new Set(shapes).size, expected.length, shapes.join(' | '))
     await page.screenshot({
       path: join(
         await screenshotDir(),
@@ -214,6 +220,12 @@ test.group('Workspace shell in the browser', (group) => {
     )) as { href: string; label: string; module: string; moduleLabel?: string }[]
     const modules = [...new Map(navigation.map((entry) => [entry.module, entry])).values()]
     assert.isAbove(modules.length, 1)
+    // The member's groups include a single page (several pages: the administrator below).
+    assert.isTrue(
+      modules.some(
+        (module) => navigation.filter((item) => item.module === module.module).length === 1
+      )
+    )
     assert.equal(await main.getByRole('button', { name: /الموردون/ }).count(), 0)
     assert.equal(await main.getByRole('button').count(), modules.length)
     for (const module of modules) {
@@ -233,6 +245,9 @@ test.group('Workspace shell in the browser', (group) => {
         hrefs,
         pages.map((item) => item.href)
       )
+      // A heading names a group of pages; over a single page it would repeat its name.
+      const headings = await menu.locator('[data-slot="dropdown-menu-label"]').allTextContents()
+      assert.deepEqual(headings, pages.length > 1 ? [label] : [])
       // The arrow keys move between the pages.
       await page.keyboard.press('ArrowDown')
       assert.equal(
@@ -251,6 +266,28 @@ test.group('Workspace shell in the browser', (group) => {
     await page.getByTestId('my-tasks-button').waitFor()
     await page.getByRole('link', { name: /^الإشعارات/ }).waitFor()
     await page.screenshot({ path: join(await screenshotDir(), 'shell-top-layout.png') })
+
+    // A group of several pages keeps its heading over them.
+    const all = adula().resources.navigation(await adula().actors.load(admin.user.id))
+    const counts = new Map<string, number>()
+    for (const entry of all) counts.set(entry.module, (counts.get(entry.module) ?? 0) + 1)
+    const several = all.find((entry) => counts.get(entry.module)! > 1)
+    assert.exists(several)
+    await browserContext.clearCookies()
+    await browserContext.loginAs(admin.user)
+    const adminPage = await visit('/')
+    await adminPage.setViewportSize({ width: 1440, height: 900 })
+    const label = several!.moduleLabel ?? several!.module
+    await adminPage
+      .locator('[data-top-navigation]')
+      .getByRole('button', { name: label, exact: true })
+      .click()
+    const menu = adminPage.getByRole('menu')
+    await menu.getByRole('menuitem').first().waitFor()
+    assert.deepEqual(await menu.locator('[data-slot="dropdown-menu-label"]').allTextContents(), [
+      label,
+    ])
+    assert.equal(await menu.getByRole('menuitem').count(), counts.get(several!.module))
   })
 
   test('a user may choose their own layout only when the system allows it (#154)', async ({
@@ -392,6 +429,19 @@ test.group('Workspace shell in the browser', (group) => {
     await page.getByRole('button', { name: 'قائمة الحساب' }).click()
     await page.getByRole('menuitem', { name: 'ترتيب القائمة…' }).click()
     const dialog = page.getByRole('dialog', { name: 'ترتيب القائمة' })
+    // The shared dialog footer: reset as a ghost button with its icon, cancel as outline,
+    // the action as the primary button (the same rule as the overview's customize dialog).
+    const reset = dialog.getByRole('button', { name: 'استعادة الترتيب الافتراضي' })
+    assert.equal(await reset.getAttribute('data-variant'), 'ghost')
+    assert.equal(await reset.locator('svg.lucide-rotate-ccw').count(), 1)
+    assert.equal(
+      await dialog.getByRole('button', { name: 'إلغاء' }).getAttribute('data-variant'),
+      'outline'
+    )
+    assert.equal(
+      await dialog.getByRole('button', { name: 'حفظ الترتيب' }).getAttribute('data-variant'),
+      'default'
+    )
     for (let step = 0; step < 2; step++)
       await dialog.getByRole('button', { name: 'تحريك المراقبة والتشغيل لأعلى' }).click()
     await dialog.getByRole('button', { name: 'حفظ الترتيب' }).click()
