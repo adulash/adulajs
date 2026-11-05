@@ -1046,15 +1046,17 @@ function SavedViewsBar({
             {!view.own && <span className="text-muted-foreground"> · {t('مشترك')}</span>}
           </Button>
           {view.own && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="rounded-full"
               aria-label={t('حذف العرض {name}', { name: view.name })}
               disabled={busy}
               onClick={() => remove(view)}
-              className="text-muted-foreground transition-colors hover:text-destructive"
             >
-              <X size={13} />
-            </button>
+              <X aria-hidden />
+            </Button>
           )}
         </span>
       ))}
