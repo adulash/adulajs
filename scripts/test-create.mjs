@@ -320,12 +320,27 @@ try {
       /--primary:\s*([^;]+);/
     )?.[1]
     assert(provisional, 'adula.css defines --primary')
-    assert.equal(
-      await page.evaluate(() =>
-        getComputedStyle(document.documentElement).getPropertyValue('--primary').trim()
-      ),
-      provisional.trim()
-    )
+    // The generated build may rewrite the colour's notation (oklch(0.205 0 0) becomes
+    // oklch(20.5% 0 0)), so compare the colours the browser resolves, not the source text.
+    const resolved = await page.evaluate((raw) => {
+      const colour = (value) => {
+        const probe = document.createElement('span')
+        probe.style.color = value
+        document.body.append(probe)
+        const computed = getComputedStyle(probe).color
+        probe.remove()
+        return computed
+      }
+      return {
+        valid: CSS.supports('color', raw),
+        theme: colour('var(--primary)'),
+        provisional: colour(raw),
+        declared: getComputedStyle(document.documentElement).getPropertyValue('--primary').trim(),
+      }
+    }, provisional.trim())
+    assert(resolved.declared, 'the page defines --primary')
+    assert(resolved.valid, `adula.css --primary is a valid colour: ${provisional}`)
+    assert.equal(resolved.theme, resolved.provisional, `--primary is ${resolved.declared}`)
     // The brand color must reach compiled utilities, not only the variable (issue #23).
     assert.equal(
       await page.evaluate(() => {
