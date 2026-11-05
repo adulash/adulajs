@@ -13,13 +13,29 @@ import {
   SheetHeader,
   SheetTitle,
 } from '~/components/ui/sheet'
-import { useMessages } from '~/components/ui/messages'
+import { countForm, useMessages, type Translate } from '~/components/ui/messages'
 import { failure, json } from '~/components/account/request'
 import { AssistantNotice } from './notice'
 import { ProposalDialog } from './proposal-dialog'
 
 type Entry = { role: 'user' | 'assistant'; content: string }
 const HISTORY_LIMIT = 20
+
+/** The daily budget counts tokens: «رمز واحد»، «رمزان»، «3 رموز»، «11 رمزًا»، «100 رمز». */
+export function tokenCount(count: number, t: Translate) {
+  switch (countForm(count)) {
+    case 'one':
+      return t('رمز واحد')
+    case 'two':
+      return t('رمزان')
+    case 'few':
+      return t('{count} رموز', { count })
+    case 'many':
+      return t('{count} رمزًا', { count })
+    default:
+      return t('{count} رمز', { count })
+  }
+}
 
 /**
  * The assistant entry in the top bar and its panel (ADR 052). Renders nothing unless the
@@ -104,8 +120,7 @@ export default function AssistantLauncher() {
         {},
         json
       )
-      const note =
-        decision === 'confirm' ? t('نُفّذ الاقتراح.') : t('رُفض الاقتراح ولم يُنفَّذ.')
+      const note = decision === 'confirm' ? t('نُفّذ الاقتراح.') : t('رُفض الاقتراح ولم يُنفَّذ.')
       setEntries((current) => [...current, { role: 'assistant', content: note }])
       setProposals((current) => current.filter((entry) => entry.id !== reviewing.id))
       setReviewing(null)
@@ -222,7 +237,8 @@ export default function AssistantLauncher() {
                 />
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs text-muted-foreground tabular-nums">
-                    {remaining !== null && t('المتبقي اليوم: {count}', { count: remaining })}
+                    {remaining !== null &&
+                      t('المتبقي اليوم: {count}', { count: tokenCount(remaining, t) })}
                   </span>
                   <Button type="submit" size="sm" disabled={busy || !draft.trim()}>
                     <Send size={14} />
