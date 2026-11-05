@@ -59,7 +59,14 @@ export async function checkRelease({ root = fileURLToPath(new URL('../', import.
       const filename = tarballName(source.name, version)
       const archive = resolve(root, artifacts, filename)
       // A bare filename avoids GNU tar interpreting a Windows drive colon as a remote host.
-      const tar = (args) => execFileSync('tar', args, { cwd: dirname(archive), encoding: 'utf8', windowsHide: true })
+      // The creator's template.json alone exceeds execFileSync's default 1 MiB output buffer.
+      const tar = (args) =>
+        execFileSync('tar', args, {
+          cwd: dirname(archive),
+          encoding: 'utf8',
+          windowsHide: true,
+          maxBuffer: 256 * 1024 * 1024,
+        })
       const files = tar(['-tf', filename]).trim().split(/\r?\n/).filter((file) => !file.endsWith('/'))
       const packed = JSON.parse(tar(['-xOf', filename, 'package/package.json']))
       validateManifest(packed, source.name, version)
