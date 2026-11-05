@@ -13,6 +13,7 @@ import Upgrade from './upgrade.js'
 import AdulaOutbox from './adula_outbox.js'
 import AdulaRuntimeHealth from './adula_runtime_health.js'
 import AdulaUploadsPrune from './adula_uploads_prune.js'
+import AdulaAssistantPrune from './adula_assistant_prune.js'
 import AdulaRestoreReconcile from './adula_restore_reconcile.js'
 import BackupCreate from './backup_create.js'
 import BackupRestoreFiles from './backup_restore_files.js'
@@ -38,6 +39,7 @@ const commands = [
   AdulaOutbox,
   AdulaRuntimeHealth,
   AdulaUploadsPrune,
+  AdulaAssistantPrune,
   AdulaRestoreReconcile,
   BackupCreate,
   BackupRestoreFiles,

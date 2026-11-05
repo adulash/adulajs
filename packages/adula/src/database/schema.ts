@@ -1269,3 +1269,51 @@ export async function withdrawDeletedCommentNotifications(db: Knex) {
     await withdrawNotificationDelivery(db, chunk)
   }
 }
+
+/**
+ * The built-in assistant (ADR 052): conversation metadata (never message text), pending
+ * write proposals awaiting the user's confirmation, and per-user daily token usage.
+ */
+export async function createAssistantSchema(db: Knex) {
+  await db.schema.createTable('ai_conversations', (t) => {
+    // Integer: the id is the record_id of the conversation's activity entries.
+    t.increments('id')
+    t.integer('user_id').notNullable().references('id').inTable('users').onDelete('CASCADE')
+    t.integer('impersonator_id').references('id').inTable('users').onDelete('SET NULL')
+    t.integer('turns').notNullable().defaultTo(0)
+    t.integer('tokens').notNullable().defaultTo(0)
+    t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+    t.timestamp('last_turn_at', { useTz: true })
+    t.index(['user_id', 'created_at'])
+  })
+  await db.schema.createTable('ai_pending_actions', (t) => {
+    t.uuid('id').primary()
+    t.integer('conversation_id')
+      .notNullable()
+      .references('id')
+      .inTable('ai_conversations')
+      .onDelete('CASCADE')
+    t.integer('user_id').notNullable().references('id').inTable('users').onDelete('CASCADE')
+    t.integer('impersonator_id')
+    t.string('resource').notNullable()
+    t.string('action').notNullable()
+    t.integer('record_id')
+    t.jsonb('input')
+    t.integer('version')
+    t.timestamp('expires_at', { useTz: true }).notNullable()
+    t.timestamp('consumed_at', { useTz: true })
+    t.string('outcome', 20)
+    t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+    t.index(['user_id', 'consumed_at'])
+    t.index(['expires_at'])
+  })
+  await db.schema.createTable('ai_usage', (t) => {
+    t.integer('user_id').notNullable().references('id').inTable('users').onDelete('CASCADE')
+    t.date('day').notNullable()
+    t.integer('prompt_tokens').notNullable().defaultTo(0)
+    t.integer('completion_tokens').notNullable().defaultTo(0)
+    t.integer('reserved').notNullable().defaultTo(0)
+    t.integer('requests').notNullable().defaultTo(0)
+    t.primary(['user_id', 'day'])
+  })
+}

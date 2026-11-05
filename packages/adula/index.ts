@@ -231,6 +231,8 @@ export { createPrintTemplatesSchema } from './src/database/schema.js'
 export { Webhooks, signWebhook, WEBHOOK_MAX_ATTEMPTS } from './src/integrations/webhooks.js'
 export {
   createOutboundPoster,
+  createOutboundRequester,
+  OutboundResponseTooLarge,
   isBlockedAddress,
   outboundErrorCategory,
 } from './src/integrations/outbound.js'
@@ -497,3 +499,17 @@ export type {
   HttpChannelInput,
 } from './src/core/notification_channels.js'
 export { isSealedSetting } from './src/core/settings.js'
+export {
+  parseResourceToolArgs,
+  runResourceTool,
+  resourceToolError,
+  RESOURCE_READ_SCHEMA,
+  RESOURCE_WRITE_SCHEMA,
+} from './src/admin/resource_tools.js'
+export type { ResourceToolCall, ResourceToolError } from './src/admin/resource_tools.js'
+export { Assistant } from './src/ai/assistant.js'
+export type { AssistantProposal, AssistantTurnResult, AssistantStatus } from './src/ai/assistant.js'
+export { AssistantSettings, ASSISTANT_LIMITS } from './src/ai/settings.js'
+export type { AssistantSettingsView, AssistantSettingsInput } from './src/ai/settings.js'
+export { createChatClient, AssistantError } from './src/ai/client.js'
+export type { ChatClient, ChatRequest, ChatCompletion } from './src/ai/client.js'

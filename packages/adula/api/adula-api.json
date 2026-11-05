@@ -132,6 +132,42 @@
       "kind": "TypeAliasDeclaration",
       "type": "\"cancelled\" | \"done\" | \"open\""
     },
+    "Assistant": {
+      "kind": "ClassDeclaration",
+      "type": "typeof Assistant"
+    },
+    "ASSISTANT_LIMITS": {
+      "kind": "VariableDeclaration",
+      "type": "{ readonly maxOutputTokens: readonly [1024, 64, 4096]; readonly dailyTokenBudget: readonly [50000, 1000, 2000000]; readonly requestsPerMinute: readonly [10, 1, 60]; readonly maxToolIterations: readonly [4, 0, 8]; readonly timeoutSeconds: readonly [30, 5, 60]; }"
+    },
+    "AssistantError": {
+      "kind": "ClassDeclaration",
+      "type": "typeof AssistantError"
+    },
+    "AssistantProposal": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ id: string; resource: string; resourceLabel: string; action: string; recordId: number | null; recordTitle: string | null; input: Record<string, unknown> | null; before: Record<string, unknown> | null; version: number | null; expiresAt: string; }"
+    },
+    "AssistantSettings": {
+      "kind": "ClassDeclaration",
+      "type": "typeof AssistantSettings"
+    },
+    "AssistantSettingsInput": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ model?: string | undefined; maxOutputTokens?: number | undefined; dailyTokenBudget?: number | undefined; requestsPerMinute?: number | undefined; maxToolIterations?: number | undefined; timeoutSeconds?: number | undefined; enabled?: boolean | undefined; baseUrl?: string | undefined; systemPrompt?: string | undefined; allowWriteProposals?: boolean | undefined; }"
+    },
+    "AssistantSettingsView": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ enabled: boolean; baseUrl: string; model: string; systemPrompt: string; allowWriteProposals: boolean; hasKey: boolean; updatedAt: string | null; } & Record<\"maxOutputTokens\" | \"dailyTokenBudget\" | \"requestsPerMinute\" | \"maxToolIterations\" | \"timeoutSeconds\", number>"
+    },
+    "AssistantStatus": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ available: boolean; noticeAccepted: boolean; }"
+    },
+    "AssistantTurnResult": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ reply: string; proposals: AssistantProposal[]; usage: { remainingToday: number; }; }"
+    },
     "attachmentHeaders": {
       "kind": "FunctionDeclaration",
       "type": "(file: Pick<AttachmentRecord, \"originalName\" | \"mimeType\" | \"extname\" | \"size\">, options?: ({ preview?: boolean | undefined; } & AttachmentPreviewOptions) | undefined) => Record<string, string>"
@@ -308,6 +344,18 @@
       "kind": "TypeAliasDeclaration",
       "type": "{ userId: number; email: string; name: string | null; address: string | null; }"
     },
+    "ChatClient": {
+      "kind": "TypeAliasDeclaration",
+      "type": "(request: ChatRequest) => Promise<ChatCompletion>"
+    },
+    "ChatCompletion": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ content: string | null; toolCalls: AssistantToolCall[]; usage: { prompt: number; completion: number; } | null; }"
+    },
+    "ChatRequest": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ baseUrl: string; key: string; body: Record<string, unknown>; signal: AbortSignal; }"
+    },
     "claimAttachment": {
       "kind": "FunctionDeclaration",
       "type": "(trx: Transaction<any, any[]>, input: ClaimInput) => Promise<AttachmentRecord>"
@@ -364,6 +412,10 @@
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>) => Promise<void>"
     },
+    "createChatClient": {
+      "kind": "FunctionDeclaration",
+      "type": "(options?: OutboundOptions | undefined) => ChatClient"
+    },
     "createCollaborationSchema": {
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>) => Promise<void>"
@@ -407,6 +459,10 @@
     "createOutboundPoster": {
       "kind": "FunctionDeclaration",
       "type": "(options?: OutboundOptions | undefined) => (value: string, init: OutboundRequest) => Promise<{ status: number; }>"
+    },
+    "createOutboundRequester": {
+      "kind": "FunctionDeclaration",
+      "type": "(options?: OutboundOptions | undefined) => (value: string, init: OutboundRequest & { maxBytes: number; }) => Promise<OutboundResponse>"
     },
     "createPrintTemplatesSchema": {
       "kind": "FunctionDeclaration",
@@ -1128,6 +1184,10 @@
       "kind": "TypeAliasDeclaration",
       "type": "{ headers: Record<string, string>; body: string; signal: AbortSignal; target?: OutboundTarget | undefined; }"
     },
+    "OutboundResponseTooLarge": {
+      "kind": "ClassDeclaration",
+      "type": "typeof OutboundResponseTooLarge"
+    },
     "OutboundTarget": {
       "kind": "TypeAliasDeclaration",
       "type": "{ address: string; family: 4 | 6; }"
@@ -1135,6 +1195,10 @@
     "packedResourceRules": {
       "kind": "FunctionDeclaration",
       "type": "(resource: Resource, actor: Actor) => PackRule<SubjectRawRule<string, any, Conditions>>[]"
+    },
+    "parseResourceToolArgs": {
+      "kind": "FunctionDeclaration",
+      "type": "(runtime: Pick<ResourceRuntime, \"registry\">, value: unknown, write: boolean) => ResourceToolCall"
     },
     "parseSettingValue": {
       "kind": "FunctionDeclaration",
@@ -1356,6 +1420,14 @@
       "kind": "TypeAliasDeclaration",
       "type": "{ name: string; label: Label; recordLabel?: Label | undefined; createLabel?: Label | undefined; model?: LucidModel | undefined; scoped: boolean; scope?: { from: string; } | undefined; submittable?: boolean | undefined; version?: boolean | undefined; fields: Record<string, Field>; list: readonly string[]; form: readonly string[]; show: readonly string[]; serialize?: readonly string[] | undefined; hidden?: readonly string[] | undefined; title?: readonly string[] | undefined; actions: readonly Action[]; unique?: readonly (readonly string[])[] | undefined; validator?: { validate(data: unknown): Promise<RecordData>; } | undefined; printTemplates?: readonly PrintTemplate[] | undefined; hooks?: { beforeSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; afterSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; } | undefined; }"
     },
+    "RESOURCE_READ_SCHEMA": {
+      "kind": "VariableDeclaration",
+      "type": "{ readonly type: \"object\"; readonly additionalProperties: false; readonly properties: { readonly resource: { readonly type: \"string\"; }; readonly action: { readonly type: \"string\"; readonly enum: readonly [\"list\", \"show\", \"editor\"]; }; readonly id: { readonly type: \"integer\"; readonly minimum: 1; }; readonly options: { readonly type: \"object\"; readonly properties: { readonly limit: { readonly type: \"integer\"; readonly minimum: 1; readonly maximum: 100; }; readonly cursor: { readonly type: \"string\"; }; readonly search: { readonly type: \"string\"; }; readonly sort: { readonly type: \"string\"; }; readonly direction: { readonly type: \"string\"; readonly enum: readonly [\"asc\", \"desc\"]; }; readonly filters: { readonly type: \"object\"; readonly properties: {}; readonly additionalProperties: true; }; readonly estimate: { readonly type: \"boolean\"; }; }; readonly additionalProperties: false; }; }; readonly required: readonly [\"resource\", \"action\"]; }"
+    },
+    "RESOURCE_WRITE_SCHEMA": {
+      "kind": "VariableDeclaration",
+      "type": "{ readonly type: \"object\"; readonly additionalProperties: false; readonly properties: { readonly resource: { readonly type: \"string\"; }; readonly action: { readonly type: \"string\"; readonly enum: readonly [\"create\", \"update\", \"delete\", \"submit\", \"cancel\"]; }; readonly id: { readonly type: \"integer\"; readonly minimum: 1; }; readonly input: { readonly type: \"object\"; readonly properties: {}; readonly additionalProperties: true; }; readonly version: { readonly type: \"integer\"; readonly minimum: 1; }; }; readonly required: readonly [\"resource\", \"action\"]; }"
+    },
     "ResourceActivity": {
       "kind": "TypeAliasDeclaration",
       "type": "{ id: number; action: Action; fields: string[]; actorId: number; actorName: string | null; actorEmail: string | null; createdAt: string; }[]"
@@ -1436,6 +1508,18 @@
       "kind": "TypeAliasDeclaration",
       "type": "Pick<Resource, \"fields\" | \"name\" | \"scoped\" | \"submittable\" | \"version\"> & { unique?: readonly (readonly string[])[] | undefined; }"
     },
+    "ResourceToolCall": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ write: boolean; resource: string; action: ResourceToolAction; id?: number | undefined; options?: ListOptions | undefined; input?: Record<string, unknown> | undefined; version?: unknown; }"
+    },
+    "resourceToolError": {
+      "kind": "FunctionDeclaration",
+      "type": "(error: unknown) => ResourceToolError"
+    },
+    "ResourceToolError": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ status: number; code: string; message?: string | undefined; messages?: unknown; }"
+    },
     "ResourceUniqueIndex": {
       "kind": "TypeAliasDeclaration",
       "type": "{ name: string; columns: string[]; fields: string[]; excludeCancelled: boolean; }"
@@ -1471,6 +1555,10 @@
     "RuleInput": {
       "kind": "TypeAliasDeclaration",
       "type": "{ subject: string; action: string; inverted?: boolean | undefined; conditions?: Conditions | null | undefined; fields?: string[] | null | undefined; }"
+    },
+    "runResourceTool": {
+      "kind": "FunctionDeclaration",
+      "type": "(runtime: ResourceRuntime, call: ResourceToolCall) => Promise<unknown>"
     },
     "runtimeHealth": {
       "kind": "FunctionDeclaration",
