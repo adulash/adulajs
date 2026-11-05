@@ -4,6 +4,7 @@ import { crc32, deflateSync } from 'node:zlib'
 import { adula } from '#services/adula'
 import {
   installSampleResources,
+  longDialogLayout,
   removeSampleResources,
   screenshotDir,
   seedActor,
@@ -150,5 +151,35 @@ test.group('Profile picture browser acceptance (#158)', (group) => {
     await own.getByRole('button', { name: 'اختيار صورة' }).waitFor()
     assert.equal(await menu.locator('img').count(), 0)
     assert.include(await menu.innerText(), 'ما')
+  })
+
+  test('on a phone the picture dialog keeps its footer on screen while the body scrolls', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    // The colleague ends the previous test without a picture, so the card offers «اختيار صورة».
+    await browserContext.loginAs(colleague.user)
+    const page = await visit('/account/profile')
+    await page.setViewportSize({ width: 375, height: 812 })
+    await page.getByRole('button', { name: 'اختيار صورة' }).click()
+    const dialog = page.getByRole('dialog', { name: 'الصورة الشخصية' })
+    await dialog
+      .getByLabel('ملف الصورة')
+      .setInputFiles({ name: 'portrait.png', mimeType: 'image/png', buffer: photo() })
+    await dialog.getByTestId('avatar-crop').waitFor()
+    // Reach the end of the body, as a reader would; the header and actions must not move away.
+    await dialog.getByRole('slider').focus()
+    assert.deepEqual(await longDialogLayout(dialog, 812), {
+      footerOnScreen: true,
+      headerOnScreen: true,
+      bodyScrolls: true,
+    })
+    const save = dialog.getByRole('button', { name: 'حفظ الصورة' })
+    assert.isTrue(await save.isVisible())
+    assert.isTrue(await save.isEnabled())
+    await page.screenshot({ path: join(await screenshotDir(), 'avatar-dialog-mobile.png') })
+    await dialog.getByRole('button', { name: 'إلغاء' }).click()
+    await dialog.waitFor({ state: 'hidden' })
   })
 })
