@@ -87,6 +87,10 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
 * Encrypted cloud backups (ADR 051) are verified only against local fakes of Google Drive and
   Microsoft Graph; there is no restore from inside the application (recovery uses
   `backup:open` and the restore commands) and no remote retention.
+* If the worker stops while a cloud backup runs, the unencrypted snapshot in its
+  `storage/backups/work-*` folder stays until `recoverStale` and `pruneExpired` remove it after
+  the run timeout (6 hours by default). The folder is 0700 inside the 0700 `storage/backups`, so
+  no other user or the web root can read it, but it is not removed at worker start-up.
 * Excel import (2.3.0, #161) reads the first sheet of an `.xlsx` file only; `.xls`,
   `.ods`, password-protected workbooks and formulas (other than their cached values) are
   not supported (docs/integration.md).

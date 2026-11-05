@@ -246,3 +246,144 @@ test.group('xlsx import guard and adapter', () => {
     assert.equal(await messageOf(() => readXlsxTable(over)), SIZE)
   }).timeout(60000)
 })
+
+test.group('xlsx guard reads references as the parser does (2.3.0 review)', () => {
+  const raw = (r: string, text = 'x') => `<c ${r} t="inlineStr"><is><t>${text}</t></is></c>`
+  const prefixed = (rows: string) => sheet(rows).replace('<worksheet', '<worksheet xmlns:x="urn:x"')
+
+  /** Expects the guard itself to refuse the file, quickly, before the parser runs. */
+  async function refused(
+    bytes: Uint8Array,
+    message: string,
+    assert: {
+      equal(actual: unknown, expected: unknown): void
+      isBelow(value: number, limit: number): void
+    }
+  ) {
+    const started = Date.now()
+    assert.equal(await messageOf(() => readXlsxTable(bytes)), message)
+    assert.equal(await messageOf(() => guardXlsx(bytes)), message)
+    assert.isBelow(Date.now() - started, 2000)
+  }
+
+  test('character references in r are decoded before the limits apply', async ({ assert }) => {
+    // &#88; is X: the parser reads XFD1, column 16384.
+    await refused(workbook(sheet(`<row r="1">${raw('r="&#88;FD1"')}</row>`)), SIZE, assert)
+    await refused(workbook(sheet(`<row r="1">${raw('r="&#x58;FD1"')}</row>`)), SIZE, assert)
+    // &#57; is 9: row 999999999 would be filled with empty rows.
+    await refused(
+      workbook(sheet(`<row r="&#57;99999999">${raw('r="A1"')}</row>`)),
+      MALFORMED,
+      assert
+    )
+    await refused(workbook(sheet(`<row r="&#54;000"></row>`)), SIZE, assert)
+    // An ampersand that is not a reference, or an unknown entity, is refused.
+    await refused(workbook(sheet(`<row r="1">${raw('r="A&1"')}</row>`)), MALFORMED, assert)
+    await refused(workbook(sheet(`<row r="1">${raw('r="&nbsp;A1"')}</row>`)), MALFORMED, assert)
+  })
+
+  test('references outside the standard form are refused', async ({ assert }) => {
+    for (const reference of ['AAAAAA1', 'a1', 'A01', 'A1 ', ' A1', 'A', '1', 'A-1', 'A99999999'])
+      await refused(
+        workbook(sheet(`<row r="1">${raw(`r="${reference}"`)}</row>`)),
+        MALFORMED,
+        assert
+      )
+    for (const reference of ['0', '01', '-1', '1.5', '1e3', ' 2', '99999999'])
+      await refused(workbook(sheet(`<row r="${reference}"></row>`)), MALFORMED, assert)
+    // A cell of another row, or cells and rows out of order.
+    await refused(workbook(sheet(`<row r="1">${raw('r="A2"')}</row>`)), MALFORMED, assert)
+    await refused(
+      workbook(sheet(`<row r="1">${raw('r="B1"')}${raw('r="A1"')}</row>`)),
+      MALFORMED,
+      assert
+    )
+    await refused(workbook(sheet('<row r="2"></row><row r="1"></row>')), MALFORMED, assert)
+  })
+
+  test('namespace prefixes on r count, and a repeated r is refused', async ({ assert }) => {
+    await refused(workbook(prefixed(`<row r="1">${raw('x:r="XFD1"')}</row>`)), SIZE, assert)
+    await refused(workbook(prefixed(`<row x:r="6000"></row>`)), SIZE, assert)
+    await refused(
+      workbook(prefixed(`<row r="1">${raw('r="A1" x:r="XFD1"')}</row>`)),
+      MALFORMED,
+      assert
+    )
+    // A prefixed element name is the same element to the parser.
+    await refused(workbook(prefixed(`<x:row r="6000"></x:row>`)), SIZE, assert)
+  })
+
+  test('comments, CDATA, processing instructions and stray brackets are refused', async ({
+    assert,
+  }) => {
+    const hidden = `<row r="1">${raw('r="A1"')}<!-- </row> --></row><row r="6000"></row>`
+    await refused(workbook(sheet(hidden)), MALFORMED, assert)
+    await refused(workbook(sheet('<row r="1"><![CDATA[</row>]]></row>')), MALFORMED, assert)
+    await refused(workbook(sheet('<?pi </row>?><row r="1"></row>')), MALFORMED, assert)
+    // A > inside an attribute value cannot hide the r that follows it.
+    await refused(workbook(sheet('<row spans=">" r="6000"></row>')), SIZE, assert)
+    await refused(workbook(sheet('<row r="1"><c r="A1" t="</row>"></c></row>')), MALFORMED, assert)
+    const workbookComment = WORKBOOK.replace('<sheets>', '<!-- note --><sheets>')
+    const commented = zipSync({
+      'xl/workbook.xml': strToU8(workbookComment),
+      'xl/_rels/workbook.xml.rels': strToU8(RELS),
+      'xl/worksheets/sheet1.xml': strToU8(sheet('')),
+    })
+    await refused(commented, MALFORMED, assert)
+  })
+
+  test('the guard measures the sheet and shared strings the parser will open', async ({
+    assert,
+  }) => {
+    const twoSheets = `<?xml version="1.0" encoding="UTF-8"?><workbook xmlns="${MAIN}" xmlns:r="${REL}"><sheets><sheet sheetId="1" r:id="rId2"/><sheet name="S" sheetId="2" r:id="rId1"/></sheets></workbook>`
+    const twoRels = `<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${REL}/worksheet" Target="worksheets/big.xml"/><Relationship Id="rId2" Type="${REL}/worksheet" Target="worksheets/small.xml"/></Relationships>`
+    // The parser skips a <sheet> without a name, so the guard measures big.xml.
+    const nameless = zipSync({
+      'xl/workbook.xml': strToU8(twoSheets),
+      'xl/_rels/workbook.xml.rels': strToU8(twoRels),
+      'xl/worksheets/small.xml': strToU8(sheet('')),
+      'xl/worksheets/big.xml': strToU8(sheet('<row r="6000"></row>')),
+    })
+    await refused(nameless, SIZE, assert)
+    // The parser keeps the last relationship of a repeated id; the guard refuses the file.
+    const repeatedRels = RELS.replace(
+      '</Relationships>',
+      `<Relationship Id="rId1" Type="${REL}/worksheet" Target="worksheets/big.xml"/></Relationships>`
+    )
+    const repeated = zipSync({
+      'xl/workbook.xml': strToU8(WORKBOOK),
+      'xl/_rels/workbook.xml.rels': strToU8(repeatedRels),
+      'xl/worksheets/sheet1.xml': strToU8(sheet('')),
+      'xl/worksheets/big.xml': strToU8(sheet('<row r="6000"></row>')),
+    })
+    await refused(repeated, MALFORMED, assert)
+    // Shared strings at a path the relationships name are counted too.
+    const stringsRels = RELS.replace(
+      '</Relationships>',
+      `<Relationship Id="rId9" Type="${REL}/sharedStrings" Target="strings/table.xml"/></Relationships>`
+    )
+    const strings = `<?xml version="1.0" encoding="UTF-8"?><sst xmlns="${MAIN}">${'<si><t>x</t></si>'.repeat(6)}</sst>`
+    const elsewhere = zipSync({
+      'xl/workbook.xml': strToU8(WORKBOOK),
+      'xl/_rels/workbook.xml.rels': strToU8(stringsRels),
+      'xl/worksheets/sheet1.xml': strToU8(sheet('')),
+      'xl/strings/table.xml': strToU8(strings),
+    })
+    assert.equal(guardXlsx(elsewhere).sharedStrings, 6)
+    assert.equal(
+      await messageOf(() => guardXlsx(elsewhere, { ...XLSX_LIMITS, sharedStrings: 5 })),
+      TOO_LARGE
+    )
+  })
+
+  test('entities in ordinary values and prefixed workbooks still read normally', async ({
+    assert,
+  }) => {
+    const bytes = workbook(
+      prefixed(
+        `<x:row r="1">${raw('x:r="A1"', 'أ &amp; ب')}</x:row><row r="2">${raw('r="A2"', '&#1587;')}</row>`
+      )
+    )
+    assert.deepEqual(await readXlsxTable(bytes), { headers: ['أ & ب'], rows: [['س']] })
+  })
+})

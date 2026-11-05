@@ -224,11 +224,82 @@ function xmlText(bytes: Uint8Array) {
   return text
 }
 
+const NAMED_ENTITIES: Record<string, string> = {
+  lt: '<',
+  gt: '>',
+  amp: '&',
+  quot: '"',
+  apos: "'",
+}
+
+const REFERENCE = /&(#x[\da-fA-F]{1,6}|#\d{1,7}|[a-z]+);/g
+
+/**
+ * Character and predefined entity references decoded as the XML parser decodes them. An
+ * ampersand that does not start such a reference is refused rather than guessed at.
+ */
+function decodeEntities(value: string) {
+  if (!value.includes('&')) return value
+  if (value.replace(REFERENCE, '').includes('&')) fail(MALFORMED)
+  return value.replace(REFERENCE, (_, reference: string) => {
+    if (reference[0] !== '#') return NAMED_ENTITIES[reference] ?? fail(MALFORMED)
+    const code =
+      reference[1] === 'x' ? Number.parseInt(reference.slice(2), 16) : Number(reference.slice(1))
+    return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : fail(MALFORMED)
+  })
+}
+
+/**
+ * Attributes as the reader sees them: values decoded, names without their namespace prefix
+ * (`x:r` is `r`), `xmlns` declarations left out. Two attributes with the same local name are
+ * refused, because the parser would keep only one of them.
+ */
 function attributes(source: string) {
   const found: Record<string, string> = {}
-  for (const match of source.matchAll(/([\w:.-]+)\s*=\s*(?:"([^"]*)"|'([^']*)')/g))
-    found[match[1]] = match[2] ?? match[3]
+  for (const match of source.matchAll(/([A-Za-z_][\w.:-]*)\s*=\s*(?:"([^"]*)"|'([^']*)')/g)) {
+    const name = match[1]
+    if (name === 'xmlns' || name.startsWith('xmlns:')) continue
+    const local = name.includes(':') ? name.slice(name.lastIndexOf(':') + 1) : name
+    if (Object.hasOwn(found, local)) fail(MALFORMED)
+    found[local] = decodeEntities(match[2] ?? match[3])
+  }
   return found
+}
+
+type XmlElement = {
+  /** The local name, without a namespace prefix. */
+  name: string
+  closing: boolean
+  selfClosing: boolean
+  attributes: Record<string, string>
+}
+
+const TAG =
+  /<(\/)?((?:[A-Za-z_][\w.-]*:)?[A-Za-z_][\w.-]*)((?:\s+[A-Za-z_][\w.:-]*\s*=\s*(?:"[^"<]*"|'[^'<]*'))*)\s*(\/)?>/y
+
+/**
+ * The elements of an XML part, read strictly: after the XML declaration every `<` must open
+ * or close an element with well-formed attributes. Comments, CDATA sections, processing
+ * instructions and anything else the guard could read differently from the parser are refused.
+ */
+function* xmlElements(text: string): Generator<XmlElement> {
+  const declaration = /^\uFEFF?<\?xml\s[^<>]*\?>/.exec(text)
+  let position = declaration ? declaration[0].length : 0
+  for (;;) {
+    const start = text.indexOf('<', position)
+    if (start === -1) return
+    TAG.lastIndex = start
+    const match = TAG.exec(text)
+    if (!match) return fail(MALFORMED)
+    position = TAG.lastIndex
+    const qualified = match[2]
+    yield {
+      name: qualified.includes(':') ? qualified.slice(qualified.indexOf(':') + 1) : qualified,
+      closing: Boolean(match[1]),
+      selfClosing: Boolean(match[4]),
+      attributes: match[1] ? {} : attributes(match[3]),
+    }
+  }
 }
 
 /** Resolves a relationship target the way the reader does. */
@@ -244,57 +315,94 @@ function sizeMessage(limits: XlsxLimits) {
   return `يجب ألا يتجاوز الملف ${limits.rows - 1} صف بيانات و${limits.columns} عمودًا`
 }
 
-/** Counts rows and cells, with or without `r` references, against the limits. */
+/** A row number: a positive integer without sign, spaces or leading zeros. */
+const ROW_REFERENCE = /^[1-9]\d{0,6}$/
+/** A cell reference: one to three capital letters, then the row number. */
+const CELL_REFERENCE = /^([A-Z]{1,3})([1-9]\d{0,6})$/
+
+/**
+ * Counts rows and cells against the limits, reading `r` exactly as the parser does. A row
+ * or cell reference that is not in its standard form is refused, so no reference can grow
+ * the parser's arrays beyond what was counted here.
+ */
 function measureSheet(text: string, limits: XlsxLimits) {
   let maxRow = 0
   let maxColumn = 0
   let rows = 0
-  const rowPattern = /<(?:[\w.-]+:)?row\b([^>]*?)(\/>|>)/g
-  const closePattern = /<\/(?:[\w.-]+:)?row\s*>/g
-  const cellPattern = /<(?:[\w.-]+:)?c\b([^>]*?)(?:\/>|>)/g
-  for (let match = rowPattern.exec(text); match; match = rowPattern.exec(text)) {
-    rows++
-    const r = Number(attributes(match[1]).r)
-    const row = Number.isInteger(r) && r > 0 ? r : maxRow + 1
-    maxRow = Math.max(maxRow, row)
-    if (rows > limits.rows || maxRow > limits.rows) fail(sizeMessage(limits))
-    if (match[2] === '/>') continue
-    closePattern.lastIndex = rowPattern.lastIndex
-    const close = closePattern.exec(text)
-    if (!close) return fail(MALFORMED)
-    const body = text.slice(rowPattern.lastIndex, close.index)
-    let cells = 0
-    let column = 0
-    for (const cell of body.matchAll(cellPattern)) {
+  let row = 0
+  let column = 0
+  let cells = 0
+  let inRow = false
+  for (const element of xmlElements(text)) {
+    if (element.name === 'row') {
+      if (element.closing) {
+        if (!inRow) fail(MALFORMED)
+        inRow = false
+        continue
+      }
+      if (inRow) fail(MALFORMED)
+      const reference = element.attributes.r
+      if (reference !== undefined && !ROW_REFERENCE.test(reference)) fail(MALFORMED)
+      const number = reference === undefined ? maxRow + 1 : Number(reference)
+      if (number <= maxRow) fail(MALFORMED)
+      rows++
+      row = number
+      maxRow = number
+      column = 0
+      cells = 0
+      if (rows > limits.rows || maxRow > limits.rows) fail(sizeMessage(limits))
+      inRow = !element.selfClosing
+    } else if (element.name === 'c' && !element.closing) {
+      if (!inRow) fail(MALFORMED)
+      const reference = element.attributes.r
+      let number = column + 1
+      if (reference !== undefined) {
+        const parts = CELL_REFERENCE.exec(reference)
+        if (!parts || Number(parts[2]) !== row) return fail(MALFORMED)
+        number = columnNumber(parts[1])
+      }
+      if (number <= column) fail(MALFORMED)
+      column = number
       cells++
-      const reference = /^([A-Z]{1,3})(\d+)$/.exec(attributes(cell[1]).r ?? '')
-      column = reference ? columnNumber(reference[1]) : column + 1
-      if (reference && Number(reference[2]) !== row) fail(MALFORMED)
       maxColumn = Math.max(maxColumn, column)
       if (cells > limits.columns || maxColumn > limits.columns) fail(sizeMessage(limits))
     }
-    rowPattern.lastIndex = close.index + close[0].length
   }
+  if (inRow) fail(MALFORMED)
   return { maxRow, maxColumn }
 }
 
-/** The first worksheet named by the workbook, and the shared strings and styles parts. */
+/**
+ * The worksheet the reader opens first (the first `<sheet>` with a name), and the shared
+ * strings and styles parts, resolved as the reader resolves relationships.
+ */
 function workbookParts(workbook: string, relationships: string) {
-  const sheet = /<(?:[\w.-]+:)?sheet\b([^>]*?)\/?>/.exec(workbook)
-  const relationId = sheet
-    ? Object.entries(attributes(sheet[1])).find(([key]) => /(^|:)id$/.test(key))?.[1]
-    : undefined
+  let relationId: string | undefined
+  for (const element of xmlElements(workbook))
+    if (element.name === 'sheet' && !element.closing && element.attributes.name) {
+      relationId = element.attributes.id
+      break
+    }
   if (!relationId) return fail(MALFORMED)
   let sheetPath: string | undefined
-  const extra = new Set<string>()
-  for (const match of relationships.matchAll(/<(?:[\w.-]+:)?Relationship\b([^>]*?)\/?>/g)) {
-    const { Id: id, Type: type = '', Target: target } = attributes(match[1])
+  const sharedStrings = new Set(['xl/sharedStrings.xml'])
+  const styles = new Set(['xl/styles.xml'])
+  const ids = new Set<string>()
+  for (const element of xmlElements(relationships)) {
+    if (element.name !== 'Relationship' || element.closing) continue
+    const { Id: id, Type: type = '', Target: target } = element.attributes
+    // The reader keeps the last relationship of an id; a repeated id is refused instead.
+    if (id !== undefined) {
+      if (ids.has(id)) fail(MALFORMED)
+      ids.add(id)
+    }
     if (!target) continue
     if (id === relationId && type.endsWith('/worksheet')) sheetPath = partPath(target)
-    if (type.endsWith('/sharedStrings') || type.endsWith('/styles')) extra.add(partPath(target))
+    if (type.endsWith('/sharedStrings')) sharedStrings.add(partPath(target))
+    if (type.endsWith('/styles')) styles.add(partPath(target))
   }
   if (!sheetPath) return fail(MALFORMED)
-  return { sheetPath, extra: [...extra, 'xl/sharedStrings.xml', 'xl/styles.xml'] }
+  return { sheetPath, sharedStrings, styles }
 }
 
 const FIXED_PARTS = [
@@ -304,11 +412,17 @@ const FIXED_PARTS = [
   'xl/_rels/workbook.xml.rels',
 ]
 
+/** Reads every element of a part, so a malformed part fails here and not in the parser. */
+function checkPart(text: string) {
+  for (const element of xmlElements(text)) void element
+}
+
 /**
  * Checks an uploaded workbook before any spreadsheet parser sees it (#161): signature,
  * encryption, a consistent zip structure, the real decompressed size of every entry, UTF-8
- * XML without DTDs, and the sheet's row, column and shared-string counts. Returns a rebuilt
- * archive with only the allow-listed parts, so the parser reads exactly what was checked.
+ * XML without DTDs, comments, CDATA or ambiguous references, and the sheet's row, column and
+ * shared-string counts. Returns a rebuilt archive with only the allow-listed parts, so the
+ * parser reads exactly what was checked.
  */
 export function guardXlsx(bytes: Uint8Array, limits: XlsxLimits = XLSX_LIMITS): GuardedXlsx {
   if (bytes.byteLength > limits.compressed) fail('حجم الملف يتجاوز 5 ميغابايت')
@@ -329,19 +443,26 @@ export function guardXlsx(bytes: Uint8Array, limits: XlsxLimits = XLSX_LIMITS): 
   const workbook = first.get('xl/workbook.xml')
   const relationships = first.get('xl/_rels/workbook.xml.rels')
   if (!workbook || !relationships) return fail(MALFORMED)
-  for (const part of first.values()) xmlText(part)
-  const { sheetPath, extra } = workbookParts(xmlText(workbook), xmlText(relationships))
+  for (const part of first.values()) checkPart(xmlText(part))
+  const parts = workbookParts(xmlText(workbook), xmlText(relationships))
+  const { sheetPath } = parts
   if (!names.has(sheetPath)) fail(MALFORMED)
-  const wanted = new Set([sheetPath, ...extra.filter((name) => names.has(name))])
+  const wanted = new Set(
+    [sheetPath, ...parts.sharedStrings, ...parts.styles].filter((name) => names.has(name))
+  )
   // Second pass for the parts the first one did not keep, under the same limits.
   const second = inflateAll(bytes, list, (name) => wanted.has(name), limits)
   let sharedStrings = 0
   for (const [name, part] of second) {
     const text = xmlText(part)
-    if (name !== sheetPath && /sharedStrings/i.test(name)) {
-      sharedStrings += text.match(/<(?:[\w.-]+:)?si\b/g)?.length ?? 0
-      if (sharedStrings > limits.sharedStrings) fail(TOO_LARGE)
+    if (name === sheetPath) continue
+    if (!parts.sharedStrings.has(name)) {
+      checkPart(text)
+      continue
     }
+    for (const element of xmlElements(text))
+      if (element.name === 'si' && !element.closing && ++sharedStrings > limits.sharedStrings)
+        fail(TOO_LARGE)
   }
   const { maxRow, maxColumn } = measureSheet(xmlText(second.get(sheetPath)!), limits)
   const clean: Record<string, Uint8Array> = {}
