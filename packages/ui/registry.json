@@ -713,12 +713,30 @@
       ]
     },
     {
+      "name": "file-input",
+      "type": "registry:ui",
+      "registryDependencies": [
+        "button",
+        "messages"
+      ],
+      "dependencies": [
+        "cn@0.3.0",
+        "lucide-react@1.47.0"
+      ],
+      "files": [
+        {
+          "path": "registry/ui/file-input.tsx",
+          "type": "registry:ui"
+        }
+      ]
+    },
+    {
       "name": "resource-import",
       "type": "registry:ui",
       "registryDependencies": [
         "badge",
         "button",
-        "input",
+        "file-input",
         "label",
         "radio-group",
         "dialog",

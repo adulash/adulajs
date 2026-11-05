@@ -1,8 +1,15 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type PointerEvent,
+} from 'react'
 import { router, usePage } from '@inertiajs/react'
 import { ImageUp } from 'lucide-react'
 import { Button } from '~/components/ui/button'
-import { Input } from '~/components/ui/input'
+import { FileInput } from '~/components/ui/file-input'
 import { Label } from '~/components/ui/label'
 import { Slider } from '~/components/ui/slider'
 import {
@@ -58,7 +65,10 @@ function encode(canvas: HTMLCanvasElement, type: string) {
 /** WebP where the browser encodes it, else PNG; a smaller size when the file is still too big. */
 async function render(image: HTMLImageElement, crop: Crop) {
   const canvas = document.createElement('canvas')
-  const largest = Math.min(OUTPUT, Math.round(Math.min(image.naturalWidth, image.naturalHeight) / crop.zoom))
+  const largest = Math.min(
+    OUTPUT,
+    Math.round(Math.min(image.naturalWidth, image.naturalHeight) / crop.zoom)
+  )
   for (const size of [largest, 384, 256, 128].filter((side) => side <= largest && side >= 32)) {
     draw(canvas, image, crop, size)
     for (const type of ['image/webp', 'image/png']) {
@@ -110,10 +120,7 @@ export function AvatarDialog({
     }
   }, [image, crop])
 
-  const update = useCallback(
-    (next: Crop) => setCrop(image ? clamp(image, next) : next),
-    [image]
-  )
+  const update = useCallback((next: Crop) => setCrop(image ? clamp(image, next) : next), [image])
 
   const choose = (file: File | undefined) => {
     setProblem(null)
@@ -209,18 +216,20 @@ export function AvatarDialog({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            اختر صورة ثم اضبط موضعها داخل المربع. تُحفظ الصورة مربعة بحجم لا يتجاوز ٥١٢ بكسل،
-            وتُزال منها بيانات الموقع والجهاز.
+            اختر صورة ثم اضبط موضعها داخل المربع. تُحفظ الصورة مربعة بحجم لا يتجاوز ٥١٢ بكسل، وتُزال
+            منها بيانات الموقع والجهاز.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="avatar-file">ملف الصورة</Label>
-            <Input
+            <Label id="avatar-file-label" htmlFor="avatar-file">
+              ملف الصورة
+            </Label>
+            <FileInput
               id="avatar-file"
-              type="file"
+              labelId="avatar-file-label"
               accept={ACCEPTED.join(',')}
-              onChange={(event) => choose(event.target.files?.[0])}
+              onFilesChange={(files) => choose(files[0])}
               aria-describedby="avatar-file-hint"
             />
             <p id="avatar-file-hint" className="text-xs text-muted-foreground">

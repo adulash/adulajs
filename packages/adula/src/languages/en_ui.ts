@@ -127,6 +127,8 @@ export const englishInterfaceMessages: Partial<
   'ui.field.replace': 'Replace',
   'ui.field.remove': 'Remove',
   'ui.field.chooseFile': 'Choose file',
+  'ui.field.changeFile': 'Change file',
+  'ui.field.noFileChosen': 'No file chosen',
   'ui.field.uploading': 'Uploading {progress}%',
   'ui.field.upload': 'Upload {field}',
   'ui.field.optionsFailed': 'Could not load the options',
