@@ -128,6 +128,24 @@ test.group('Assistant panel in the browser (ADR 052)', (group) => {
     await page.getByRole('button', { name: 'المساعد الذكي', exact: true }).click()
     const panel = page.getByRole('dialog', { name: 'المساعد الذكي' })
     await panel.getByText('ما الذي يُرسل إلى مزوّد خارجي؟').waitFor()
+    // While the panel is open the launcher takes the top bar's active state (text-primary).
+    const launcherColors = async () =>
+      (await page.evaluate(`(() => {
+      const probe = document.createElement('span')
+      probe.className = 'text-primary'
+      document.body.append(probe)
+      const primary = getComputedStyle(probe).color
+      probe.remove()
+      const launcher = document.querySelector('[data-testid="assistant-launcher"]')
+      return { primary, launcher: getComputedStyle(launcher).color }
+    })()`)) as { primary: string; launcher: string }
+    // The button eases its colors (transition-colors), so read again until it settles.
+    let colors = await launcherColors()
+    for (let tries = 0; tries < 20 && colors.launcher !== colors.primary; tries++) {
+      await page.waitForTimeout(100)
+      colors = await launcherColors()
+    }
+    assert.equal(colors.launcher, colors.primary)
     await panel.getByRole('button', { name: 'فهمت وأوافق', exact: true }).click()
 
     replies.push(text('**لا** يوجد <b>تنسيق</b>'))
