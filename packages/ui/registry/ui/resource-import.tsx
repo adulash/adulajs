@@ -8,14 +8,8 @@ import { Button } from "~/components/ui/button";
 import { FileInput } from "~/components/ui/file-input";
 import { Label } from "~/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "~/components/ui/radio-group";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "~/components/ui/dialog";
+import { Dialog } from "~/components/ui/dialog";
+import { LongDialogContent } from "~/components/ui/long-dialog";
 import {
   Select,
   SelectContent,
@@ -226,11 +220,69 @@ export function ResourceImport({
           if (!value) reset();
         }}
       >
-        <DialogContent dir="rtl" className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>استيراد إلى {label}</DialogTitle>
-            <DialogDescription>{description}</DialogDescription>
-          </DialogHeader>
+        <LongDialogContent
+          dir="rtl"
+          width="xl"
+          title={<>استيراد إلى {label}</>}
+          description={description}
+          footer={
+            <>
+              {step === "mapping" && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={busy || (mode === "upsert" && !matchField)}
+                  onClick={() => void run(true)}
+                >
+                  تحقق دون حفظ
+                </Button>
+              )}
+              {step === "report" && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setStep("mapping")}
+                >
+                  تعديل المطابقة
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpen(false)}
+              >
+                إلغاء
+              </Button>
+              {step === "upload" && (
+                <Button
+                  type="submit"
+                  form="import-upload"
+                  disabled={busy || !file}
+                >
+                  رفع الملف
+                </Button>
+              )}
+              {step === "mapping" && (
+                <Button
+                  type="submit"
+                  form="import-mapping"
+                  disabled={busy || (mode === "upsert" && !matchField)}
+                >
+                  بدء الاستيراد
+                </Button>
+              )}
+              {step === "report" && (
+                <Button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void run(false)}
+                >
+                  بدء الاستيراد
+                </Button>
+              )}
+            </>
+          }
+        >
           {step === "upload" && (
             <form id="import-upload" className="space-y-3" onSubmit={upload}>
               <div className="space-y-2">
@@ -278,7 +330,7 @@ export function ResourceImport({
           {step === "mapping" && batch && (
             <form
               id="import-mapping"
-              className="max-h-[60vh] space-y-4 overflow-y-auto"
+              className="space-y-4"
               onSubmit={(event) => {
                 event.preventDefault();
                 void run(false);
@@ -410,62 +462,7 @@ export function ResourceImport({
               {error}
             </p>
           )}
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-            >
-              إلغاء
-            </Button>
-            {step === "upload" && (
-              <Button
-                type="submit"
-                form="import-upload"
-                disabled={busy || !file}
-              >
-                رفع الملف
-              </Button>
-            )}
-            {step === "mapping" && (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  disabled={busy || (mode === "upsert" && !matchField)}
-                  onClick={() => void run(true)}
-                >
-                  تحقق دون حفظ
-                </Button>
-                <Button
-                  type="submit"
-                  form="import-mapping"
-                  disabled={busy || (mode === "upsert" && !matchField)}
-                >
-                  بدء الاستيراد
-                </Button>
-              </>
-            )}
-            {step === "report" && (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setStep("mapping")}
-                >
-                  تعديل المطابقة
-                </Button>
-                <Button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void run(false)}
-                >
-                  بدء الاستيراد
-                </Button>
-              </>
-            )}
-          </DialogFooter>
-        </DialogContent>
+        </LongDialogContent>
       </Dialog>
     </>
   );
