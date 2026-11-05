@@ -424,6 +424,26 @@ test.group('Workspace shell in the browser', (group) => {
     const tabsBox = (await settingsTabs.boundingBox())!
     const mainBox = (await page.locator('main').boundingBox())!
     assert.isAbove(tabsBox.x, mainBox.x + mainBox.width / 2)
+    // The current tab looks like the sidebar's active entry: same background and text color,
+    // semibold, and no border or bar at its start (light and dark suites).
+    await settingsTabs.locator('a[aria-current="page"]').waitFor()
+    const [tab, entry] = await page.evaluate<[Record<string, string>, Record<string, string>]>(`[
+      document.querySelector('[data-admin-subtabs] a[aria-current="page"]'),
+      document.querySelector('nav[aria-label="التنقل الإداري"] a[aria-current="page"]'),
+    ].map((element) => {
+      const style = getComputedStyle(element)
+      return {
+        border: style.borderInlineStartWidth,
+        background: style.backgroundColor,
+        color: style.color,
+        weight: style.fontWeight,
+      }
+    })`)
+    assert.equal(tab.border, '0px')
+    assert.equal(tab.background, entry.background)
+    assert.equal(tab.color, entry.color)
+    assert.equal(tab.weight, '600')
+    assert.notEqual(tab.background, 'rgba(0, 0, 0, 0)')
 
     // Arrange: move «المراقبة والتشغيل» to the top with the keyboard-accessible buttons.
     await page.getByRole('button', { name: 'قائمة الحساب' }).click()
