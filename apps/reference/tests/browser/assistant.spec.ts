@@ -215,6 +215,77 @@ test.group('Assistant panel in the browser (ADR 052)', (group) => {
     assert.equal(await dialog.locator('input[type="url"], #assistant-url').count(), 0)
   })
 
+  test('an unchanged settings dialog closes at once by Escape, the close button and «إلغاء»', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(admin)
+    const page = await visit('/admin/assistant')
+    const open = page.getByRole('button', { name: 'تعديل الإعداد', exact: true })
+    const dialog = page.getByRole('dialog', { name: 'إعداد المساعد' })
+    const asked = page.getByRole('dialog', { name: 'إغلاق النموذج؟' })
+
+    await open.click()
+    await dialog.waitFor()
+    await page.keyboard.press('Escape')
+    await dialog.waitFor({ state: 'detached' })
+
+    await open.click()
+    await dialog.getByRole('button', { name: 'إغلاق', exact: true }).click()
+    await dialog.waitFor({ state: 'detached' })
+
+    // Typing and then restoring the original value is still clean.
+    await open.click()
+    const model = dialog.getByLabel('معرّف النموذج')
+    await model.fill('test/other')
+    await model.fill('test/model')
+    await dialog.getByRole('button', { name: 'إلغاء', exact: true }).click()
+    await dialog.waitFor({ state: 'detached' })
+
+    // Opening the key field without typing changes nothing either.
+    await open.click()
+    await dialog.getByRole('button', { name: 'تغيير المفتاح', exact: true }).click()
+    await page.mouse.click(5, 5)
+    await dialog.waitFor({ state: 'detached' })
+    assert.equal(await asked.count(), 0)
+  })
+
+  test('a changed settings dialog asks before closing and keeps the stored values', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(admin)
+    const page = await visit('/admin/assistant')
+    const dialog = page.getByRole('dialog', { name: 'إعداد المساعد' })
+    const asked = page.getByRole('dialog', { name: 'إغلاق النموذج؟' })
+    await page.getByRole('button', { name: 'تعديل الإعداد', exact: true }).click()
+    await dialog.getByLabel('معرّف النموذج').fill('test/changed')
+
+    await page.keyboard.press('Escape')
+    await asked.waitFor()
+    await asked.getByRole('button', { name: 'متابعة التحرير', exact: true }).click()
+    await asked.waitFor({ state: 'detached' })
+    assert.equal(await dialog.getByLabel('معرّف النموذج').inputValue(), 'test/changed')
+
+    await dialog.getByRole('button', { name: 'إلغاء', exact: true }).click()
+    await asked.getByRole('button', { name: 'إغلاق دون حفظ', exact: true }).click()
+    await dialog.waitFor({ state: 'detached' })
+    const stored = await adula().assistantSettings.read()
+    assert.equal(stored.model, 'test/model')
+
+    // A typed key alone is a change too.
+    await page.getByRole('button', { name: 'تعديل الإعداد', exact: true }).click()
+    await dialog.getByRole('button', { name: 'تغيير المفتاح', exact: true }).click()
+    await dialog.getByLabel('مفتاح OpenRouter (API key)').fill('test-key-typed-not-saved')
+    await dialog.getByRole('button', { name: 'إغلاق', exact: true }).click()
+    await asked.waitFor()
+    await asked.getByRole('button', { name: 'إغلاق دون حفظ', exact: true }).click()
+    await dialog.waitFor({ state: 'detached' })
+    assert.equal(await storedKey(), TEST_KEY)
+  })
+
   // A desktop screen and a phone (375×812): the footer stays put and only the body scrolls.
   for (const [width, height] of [
     [1440, 900],
@@ -317,7 +388,9 @@ test.group('Assistant panel in the browser (ADR 052)', (group) => {
     const refused = await adula().assistantSettings.read()
     assert.equal(refused.model, 'test/model')
     await keyGroup.getByText('مفتاح محفوظ', { exact: true }).waitFor()
+    // The model field still holds the refused value, so leaving asks first.
     await dialog.getByRole('button', { name: 'إلغاء', exact: true }).click()
+    await page.getByRole('button', { name: 'إغلاق دون حفظ', exact: true }).click()
     await dialog.waitFor({ state: 'detached' })
 
     // Deleting the key is a card action outside the dialog, confirmed as destructive.

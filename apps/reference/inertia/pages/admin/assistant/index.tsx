@@ -15,7 +15,7 @@ import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Switch } from '~/components/ui/switch'
 import { Textarea } from '~/components/ui/textarea'
-import { Dialog } from '~/components/ui/dialog'
+import { Dialog, DialogClose } from '~/components/ui/dialog'
 import { LongDialogContent } from '~/components/ui/long-dialog'
 import { failure, json } from '~/components/account/request'
 
@@ -40,6 +40,8 @@ function draftOf(settings: AssistantSettingsView): Draft {
 export default function AdminAssistant({ settings }: Props) {
   const { confirm, confirmation } = useConfirmAction()
   const [draft, setDraft] = useState<Draft | null>(null)
+  // The values the dialog opened with: closing asks first only when they changed.
+  const [initial, setInitial] = useState<Draft | null>(null)
   // The new key, write-only: typed here, sent once, never read back.
   const [key, setKey] = useState('')
   const [changingKey, setChangingKey] = useState(false)
@@ -51,7 +53,12 @@ export default function AdminAssistant({ settings }: Props) {
     setKey('')
     setChangingKey(false)
     setDraft(draftOf(settings))
+    setInitial(draftOf(settings))
   }
+
+  // Typing and then restoring a value counts as clean; a typed key is a change.
+  const dirty =
+    draft !== null && (JSON.stringify(draft) !== JSON.stringify(initial) || key.trim() !== '')
 
   const closeSettings = () => {
     setDraft(null)
@@ -222,9 +229,12 @@ export default function AdminAssistant({ settings }: Props) {
           description="مفتاح OpenRouter والنموذج وحدود الاستخدام. يُحفظ المفتاح مشفّرًا ولا يُعرض مرة أخرى."
           footer={
             <>
-              <Button type="button" variant="outline" disabled={busy} onClick={closeSettings}>
-                إلغاء
-              </Button>
+              {/* Through the dialog, so «إلغاء» asks first exactly like Escape when dirty. */}
+              <DialogClose asChild>
+                <Button type="button" variant="outline" disabled={busy}>
+                  إلغاء
+                </Button>
+              </DialogClose>
               {/* The footer sits outside the scrolling body, so it submits the form by id. */}
               <Button type="submit" form="assistant-settings" disabled={busy}>
                 حفظ
@@ -232,7 +242,13 @@ export default function AdminAssistant({ settings }: Props) {
             </>
           }
         >
-          <form id="assistant-settings" onSubmit={save} className="space-y-5" autoComplete="off">
+          <form
+            id="assistant-settings"
+            onSubmit={save}
+            className="space-y-5"
+            autoComplete="off"
+            data-dirty={dirty ? 'true' : 'false'}
+          >
             {draft && (
               <>
                 <div className="space-y-2">
