@@ -28,9 +28,10 @@ function Dialog({
     onOpenChange?.(next)
   }
   const request = (next: boolean) => {
-    const forms = [...(content.current?.querySelectorAll<HTMLFormElement>('form') ?? [])]
-    // ResourceForm reports whether its values differ from the opened ones (data-dirty); a
-    // dialog with any form that reports nothing keeps the earlier rule, so plain forms still ask.
+    // Forms, and any other region that edits values, report whether those values differ from
+    // the opened ones (data-dirty); typing and restoring the original is clean. A dialog with a
+    // form that reports nothing keeps the earlier rule, so plain forms still ask.
+    const forms = [...(content.current?.querySelectorAll<HTMLElement>('form, [data-dirty]') ?? [])]
     const reporting = forms.filter((form) => form.dataset.dirty !== undefined)
     const editing =
       mode !== 'view' &&
