@@ -3,7 +3,7 @@ import type { NextFn } from '@adonisjs/core/types/http'
 import logger from '@adonisjs/core/services/logger'
 import db from '@adonisjs/lucid/services/db'
 import { NotificationsAdmin, UserInvitations, buildAbility, isBackupStale } from 'adula'
-import { IMPERSONATOR_KEY, adula } from '#services/adula'
+import { IMPERSONATOR_KEY, adula, requestActor } from '#services/adula'
 import { activeImpersonation } from '#services/impersonation'
 import { setupPending } from '#services/initial_setup'
 import { refuseTwoFactorRequired, twoFactorRequirementUnmet } from '#services/two_factor'
@@ -75,6 +75,12 @@ export async function sharedAdminProps(ctx: HttpContext) {
       userId ? await new NotificationsAdmin(knex).unreadCount(userId) : 0
     ),
     impersonating: ctx.inertia.always(Boolean(activeImpersonation({ session, auth }))),
+    // Whether the assistant panel shows (ADR 052); no settings or key reach the browser.
+    assistant: ctx.inertia.always(
+      userId
+        ? await adula().assistant.status(await requestActor(ctx))
+        : { available: false, noticeAccepted: false }
+    ),
   }
 }
 

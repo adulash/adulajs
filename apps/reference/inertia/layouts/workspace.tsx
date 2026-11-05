@@ -39,6 +39,7 @@ import { useUiPreferences } from '~/components/ui/ui-preferences'
 import { useMessages } from '~/components/ui/messages'
 import { BackupBanner } from '~/components/backup-banner'
 import { NotificationBell } from '~/components/notification-bell'
+import AssistantLauncher from '~/components/assistant/assistant-launcher'
 import { TasksButton } from '~/components/tasks-button'
 import { TopNavigation } from '~/components/top-navigation'
 import { NavOrderDialog, type OrderGroup } from '~/components/nav-order-dialog'
@@ -339,6 +340,7 @@ export default function Workspace({ children }: { children: ReactNode }) {
           </div>
           <div className="flex shrink-0 items-center gap-2 text-[11px] text-muted-foreground">
             <TasksButton />
+            <AssistantLauncher />
             <NotificationBell />
             <span className="hidden items-center gap-2 sm:flex">
               <span className="size-1.5 rounded-full bg-primary" />

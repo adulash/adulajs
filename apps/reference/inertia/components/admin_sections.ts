@@ -1,5 +1,6 @@
 import {
   Activity,
+  Bot,
   DatabaseBackup,
   GitBranch,
   Hash,
@@ -85,6 +86,7 @@ export const adminSections: AdminSection[] = [
         icon: Printer,
       },
       { id: 'webhooks', href: '/admin/webhooks', label: 'الربط الخارجي', icon: Webhook },
+      { id: 'assistant', href: '/admin/assistant', label: 'المساعد الذكي', icon: Bot },
     ],
   },
   {

@@ -27,6 +27,7 @@ import { createImportModesSchema, createImportLeasesSchema } from '../index.js'
 import { createSyncJobsSchema } from '../index.js'
 import { createPrintTemplatesSchema } from '../index.js'
 import {
+  createAssistantSchema,
   createCloudBackupsSchema,
   createCommentNotificationsSchema,
 } from '../src/database/schema.js'
@@ -196,6 +197,7 @@ export async function setup() {
   await createPrintTemplatesSchema(db)
   await createCommentNotificationsSchema(db)
   await createCloudBackupsSchema(db)
+  await createAssistantSchema(db)
   await db('org_units').insert([
     { id: 1, name: 'Root', type: 'root', path: '1' },
     { id: 2, parent_id: 1, name: 'A', type: 'unit', path: '1.2' },

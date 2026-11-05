@@ -8,6 +8,7 @@ export const controllers = {
   AdminSessions: () => import('#controllers/admin_sessions_controller'),
   admin: {
     Activity: () => import('#controllers/admin/activity_controller'),
+    Assistant: () => import('#controllers/admin/assistant_controller'),
     AuthenticationSettings: () => import('#controllers/admin/authentication_settings_controller'),
     Backups: () => import('#controllers/admin/backups_controller'),
     Jobs: () => import('#controllers/admin/jobs_controller'),
@@ -26,6 +27,7 @@ export const controllers = {
   },
   ApiTokens: () => import('#controllers/api_tokens_controller'),
   Assignments: () => import('#controllers/assignments_controller'),
+  Assistant: () => import('#controllers/assistant_controller'),
   Attachments: () => import('#controllers/attachments_controller'),
   Avatars: () => import('#controllers/avatars_controller'),
   Dashboards: () => import('#controllers/dashboards_controller'),

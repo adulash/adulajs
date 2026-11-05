@@ -253,15 +253,33 @@ export async function guardOutboundUrl(value: string | URL, options: OutboundOpt
  */
 export function createOutboundPoster(options: OutboundOptions = {}) {
   return async (value: string, init: OutboundRequest) => {
-    const url = new URL(value)
-    if (url.protocol !== 'https:' && !(options.allowPrivateTargets && url.protocol === 'http:'))
-      throw new OutboundTargetError('blocked-target')
-    if (url.username || url.password) throw new OutboundTargetError('blocked-target')
-    const target = init.target ?? (await resolveOutboundTarget(url, options))
-    if (options.allowPrivateTargets !== true && isBlockedAddress(target.address))
-      throw new OutboundTargetError('blocked-target')
+    const { url, target } = await guardedTarget(value, options, init.target)
     return pinnedPost(url, { ...init, target })
   }
+}
+
+/**
+ * The guarded client for calls that need the response body (an API answer, ADR 052): the
+ * same URL, address and redirect rules as createOutboundPoster, through pinnedRequest with
+ * the body bounded by `maxResponseBytes` (OutboundResponseTooLargeError above it).
+ */
+export function createOutboundRequester(options: OutboundOptions = {}) {
+  return async (value: string, init: OutboundRequest & { maxResponseBytes: number }) => {
+    const { url, target } = await guardedTarget(value, options, init.target)
+    return pinnedRequest(url, { ...init, method: 'POST', target })
+  }
+}
+
+/** URL checks of guardOutboundUrl; a caller-supplied target is re-checked, not re-resolved. */
+async function guardedTarget(value: string, options: OutboundOptions, target?: OutboundTarget) {
+  const url = new URL(value)
+  if (url.protocol !== 'https:' && !(options.allowPrivateTargets && url.protocol === 'http:'))
+    throw new OutboundTargetError('blocked-target')
+  if (url.username || url.password) throw new OutboundTargetError('blocked-target')
+  const resolved = target ?? (await resolveOutboundTarget(url, options))
+  if (options.allowPrivateTargets !== true && isBlockedAddress(resolved.address))
+    throw new OutboundTargetError('blocked-target')
+  return { url, target: resolved }
 }
 
 const TLS_CODES = /^(ERR_TLS|ERR_SSL|CERT_|UNABLE_TO_|DEPTH_ZERO|SELF_SIGNED|HOSTNAME_MISMATCH)/

@@ -287,12 +287,12 @@ export class RolesAdmin {
       resources.some((resource) => resource.actions.includes(action))
     )
     return {
-      actions: [...union, 'invite', 'manage'],
+      actions: [...union, 'invite', 'use', 'manage'],
       subjects: [
         {
           name: 'all',
           label: ALL_SUBJECT_LABEL,
-          actions: [...union, 'invite', 'manage'],
+          actions: [...union, 'invite', 'use', 'manage'],
           fields: [],
           conditionFields: [],
         },
@@ -300,6 +300,14 @@ export class RolesAdmin {
           name: 'core.users',
           label: { ar: 'دعوات المستخدمين', en: 'User invitations' },
           actions: ['invite', 'manage'],
+          fields: [],
+          conditionFields: [],
+        },
+        {
+          // Takes effect only through a deployment-wide role assignment (ADR 052).
+          name: 'core.ai',
+          label: { ar: 'المساعد الذكي', en: 'AI assistant' },
+          actions: ['use'],
           fields: [],
           conditionFields: [],
         },
@@ -459,7 +467,7 @@ export class RolesAdmin {
   private validateRule(input: RuleInput) {
     const subject = typeof input.subject === 'string' ? input.subject : ''
     let resource: Resource | undefined
-    if (subject !== 'all' && subject !== 'core.users') {
+    if (subject !== 'all' && subject !== 'core.users' && subject !== 'core.ai') {
       try {
         resource = this.registry.get(subject)
       } catch {
@@ -470,9 +478,16 @@ export class RolesAdmin {
     const allowed: string[] =
       subject === 'core.users'
         ? ['invite', 'manage']
-        : resource
-          ? [...resource.actions, 'manage']
-          : [...new Set(this.registry.all().flatMap((r) => [...r.actions])), 'invite', 'manage']
+        : subject === 'core.ai'
+          ? ['use']
+          : resource
+            ? [...resource.actions, 'manage']
+            : [
+                ...new Set(this.registry.all().flatMap((r) => [...r.actions])),
+                'invite',
+                'use',
+                'manage',
+              ]
     if (!allowed.includes(action as Action))
       throw new AdulaError(422, 'E_RULE_ACTION', 'الإجراء غير متاح لهذا الكيان')
     const inverted = Boolean(input.inverted)

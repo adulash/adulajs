@@ -80,6 +80,10 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
 * SSO covers OAuth/OIDC sign-in through GitHub, Google and Microsoft Entra ID; there is
   no SAML and no SCIM provisioning.
 * The generated API client is TypeScript only; other languages use `/api/v1/openapi.json`.
+* The built-in assistant (ADR 052) has no streaming, talks to one OpenAI-compatible
+  provider (OpenRouter by default) and is not evaluated for answer quality. Its `core.ai`
+  permission works only through a deployment-wide role: `ActorStore` drops non-resource
+  rules from org-scoped role assignments.
 * Encrypted cloud backups (ADR 051) are verified only against local fakes of Google Drive and
   Microsoft Graph; there is no restore from inside the application (recovery uses
   `backup:open` and the restore commands) and no remote retention.
