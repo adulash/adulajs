@@ -401,6 +401,8 @@ export class CloudBackups {
           trigger,
           status: 'queued',
           requested_by: actorId,
+          // The scheduler compares created_at with this clock (queueDue), not the database's.
+          created_at: this.now(),
         })
         .returning('id')
       id = Number(row.id ?? row)
@@ -451,6 +453,7 @@ export class CloudBackups {
             requested_by: connection.connected_by,
             error_category: 'actor',
             error_message: failureMessage('actor'),
+            created_at: now,
             finished_at: now,
           })
           .returning('id')
