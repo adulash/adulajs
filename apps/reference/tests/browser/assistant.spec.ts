@@ -215,54 +215,63 @@ test.group('Assistant panel in the browser (ADR 052)', (group) => {
     assert.equal(await dialog.locator('input[type="url"], #assistant-url').count(), 0)
   })
 
-  test('the settings dialog keeps its footer in view and scrolls its body at 1440×900', async ({
-    browserContext,
-    visit,
-    assert,
-  }) => {
-    await browserContext.loginAs(admin)
-    const page = await visit('/admin/assistant')
-    await page.setViewportSize({ width: 1440, height: 900 })
-    await page.getByRole('button', { name: 'تعديل الإعداد', exact: true }).click()
-    const dialog = page.getByRole('dialog', { name: 'إعداد المساعد' })
-    const save = dialog.getByRole('button', { name: 'حفظ', exact: true })
-    await save.waitFor()
-    // The long dialog pattern (ADR 016): Save sits in the fixed footer, inside the dialog and
-    // the viewport and clickable before any scrolling.
-    const inView = async () => {
-      const box = (await save.boundingBox())!
-      const frame = (await dialog.boundingBox())!
-      return (
-        box.y >= frame.y &&
-        box.y + box.height <= frame.y + frame.height &&
-        box.y + box.height <= 900
+  // A desktop screen and a phone (375×812): the footer stays put and only the body scrolls.
+  for (const [width, height] of [
+    [1440, 900],
+    [375, 812],
+  ] as const) {
+    test(`the settings dialog keeps its footer in view and scrolls its body at ${width}×${height}`, async ({
+      browserContext,
+      visit,
+      assert,
+    }) => {
+      await browserContext.loginAs(admin)
+      const page = await visit('/admin/assistant')
+      await page.setViewportSize({ width, height })
+      await page.getByRole('button', { name: 'تعديل الإعداد', exact: true }).click()
+      const dialog = page.getByRole('dialog', { name: 'إعداد المساعد' })
+      const save = dialog.getByRole('button', { name: 'حفظ', exact: true })
+      await save.waitFor()
+      // The long dialog pattern (ADR 016): Save sits in the fixed footer, inside the dialog and
+      // the viewport and clickable before any scrolling.
+      const inView = async () => {
+        const box = (await save.boundingBox())!
+        const frame = (await dialog.boundingBox())!
+        return (
+          box.y >= frame.y &&
+          box.y + box.height <= frame.y + frame.height &&
+          box.y + box.height <= height
+        )
+      }
+      assert.isTrue(await inView())
+      assert.deepEqual(
+        await dialog
+          .locator('[data-slot="long-dialog-footer"]')
+          .getByRole('button')
+          .allInnerTexts(),
+        ['إلغاء', 'حفظ']
       )
-    }
-    assert.isTrue(await inView())
-    assert.deepEqual(
-      await dialog.locator('[data-slot="long-dialog-footer"]').getByRole('button').allInnerTexts(),
-      ['إلغاء', 'حفظ']
-    )
-    await save.click({ trial: true, timeout: 2000 })
-    // Only the body scrolls: it is taller than its box, and reaching the last field moves
-    // the body, not the footer.
-    type Metrics = { scrollHeight: number; clientHeight: number; scrollTop: number }
-    const metrics = () =>
-      page.evaluate(`(() => {
-        const body = document.querySelector('[data-slot="long-dialog-body"]')
-        return { scrollHeight: body.scrollHeight, clientHeight: body.clientHeight, scrollTop: body.scrollTop }
-      })()`) as Promise<Metrics>
-    const before = await metrics()
-    assert.isAbove(before.scrollHeight, before.clientHeight)
-    const footerBefore = (await save.boundingBox())!.y
-    const last = dialog.getByLabel('السماح باقتراح التعديلات')
-    await last.scrollIntoViewIfNeeded()
-    assert.isTrue(await last.isVisible())
-    const after = await metrics()
-    assert.isAbove(after.scrollTop, 0)
-    assert.equal((await save.boundingBox())!.y, footerBefore)
-    assert.isTrue(await inView())
-  })
+      await save.click({ trial: true, timeout: 2000 })
+      // Only the body scrolls: it is taller than its box, and reaching the last field moves
+      // the body, not the footer.
+      type Metrics = { scrollHeight: number; clientHeight: number; scrollTop: number }
+      const metrics = () =>
+        page.evaluate(`(() => {
+          const body = document.querySelector('[data-slot="long-dialog-body"]')
+          return { scrollHeight: body.scrollHeight, clientHeight: body.clientHeight, scrollTop: body.scrollTop }
+        })()`) as Promise<Metrics>
+      const before = await metrics()
+      assert.isAbove(before.scrollHeight, before.clientHeight)
+      const footerBefore = (await save.boundingBox())!.y
+      const last = dialog.getByLabel('السماح باقتراح التعديلات')
+      await last.scrollIntoViewIfNeeded()
+      assert.isTrue(await last.isVisible())
+      const after = await metrics()
+      assert.isAbove(after.scrollTop, 0)
+      assert.equal((await save.boundingBox())!.y, footerBefore)
+      assert.isTrue(await inView())
+    })
+  }
 
   // Last: it deletes the key the other tests use (group.setup stores it again next run).
   test('the OpenRouter key is entered, replaced and deleted in the settings dialog', async ({
