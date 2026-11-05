@@ -14,6 +14,8 @@ The copied `ResourceSurface` composes shadcn Dialog, with a title, description, 
 
 Amendment (2.3.0): every long dialog, meaning one whose content can exceed the screen height, keeps its header (title and description) and its footer (actions) fixed while only the body scrolls, and that body shows its scrollbar at all times in light and dark themes. The registry's `long-dialog` (`LongDialogContent`) composes shadcn Dialog with the layout of `ResourceSurface`; the scrollbar uses CSS only (`overflow-y: scroll`, a stable gutter and theme-token colors), without a new scroll-area dependency. Platforms that force overlay scrollbars may still hide an idle thumb; the stable gutter keeps the scroll area recognisable there.
 
+Amendment (2.3.0, owner's decision): a dialog asks before closing only when there are unsaved changes. An untouched form, or one whose values were typed and changed back, closes at once on Escape, the close button, «إلغاء» or a click outside, whatever the dialog's `mode`. A form that reports `data-dirty` decides for itself; a change in any control outside such a form marks the dialog as changed until it closes. The `confirmDialogClose` preference still turns the question off entirely.
+
 This establishes agent defaults and updates the generic resource consumer. It does not silently rewrite unrelated project-owned legacy screens or mark the broader phase 2 visual, performance or release gates complete.
 
 Verification covers installed skill integrity and repair, company identity preservation, a packed independent consumer, and browser CRUD, nested controls, direct detail URLs, mobile bounds, keyboard focus, dismissal and the explicit page presentation. See the dated implementation-status entry for executed checks.

@@ -7,9 +7,12 @@ import { Button } from '~/components/ui/button'
 import { useMessages } from '~/components/ui/messages'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
 
-const DialogContentContext = React.createContext<React.RefObject<HTMLDivElement | null> | null>(
-  null
-)
+type DialogState = {
+  content: React.RefObject<HTMLDivElement | null>
+  /** Set when the user changes a control outside a form that reports data-dirty. */
+  touched: React.RefObject<boolean>
+}
+const DialogContentContext = React.createContext<DialogState | null>(null)
 
 function Dialog({
   mode,
@@ -18,32 +21,35 @@ function Dialog({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Root> & { mode?: 'view' | 'edit' | 'confirm' }) {
   const content = React.useRef<HTMLDivElement>(null)
+  const touched = React.useRef(false)
+  const state = React.useMemo(() => ({ content, touched }), [])
   const [confirming, setConfirming] = React.useState(false)
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(props.defaultOpen ?? false)
   const preferences = useUiPreferences()
   const { t, dir } = useMessages()
   const open = props.open ?? uncontrolledOpen
+  // Each opening starts clean.
+  React.useEffect(() => {
+    if (open) touched.current = false
+  }, [open])
   const commit = (next: boolean) => {
     setUncontrolledOpen(next)
     onOpenChange?.(next)
   }
   const request = (next: boolean) => {
     const forms = [...(content.current?.querySelectorAll<HTMLFormElement>('form') ?? [])]
-    // ResourceForm reports whether its values differ from the opened ones (data-dirty); a
-    // dialog with any form that reports nothing keeps the earlier rule, so plain forms still ask.
-    const reporting = forms.filter((form) => form.dataset.dirty !== undefined)
+    // Ask only when there are unsaved changes: a form that reports data-dirty (ResourceForm,
+    // compared with the values it opened with) is dirty, and so is any control the user
+    // changed outside such a form. An untouched dialog closes at once, whatever its mode.
     const editing =
       mode !== 'view' &&
       mode !== 'confirm' &&
-      (reporting.some((form) => form.dataset.dirty === 'true') ||
-        (reporting.length < forms.length || forms.length === 0
-          ? mode === 'edit' || (!mode && forms.length > 0)
-          : false))
+      (forms.some((form) => form.dataset.dirty === 'true') || touched.current)
     if (!next && editing && preferences.confirmDialogClose) setConfirming(true)
     else commit(next)
   }
   return (
-    <DialogContentContext.Provider value={content}>
+    <DialogContentContext.Provider value={state}>
       <DialogPrimitive.Root data-slot="dialog" {...props} open={open} onOpenChange={request}>
         {children}
       </DialogPrimitive.Root>
@@ -111,12 +117,21 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  onInputCapture,
+  onChangeCapture,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
-  const content = React.useContext(DialogContentContext)
+  const dialog = React.useContext(DialogContentContext)
+  const content = dialog?.content
   const { t } = useMessages()
+  // A change in a control the dialog cannot compare (no data-dirty form around it) counts as
+  // an unsaved change; reporting forms decide for themselves.
+  const touch = (target: EventTarget) => {
+    const element = target as Element
+    if (dialog && !element.closest?.('form[data-dirty]')) dialog.touched.current = true
+  }
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
@@ -125,6 +140,14 @@ function DialogContent({
           if (content) content.current = node
           if (typeof ref === 'function') return ref(node)
           if (ref) ref.current = node
+        }}
+        onInputCapture={(event) => {
+          touch(event.target)
+          onInputCapture?.(event)
+        }}
+        onChangeCapture={(event) => {
+          touch(event.target)
+          onChangeCapture?.(event)
         }}
         data-slot="dialog-content"
         className={cn(
