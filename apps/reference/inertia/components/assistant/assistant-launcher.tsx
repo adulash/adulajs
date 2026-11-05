@@ -14,6 +14,7 @@ import {
   SheetTitle,
 } from '~/components/ui/sheet'
 import { countForm, useMessages, type Translate } from '~/components/ui/messages'
+import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
 import { failure, json } from '~/components/account/request'
 import { AssistantNotice } from './notice'
 import { ProposalDialog } from './proposal-dialog'
@@ -137,16 +138,21 @@ export default function AssistantLauncher() {
 
   return (
     <>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        aria-label={t('المساعد الذكي')}
-        title={t('المساعد الذكي')}
-        onClick={() => setOpen(true)}
-      >
-        <Bot size={18} />
-      </Button>
+      {/* The top-bar icon pattern of the notification bell and «مهامي». */}
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            aria-label={t('المساعد الذكي')}
+            aria-expanded={open}
+            onClick={() => setOpen(true)}
+            className={`relative grid size-9 place-items-center rounded-full transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 ${open ? 'bg-accent text-foreground' : 'text-muted-foreground'}`}
+          >
+            <Bot size={18} strokeWidth={1.6} aria-hidden />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent>{t('المساعد الذكي')}</TooltipContent>
+      </Tooltip>
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent
           dir={dir}
