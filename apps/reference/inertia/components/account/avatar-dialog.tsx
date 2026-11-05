@@ -12,14 +12,8 @@ import { Button } from '~/components/ui/button'
 import { FileInput } from '~/components/ui/file-input'
 import { Label } from '~/components/ui/label'
 import { Slider } from '~/components/ui/slider'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '~/components/ui/dialog'
+import { Dialog } from '~/components/ui/dialog'
+import { LongDialogContent } from '~/components/ui/long-dialog'
 
 /** The square the user frames; the saved picture is at most OUTPUT pixels on a side. */
 const FRAME = 240
@@ -212,14 +206,23 @@ export function AvatarDialog({
   const serverError = attempted && typeof flash.error === 'string' ? flash.error : null
   return (
     <Dialog mode="edit" open={open} onOpenChange={onOpenChange}>
-      <DialogContent dir="rtl" className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            اختر صورة ثم اضبط موضعها داخل المربع. تُحفظ الصورة مربعة بحجم لا يتجاوز ٥١٢ بكسل، وتُزال
-            منها بيانات الموقع والجهاز.
-          </DialogDescription>
-        </DialogHeader>
+      <LongDialogContent
+        dir="rtl"
+        width="md"
+        title={title}
+        description="اختر صورة ثم اضبط موضعها داخل المربع. تُحفظ الصورة مربعة بحجم لا يتجاوز ٥١٢ بكسل، وتُزال منها بيانات الموقع والجهاز."
+        footer={
+          <>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              إلغاء
+            </Button>
+            <Button type="button" onClick={save} disabled={!image || sending}>
+              <ImageUp size={16} />
+              حفظ الصورة
+            </Button>
+          </>
+        }
+      >
         <div className="space-y-4">
           <div className="space-y-2">
             <Label id="avatar-file-label" htmlFor="avatar-file">
@@ -275,16 +278,7 @@ export function AvatarDialog({
             </p>
           )}
         </div>
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-            إلغاء
-          </Button>
-          <Button type="button" onClick={save} disabled={!image || sending}>
-            <ImageUp size={16} />
-            حفظ الصورة
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+      </LongDialogContent>
     </Dialog>
   )
 }

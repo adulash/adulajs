@@ -194,6 +194,21 @@ export async function removeSampleResources() {
   }
 }
 
+/** The long dialog pattern on a phone: the footer stays on screen while only the body scrolls. */
+export async function longDialogLayout(dialog: any, viewportHeight: number) {
+  const footer = (await dialog.locator('[data-slot="long-dialog-footer"]').boundingBox())!
+  const header = (await dialog.locator('[data-slot="dialog-header"]').boundingBox())!
+  const body = dialog.locator('[data-slot="long-dialog-body"]')
+  const overflow = await body.evaluate(
+    (node: unknown) => (globalThis as any).getComputedStyle(node).overflowY as string
+  )
+  return {
+    footerOnScreen: footer.y >= 0 && footer.y + footer.height <= viewportHeight,
+    headerOnScreen: header.y >= 0,
+    bodyScrolls: overflow === 'scroll',
+  }
+}
+
 export async function screenshotDir() {
   const dir = app.makePath('../../.work/screenshots')
   await mkdir(dir, { recursive: true })

@@ -7,14 +7,8 @@ import { Switch } from '~/components/ui/switch'
 import { useMessages } from '~/components/ui/messages'
 import { useConfirmAction } from '~/components/ui/confirm-action'
 import { SortableList, keepEscapeForSorting } from '~/components/ui/sortable-list'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '~/components/ui/dialog'
+import { Dialog } from '~/components/ui/dialog'
+import { LongDialogContent } from '~/components/ui/long-dialog'
 import { usePreference } from '~/components/preferences'
 
 type Layout = { order: string[]; hidden: string[] }
@@ -84,13 +78,34 @@ export function CustomizeOverviewDialog({
 
   return (
     <Dialog mode="edit" open={open} onOpenChange={onOpenChange}>
-      <DialogContent dir={dir} className="sm:max-w-lg" onEscapeKeyDown={keepEscapeForSorting}>
-        <DialogHeader>
-          <DialogTitle>{t('تخصيص النظرة العامة')}</DialogTitle>
-          <DialogDescription>
-            {t('اختر العناصر الظاهرة ورتّبها بالسحب أو بلوحة المفاتيح.')}
-          </DialogDescription>
-        </DialogHeader>
+      <LongDialogContent
+        dir={dir}
+        width="md"
+        onEscapeKeyDown={keepEscapeForSorting}
+        title={t('تخصيص النظرة العامة')}
+        description={t('اختر العناصر الظاهرة ورتّبها بالسحب أو بلوحة المفاتيح.')}
+        footer={
+          <>
+            {/* The secondary action sits at the start; cancel and save follow at the end. */}
+            <Button
+              type="button"
+              variant="ghost"
+              className="sm:me-auto"
+              onClick={restore}
+              disabled={saving}
+            >
+              <RotateCcw size={16} />
+              {t('استعادة الافتراضي')}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+              {t('إلغاء')}
+            </Button>
+            <Button type="button" onClick={submit} disabled={saving}>
+              {t('حفظ')}
+            </Button>
+          </>
+        }
+      >
         <SortableList
           label={t('عناصر النظرة العامة')}
           items={rows}
@@ -112,21 +127,7 @@ export function CustomizeOverviewDialog({
             </label>
           )}
         />
-        <DialogFooter className="sm:justify-between">
-          <Button type="button" variant="ghost" onClick={restore} disabled={saving}>
-            <RotateCcw size={16} />
-            {t('استعادة الافتراضي')}
-          </Button>
-          <div className="flex gap-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              {t('إلغاء')}
-            </Button>
-            <Button type="button" onClick={submit} disabled={saving}>
-              {t('حفظ')}
-            </Button>
-          </div>
-        </DialogFooter>
-      </DialogContent>
+      </LongDialogContent>
       {confirmation}
     </Dialog>
   )

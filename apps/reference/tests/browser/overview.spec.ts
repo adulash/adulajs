@@ -1,7 +1,12 @@
 import { test } from '@japa/runner'
 import { join } from 'node:path'
 import db from '@adonisjs/lucid/services/db'
-import { screenshotDir, seedActor, type UiActor } from '#tests/helpers/ui_fixtures'
+import {
+  longDialogLayout,
+  screenshotDir,
+  seedActor,
+  type UiActor,
+} from '#tests/helpers/ui_fixtures'
 
 const TOTAL = 'dashboard.orders_overview.ordersTotal'
 const COUNT = 'dashboard.orders_overview.orders'
@@ -197,5 +202,34 @@ test.group('Personal overview browser acceptance (#159)', (group) => {
     await page.setViewportSize({ width: 390, height: 844 })
     await dialog.getByRole('button', { name: 'نقل عدد الطلبات للأعلى' }).click()
     await page.screenshot({ path: join(await screenshotDir(), 'overview-customize-mobile.png') })
+  })
+
+  test('on a phone the customize dialog keeps its footer on screen while the body scrolls', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(wide.user)
+    const page = await visit('/')
+    await page.setViewportSize({ width: 375, height: 812 })
+    await page.getByRole('button', { name: 'تخصيص' }).click()
+    const dialog = page.getByRole('dialog', { name: 'تخصيص النظرة العامة' })
+    // Focus the last row's handle so the body scrolls to its end.
+    await dialog
+      .getByRole('button', { name: /^مقبض نقل / })
+      .last()
+      .focus()
+    assert.deepEqual(await longDialogLayout(dialog, 812), {
+      footerOnScreen: true,
+      headerOnScreen: true,
+      bodyScrolls: true,
+    })
+    // Secondary action first, then «إلغاء», then the primary «حفظ».
+    const footer = dialog.locator('[data-slot="long-dialog-footer"]')
+    const order = await attributes(footer.getByRole('button'), 'data-variant')
+    assert.deepEqual(order, ['ghost', 'outline', 'default'])
+    await page.screenshot({ path: join(await screenshotDir(), 'overview-customize-phone.png') })
+    await footer.getByRole('button', { name: 'حفظ', exact: true }).click()
+    await dialog.waitFor({ state: 'hidden' })
   })
 })
