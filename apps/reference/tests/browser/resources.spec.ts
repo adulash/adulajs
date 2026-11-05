@@ -643,11 +643,19 @@ test.group('Generic resource browser acceptance', (group) => {
       await page.evaluate<boolean>('window.__wrapper === document.querySelector("main > div")')
     )
     // A direct link still opens the standalone record; its deferred sections share one request.
+    // The shell's «مهامي» count is deferred on every page and loads in its own request (#156).
+    const partials: string[] = []
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname === record)
+        partials.push(request.headers()['x-inertia-partial-data'] ?? 'page')
+    })
     recordRequests.length = 0
     await page.goto(record)
     await page.getByRole('dialog', { name: 'تفاصيل · عينات الواجهة' }).waitFor()
     await page.getByRole('region', { name: 'سجل النشاط' }).waitFor()
-    assert.deepEqual(recordRequests, [record, record])
+    await page.waitForLoadState('networkidle')
+    assert.sameMembers(partials, ['page', 'childrenData,activity', 'openTasks'])
+    assert.deepEqual(recordRequests, [record, record, record])
   })
 
   test('the sidebar receives the scroll bar compensation a record dialog applies to the page', async ({
