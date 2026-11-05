@@ -154,6 +154,21 @@ function useScrollParent(anchor: RefObject<HTMLElement | null>, revision: unknow
   return parent
 }
 
+/**
+ * Runs `measure` on the next frame, at most once per frame. A ResizeObserver callback that
+ * changes layout (the table's overflow class) would otherwise report an observer loop.
+ */
+function framed(measure: () => void) {
+  let frame = 0
+  return {
+    run: () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(measure)
+    },
+    cancel: () => cancelAnimationFrame(frame),
+  }
+}
+
 /** Where the rows start inside the scroller, for the virtualizer's `scrollMargin`. */
 function useScrollMargin(
   target: RefObject<HTMLElement | null>,
@@ -176,12 +191,14 @@ function useScrollMargin(
       )
     }
     measure()
-    const observer = new ResizeObserver(measure)
+    const next = framed(measure)
+    const observer = new ResizeObserver(next.run)
     observer.observe(parent ?? document.body)
-    window.addEventListener('resize', measure)
+    window.addEventListener('resize', next.run)
     return () => {
+      next.cancel()
       observer.disconnect()
-      window.removeEventListener('resize', measure)
+      window.removeEventListener('resize', next.run)
     }
   }, [target, parent, active])
   return margin
@@ -199,10 +216,14 @@ function useOverflowing(
         setOverflowing(table.current.offsetWidth > wrapper.current.clientWidth + 1)
     }
     measure()
-    const observer = new ResizeObserver(measure)
+    const next = framed(measure)
+    const observer = new ResizeObserver(next.run)
     if (wrapper.current) observer.observe(wrapper.current)
     if (table.current) observer.observe(table.current)
-    return () => observer.disconnect()
+    return () => {
+      next.cancel()
+      observer.disconnect()
+    }
   }, [wrapper, table])
   return overflowing
 }

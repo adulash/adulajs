@@ -345,10 +345,17 @@ test.group('Field type widgets in the generated UI', (group) => {
       const reason = page.getByLabel('السبب', { exact: true })
       await reason.waitFor()
       await reason.fill('سبب مكتوب')
+      const search = page.getByRole('combobox', { name: 'تصفية الخيارات', exact: true })
       await page.getByRole('combobox', { name: 'الحالة', exact: true }).click()
+      // The click takes the focus off the previous field; the popover then focuses its search box.
+      await search.waitFor()
+      assert.isTrue(await page.evaluate<boolean>("document.activeElement?.tagName !== 'TEXTAREA'"))
+      // A CSS focus wait: a polling string predicate needs eval, which the CSP refuses.
+      await page.locator('[aria-label="تصفية الخيارات"]:focus').waitFor()
       await page.keyboard.type('اسكان')
       // The typed text went to the search box, not to the previous field.
       assert.equal(await reason.inputValue(), 'سبب مكتوب')
+      assert.equal(await search.inputValue(), 'اسكان')
       const options = page.getByRole('option')
       await page.assertElementsCount('[role="option"]', 1)
       assert.equal(await options.first().innerText(), 'إسكان')
@@ -357,8 +364,14 @@ test.group('Field type widgets in the generated UI', (group) => {
         .getByRole('combobox', { name: 'الحالة', exact: true })
         .getByText('إسكان', { exact: true })
         .waitFor()
+      // Reopened at once, while the list is still closing: the search box takes the focus again
+      // and starts empty.
       await page.getByRole('combobox', { name: 'الحالة', exact: true }).click()
+      // A CSS focus wait: a polling string predicate needs eval, which the CSP refuses.
+      await page.locator('[aria-label="تصفية الخيارات"]:focus').waitFor()
+      assert.equal(await search.inputValue(), '')
       await page.keyboard.type('اراده')
+      await page.assertElementsCount('[role="option"]', 1)
       assert.equal(await options.first().innerText(), 'إرادة')
       await page.keyboard.press('Escape')
 
