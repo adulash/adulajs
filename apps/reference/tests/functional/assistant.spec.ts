@@ -254,6 +254,12 @@ test.group('Built-in assistant (ADR 052)', (group) => {
     const cleared = await knex()('settings').where('key', 'ai.assistant').first()
     assert.notProperty(cleared.value, 'secret')
     assert.isNull(await storedKey())
+    // The server turns the assistant off with the key, whatever the form still holds.
+    assert.isFalse(cleared.value.enabled)
+    // The assistant gate answers before the notice or the provider is reached.
+    const turn = await asJson(client.post('/assistant/conversations').loginAs(member)).json({})
+    turn.assertStatus(404)
+    assert.equal(turn.body().error.code, 'E_AI_DISABLED')
 
     // Each step is in the activity log, as an action and booleans only.
     const actions = await knex()('activities')

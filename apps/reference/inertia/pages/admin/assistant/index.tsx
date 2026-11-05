@@ -68,20 +68,32 @@ export default function AdminAssistant({ settings }: Props) {
     }
     setBusy(true)
     setError('')
+    // Two requests, the key first so enabling never runs ahead of it. When the key is
+    // stored but the rest is refused, the page reloads to show the stored key and says so.
+    let keySaved = false
     try {
-      // The key first, so enabling never runs ahead of it.
-      if (newKey) await axios.put('/admin/assistant/key', { key: newKey }, json)
+      if (newKey) {
+        await axios.put('/admin/assistant/key', { key: newKey }, json)
+        keySaved = true
+      }
       await axios.put('/admin/assistant', draft, json)
       closeSettings()
       toast.success(newKey ? 'تم حفظ الإعداد والمفتاح مشفّرًا.' : 'تم حفظ إعداد المساعد.')
       reload()
     } catch (caught) {
-      setError(failure(caught, 'تعذر حفظ إعداد المساعد.'))
+      if (keySaved) {
+        setKey('')
+        setChangingKey(false)
+        setError(`حُفظ المفتاح، وتعذر حفظ بقية الإعداد: ${failure(caught, 'خطأ غير متوقع.')}`)
+        reload()
+      } else setError(failure(caught, 'تعذر حفظ إعداد المساعد.'))
     } finally {
       setBusy(false)
     }
   }
 
+  // Outside the settings dialog: deleting takes effect at once and the server also turns
+  // the assistant off, so it is never mixed with the dialog's unsaved changes.
   const removeKey = () =>
     confirm({
       title: 'حذف مفتاح OpenRouter؟',
@@ -89,12 +101,13 @@ export default function AdminAssistant({ settings }: Props) {
       destructive: true,
       label: 'حذف المفتاح',
       action: async () => {
-        await axios.delete('/admin/assistant/key', json)
-        setChangingKey(false)
-        setKey('')
-        setDraft((current) => (current ? { ...current, enabled: false } : current))
-        toast.success('تم حذف المفتاح.')
-        reload()
+        try {
+          await axios.delete('/admin/assistant/key', json)
+          toast.success('تم حذف المفتاح وإيقاف المساعد.')
+          reload()
+        } catch (caught) {
+          toast.error(failure(caught, 'تعذر حذف المفتاح.'))
+        }
       },
     })
 
@@ -172,10 +185,16 @@ export default function AdminAssistant({ settings }: Props) {
                 {settings.hasKey ? 'تعديل الإعداد' : 'إعداد المساعد'}
               </Button>
               {settings.hasKey && (
-                <Button variant="outline" disabled={busy} onClick={test}>
-                  <PlugZap size={14} />
-                  اختبار الاتصال
-                </Button>
+                <>
+                  <Button variant="outline" disabled={busy} onClick={test}>
+                    <PlugZap size={14} />
+                    اختبار الاتصال
+                  </Button>
+                  <Button variant="outline" disabled={busy} onClick={removeKey}>
+                    <Trash2 size={14} />
+                    حذف المفتاح
+                  </Button>
+                </>
               )}
             </div>
           </CardContent>
@@ -217,7 +236,11 @@ export default function AdminAssistant({ settings }: Props) {
             {draft && (
               <>
                 <div className="space-y-2">
-                  <Label htmlFor="assistant-key" id="assistant-key-label">
+                  {/* Labels the field only while it is shown; otherwise it names the group. */}
+                  <Label
+                    htmlFor={settings.hasKey && !changingKey ? undefined : 'assistant-key'}
+                    id="assistant-key-label"
+                  >
                     مفتاح OpenRouter (API key)
                   </Label>
                   {settings.hasKey && !changingKey ? (
@@ -236,16 +259,6 @@ export default function AdminAssistant({ settings }: Props) {
                       >
                         <KeyRound size={14} />
                         تغيير المفتاح
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={busy}
-                        onClick={removeKey}
-                      >
-                        <Trash2 size={14} />
-                        حذف المفتاح
                       </Button>
                     </div>
                   ) : (
