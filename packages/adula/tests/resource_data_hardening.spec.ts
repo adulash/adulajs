@@ -429,9 +429,11 @@ test.group('Upsert imports look for matches within the importer reach', (group) 
     assert.equal(w.version, 2)
   })
 
-  test('a match the importer may view but not update answers as a create too', async ({
+  test('an update rule with conditions cannot reach records through an upsert match', async ({
     assert,
   }) => {
+    // Upsert targets need unconditional update on the field, so the match lookup is never
+    // asked for records a conditional rule would refuse to update.
     await service.save('rd_items', admin, { code: 'V', title: 'مقفل', orgUnitId: 2 })
     const conditional: Actor = {
       ...unitA,
@@ -441,19 +443,22 @@ test.group('Upsert imports look for matches within the importer reach', (group) 
       ],
     }
     const scoped = new ImportBatches(db, registry, service, { load: async () => conditional })
-    const batch = await scoped.create('rd_items', conditional, {
-      fileName: 'v.csv',
-      content: 'code,title,orgUnitId\nV,محاولة,2\n',
-      mode: 'upsert',
-      matchField: 'code',
-      dryRun: true,
-    })
-    await scoped.start(batch.id, conditional, mapping, { matchField: 'code' })
-    await scoped.process()
-    const {
-      report: [row],
-    } = await scoped.show(batch.id, conditional)
-    assert.deepEqual(row, { row: 2, ok: false, message: 'هذه القيمة مستخدمة في سجل آخر: الرمز' })
+    const refused = await failure(() =>
+      scoped.create('rd_items', conditional, {
+        fileName: 'v.csv',
+        content: 'code,title,orgUnitId\nV,محاولة,2\n',
+        mode: 'upsert',
+        matchField: 'code',
+        dryRun: true,
+      })
+    )
+    assert.equal(refused.code, 'E_IMPORT_MATCH')
+    assert.notInclude(
+      scoped.targets('rd_items', conditional, 'upsert').map((target) => target.key),
+      'code'
+    )
+    const v = await db('rd_items').where('code', 'V').first()
+    assert.equal(v.title, 'مقفل')
   })
 })
 
