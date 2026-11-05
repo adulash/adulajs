@@ -257,7 +257,7 @@ export default function AdminAssistant({ settings }: Props) {
                     htmlFor={settings.hasKey && !changingKey ? undefined : 'assistant-key'}
                     id="assistant-key-label"
                   >
-                    مفتاح OpenRouter (API key)
+                    مفتاح OpenRouter
                   </Label>
                   {settings.hasKey && !changingKey ? (
                     <div

@@ -210,7 +210,7 @@ test.group('Assistant panel in the browser (ADR 052)', (group) => {
     const dialog = page.getByRole('dialog', { name: 'إعداد المساعد' })
     assert.equal(await dialog.getByLabel('معرّف النموذج').inputValue(), 'test/model')
     // The key comes first; the provider address is not an owner setting.
-    await dialog.getByRole('group', { name: 'مفتاح OpenRouter (API key)' }).waitFor()
+    await dialog.getByRole('group', { name: 'مفتاح OpenRouter', exact: true }).waitFor()
     assert.equal(await dialog.getByText('عنوان المزوّد').count(), 0)
     assert.equal(await dialog.locator('input[type="url"], #assistant-url').count(), 0)
   })
@@ -278,7 +278,7 @@ test.group('Assistant panel in the browser (ADR 052)', (group) => {
     // A typed key alone is a change too.
     await page.getByRole('button', { name: 'تعديل الإعداد', exact: true }).click()
     await dialog.getByRole('button', { name: 'تغيير المفتاح', exact: true }).click()
-    await dialog.getByLabel('مفتاح OpenRouter (API key)').fill('test-key-typed-not-saved')
+    await dialog.getByLabel('مفتاح OpenRouter', { exact: true }).fill('test-key-typed-not-saved')
     await dialog.getByRole('button', { name: 'إغلاق', exact: true }).click()
     await asked.waitFor()
     await asked.getByRole('button', { name: 'إغلاق دون حفظ', exact: true }).click()
@@ -358,11 +358,11 @@ test.group('Assistant panel in the browser (ADR 052)', (group) => {
     const page = await visit('/admin/assistant')
     await page.getByRole('button', { name: 'تعديل الإعداد', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: 'إعداد المساعد' })
-    const keyGroup = dialog.getByRole('group', { name: 'مفتاح OpenRouter (API key)' })
+    const keyGroup = dialog.getByRole('group', { name: 'مفتاح OpenRouter', exact: true })
     await keyGroup.getByText('مفتاح محفوظ', { exact: true }).waitFor()
 
     await keyGroup.getByRole('button', { name: 'تغيير المفتاح', exact: true }).click()
-    const field = dialog.getByLabel('مفتاح OpenRouter (API key)')
+    const field = dialog.getByLabel('مفتاح OpenRouter', { exact: true })
     assert.equal(await field.getAttribute('type'), 'password')
     assert.equal(await field.inputValue(), '')
     await field.fill(REPLACEMENT)
@@ -410,6 +410,6 @@ test.group('Assistant panel in the browser (ADR 052)', (group) => {
     assert.isFalse(afterDelete.enabled)
     // With no key the dialog offers the empty write-only field, and its label names it.
     await page.getByRole('button', { name: 'إعداد المساعد', exact: true }).click()
-    assert.equal(await dialog.getByLabel('مفتاح OpenRouter (API key)').inputValue(), '')
+    assert.equal(await dialog.getByLabel('مفتاح OpenRouter', { exact: true }).inputValue(), '')
   })
 })
