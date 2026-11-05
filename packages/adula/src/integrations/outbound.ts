@@ -153,15 +153,23 @@ export async function resolveOutboundTarget(
   return { address, family: isIP(address) === 6 ? 6 : 4 }
 }
 
-/** Sends a POST whose TCP connection goes to the pinned address; redirects are not followed. */
-export function pinnedPost(url: URL, init: OutboundRequest & { target: OutboundTarget }) {
-  const { address, family } = init.target
+function pinnedOptions(url: URL, target: OutboundTarget) {
+  const { address, family } = target
   const pinnedLookup: LookupFunction = (_host, options, callback) => {
     if (options.all) callback(null, [{ address, family }])
     else callback(null, address, family)
   }
   const host = url.hostname.replace(/^\[|\]$/g, '')
-  const send = url.protocol === 'https:' ? httpsRequest : httpRequest
+  return {
+    send: url.protocol === 'https:' ? httpsRequest : httpRequest,
+    lookup: pinnedLookup,
+    servername: isIP(host) ? undefined : host,
+  }
+}
+
+/** Sends a POST whose TCP connection goes to the pinned address; redirects are not followed. */
+export function pinnedPost(url: URL, init: OutboundRequest & { target: OutboundTarget }) {
+  const { send, lookup: pinnedLookup, servername } = pinnedOptions(url, init.target)
   return new Promise<{ status: number }>((resolve, reject) => {
     const request = send(
       url,
@@ -169,7 +177,7 @@ export function pinnedPost(url: URL, init: OutboundRequest & { target: OutboundT
         method: 'POST',
         headers: { ...init.headers, 'Content-Length': String(Buffer.byteLength(init.body)) },
         lookup: pinnedLookup,
-        servername: isIP(host) ? undefined : host,
+        servername,
         signal: init.signal,
       },
       (response) => {
@@ -183,6 +191,94 @@ export function pinnedPost(url: URL, init: OutboundRequest & { target: OutboundT
   })
 }
 
+/** Raised when a response body exceeds the caller's limit; the body is discarded. */
+export class OutboundResponseTooLarge extends Error {
+  constructor() {
+    super('Response body exceeds the allowed size')
+  }
+}
+
+export type OutboundResponse = { status: number; contentType: string; body: Buffer }
+
+/**
+ * Sends a POST to the pinned address and reads at most `maxBytes` of the response body.
+ * Redirects are not followed: a 3xx is returned as a status for the caller to refuse.
+ */
+export function pinnedRequest(
+  url: URL,
+  init: OutboundRequest & { target: OutboundTarget; maxBytes: number }
+) {
+  const { send, lookup: pinnedLookup, servername } = pinnedOptions(url, init.target)
+  return new Promise<OutboundResponse>((resolve, reject) => {
+    const request = send(
+      url,
+      {
+        method: 'POST',
+        headers: { ...init.headers, 'Content-Length': String(Buffer.byteLength(init.body)) },
+        lookup: pinnedLookup,
+        servername,
+        signal: init.signal,
+      },
+      (response) => {
+        const declared = Number(response.headers['content-length'])
+        if (Number.isFinite(declared) && declared > init.maxBytes) {
+          response.destroy()
+          request.destroy()
+          return reject(new OutboundResponseTooLarge())
+        }
+        const chunks: Buffer[] = []
+        let size = 0
+        response.on('data', (chunk: Buffer) => {
+          size += chunk.length
+          if (size > init.maxBytes) {
+            response.destroy()
+            request.destroy()
+            return reject(new OutboundResponseTooLarge())
+          }
+          chunks.push(chunk)
+        })
+        response.on('error', reject)
+        response.on('end', () =>
+          resolve({
+            status: response.statusCode ?? 0,
+            contentType: String(response.headers['content-type'] ?? ''),
+            body: Buffer.concat(chunks),
+          })
+        )
+      }
+    )
+    request.on('error', reject)
+    request.end(init.body)
+  })
+}
+
+function guardedUrl(value: string, options: OutboundOptions) {
+  const url = new URL(value)
+  if (url.protocol !== 'https:' && !(options.allowPrivateTargets && url.protocol === 'http:'))
+    throw new OutboundTargetError('blocked-target')
+  if (url.username || url.password) throw new OutboundTargetError('blocked-target')
+  return url
+}
+
+async function guardedTarget(url: URL, options: OutboundOptions, target?: OutboundTarget) {
+  const resolved = target ?? (await resolveOutboundTarget(url, options))
+  if (options.allowPrivateTargets !== true && isBlockedAddress(resolved.address))
+    throw new OutboundTargetError('blocked-target')
+  return resolved
+}
+
+/**
+ * The guarded client for calls that need the response body (an API answer): the same URL,
+ * address and redirect rules as createOutboundPoster, with the body capped at `maxBytes`.
+ */
+export function createOutboundRequester(options: OutboundOptions = {}) {
+  return async (value: string, init: OutboundRequest & { maxBytes: number }) => {
+    const url = guardedUrl(value, options)
+    const target = await guardedTarget(url, options, init.target)
+    return pinnedRequest(url, { ...init, target })
+  }
+}
+
 /**
  * The guarded outbound HTTP client: validates the URL, resolves its host once,
  * refuses private targets unless allowed and connects to the validated address.
@@ -190,13 +286,8 @@ export function pinnedPost(url: URL, init: OutboundRequest & { target: OutboundT
  */
 export function createOutboundPoster(options: OutboundOptions = {}) {
   return async (value: string, init: OutboundRequest) => {
-    const url = new URL(value)
-    if (url.protocol !== 'https:' && !(options.allowPrivateTargets && url.protocol === 'http:'))
-      throw new OutboundTargetError('blocked-target')
-    if (url.username || url.password) throw new OutboundTargetError('blocked-target')
-    const target = init.target ?? (await resolveOutboundTarget(url, options))
-    if (options.allowPrivateTargets !== true && isBlockedAddress(target.address))
-      throw new OutboundTargetError('blocked-target')
+    const url = guardedUrl(value, options)
+    const target = await guardedTarget(url, options, init.target)
     return pinnedPost(url, { ...init, target })
   }
 }
