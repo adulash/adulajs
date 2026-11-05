@@ -66,6 +66,9 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
 * SSO covers OAuth/OIDC sign-in through GitHub, Google and Microsoft Entra ID; there is
   no SAML and no SCIM provisioning.
 * The generated API client is TypeScript only; other languages use `/api/v1/openapi.json`.
+* Encrypted cloud backups (ADR 051) are verified only against local fakes of Google Drive and
+  Microsoft Graph; there is no restore from inside the application (recovery uses
+  `backup:open` and the restore commands) and no remote retention.
 * XLSX import is pending the owner's approval of a parser; the `ImportAdapter`
   registration point is ready and CSV import works (docs/integration.md).
 

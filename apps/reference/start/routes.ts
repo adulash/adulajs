@@ -19,6 +19,7 @@ import {
   channelChangeThrottle,
   channelCodeThrottle,
   channelTestThrottle,
+  backupThrottle,
   exportThrottle,
   healthThrottle,
   inboundThrottle,
@@ -58,6 +59,7 @@ const AdminRolesController = () => import('#controllers/admin/roles_controller')
 const AdminOrgUnitsController = () => import('#controllers/admin/org_units_controller')
 const AdminActivityController = () => import('#controllers/admin/activity_controller')
 const AdminJobsController = () => import('#controllers/admin/jobs_controller')
+const AdminBackupsController = () => import('#controllers/admin/backups_controller')
 const AdminSettingsController = () => import('#controllers/admin/settings_controller')
 const AdminAuthenticationSettingsController = () =>
   import('#controllers/admin/authentication_settings_controller')
@@ -339,6 +341,16 @@ router
     router.delete('org-units/:id', [AdminOrgUnitsController, 'destroy'])
     router.get('activity', [AdminActivityController, 'index'])
     router.get('jobs', [AdminJobsController, 'index'])
+    // Downloadable and cloud backups (ADR 051); every handler re-checks manage all.
+    router.get('backups', [AdminBackupsController, 'index'])
+    router
+      .post('backups/connect/:provider', [AdminBackupsController, 'connect'])
+      .use(backupThrottle)
+    router.get('backups/oauth/:provider/callback', [AdminBackupsController, 'callback'])
+    router.delete('backups/connections/:provider', [AdminBackupsController, 'disconnect'])
+    router.put('backups/connections/:provider/schedule', [AdminBackupsController, 'schedule'])
+    router.post('backups/runs', [AdminBackupsController, 'run']).use(backupThrottle)
+    router.get('backups/runs/:id/download', [AdminBackupsController, 'download'])
     router.post('jobs/:id/retry', [AdminJobsController, 'retry'])
     router.post('jobs/sync/:name/run', [AdminJobsController, 'runSync'])
     router.get('jobs/sync/:name/runs', [AdminJobsController, 'syncRuns'])

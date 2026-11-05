@@ -358,6 +358,41 @@ export { AdonisJobs } from './src/events/adonis_jobs.js'
 export { recordMutation } from './src/events/record_mutation.js'
 export { assessBackup, verifyBackup } from './src/services/backup.js'
 export type { BackupObject, BackupStatus } from './src/services/backup.js'
+export {
+  BACKUP_ARCHIVE_EXTENSION,
+  BACKUP_ARCHIVE_FILES,
+  BackupArchiveError,
+  createOpenStream,
+  createSealStream,
+  openBackupArchive,
+  parseBackupKey,
+  sealBackupArchive,
+} from './src/backups/archive.js'
+export type { BackupArchiveErrorCode } from './src/backups/archive.js'
+export {
+  BackupProviderError,
+  googleDriveProvider,
+  oneDriveProvider,
+} from './src/backups/providers.js'
+export type {
+  BackupProvider,
+  BackupProviderClient,
+  BackupProviderErrorCategory,
+  BackupProviderOptions,
+  GoogleDriveEndpoints,
+  OneDriveEndpoints,
+} from './src/backups/providers.js'
+export { BACKUP_FAILURE_MESSAGES, CloudBackups } from './src/backups/cloud_backups.js'
+export type {
+  BackupConnection,
+  BackupKind,
+  BackupRun,
+  BackupRunStatus,
+  BackupSchedule,
+  BackupTrigger,
+  CloudBackupStatus,
+  CloudBackupsOptions,
+} from './src/backups/cloud_backups.js'
 export { ActivityAdmin, logActivity } from './src/core/activity.js'
 export type {
   ActivityEntry,

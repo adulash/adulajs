@@ -53,6 +53,17 @@ const env = await Env.create(new URL('../', import.meta.url), {
   BACKUP_S3_REGION: Env.schema.string.optional(),
   BACKUP_S3_ACCESS_KEY_ID: Env.schema.string.optional(),
   BACKUP_S3_SECRET_ACCESS_KEY: Env.schema.string.optional(),
+  // Encrypted downloadable and cloud backups (ADR 051): base64 of 32 random bytes. Keep an
+  // offline copy: an archive cannot be opened without it.
+  BACKUP_ENCRYPTION_KEY: Env.schema.string.optional(),
+  // Google Drive (scope drive.file) and OneDrive (Files.ReadWrite.AppFolder) destinations;
+  // each is offered only when both of its values are present.
+  BACKUP_GOOGLE_CLIENT_ID: Env.schema.string.optional(),
+  BACKUP_GOOGLE_CLIENT_SECRET: Env.schema.string.optional(),
+  BACKUP_MICROSOFT_CLIENT_ID: Env.schema.string.optional(),
+  BACKUP_MICROSOFT_CLIENT_SECRET: Env.schema.string.optional(),
+  // common (work and personal accounts), consumers, organizations or a tenant id.
+  BACKUP_MICROSOFT_TENANT: Env.schema.string.optional(),
 
   /*
   |----------------------------------------------------------
@@ -102,6 +113,14 @@ const env = await Env.create(new URL('../', import.meta.url), {
   AWS_ENDPOINT: Env.schema.string.optional(),
   S3_BUCKET: Env.schema.string.optional(),
 })
+
+// A malformed key fails at boot instead of at the first backup.
+const backupEncryptionKey = env.get('BACKUP_ENCRYPTION_KEY')
+if (backupEncryptionKey) {
+  const decoded = Buffer.from(backupEncryptionKey.trim(), 'base64')
+  if (decoded.length !== 32 || decoded.toString('base64') !== backupEncryptionKey.trim())
+    throw new Error('BACKUP_ENCRYPTION_KEY must be the base64 encoding of exactly 32 bytes')
+}
 
 if (env.get('NODE_ENV') === 'production') {
   for (const key of [

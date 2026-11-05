@@ -9,6 +9,7 @@ export const controllers = {
   admin: {
     Activity: () => import('#controllers/admin/activity_controller'),
     AuthenticationSettings: () => import('#controllers/admin/authentication_settings_controller'),
+    Backups: () => import('#controllers/admin/backups_controller'),
     Jobs: () => import('#controllers/admin/jobs_controller'),
     Lookups: () => import('#controllers/admin/lookups_controller'),
     Notifications: () => import('#controllers/admin/notifications_controller'),

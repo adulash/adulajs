@@ -21,6 +21,7 @@ export const activitySubjects: Record<string, string> = {
   'core.saved_views': 'طرق العرض المحفوظة',
   'core.exports': 'التصدير',
   'core.jobs': 'المهام الخلفية',
+  'core.backups': 'النسخ الاحتياطي',
   'core.mail': 'البريد',
   'core.setup': 'الإعداد الأولي',
 }
