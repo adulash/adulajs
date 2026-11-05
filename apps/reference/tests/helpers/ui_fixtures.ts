@@ -179,7 +179,19 @@ export async function removeSampleResources() {
   await knex.raw('DROP TABLE IF EXISTS ui_sample_lines, ui_samples CASCADE')
   // Dropping the tables restarts their identities, so stale activity rows would
   // otherwise attach to the records of the next suite that installs them.
-  await knex('activities').whereIn('resource', ['ui_samples', 'ui_sample_lines']).del()
+  const resources = ['ui_samples', 'ui_sample_lines']
+  await knex('activities').whereIn('resource', resources).del()
+  // The same holds for collaboration rows: a comment left by one suite would
+  // appear on record 1 of the next suite's samples.
+  const comments = knex('comments').whereIn('resource', resources).select('id')
+  await knex('comment_mentions').whereIn('comment_id', comments).del()
+  await knex('comments').whereIn('resource', resources).del()
+  await knex('followers').whereIn('resource', resources).del()
+  await knex('taggables').whereIn('resource', resources).del()
+  for (const table of ['activities', 'comments', 'followers', 'taggables']) {
+    const left = await knex(table).whereIn('resource', resources).count({ count: '*' }).first()
+    if (Number(left?.count) !== 0) throw new Error(`Sample ${table} rows survived cleanup`)
+  }
 }
 
 export async function screenshotDir() {
