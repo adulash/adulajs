@@ -66,29 +66,29 @@ export default function UsersIndex({ users, search }: Props) {
           <TableBody>
             {users.data.map((user) => (
               <TableRow key={user.id}>
-                <TableCell>
-                  <strong className="block">{user.fullName || '—'}</strong>
-                  <span className="text-xs text-muted-foreground" dir="ltr">
+                <TableCell className="min-w-40 whitespace-normal">
+                  <strong className="block wrap-anywhere">{user.fullName || '—'}</strong>
+                  <span className="block text-xs wrap-anywhere text-muted-foreground" dir="ltr">
                     {user.email}
                   </span>
                 </TableCell>
-                <TableCell>
+                <TableCell className="whitespace-normal">
                   <span className="flex flex-wrap gap-1">
                     {user.roles.length === 0 && (
                       <span className="text-xs text-muted-foreground">بلا أدوار</span>
                     )}
                     {user.roles.map((role) => (
-                      <Badge key={role.id} variant="secondary">
+                      <Badge key={role.id} variant="secondary" className={wrapping}>
                         {role.role}
                         {role.orgUnit ? ` · ${role.orgUnit}` : ''}
                       </Badge>
                     ))}
                   </span>
                 </TableCell>
-                <TableCell>
+                <TableCell className="whitespace-normal">
                   <span className="flex flex-wrap gap-1">
                     {user.orgUnits.map((unit) => (
-                      <Badge key={unit.id} variant="outline">
+                      <Badge key={unit.id} variant="outline" className={wrapping}>
                         {unit.name}
                       </Badge>
                     ))}
@@ -128,4 +128,8 @@ export default function UsersIndex({ users, search }: Props) {
     </>
   )
 }
+// Long role, unit and address values wrap inside their cells so every column, including the
+// details link, stays within the table frame at desktop widths with the sidebar expanded.
+const wrapping = 'h-auto max-w-full shrink rounded-md whitespace-normal wrap-anywhere text-start'
+
 UsersIndex.layout = (page: ReactElement) => <Workspace>{page}</Workspace>
