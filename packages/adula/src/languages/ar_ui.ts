@@ -417,6 +417,7 @@ export const arabicInterfaceMessages = {
   'ui.overview.notifications': 'الإشعارات غير المقروءة',
   'ui.overview.modules': 'وحدات العمل',
   'ui.overview.unavailable': 'غير متاح',
+  'ui.overview.countFailed': 'تعذّر تحميل العدد',
   'ui.sortable.handle': 'مقبض نقل {item}',
   'ui.sortable.moveUp': 'نقل {item} للأعلى',
   'ui.sortable.moveDown': 'نقل {item} للأسفل',
