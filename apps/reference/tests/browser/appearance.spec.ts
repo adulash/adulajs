@@ -221,4 +221,28 @@ test.group('Appearance in the browser (ADR 053)', (group) => {
       expected('#1d4ed8')
     )
   })
+
+  test('on a 375 px phone the dialog keeps its footer in view and reaches the preview', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(admin)
+    const page = await visit('/admin/appearance')
+    await page.setViewportSize({ width: 375, height: 812 })
+    await page.getByRole('button', { name: 'تعديل الهوية', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'تعديل الهوية' })
+    const save = dialog.getByRole('button', { name: 'حفظ', exact: true })
+    await save.waitFor()
+    const box = (await save.boundingBox())!
+    assert.isAtMost(box.y + box.height, 812)
+    assert.isAtMost(box.x + box.width, 375)
+    await save.click({ trial: true, timeout: 2000 })
+    // The preview sits below the fields on a phone; the body scrolls to it.
+    const preview = dialog.getByTestId('appearance-preview')
+    await preview.scrollIntoViewIfNeeded()
+    assert.isTrue(await preview.isVisible())
+    const width = (await preview.boundingBox())!.width
+    assert.isAtMost(width, 375)
+  })
 })
