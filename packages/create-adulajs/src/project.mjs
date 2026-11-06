@@ -215,25 +215,31 @@ export async function renderProject(target, template, { name, identity, packageF
   for (const path of [
     'inertia/layouts/default.tsx',
     'inertia/layouts/workspace.tsx',
+    'inertia/components/brand-mark.tsx',
     'inertia/pages/home.tsx',
   ]) {
-    files[path] = `import { brand } from '~/brand'\n` + files[path]
+    if (files[path] !== undefined) files[path] = `import { brand } from '~/brand'\n` + files[path]
   }
-  files['inertia/layouts/default.tsx'] = files['inertia/layouts/default.tsx']
-    .replace('aria-label="AdulaJS — الرئيسية"', 'aria-label={brand.company}')
-    .replace(
-      '<strong dir="ltr">AdulaJS</strong>',
-      '<strong>{brand.logo && <img src={brand.logo} alt="" className="inline-block size-8 object-contain" />} {brand.company}</strong>'
-    )
-  files['inertia/layouts/workspace.tsx'] = files['inertia/layouts/workspace.tsx']
-    .replaceAll('>عدولة<', '>{brand.company}<')
-    .replace('التطبيق المرجعي', '{brand.company}')
-    // The company mark's letter, whatever its indentation (tests/brand-anchors.test.mjs).
-    .replace(
+  // The company mark's letter, whatever its indentation (tests/brand-anchors.test.mjs).
+  const markLetter = (source) =>
+    source.replace(
       /^([ \t]*)ع$/m,
       '$1{brand.logo ? <img src={brand.logo} alt="" className="size-full object-contain" /> : brand.company.charAt(0)}'
     )
-    .replace('text-white', 'text-primary-foreground')
+  // The guest shell shows the company name next to the shared BrandMark.
+  files['inertia/layouts/default.tsx'] = files['inertia/layouts/default.tsx'].replaceAll(
+    '>عدولة<',
+    '>{brand.company}<'
+  )
+  if (files['inertia/components/brand-mark.tsx'] !== undefined)
+    files['inertia/components/brand-mark.tsx'] = markLetter(
+      files['inertia/components/brand-mark.tsx']
+    )
+  files['inertia/layouts/workspace.tsx'] = markLetter(
+    files['inertia/layouts/workspace.tsx']
+      .replaceAll('>عدولة<', '>{brand.company}<')
+      .replace('التطبيق المرجعي', '{brand.company}')
+  ).replace('text-white', 'text-primary-foreground')
   files['inertia/pages/home.tsx'] = files['inertia/pages/home.tsx'].replace(
     "{ app: 'AdulaJS' }",
     '{ app: brand.company }'

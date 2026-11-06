@@ -4,8 +4,20 @@ import { usePage } from '@inertiajs/react'
 import { type ReactElement, useEffect } from 'react'
 import { Form, Link } from '@adonisjs/inertia/react'
 import { ImpersonationBar } from '~/components/admin-nav'
+import { BrandMark } from '~/components/brand-mark'
 import { Button } from '~/components/ui/button'
+import { UserAvatar } from '~/components/ui/user-avatar'
 import { useMessages } from '~/components/ui/messages'
+
+// Account pages own their cross-links (sign-in, sign-up, password reset) in the card, so
+// their header shows only the brand; home and the error pages keep the header links.
+const AUTH_PAGES = new Set([
+  'auth/login',
+  'auth/signup',
+  'auth/forgot',
+  'auth/reset',
+  'auth/two_factor',
+])
 
 /**
  * The guest shell for the home page, the account pages (sign-in, sign-up, password reset,
@@ -13,7 +25,7 @@ import { useMessages } from '~/components/ui/messages'
  * theme background, the same header pattern as the workspace shell.
  */
 export default function Layout({ children }: { children: ReactElement<Data.SharedProps> }) {
-  const { url, flash } = usePage()
+  const { url, flash, component } = usePage()
   const { t, dir } = useMessages()
   useEffect(() => {
     toast.dismiss()
@@ -29,26 +41,31 @@ export default function Layout({ children }: { children: ReactElement<Data.Share
   })
 
   const { account, signupEnabled } = children.props
-  const path = url.split('?')[0]
-  // Home and sign-in already offer signing in as the page's own action.
-  const signInLink = path !== '/' && path !== '/login'
+  const authPage = AUTH_PAGES.has(component)
+  // Home offers signing in as its own card action, so its header offers only sign-up.
+  const signInLink = !authPage && component !== 'home'
+  const signUpLink = !authPage && signupEnabled
   return (
     <div dir={dir} className="min-h-dvh bg-background text-foreground">
       {/* Impersonation must be visible on every layout, not only the workspace shell. */}
       <ImpersonationBar />
       <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-3 px-4 sm:px-6">
-          <Link
-            route="home"
-            aria-label={t('AdulaJS — الرئيسية')}
-            className="text-base font-semibold text-foreground"
-          >
-            <span dir="ltr">AdulaJS</span>
+        <div className="flex h-[72px] items-center justify-between gap-3 px-5 lg:px-10">
+          <Link route="home" className="flex items-center gap-3">
+            <BrandMark size="sm" />
+            <strong className="text-base text-foreground">عدولة</strong>
           </Link>
           <nav aria-label={t('الحساب')} className="flex items-center gap-2">
             {account ? (
               <>
-                <span className="text-sm text-muted-foreground">{account.initials}</span>
+                <UserAvatar
+                  user={{
+                    id: account.id,
+                    name: account.fullName || account.email,
+                    avatarUrl: account.avatarUrl,
+                  }}
+                  size="md"
+                />
                 <Form route="session.destroy">
                   <Button type="submit" variant="ghost" size="sm">
                     {t('تسجيل الخروج')}
@@ -62,7 +79,7 @@ export default function Layout({ children }: { children: ReactElement<Data.Share
                     <Link route="session.create">{t('الدخول')}</Link>
                   </Button>
                 )}
-                {signupEnabled && (
+                {signUpLink && (
                   <Button variant="outline" size="sm" asChild>
                     <Link route="new_account.create">{t('إنشاء حساب')}</Link>
                   </Button>

@@ -76,8 +76,13 @@ test.group('Guest shell', () => {
         assert.equal(await signIn.count(), 1)
         await signIn.click()
         await page.waitForURL(/\/login$/)
-      } else
-        assert.equal(await page.locator('header').getByRole('link', { name: 'الدخول' }).count(), 0)
+      } else {
+        const header = page.locator('header')
+        assert.equal(await header.getByRole('link', { name: 'الدخول' }).count(), 0)
+        // The card links to sign-up; the header does not repeat it.
+        assert.equal(await page.getByRole('link', { name: 'إنشاء حساب' }).count(), 1)
+        assert.equal(await header.getByRole('link', { name: 'إنشاء حساب' }).count(), 0)
+      }
     })
   }
 })
