@@ -3,6 +3,7 @@ import { relative, resolve, isAbsolute } from 'node:path'
 import type { HttpContext } from '@adonisjs/core/http'
 import app from '@adonisjs/core/services/app'
 import env from '#start/env'
+import drive from '@adonisjs/drive/services/main'
 import adulaConfig from '#config/adula'
 import { AdulaError, PrintTemplates, htmlToPdf, imageDataUri } from 'adula'
 import { adula, requestActor } from '#services/adula'
@@ -21,7 +22,20 @@ export function printableResource(name: unknown) {
 /** The company name and inlined logo printed on every document. */
 export async function printIdentity() {
   const brand = await identity()
-  return { name: brand.company, logoUrl: await printableLogo(brand.logo) }
+  const logoUrl = brand.logoId ? await storedLogo(brand.logoId) : await printableLogo(brand.logo)
+  return { name: brand.company, logoUrl }
+}
+
+/** The appearance logo (ADR 053) inlined from storage, so the PDF renderer fetches nothing. */
+async function storedLogo(id: number) {
+  const logo = await adula().appearance.logo(id)
+  if (!logo) return null
+  try {
+    const disk = drive.use(logo.disk as never)
+    return imageDataUri(Buffer.from(await disk.getBytes(logo.path)), logo.path)
+  } catch {
+    return null
+  }
 }
 
 /**

@@ -31,6 +31,8 @@ export function isProtectedSetting(key: string) {
     PROTECTED_SETTING_KEYS.includes(key) ||
     key.startsWith('backup.') ||
     key.startsWith('setup.') ||
+    // Written by the appearance section (ADR 053), which validates colours and texts.
+    key.startsWith('appearance.') ||
     isSealedSetting(key)
   )
 }

@@ -10,6 +10,7 @@ import fixturePages from '~/fixture_pages'
 import { TooltipProvider } from '~/components/ui/tooltip'
 import { applyTheme, isTheme } from '~/components/theme'
 import { preferenceOverride } from '~/components/preferences'
+import { applyAppearance, appearanceCompany, type SharedAppearance } from '~/components/appearance'
 import './css/adula.css'
 
 const appName = import.meta.env.VITE_APP_NAME || 'AdulaJS'
@@ -23,6 +24,7 @@ function syncDocument(props: {
   locale?: unknown
   dir?: unknown
   preferences?: unknown
+  appearance?: unknown
 }) {
   const root = document.documentElement
   root.lang = typeof props.locale === 'string' ? props.locale : 'ar'
@@ -32,10 +34,16 @@ function syncDocument(props: {
   const stored = (props.preferences as Record<string, unknown> | undefined)?.['shell.theme']
   const theme = isTheme(picked) ? picked : stored
   if (isTheme(theme)) applyTheme(theme)
+  // The saved primary colour and the active occasion's (ADR 053).
+  applyAppearance(props.appearance as SharedAppearance | undefined)
 }
 
 createInertiaApp({
-  title: (title) => (title ? `${title} - ${appName}` : appName),
+  // The company name from «المظهر والهوية» (ADR 053), once a page has shared it.
+  title: (title) => {
+    const name = appearanceCompany() ?? appName
+    return title ? `${title} - ${name}` : name
+  },
   resolve: (name) => {
     return resolvePageComponent<ResolvedComponent>(
       `./pages/${name}.tsx`,

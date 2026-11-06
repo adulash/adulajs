@@ -7,6 +7,7 @@ import redis from '@adonisjs/redis/services/main'
 import drive from '@adonisjs/drive/services/main'
 import { InitialSetup, Settings, runtimeHealth, type SetupCheck } from 'adula'
 import env from '#start/env'
+import { adula } from '#services/adula'
 import {
   mailTest,
   mailFingerprint,
@@ -62,7 +63,23 @@ const oauthCredentials = (provider: OauthProvider) =>
 export const oauthFingerprint = (provider: OauthProvider) =>
   fingerprint([...oauthCredentials(provider), env.get('APP_URL')])
 
+/**
+ * The deployment's identity: the company name and logo saved in «المظهر والهوية» (ADR 053),
+ * over the project's company-identity.json or the root unit's name. Printed documents, the
+ * two-factor issuer and the shells use it; `logoId` is an appearance logo in storage.
+ */
 export async function identity() {
+  const base = await fileIdentity()
+  const saved = await adula().appearance.resolve()
+  return {
+    company: saved.company ?? base.company,
+    logo: saved.logoId ? null : base.logo,
+    logoId: saved.logoId,
+  }
+}
+
+/** The identity the project files declare; the setup checklist approves this one. */
+export async function fileIdentity() {
   try {
     const brand = JSON.parse(await readFile(app.makePath('company-identity.json'), 'utf8')) as {
       company: string
@@ -116,7 +133,7 @@ export async function identityFingerprint() {
   const sources = await Promise.all(
     ['docs/design-identity.md', 'inertia/css/brand.css', 'inertia/brand.ts'].map(identitySource)
   )
-  return fingerprint([await identity(), ...sources])
+  return fingerprint([await fileIdentity(), ...sources])
 }
 export async function probeInfrastructure() {
   await database().raw('SELECT 1')
