@@ -316,6 +316,33 @@ worker then delivers it through each channel the recipient has enabled:
   If the worker cannot read the provider setting, the messages wait and are sent once it
   can. A message still waiting after 24 hours is dropped as `expired`.
 
+### E-mail server (SMTP)
+
+An administrator configures mail under «إعداد البريد» in `/admin/settings` (and in the setup
+center). The form offers presets for Gmail or Google Workspace, Microsoft 365, Zoho, Amazon
+SES, Mailgun, SendGrid and a custom server. Each preset fills the host, port, security and,
+for SendGrid, the fixed username `apikey`. The administrator completes the username, the
+password and the sender, saves, then uses «إرسال بريد تجريبي». The change applies to the next
+message in the web process and the worker, with no restart.
+
+* **Password.** Write-only. It is sealed with `APP_KEY`, shown only as «كلمة مرور محفوظة» with
+  «تغيير» and «حذف», and never returned, flashed or logged. Changing the host clears it.
+* **Storage.** The system setting `mail.smtp`. The generic settings editor shows it read-only
+  without the sealed value.
+* **Host.** A bare name or address (no scheme, port or path). Private, loopback and metadata
+  addresses are refused unless `WEBHOOKS_ALLOW_PRIVATE=true`, and the connection uses the
+  checked address with the certificate verified against the name.
+* **Sender.** One plain address; the name is one line without `<`, `>` or `"`.
+* **Audit.** Each change is an activity in `core.mail` that names the changed fields, never
+  their values.
+* **Environment.** While nothing is saved, the `SMTP_*` and `MAIL_FROM_*` variables apply, and
+  changing them still needs a restart. `MAIL_SETTINGS_SOURCE=environment` makes the variables
+  win over saved settings; the form then says so.
+
+The JSON endpoints are `PUT /admin/settings/mail` (everything except the password),
+`PUT /admin/settings/mail/password` and `DELETE /admin/settings/mail/password`. All three
+require the administration permission.
+
 ### Text-message provider
 
 AdulaJS ships no SMS or WhatsApp vendor SDK. It posts each message to a provider URL.

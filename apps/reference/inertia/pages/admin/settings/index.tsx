@@ -70,6 +70,8 @@ export default function SettingsIndex({
   mailRecipient,
   mailReadiness,
   mailPresets,
+  mailSettings,
+  mailSettingsApply,
   authentication,
   messagingChannel,
 }: Props) {
@@ -112,6 +114,8 @@ export default function SettingsIndex({
         mailRecipient={mailRecipient}
         mailReadiness={mailReadiness}
         mailPresets={mailPresets}
+        mailSettings={mailSettings}
+        mailSettingsApply={mailSettingsApply}
       />
       <MessagingChannelSettings channel={messagingChannel} />
       <h2 className="mb-4 text-lg font-semibold">إعدادات متقدمة</h2>

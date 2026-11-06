@@ -86,6 +86,8 @@ const env = await Env.create(new URL('../', import.meta.url), {
   SMTP_REQUIRE_TLS: Env.schema.boolean.optional(),
   SMTP_USERNAME: Env.schema.string.optional(),
   SMTP_PASSWORD: Env.schema.string.optional(),
+  // 'environment' ignores the SMTP settings saved in the administration (ADR 020 amendment).
+  MAIL_SETTINGS_SOURCE: Env.schema.enum.optional(['settings', 'environment'] as const),
 
   /*
   |----------------------------------------------------------

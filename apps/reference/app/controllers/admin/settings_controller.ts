@@ -17,7 +17,13 @@ import {
 } from '#services/mail_delivery_test'
 import { mailReadiness } from '#services/mail_setup'
 import { authenticationSettings } from './authentication_settings_controller.js'
-import { adula } from '#services/adula'
+import { adula, requestActor } from '#services/adula'
+
+/** JSON only, so the SMTP password is never flashed into the session as old input. */
+function requireJson(ctx: HttpContext) {
+  if (ctx.request.header('Content-Type')?.split(';', 1)[0] !== 'application/json')
+    throw new AdulaError(415, 'E_MAIL_JSON', 'أرسل الطلب بصيغة JSON')
+}
 
 function scopeOf(value: unknown): SettingScope {
   const scope = text(value) ?? 'system'
@@ -36,14 +42,14 @@ export default class SettingsController {
         : []
     if (wantsJson(ctx)) return { data: settings, scope, scopeId }
     const user = ctx.auth.getUserOrFail()
-    const state = await mailTest().current(user.id, user.email, mailFingerprint())
+    const state = await mailTest().current(user.id, user.email, await mailFingerprint())
     return ctx.inertia.render('admin/settings/index', {
       settings,
       scope,
       scopeId,
       mailTest: publicMailTest(state),
       mailRecipient: user.email,
-      ...mailSetupProps(),
+      ...(await mailSetupProps()),
       authentication: await authenticationSettings(),
       messagingChannel: await adula().channelSettings.read(),
     })
@@ -53,15 +59,15 @@ export default class SettingsController {
     const user = ctx.auth.getUserOrFail()
     return mutate(
       ctx,
-      () => {
+      async () => {
         // Refuse before sending, so an incomplete setup reads as such rather than a failure.
-        if (!mailReadiness(mailValues()).configured)
+        if (!mailReadiness(await mailValues()).configured)
           throw new AdulaError(
             422,
             'E_MAIL_NOT_CONFIGURED',
-            'إعداد البريد غير مكتمل. افتح «إعداد البريد» وأكمل المتغيرات الناقصة، ثم أعد تشغيل الخادم.'
+            'إعداد البريد غير مكتمل. افتح «إعداد البريد» وأكمل الحقول الناقصة، ثم احفظ.'
           )
-        return mailTest().send(user.id, user.email, mailFingerprint(), (id) =>
+        return mailTest().send(user.id, user.email, await mailFingerprint(), (id) =>
           sendMailTest(user.email, id)
         )
       },
@@ -74,11 +80,11 @@ export default class SettingsController {
     const user = ctx.auth.getUserOrFail()
     return mutate(
       ctx,
-      () =>
+      async () =>
         mailTest().answer(
           user.id,
           user.email,
-          mailFingerprint(),
+          await mailFingerprint(),
           ctx.request.input('id'),
           ctx.request.input('received')
         ),
@@ -87,6 +93,25 @@ export default class SettingsController {
         : 'تم تسجيل عدم وصول الرسالة. راجع البريد غير المرغوب وإعدادات البريد.',
       ctx.request.input('returnTo') === 'setup' ? '/admin/setup' : '/admin/settings'
     )
+  }
+
+  /** The SMTP settings saved in the administration; the password has its own endpoints. */
+  async updateMail(ctx: HttpContext) {
+    requireJson(ctx)
+    const body = ctx.request.body()
+    if (Object.hasOwn(body, 'password'))
+      throw new AdulaError(422, 'E_MAIL_SETTINGS_INPUT', 'تُحفظ كلمة المرور من حقلها وحده')
+    return { data: await adula().mailSettings.save(await requestActor(ctx), body) }
+  }
+
+  async setMailPassword(ctx: HttpContext) {
+    requireJson(ctx)
+    const actor = await requestActor(ctx)
+    return { data: await adula().mailSettings.setPassword(actor, ctx.request.input('password')) }
+  }
+
+  async clearMailPassword(ctx: HttpContext) {
+    return { data: await adula().mailSettings.clearPassword(await requestActor(ctx)) }
   }
 
   async upsert(ctx: HttpContext) {

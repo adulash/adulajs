@@ -3,7 +3,14 @@ import mail from '@adonisjs/mail/services/main'
 import { MailDeliveryTest, type MailTestState } from 'adula'
 import db from '@adonisjs/lucid/services/db'
 import env from '#start/env'
-import { mailReadiness, mailPresets, presetEnvLines } from '#services/mail_setup'
+import {
+  mailReadiness,
+  mailPresets,
+  presetEnvLines,
+  type MailValues,
+} from '#services/mail_setup'
+import { environmentMail, storedSettingsApply } from '#services/mail_transport'
+import { adula } from '#services/adula'
 
 export const mailTest = () => new MailDeliveryTest(db.connection().getWriteClient())
 export function publicMailTest(
@@ -18,41 +25,46 @@ export function publicMailTest(
     answeredAt: state.answeredAt,
   }
 }
+/** The SMTP values in force: the stored settings when they apply, otherwise the environment. */
+export async function mailValues(): Promise<MailValues & { source: 'settings' | 'environment' }> {
+  const stored = storedSettingsApply() ? await adula().mailSettings.read() : null
+  if (!stored?.configured) return { ...environmentMail(), source: 'environment' }
+  return {
+    source: 'settings',
+    SMTP_HOST: stored.host,
+    SMTP_PORT: stored.port,
+    SMTP_SECURE: stored.security === 'tls',
+    SMTP_REQUIRE_TLS: stored.security === 'starttls',
+    SMTP_USERNAME: stored.username || undefined,
+    // Readiness only asks whether a password exists; the value never leaves MailSettings.
+    SMTP_PASSWORD: stored.hasPassword ? 'stored' : undefined,
+    MAIL_FROM_NAME: stored.fromName || undefined,
+    MAIL_FROM_ADDRESS: stored.fromAddress || undefined,
+    NODE_ENV: env.get('NODE_ENV'),
+  }
+}
 // Configuration changes invalidate old attestations; secrets never reach page props.
-export function mailFingerprint() {
+export async function mailFingerprint() {
+  const stored = storedSettingsApply() ? await adula().mailSettings.read() : null
   return createHmac('sha256', env.get('APP_KEY').release())
     .update(
       JSON.stringify([
-        env.get('SMTP_HOST'),
-        env.get('SMTP_PORT'),
-        env.get('SMTP_SECURE'),
-        env.get('SMTP_REQUIRE_TLS'),
-        env.get('SMTP_USERNAME'),
-        env.get('SMTP_PASSWORD'),
-        env.get('MAIL_FROM_ADDRESS'),
-        env.get('MAIL_FROM_NAME'),
+        Object.values(environmentMail()),
         env.get('MAIL_MAILER'),
+        // updatedAt also changes when the stored password is set or removed.
+        stored?.configured ? stored : null,
       ])
     )
     .digest('hex')
 }
-/** The mail variables the running process uses; only `mailReadiness` reads their values. */
-export const mailValues = () => ({
-  SMTP_HOST: env.get('SMTP_HOST'),
-  SMTP_PORT: env.get('SMTP_PORT'),
-  SMTP_SECURE: env.get('SMTP_SECURE'),
-  SMTP_REQUIRE_TLS: env.get('SMTP_REQUIRE_TLS'),
-  SMTP_USERNAME: env.get('SMTP_USERNAME'),
-  SMTP_PASSWORD: env.get('SMTP_PASSWORD'),
-  MAIL_FROM_NAME: env.get('MAIL_FROM_NAME'),
-  MAIL_FROM_ADDRESS: env.get('MAIL_FROM_ADDRESS'),
-  NODE_ENV: env.get('NODE_ENV'),
-})
-/** Page props for the guided mail setup: readiness by variable name and the presets. */
-export function mailSetupProps() {
+/** Page props for mail setup: readiness by field, the presets and the stored settings. */
+export async function mailSetupProps() {
+  const values = await mailValues()
   return {
-    mailReadiness: mailReadiness(mailValues()),
+    mailReadiness: { ...mailReadiness(values), source: values.source },
     mailPresets: mailPresets.map((preset) => ({ ...preset, env: presetEnvLines(preset) })),
+    mailSettings: await adula().mailSettings.read(),
+    mailSettingsApply: storedSettingsApply(),
   }
 }
 export async function sendMailTest(recipient: string, id: string) {

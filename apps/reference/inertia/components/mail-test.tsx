@@ -29,6 +29,8 @@ export function MailTest({
   mailRecipient,
   mailReadiness,
   mailPresets,
+  mailSettings,
+  mailSettingsApply,
   returnTo = 'settings',
 }: MailTestProps & { returnTo?: 'settings' | 'setup' }) {
   const [busy, setBusy] = useState(false)
@@ -105,6 +107,8 @@ export function MailTest({
         onOpenChange={setSetup}
         mailReadiness={mailReadiness}
         mailPresets={mailPresets}
+        mailSettings={mailSettings}
+        mailSettingsApply={mailSettingsApply}
       />
       <Dialog mode="confirm" open={open} onOpenChange={setOpen}>
         <DialogContent>

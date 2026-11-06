@@ -1,11 +1,31 @@
 import env from '#start/env'
-import { defineConfig, transports } from '@adonisjs/mail'
-import { smtpOptions } from '#services/mail_setup'
+import { defineConfig } from '@adonisjs/mail'
+import type { MailTransportContract, NodeMailerMessage } from '@adonisjs/mail/types'
 
 /**
- * SMTP only: no external mail service. Tests fake the mailer, and a local
- * relay on 127.0.0.1:1025 is the development default.
+ * SMTP only: no external mail service. The `smtp` mailer reads the settings saved in the
+ * administration at send time and falls back to the SMTP_* variables (ADR 020 amendment).
+ * It loads lazily, because services are not ready while the configuration is read.
  */
+class Smtp implements MailTransportContract {
+  #inner?: Promise<MailTransportContract>
+
+  #transport() {
+    this.#inner ??= import('#services/mail_transport').then(
+      ({ SettingsSmtpTransport }) => new SettingsSmtpTransport()
+    )
+    return this.#inner
+  }
+
+  async send(message: NodeMailerMessage) {
+    return (await this.#transport()).send(message)
+  }
+
+  async close() {
+    if (this.#inner) await (await this.#inner).close?.()
+  }
+}
+
 const mailConfig = defineConfig({
   default: env.get('MAIL_MAILER') ?? 'smtp',
   from: {
@@ -13,17 +33,7 @@ const mailConfig = defineConfig({
     name: env.get('MAIL_FROM_NAME') ?? 'عدولة',
   },
   mailers: {
-    smtp: transports.smtp(
-      smtpOptions({
-        SMTP_HOST: env.get('SMTP_HOST'),
-        SMTP_PORT: env.get('SMTP_PORT'),
-        SMTP_SECURE: env.get('SMTP_SECURE'),
-        SMTP_REQUIRE_TLS: env.get('SMTP_REQUIRE_TLS'),
-        SMTP_USERNAME: env.get('SMTP_USERNAME'),
-        SMTP_PASSWORD: env.get('SMTP_PASSWORD'),
-        NODE_ENV: env.get('NODE_ENV'),
-      })
-    ),
+    smtp: (): MailTransportContract => new Smtp(),
   },
 })
 

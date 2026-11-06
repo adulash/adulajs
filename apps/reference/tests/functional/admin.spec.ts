@@ -12,7 +12,7 @@ import mail from '@adonisjs/mail/services/main'
 import { SMTPTransport } from '@adonisjs/mail/transports/smtp'
 import { smtpSink } from '../helpers/smtp.js'
 import { mailPresets, mailReadiness, presetEnvLines, smtpOptions } from '#services/mail_setup'
-import { mailValues } from '#services/mail_delivery_test'
+import { environmentMail } from '#services/mail_transport'
 
 test.group('Core administration screens', (group) => {
   let admin: User
@@ -229,7 +229,7 @@ test.group('Core administration screens', (group) => {
       env.set('SMTP_PASSWORD', smtpPassword)
       env.set('MAIL_FROM_ADDRESS', 'no-reply@example.test')
       await mail.close('smtp')
-      mail.config.mailers.smtp = () => new SMTPTransport(smtpOptions(mailValues()))
+      mail.config.mailers.smtp = () => new SMTPTransport(smtpOptions(environmentMail()))
       await knex()('settings')
         .where({ key: 'mail.delivery_test', scope: 'user', scope_id: String(admin.id) })
         .delete()

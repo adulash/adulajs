@@ -36,11 +36,11 @@ export function isProtectedSetting(key: string) {
 }
 
 /**
- * Settings that hold a sealed secret (`channels.*`, `ai.*`, written by their own section). The
- * settings screen lists them read-only and never returns the sealed value.
+ * Settings that hold a sealed secret (`channels.*`, `ai.*`, `mail.smtp`, written by their own
+ * section). The settings screen lists them read-only and never returns the sealed value.
  */
 export function isSealedSetting(key: string) {
-  return key.startsWith('channels.') || key.startsWith('ai.')
+  return key.startsWith('channels.') || key.startsWith('ai.') || key === 'mail.smtp'
 }
 
 function presentValue(key: string, value: JsonValue): JsonValue {

@@ -147,7 +147,7 @@ export async function setupSnapshot(user: { id: number; email: string }) {
         .where({ id: notification.id, user_id: user.id })
         .first('read_at')
     : null
-  const mail = await mailTest().current(user.id, user.email, mailFingerprint())
+  const mail = await mailTest().current(user.id, user.email, await mailFingerprint())
   const oauth = await Promise.all(
     (['github', 'google', 'microsoft'] as const).map(async (provider) => {
       const configured = oauthCredentials(provider).every(Boolean)
@@ -184,7 +184,7 @@ export async function setupSnapshot(user: { id: number; email: string }) {
     identityConfirmed: approved?.fingerprint === (await identityFingerprint()),
     mailTest: publicMailTest(mail),
     mailRecipient: user.email,
-    ...mailSetupProps(),
+    ...(await mailSetupProps()),
     notification: notification ? { ...notification, read: Boolean(receipt?.read_at) } : null,
     storage,
     storageDisk: env.get('DRIVE_DISK'),
