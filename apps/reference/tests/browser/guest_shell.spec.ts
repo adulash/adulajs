@@ -37,6 +37,10 @@ test.group('Guest shell', () => {
       ]
       const card = page.locator('[data-slot="card"]').first()
       await card.waitFor()
+      // The title template adds the application name once; a page must not add it again.
+      const title = await page.title()
+      const appName = title.split(' - ').at(-1) ?? ''
+      assert.equal(title.split(appName).length - 1, 1, `${path}: title ${title}`)
       for (const viewport of viewports) {
         await page.setViewportSize(viewport)
         await page.screenshot({

@@ -198,7 +198,7 @@ export default function Home({ overview }: { overview?: OverviewState }) {
   const { t, dir } = useMessages()
   return (
     <>
-      <Head title={t('مساحة العمل · {app}', { app: 'AdulaJS' })} />
+      <Head title={t('مساحة العمل')} />
       {props.account && overview ? (
         <Overview overview={overview} props={props} />
       ) : (

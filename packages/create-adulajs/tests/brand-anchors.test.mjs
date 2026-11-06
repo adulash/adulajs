@@ -38,6 +38,9 @@ test('the company identity reaches every brand spot of the workspace and guest s
     assert.doesNotMatch(guest, /AdulaJS|عدولة/)
     assert.match(guest, />\{brand\.company\}</)
     assert.match(guest, /^import \{ brand \} from '~\/brand'/)
+    // Home takes its title suffix from app.tsx, so it needs no brand import of its own.
+    const home = await readFile(join(target, 'inertia/pages/home.tsx'), 'utf8')
+    assert.doesNotMatch(home, /AdulaJS|from '~\/brand'/)
     const mark = await readFile(join(target, 'inertia/components/brand-mark.tsx'), 'utf8')
     assert.doesNotMatch(mark, /^\s*ع$/m)
     assert.match(mark, /\{brand\.logo \? <img src=\{brand\.logo\}/)

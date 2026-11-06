@@ -220,7 +220,6 @@ export async function renderProject(target, template, { name, identity, packageF
     'inertia/layouts/default.tsx',
     'inertia/layouts/workspace.tsx',
     'inertia/components/brand-mark.tsx',
-    'inertia/pages/home.tsx',
   ]) {
     files[path] = `import { brand } from '~/brand'\n` + files[path]
   }
@@ -243,10 +242,6 @@ export async function renderProject(target, template, { name, identity, packageF
       .replaceAll('>عدولة<', '>{brand.company}<')
       .replace('التطبيق المرجعي', '{brand.company}')
   ).replace('text-white', 'text-primary-foreground')
-  files['inertia/pages/home.tsx'] = files['inertia/pages/home.tsx'].replace(
-    "{ app: 'AdulaJS' }",
-    '{ app: brand.company }'
-  )
   files['inertia/app.tsx'] =
     `import { brand } from './brand'\n` +
     files['inertia/app.tsx'].replace(
