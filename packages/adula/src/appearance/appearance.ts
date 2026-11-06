@@ -193,6 +193,11 @@ export class Appearance {
     this.clock = options.now ?? (() => new Date())
   }
 
+  /** Drops the cached result, for a change made outside this service (tests, restores). */
+  forget() {
+    this.#cache = null
+  }
+
   /** Today in the system time zone; an occasion's dates are read in the same zone. */
   today() {
     return dateIn(this.options.timeZone, this.clock())
@@ -308,7 +313,9 @@ export class Appearance {
       !values.login_title &&
       !values.login_description
     )
-      throw invalid('اختر تغييرًا واحدًا على الأقل للمناسبة: اللون أو الشعار أو الرسالة أو نصوص الدخول')
+      throw invalid(
+        'اختر تغييرًا واحدًا على الأقل للمناسبة: اللون أو الشعار أو الرسالة أو نصوص الدخول'
+      )
     const result = await this.db.transaction(async (trx) => {
       // One writer at a time, so two overlapping occasions cannot both pass the check.
       await trx.raw('LOCK TABLE appearance_occasions IN SHARE ROW EXCLUSIVE MODE')

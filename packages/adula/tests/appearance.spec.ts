@@ -33,6 +33,8 @@ async function failure(run: Promise<unknown>) {
   throw new Error('expected an AdulaError')
 }
 
+/** The AdulaError code a call fails with. */
+const code = (run: Promise<unknown>) => failure(run).then((error) => error.code)
 const image = (format: 'png' | 'jpeg' | 'webp', width = 64, height = 32) =>
   sharp({ create: { width, height, channels: 3, background: '#006c35' } })
     .toFormat(format)
@@ -88,21 +90,24 @@ test.group('Appearance logos (ADR 053)', (group) => {
       assert.notInclude(logo.bytes.toString('latin1'), 'secret-metadata')
       assert.equal(detectLogoType(logo.bytes), format)
     }
-    const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>')
-    assert.equal((await failure(prepareLogoImage(svg))).code, 'E_LOGO_TYPE')
+    const svg = Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
+    )
+    assert.equal(await code(prepareLogoImage(svg)), 'E_LOGO_TYPE')
     const html = Buffer.from('<html><script>alert(1)</script></html>')
-    assert.equal((await failure(prepareLogoImage(html))).code, 'E_LOGO_TYPE')
+    assert.equal(await code(prepareLogoImage(html)), 'E_LOGO_TYPE')
     const gif = await sharp({
       create: { width: 20, height: 20, channels: 3, background: '#000000' },
     })
       .gif()
       .toBuffer()
-    assert.equal((await failure(prepareLogoImage(gif))).code, 'E_LOGO_TYPE')
+    assert.equal(await code(prepareLogoImage(gif)), 'E_LOGO_TYPE')
     // PNG bytes followed by a script still decode as a PNG; the script does not survive.
     const smuggled = Buffer.concat([await image('png'), Buffer.from('<script>alert(1)</script>')])
-    assert.notInclude((await prepareLogoImage(smuggled)).bytes.toString('latin1'), '<script>')
+    const cleaned = await prepareLogoImage(smuggled)
+    assert.notInclude(cleaned.bytes.toString('latin1'), '<script>')
     const big = Buffer.alloc(1024 * 1024 + 1)
-    assert.equal((await failure(prepareLogoImage(big))).code, 'E_LOGO_SIZE')
+    assert.equal(await code(prepareLogoImage(big)), 'E_LOGO_SIZE')
     const headers = logoHeaders({ id: 7, mimeType: 'image/svg+xml', size: 10 })
     assert.equal(headers['Content-Type'], 'application/octet-stream')
     assert.equal(headers['X-Content-Type-Options'], 'nosniff')
@@ -125,20 +130,23 @@ test.group('Appearance identity and occasions (ADR 053)', (group) => {
     })
     assert.equal(identity.company, 'شركة عدولة')
     assert.equal(identity.primaryColor, '#006c35')
-    assert.equal((await appearance.logo(logo.id))!.recordId, BASE_LOGO_RECORD)
+    const bound = await appearance.logo(logo.id)
+    assert.equal(bound!.recordId, BASE_LOGO_RECORD)
 
-    const contrastRefused = await failure(appearance.saveIdentity(admin, { primaryColor: '#ffd400' }))
+    const contrastRefused = await failure(
+      appearance.saveIdentity(admin, { primaryColor: '#ffd400' })
+    )
     assert.equal(contrastRefused.code, 'E_APPEARANCE_CONTRAST')
     assert.equal(
-      (await failure(appearance.saveIdentity(admin, { company: 'سطر\nآخر' }))).code,
+      await code(appearance.saveIdentity(admin, { company: 'سطر\nآخر' })),
       'E_APPEARANCE_INPUT'
     )
     assert.equal(
-      (await failure(appearance.saveIdentity(admin, { css: 'body{}' }))).code,
+      await code(appearance.saveIdentity(admin, { css: 'body{}' })),
       'E_APPEARANCE_INPUT'
     )
     assert.equal(
-      (await failure(appearance.saveIdentity(admin, { company: 'x'.repeat(121) }))).code,
+      await code(appearance.saveIdentity(admin, { company: 'x'.repeat(121) })),
       'E_APPEARANCE_INPUT'
     )
     // The generic settings screen cannot write around these checks.
@@ -162,8 +170,10 @@ test.group('Appearance identity and occasions (ADR 053)', (group) => {
 
     const reset = await appearance.resetIdentity(admin)
     assert.lengthOf(reset, 1)
-    assert.isNull((await appearance.identity()).company)
-    assert.isNull((await appearance.resolve()).theme)
+    const cleared = await appearance.identity()
+    assert.isNull(cleared.company)
+    const resolved = await appearance.resolve()
+    assert.isNull(resolved.theme)
   })
 
   test('one occasion at a time: overlapping ranges are refused, edges included', async ({
@@ -200,41 +210,35 @@ test.group('Appearance identity and occasions (ADR 053)', (group) => {
       occasion.id
     )
     assert.equal(
-      (
-        await failure(
-          appearance.saveOccasion(admin, {
-            name: 'مقلوبة',
-            startsOn: '2026-10-05',
-            endsOn: '2026-10-01',
-            banner: 'x',
-          })
-        )
-      ).code,
+      await code(
+        appearance.saveOccasion(admin, {
+          name: 'مقلوبة',
+          startsOn: '2026-10-05',
+          endsOn: '2026-10-01',
+          banner: 'x',
+        })
+      ),
       'E_APPEARANCE_INPUT'
     )
     assert.equal(
-      (
-        await failure(
-          appearance.saveOccasion(admin, {
-            name: 'فارغة',
-            startsOn: '2026-10-05',
-            endsOn: '2026-10-06',
-          })
-        )
-      ).code,
+      await code(
+        appearance.saveOccasion(admin, {
+          name: 'فارغة',
+          startsOn: '2026-10-05',
+          endsOn: '2026-10-06',
+        })
+      ),
       'E_APPEARANCE_INPUT'
     )
     assert.equal(
-      (
-        await failure(
-          appearance.saveOccasion(admin, {
-            name: 'تاريخ غير حقيقي',
-            startsOn: '2026-02-30',
-            endsOn: '2026-03-01',
-            banner: 'x',
-          })
-        )
-      ).code,
+      await code(
+        appearance.saveOccasion(admin, {
+          name: 'تاريخ غير حقيقي',
+          startsOn: '2026-02-30',
+          endsOn: '2026-03-01',
+          banner: 'x',
+        })
+      ),
       'E_APPEARANCE_INPUT'
     )
   })
@@ -273,7 +277,8 @@ test.group('Appearance identity and occasions (ADR 053)', (group) => {
     assert.equal(during.company, 'عدولة')
 
     appearance.clock = () => new Date('2026-09-23T20:59:00Z')
-    assert.equal((await appearance.resolve()).occasion!.name, 'اليوم الوطني')
+    const lastEvening = await appearance.resolve()
+    assert.equal(lastEvening.occasion!.name, 'اليوم الوطني')
     // Midnight in Riyadh on the 24th: the base identity is back, with no job.
     appearance.clock = () => new Date('2026-09-23T21:00:00Z')
     const after = await appearance.resolve()
@@ -314,7 +319,7 @@ test.group('Appearance identity and occasions (ADR 053)', (group) => {
       .returning('id')
     assert.isNull(await appearance.logo(Number(other.id ?? other)))
     assert.equal(
-      (await failure(appearance.saveIdentity(admin, { logoId: Number(other.id ?? other) }))).code,
+      await code(appearance.saveIdentity(admin, { logoId: Number(other.id ?? other) })),
       'E_APPEARANCE_INPUT'
     )
   })

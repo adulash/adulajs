@@ -597,5 +597,10 @@ export {
   WCAG_AA,
 } from './src/appearance/colors.js'
 export type { ContrastCheck, DerivedTheme, ThemeColors } from './src/appearance/colors.js'
-export { LOGO_LIMITS, detectLogoType, logoHeaders, prepareLogoImage } from './src/appearance/logo.js'
+export {
+  LOGO_LIMITS,
+  detectLogoType,
+  logoHeaders,
+  prepareLogoImage,
+} from './src/appearance/logo.js'
 export type { LogoImage, LogoType } from './src/appearance/logo.js'

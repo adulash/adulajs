@@ -66,8 +66,7 @@ function foreground(primary: string) {
 }
 
 export type ContrastCheck =
-  | { ok: true; theme: DerivedTheme }
-  | { ok: false; reason: string; light: number; dark: number }
+  { ok: true; theme: DerivedTheme } | { ok: false; reason: string; light: number; dark: number }
 
 /**
  * Derives both themes from one colour and checks them. The dark tint is the colour mixed

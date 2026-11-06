@@ -1,6 +1,6 @@
 import { test } from '@japa/runner'
 import { randomUUID } from 'node:crypto'
-import sharp from 'sharp'
+import { crc32, deflateSync } from 'node:zlib'
 import db from '@adonisjs/lucid/services/db'
 import type { ApiClient, ApiRequest } from '@japa/api-client'
 import User from '#models/user'
@@ -10,12 +10,41 @@ import { adula } from '#services/adula'
 // the result, logos are untrusted uploads, and an occasion ends by itself.
 
 const json = (request: ApiRequest) =>
-  request.withCsrfToken().header('Accept', 'application/json').header('Content-Type', 'application/json')
+  request
+    .withCsrfToken()
+    .header('Accept', 'application/json')
+    .header('Content-Type', 'application/json')
 const asPage = (request: ApiRequest) => request.header('Accept', 'text/html').withInertia()
-const logoBytes = (format: 'png' | 'jpeg' = 'png') =>
-  sharp({ create: { width: 120, height: 40, channels: 3, background: '#006c35' } })
-    .toFormat(format)
-    .toBuffer()
+function chunk(type: string, data: Buffer = Buffer.alloc(0)) {
+  const head = Buffer.alloc(8)
+  head.writeUInt32BE(data.length, 0)
+  head.write(type, 4, 'latin1')
+  const crc = Buffer.alloc(4)
+  crc.writeUInt32BE(crc32(Buffer.concat([head.subarray(4), data])) >>> 0, 0)
+  return Buffer.concat([head, data, crc])
+}
+/** A solid 120×40 PNG built by hand, so the test needs no image library. */
+function png(width = 120, height = 40) {
+  const header = Buffer.alloc(13)
+  header.writeUInt32BE(width, 0)
+  header.writeUInt32BE(height, 4)
+  header[8] = 8
+  header[9] = 2
+  const row = Buffer.alloc(1 + width * 3, 0x35)
+  row[0] = 0
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', header),
+    chunk('IDAT', deflateSync(Buffer.concat(Array.from({ length: height }, () => row)))),
+    chunk('IEND'),
+  ])
+}
+/** A solid 120×40 JPEG (305 bytes). */
+const JPEG = Buffer.from(
+  '/9j/2wBDAA0JCgsKCA0LCgsODg0PEyAVExISEyccHhcgLikxMC4pLSwzOko+MzZGNywtQFdBRkxOUlNSMj5aYVpQYEpRUk//2wBDAQ4ODhMREyYVFSZPNS01T09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0//wAARCAAoAHgDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAb/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFgEBAQEAAAAAAAAAAAAAAAAAAAMF/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8AmwEmEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA//9k=',
+  'base64'
+)
+const logoBytes = async (format: 'png' | 'jpeg' = 'png') => (format === 'png' ? png() : JPEG)
 
 test.group('Appearance and occasions', (group) => {
   let admin: User
@@ -51,6 +80,7 @@ test.group('Appearance and occasions', (group) => {
     await knex()('settings').where('key', 'appearance.identity').delete()
     await knex()('attachments').where('resource', 'core_appearance').delete()
     // Writes through the HTTP routes clear the cache; direct table changes above do not.
+    appearance().forget()
     appearance().clock = () => new Date('2026-01-01T09:00:00Z')
   })
   group.teardown(() => {
@@ -209,9 +239,11 @@ test.group('Appearance and occasions', (group) => {
 
     const at = async (instant: string) => {
       appearance().clock = () => new Date(instant)
-      return (await asPage(client.get('/login'))).body().props.appearance
+      const login = await asPage(client.get('/login'))
+      return login.body().props.appearance
     }
-    assert.isNull((await at('2026-09-19T12:00:00Z')).occasion)
+    const before = await at('2026-09-19T12:00:00Z')
+    assert.isNull(before.occasion)
     const during = await at('2026-09-21T12:00:00Z')
     assert.equal(during.occasion.name, 'اليوم الوطني')
     assert.equal(during.banner, 'كل عام والوطن بخير')

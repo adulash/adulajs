@@ -54,6 +54,10 @@ createInertiaApp({
   setup({ el, App, props }) {
     syncDocument(props.initialPage.props)
     router.on('navigate', (event) => syncDocument(event.detail.page.props))
+    // Partial reloads (after saving the appearance) do not navigate; apply what they return.
+    router.on('success', (event) =>
+      applyAppearance(event.detail.page.props.appearance as SharedAppearance | undefined)
+    )
     createRoot(el).render(
       <TuyauProvider client={client}>
         {/* One provider for every tooltip, such as the collapsed sidebar's icon labels. */}

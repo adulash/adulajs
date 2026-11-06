@@ -39,7 +39,10 @@ const EXTNAME: Record<LogoType, LogoImage['extname']> = { png: 'png', jpeg: 'jpg
 /** The format named by the file's first bytes; the name and declared type are never trusted. */
 export function detectLogoType(bytes: Uint8Array): LogoType | null {
   const b = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength)
-  if (b.length >= 8 && b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10])))
+  if (
+    b.length >= 8 &&
+    b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10]))
+  )
     return 'png'
   if (b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return 'jpeg'
   if (

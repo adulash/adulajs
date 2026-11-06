@@ -34,7 +34,9 @@ export function applyAppearance(appearance: SharedAppearance | undefined) {
   if (typeof document === 'undefined') return
   company = appearance?.company ?? null
   const theme = appearance?.theme
-  const css = theme ? block(':root', theme.light) + block(':root.dark', theme.dark) : ''
+  // Doubled selectors outrank the theme's own `:root` and `.dark` whatever order the style
+  // elements end up in (Vite injects stylesheets after this one in development).
+  const css = theme ? block(':root:root', theme.light) + block(':root:root.dark', theme.dark) : ''
   let style = document.getElementById(STYLE_ID) as HTMLStyleElement | null
   if (!css) {
     style?.remove()
