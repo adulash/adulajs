@@ -135,6 +135,36 @@ export function checkColor(value: string): ColorCheck {
   }
 }
 
+/**
+ * The light theme's own tokens, read from the `:root` rules of the loaded theme CSS (the
+ * shipped tokens and any brand.css override, later rules winning), with `color-scheme: light`.
+ * Set on the light preview panel, they keep it light while the page itself is dark, the way
+ * the `.dark` class keeps the dark panel dark on a light page. Empty before the page loads.
+ */
+export function lightThemeTokens(): Record<string, string> {
+  if (typeof document === 'undefined') return {}
+  const tokens: Record<string, string> = {}
+  const visit = (rules: CSSRuleList) => {
+    for (const rule of Array.from(rules)) {
+      if (rule instanceof CSSStyleRule) {
+        if (rule.selectorText.trim() !== ':root') continue
+        for (const name of Array.from(rule.style))
+          if (name.startsWith('--')) tokens[name] = rule.style.getPropertyValue(name).trim()
+      } else if (typeof CSSLayerBlockRule !== 'undefined' && rule instanceof CSSLayerBlockRule) {
+        visit(rule.cssRules)
+      }
+    }
+  }
+  for (const sheet of Array.from(document.styleSheets)) {
+    try {
+      visit(sheet.cssRules)
+    } catch {
+      // A stylesheet from another origin cannot be read; the theme CSS is same-origin.
+    }
+  }
+  return { ...tokens, colorScheme: 'light' }
+}
+
 /** The colour tokens as inline styles, for a preview scoped to one element. */
 export function previewStyle(colors: ThemeColors | null): Record<string, string> {
   return colors ? { ...colors } : {}

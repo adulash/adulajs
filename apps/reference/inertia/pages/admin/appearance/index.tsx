@@ -1,4 +1,4 @@
-import { useState, type FormEvent, type ReactElement } from 'react'
+import { useEffect, useState, type FormEvent, type ReactElement } from 'react'
 import { Head, router } from '@inertiajs/react'
 import axios from 'axios'
 import { toast } from 'sonner'
@@ -26,7 +26,12 @@ import {
 import { failure, json } from '~/components/account/request'
 import { calendarDisplay } from '~/components/ui/calendar_date'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
-import { checkColor, previewStyle, type AppearanceTheme } from '~/components/appearance'
+import {
+  checkColor,
+  lightThemeTokens,
+  previewStyle,
+  type AppearanceTheme,
+} from '~/components/appearance'
 
 type Identity = {
   company: string | null
@@ -514,6 +519,9 @@ function Preview({
   banner: string
   theme: AppearanceTheme | null
 }) {
+  // Read after mount, from the stylesheets the page loaded.
+  const [light, setLight] = useState<Record<string, string>>({})
+  useEffect(() => setLight(lightThemeTokens()), [])
   return (
     <section aria-label="معاينة مباشرة" className="space-y-3" data-testid="appearance-preview">
       <p className="text-sm font-medium">معاينة مباشرة</p>
@@ -522,7 +530,10 @@ function Preview({
           key={mode}
           data-mode={mode}
           className={`${mode === 'dark' ? 'dark' : ''} space-y-3 rounded-lg border bg-background p-4 text-foreground`}
-          style={previewStyle(theme?.[mode] ?? null)}
+          style={{
+            ...(mode === 'light' ? light : {}),
+            ...previewStyle(theme?.[mode] ?? null),
+          }}
         >
           <p className="text-xs text-muted-foreground">
             {mode === 'light' ? 'الوضع الفاتح' : 'الوضع الداكن'}

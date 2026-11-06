@@ -136,6 +136,21 @@ test.group('Appearance in the browser (ADR 053)', (group) => {
     const darkPrimary = await tokenOf(dark)
     assert.match(darkPrimary ?? '', /^#[0-9a-f]{6}$/)
     assert.notEqual(darkPrimary, '#006c35')
+    // Each panel keeps its own theme whatever the page's theme is.
+    const surface = (panel: typeof light) =>
+      panel.evaluate((element: unknown) => {
+        type Styled = {
+          getComputedStyle: (node: unknown) => { backgroundColor: string; colorScheme: string }
+        }
+        const style = (globalThis as unknown as Styled).getComputedStyle(element)
+        return [style.backgroundColor, style.colorScheme]
+      })
+    const [lightBackground, lightScheme] = await surface(light)
+    const [darkBackground, darkScheme] = await surface(dark)
+    assert.equal(lightScheme, 'light')
+    assert.equal(darkScheme, 'dark')
+    assert.notEqual(lightBackground, darkBackground)
+    assert.match(lightBackground, /^(oklch\(1 0 0\)|rgb\(255, 255, 255\))$/)
 
     await dialog.locator('#appearance-logo').setInputFiles({
       name: 'logo.png',
