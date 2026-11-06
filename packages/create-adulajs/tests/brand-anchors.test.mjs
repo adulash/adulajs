@@ -45,3 +45,26 @@ test('the company identity reaches every brand spot of the workspace and guest s
     await rm(target, { recursive: true, force: true })
   }
 })
+
+test('a template without the shared company mark is refused, not rendered with the reference letter', async () => {
+  const target = await mkdtemp(join(tmpdir(), 'adula-brand-'))
+  try {
+    const files = {
+      'package.json': JSON.stringify({ name: 'reference', dependencies: {} }),
+      'inertia/layouts/default.tsx': await source('inertia/layouts/default.tsx'),
+      'inertia/layouts/workspace.tsx': await source('inertia/layouts/workspace.tsx'),
+      'inertia/pages/home.tsx': await source('inertia/pages/home.tsx'),
+      'inertia/app.tsx': await source('inertia/app.tsx'),
+    }
+    await assert.rejects(
+      renderProject(
+        target,
+        { version: '0.0.0', files },
+        { name: 'acme', identity: { company: 'شركة أكمي', logoPath: null } }
+      ),
+      /brand-mark\.tsx/
+    )
+  } finally {
+    await rm(target, { recursive: true, force: true })
+  }
+})

@@ -212,13 +212,17 @@ export async function renderProject(target, template, { name, identity, packageF
   const brand = { company: identity.company, logo: identity.logoPath ?? null }
   files['company-identity.json'] = JSON.stringify(brand, null, 2) + '\n'
   files['inertia/brand.ts'] = `export const brand = ${JSON.stringify(brand, null, 2)}\n`
+  // The guest and workspace shells share the company mark; without it the new system would
+  // show the reference company's letter, so a template that lacks it is refused.
+  if (files['inertia/components/brand-mark.tsx'] === undefined)
+    throw new Error('The template has no inertia/components/brand-mark.tsx (the company mark)')
   for (const path of [
     'inertia/layouts/default.tsx',
     'inertia/layouts/workspace.tsx',
     'inertia/components/brand-mark.tsx',
     'inertia/pages/home.tsx',
   ]) {
-    if (files[path] !== undefined) files[path] = `import { brand } from '~/brand'\n` + files[path]
+    files[path] = `import { brand } from '~/brand'\n` + files[path]
   }
   // The company mark's letter, whatever its indentation (tests/brand-anchors.test.mjs).
   const markLetter = (source) =>
@@ -231,10 +235,9 @@ export async function renderProject(target, template, { name, identity, packageF
     '>عدولة<',
     '>{brand.company}<'
   )
-  if (files['inertia/components/brand-mark.tsx'] !== undefined)
-    files['inertia/components/brand-mark.tsx'] = markLetter(
-      files['inertia/components/brand-mark.tsx']
-    )
+  files['inertia/components/brand-mark.tsx'] = markLetter(
+    files['inertia/components/brand-mark.tsx']
+  )
   files['inertia/layouts/workspace.tsx'] = markLetter(
     files['inertia/layouts/workspace.tsx']
       .replaceAll('>عدولة<', '>{brand.company}<')

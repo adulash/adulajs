@@ -70,6 +70,8 @@ test.group('Guest shell', () => {
           assert.isAtLeast(box?.width ?? 0, 320, `${label}: card width ${box?.width}`)
         else assert.isAtMost(box?.width ?? 0, viewport.width, `${label}: card fits`)
       }
+      // The mark is decorative: the brand link is named by the company alone.
+      await page.locator('header').getByRole('link', { name: 'عدولة', exact: true }).waitFor()
       // One way to sign in: the page's own action, not a duplicate header link.
       const signIn = page.getByRole('link', { name: /^(الدخول|تسجيل الدخول)$/ })
       if (path === '/') {
