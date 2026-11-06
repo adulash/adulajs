@@ -434,7 +434,8 @@ export function ResourceValue({
     return (
       <span className="inline-flex items-center gap-1.5">
         <UserAvatar user={person} size="xs" />
-        {displayValue(field, row, related, lookups, calendar, t, locale)}
+        {/* Its own element: the name reads alone, apart from the initials behind the picture. */}
+        <span>{displayValue(field, row, related, lookups, calendar, t, locale)}</span>
       </span>
     )
   if (field.type === 'money')
