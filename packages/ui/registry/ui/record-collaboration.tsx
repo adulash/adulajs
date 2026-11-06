@@ -373,18 +373,20 @@ export function RecordCollaboration({
                       </td>
                       <td className="px-4 py-2 text-success">{shown(change.after)}</td>
                       <td className="px-4 py-2 text-xs text-muted-foreground">
-                        {change.actorId && change.actorName ? (
-                          <UserAvatar
-                            user={{
-                              id: change.actorId,
-                              name: change.actorName,
-                              avatarUrl: change.actorAvatarUrl,
-                            }}
-                            size="xs"
-                            className="me-1.5"
-                          />
-                        ) : null}
-                        {change.actorName ?? '—'} ·{' '}
+                        <span className="inline-flex items-center gap-1.5">
+                          {change.actorId && change.actorName ? (
+                            <UserAvatar
+                              user={{
+                                id: change.actorId,
+                                name: change.actorName,
+                                avatarUrl: change.actorAvatarUrl,
+                              }}
+                              size="xs"
+                            />
+                          ) : null}
+                          {change.actorName ?? '—'}
+                        </span>{' '}
+                        ·{' '}
                         <time dateTime={change.createdAt}>
                           {formatDatetime(change.createdAt, calendar)}
                         </time>
