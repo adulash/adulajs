@@ -9,6 +9,7 @@ import { Textarea } from '~/components/ui/textarea'
 import { Dialog, DialogClose } from '~/components/ui/dialog'
 import { LongDialogContent } from '~/components/ui/long-dialog'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
+import { UserAvatar } from '~/components/ui/user-avatar'
 import { formatDatetime } from '~/components/ui/resource-value'
 
 const json = { headers: { Accept: 'application/json' }, withXSRFToken: true }
@@ -328,7 +329,21 @@ export function RecordWorkflows({ resource, id }: { resource: string; id: number
                 {run.history.map((entry, index) => (
                   <li key={index} className="flex flex-wrap gap-x-3">
                     <span className="font-medium">{eventLabel[entry.event] ?? entry.event}</span>
-                    {entry.actorName && <span>{entry.actorName}</span>}
+                    {entry.actorName && (
+                      <span className="inline-flex items-center gap-1.5">
+                        {entry.actorId ? (
+                          <UserAvatar
+                            user={{
+                              id: entry.actorId,
+                              name: entry.actorName,
+                              avatarUrl: entry.actorAvatarUrl,
+                            }}
+                            size="xs"
+                          />
+                        ) : null}
+                        {entry.actorName}
+                      </span>
+                    )}
                     {entry.onBehalfOfName && (
                       <span className="text-info">نيابة عن {entry.onBehalfOfName}</span>
                     )}

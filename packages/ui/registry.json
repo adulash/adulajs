@@ -478,7 +478,8 @@
         "attachment-preview",
         "calendar-date",
         "ui-preferences",
-        "messages"
+        "messages",
+        "user-avatar"
       ],
       "dependencies": [
         "lucide-react@1.47.0"
@@ -548,7 +549,8 @@
         "alert",
         "checkbox",
         "list-filters",
-        "resource-bulk"
+        "resource-bulk",
+        "user-avatar"
       ],
       "dependencies": [
         "@tanstack/react-table@9.2.4",
@@ -650,7 +652,8 @@
         "textarea",
         "dialog",
         "ui-preferences",
-        "resource-value"
+        "resource-value",
+        "user-avatar"
       ],
       "dependencies": [
         "lucide-react@1.47.0",

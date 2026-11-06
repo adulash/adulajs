@@ -5,6 +5,7 @@ import { CircleCheck, OctagonX, ShieldCheck } from 'lucide-react'
 import type { ActiveSession } from '#services/sessions'
 import { Button } from '~/components/ui/button'
 import { Badge } from '~/components/ui/badge'
+import { UserAvatar } from '~/components/ui/user-avatar'
 import { Alert, AlertDescription } from '~/components/ui/alert'
 import {
   Table,
@@ -76,9 +77,21 @@ export default function AdminSessions({ sessions, currentSessionId }: Props) {
               return (
                 <TableRow key={session.id}>
                   <TableCell>
-                    <span className="block font-medium">{session.fullName || '—'}</span>
-                    <span className="block text-xs text-muted-foreground" dir="ltr">
-                      {session.email}
+                    <span className="flex items-center gap-2">
+                      <UserAvatar
+                        user={{
+                          id: session.userId,
+                          name: session.fullName,
+                          avatarUrl: session.avatarUrl,
+                        }}
+                        size="xs"
+                      />
+                      <span className="min-w-0">
+                        <span className="block font-medium">{session.fullName || '—'}</span>
+                        <span className="block text-xs text-muted-foreground" dir="ltr">
+                          {session.email}
+                        </span>
+                      </span>
                     </span>
                   </TableCell>
                   <TableCell title={session.userAgent ?? undefined}>

@@ -258,7 +258,14 @@ export function ResourceShow({
                   </span>
                   <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                     {entry.actorId ? (
-                      <UserAvatar user={{ id: entry.actorId, name: entry.actorName }} size="xs" />
+                      <UserAvatar
+                        user={{
+                          id: entry.actorId,
+                          name: entry.actorName,
+                          avatarUrl: entry.actorAvatarUrl,
+                        }}
+                        size="xs"
+                      />
                     ) : null}
                     {entry.actorName ?? t('مستخدم #{id}', { id: String(entry.actorId) })}
                   </span>

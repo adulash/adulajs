@@ -6,6 +6,7 @@ import { useUiPreferences } from '~/components/ui/ui-preferences'
 import { arabicText, useMessages, type Translate } from '~/components/ui/messages'
 import { Badge } from '~/components/ui/badge'
 import { AttachmentPreviewButton } from '~/components/ui/attachment-preview'
+import { UserAvatar, type UserAvatarUser } from '~/components/ui/user-avatar'
 import {
   decimalDisplay,
   decimalInput,
@@ -23,7 +24,8 @@ import {
 
 export { toLatinDigits } from '~/components/ui/field_values'
 
-export type Option = { value: string; label: string }
+/** A choice; a user choice also carries the person's picture (null without one, ADR 050). */
+export type Option = { value: string; label: string; avatarUrl?: string | null }
 export type LookupOptions = Record<string, Option[]>
 export type AttachmentValue = {
   id: number
@@ -160,6 +162,28 @@ export function relationLabel(
   unavailable?: string
 ) {
   return relationText(row, fallback, unavailable)
+}
+
+/**
+ * The person a `user` field points at, from the related row the server sent with its name and
+ * picture (ADR 050). Null when the reader may not see that user or the field is another type.
+ */
+export function relatedUser(
+  field: ResourceField,
+  row: SerializedRecord,
+  related: Record<string, SerializedRecord[]> | undefined
+): UserAvatarUser | null {
+  if (field.type !== 'user') return null
+  const value = row[field.key]
+  if (value === null || value === undefined || value === '') return null
+  const user = related?.[field.key]?.find((item) => String(item.id) === String(value))
+  if (!user) return null
+  return {
+    id: Number(user.id),
+    name: typeof user.fullName === 'string' ? user.fullName : null,
+    avatarUrl:
+      user.avatarUrl === null || typeof user.avatarUrl === 'string' ? user.avatarUrl : undefined,
+  }
 }
 
 export function inputValue(field: ResourceField, value: unknown) {
@@ -405,6 +429,14 @@ export function ResourceValue({
     )
   if (field.type === 'boolean')
     return <Badge variant={value ? 'default' : 'secondary'}>{value ? t('نعم') : t('لا')}</Badge>
+  const person = relatedUser(field, row, related)
+  if (person)
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <UserAvatar user={person} size="xs" />
+        {displayValue(field, row, related, lookups, calendar, t, locale)}
+      </span>
+    )
   if (field.type === 'money')
     return (
       <span className="tabular-nums" dir="ltr">

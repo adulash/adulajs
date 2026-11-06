@@ -7,6 +7,7 @@ import type { Assignment, AssignmentPage, WorkflowRun } from 'adula'
 import Workspace from '~/layouts/workspace'
 import { useDateTimeFormatter } from '~/components/admin-nav'
 import { Badge } from '~/components/ui/badge'
+import { UserAvatar } from '~/components/ui/user-avatar'
 import { Button } from '~/components/ui/button'
 import {
   Dialog,
@@ -177,8 +178,20 @@ export default function MyTasks({ assignments, tab, decisions }: Props) {
                 <p className="text-sm text-muted-foreground">سبب الإغلاق: {item.closeReason}</p>
               )}
               <p className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                <span>
-                  {item.kind === 'approval' ? 'طلبها' : 'أسندها'}: {item.assignedByName ?? 'النظام'}
+                <span className="inline-flex items-center gap-1.5">
+                  {item.kind === 'approval' ? 'طلبها' : 'أسندها'}:{' '}
+                  {/* «النظام» has no picture; a person does. */}
+                  {item.assignedBy !== null && item.assignedByName ? (
+                    <UserAvatar
+                      user={{
+                        id: item.assignedBy,
+                        name: item.assignedByName,
+                        avatarUrl: item.assignedByAvatarUrl,
+                      }}
+                      size="xs"
+                    />
+                  ) : null}
+                  {item.assignedByName ?? 'النظام'}
                 </span>
                 <span>{formatDateTime(item.createdAt)}</span>
                 {item.status === 'open' && item.sla && item.dueAt ? (

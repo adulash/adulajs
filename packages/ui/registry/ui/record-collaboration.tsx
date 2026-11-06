@@ -191,7 +191,14 @@ export function RecordCollaboration({
             {state.comments.map((comment) => (
               <li key={comment.id} className="rounded-lg border px-4 py-3">
                 <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  <UserAvatar user={{ id: comment.authorId, name: comment.authorName }} size="xs" />
+                  <UserAvatar
+                    user={{
+                      id: comment.authorId,
+                      name: comment.authorName,
+                      avatarUrl: comment.authorAvatarUrl,
+                    }}
+                    size="xs"
+                  />
                   <span className="font-medium text-foreground">
                     {comment.authorName ?? `مستخدم #${comment.authorId}`}
                   </span>
@@ -366,6 +373,17 @@ export function RecordCollaboration({
                       </td>
                       <td className="px-4 py-2 text-success">{shown(change.after)}</td>
                       <td className="px-4 py-2 text-xs text-muted-foreground">
+                        {change.actorId && change.actorName ? (
+                          <UserAvatar
+                            user={{
+                              id: change.actorId,
+                              name: change.actorName,
+                              avatarUrl: change.actorAvatarUrl,
+                            }}
+                            size="xs"
+                            className="me-1.5"
+                          />
+                        ) : null}
                         {change.actorName ?? '—'} ·{' '}
                         <time dateTime={change.createdAt}>
                           {formatDatetime(change.createdAt, calendar)}

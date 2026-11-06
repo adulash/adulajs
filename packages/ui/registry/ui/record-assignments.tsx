@@ -134,7 +134,10 @@ export function RecordAssignments({
                 {statusLabel[row.status]}
               </Badge>
               <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                <UserAvatar user={{ id: row.assigneeId, name: row.assigneeName }} size="xs" />
+                <UserAvatar
+                  user={{ id: row.assigneeId, name: row.assigneeName, avatarUrl: row.assigneeAvatarUrl }}
+                  size="xs"
+                />
                 المكلف: {row.assigneeName ?? `#${row.assigneeId}`}
               </span>
               {row.dueOn && (

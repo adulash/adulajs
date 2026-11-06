@@ -1,10 +1,13 @@
 import { randomUUID } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
+import { crc32, deflateSync } from 'node:zlib'
+import drive from '@adonisjs/drive/services/main'
+import env from '#start/env'
 import { BaseModel } from '@adonisjs/lucid/orm'
 import db from '@adonisjs/lucid/services/db'
 import app from '@adonisjs/core/services/app'
 import User from '#models/user'
-import { createResourceTable, defineResource } from 'adula'
+import { UserAvatars, createResourceTable, defineResource, prepareAvatarImage } from 'adula'
 import type { Module, RecordData } from 'adula'
 import { modules, registry } from '#start/modules'
 
@@ -213,4 +216,71 @@ export async function screenshotDir() {
   const dir = app.makePath('../../.work/screenshots')
   await mkdir(dir, { recursive: true })
   return dir
+}
+
+function pngChunk(type: string, data: Buffer = Buffer.alloc(0)) {
+  const head = Buffer.alloc(8)
+  head.writeUInt32BE(data.length, 0)
+  head.write(type, 4, 'latin1')
+  const crc = Buffer.alloc(4)
+  crc.writeUInt32BE(crc32(Buffer.concat([head.subarray(4), data])) >>> 0, 0)
+  return Buffer.concat([head, data, crc])
+}
+
+/** A small decodable PNG photo for profile picture fixtures. */
+export function pngPhoto(side = 96) {
+  const header = Buffer.alloc(13)
+  header.writeUInt32BE(side, 0)
+  header.writeUInt32BE(side, 4)
+  header[8] = 8
+  header[9] = 2
+  const rows: Buffer[] = []
+  for (let y = 0; y < side; y++) {
+    const row = Buffer.alloc(1 + side * 3)
+    for (let x = 0; x < side; x++) row.set([(x * 3) % 256, (y * 5) % 256, 150], 1 + x * 3)
+    rows.push(row)
+  }
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pngChunk('IHDR', header),
+    pngChunk('IDAT', deflateSync(Buffer.concat(rows))),
+    pngChunk('IEND'),
+  ])
+}
+
+/** Stores a real profile picture for a user, as the upload route does; returns its version. */
+export async function seedPicture(userId: number) {
+  const image = await prepareAvatarImage(pngPhoto())
+  const disk = env.get('DRIVE_DISK')
+  const path = `avatars/${userId}/${randomUUID()}.${image.extname}`
+  await drive.use(disk as never).put(path, image.bytes, { contentType: image.mimeType })
+  const { avatar } = await new UserAvatars(db.connection().getWriteClient()).replace({
+    userId,
+    actorId: userId,
+    disk,
+    path,
+    image,
+  })
+  return avatar.version
+}
+
+/**
+ * The first profile picture inside `scope`, as a person's name shows it (ADR 050): decorative
+ * beside the visible name, so hidden from assistive technology, with an empty alt.
+ */
+export async function decorativeAvatar(scope: any) {
+  const avatar = scope.locator('[data-slot="user-avatar"]').first()
+  await avatar.waitFor()
+  const image = avatar.locator('img')
+  return {
+    hidden: await avatar.getAttribute('aria-hidden'),
+    image: (await image.count()) ? await image.getAttribute('src') : null,
+    alt: (await image.count()) ? await image.getAttribute('alt') : null,
+  }
+}
+
+/** Whether the first picture in `scope` is decorative: aria-hidden, with an empty alt if loaded. */
+export async function isDecorative(scope: any) {
+  const shown = await decorativeAvatar(scope)
+  return shown.hidden === 'true' && (shown.alt === null || shown.alt === '')
 }

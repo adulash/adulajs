@@ -1267,9 +1267,21 @@ function RelationCombobox({
           disabled={disabled}
           className={`h-10 w-full justify-between font-normal ${current ? '' : 'text-muted-foreground'}`}
         >
-          <span className="truncate" dir="auto">
-            {current?.label ??
-              (value ? `#${value}` : field.type === 'user' ? t('اختر مستخدماً') : t('اختر سجلاً'))}
+          <span className="flex min-w-0 items-center gap-2">
+            {field.type === 'user' && current && /^\d+$/.test(current.value) ? (
+              <UserAvatar
+                user={{
+                  id: Number(current.value),
+                  name: current.label,
+                  avatarUrl: current.avatarUrl,
+                }}
+                size="sm"
+              />
+            ) : null}
+            <span className="truncate" dir="auto">
+              {current?.label ??
+                (value ? `#${value}` : field.type === 'user' ? t('اختر مستخدماً') : t('اختر سجلاً'))}
+            </span>
           </span>
           <ChevronsUpDown className="opacity-50" />
         </Button>
@@ -1317,7 +1329,14 @@ function RelationCombobox({
                 >
                   <Check className={option.value === value ? 'opacity-100' : 'opacity-0'} />
                   {field.type === 'user' && /^\d+$/.test(option.value) ? (
-                    <UserAvatar user={{ id: Number(option.value), name: option.label }} size="xs" />
+                    <UserAvatar
+                      user={{
+                        id: Number(option.value),
+                        name: option.label,
+                        avatarUrl: option.avatarUrl,
+                      }}
+                      size="xs"
+                    />
                   ) : null}
                   <span dir="auto">{option.label}</span>
                 </CommandItem>
