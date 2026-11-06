@@ -146,7 +146,8 @@ test.group('User fields', (group) => {
     const page = await service().list('tickets', agent, { filters: { assignee: 2 } })
     assert.isAbove(page.data.length, 0)
     assert.isTrue(page.data.every((row) => row.assignee === 2))
-    assert.deepEqual(page.related.assignee, [{ id: 2, fullName: 'سارة الوكيلة' }])
+    // A name and the picture URL only (null: no picture, ADR 050); never an e-mail.
+    assert.deepEqual(page.related.assignee, [{ id: 2, fullName: 'سارة الوكيلة', avatarUrl: null }])
     assert.notInclude(JSON.stringify(page), 'example.test')
     const sorted = await service().list('tickets', agent, { sort: 'assignee', direction: 'desc' })
     assert.equal(sorted.data[0].assignee, 4)
@@ -189,7 +190,9 @@ test.group('User fields', (group) => {
     assert.isTrue(editor.relationSearch.assignee)
     const [existing] = await db('tickets').where('assignee', 2).limit(1)
     const edit = await service().editor('tickets', agent, Number(existing.id))
-    assert.deepEqual(edit.options.assignee, [{ value: '2', label: 'سارة الوكيلة' }])
+    assert.deepEqual(edit.options.assignee, [
+      { value: '2', label: 'سارة الوكيلة', avatarUrl: null },
+    ])
     const outsider: Actor = { ...agent, id: 3, rules: [{ subject: 'tickets', action: 'view' }] }
     const denied = await failure(() =>
       service().relationOptions('tickets', 'assignee', outsider, { orgUnitId: 2 })
@@ -254,7 +257,11 @@ test.group('User fields', (group) => {
       defaults: { assignee: '4', title: 'زيارة' },
     })
     assert.deepEqual(editor.defaults, { assignee: 4, title: 'زيارة' })
-    assert.deepInclude(editor.options.assignee, { value: '4', label: 'منى من الجذر' })
+    assert.deepInclude(editor.options.assignee, {
+      value: '4',
+      label: 'منى من الجذر',
+      avatarUrl: null,
+    })
     for (const assignee of ['3', '5', 'x']) {
       const refused = await service().editor('tickets', agent, undefined, {
         defaults: { assignee },
