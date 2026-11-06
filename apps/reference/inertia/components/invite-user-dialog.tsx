@@ -1,4 +1,4 @@
-import { useForm, usePage } from '@inertiajs/react'
+import { useForm } from '@inertiajs/react'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
@@ -7,11 +7,11 @@ import { LongDialogContent } from '~/components/ui/long-dialog'
 
 /**
  * The invitation form as a long dialog. It posts to `/users/invite`, which returns to the page
- * it came from, so the dialog stays open over the users list with the result or the errors.
+ * it came from, so the dialog stays open over the users list with its errors; the workspace
+ * shows the result as a flash message.
  * Closing asks first only while a field holds text.
  */
 export function InviteUserDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const page = usePage()
   const form = useForm({ fullName: '', email: '', form: '' })
   const dirty = form.data.fullName !== '' || form.data.email !== ''
   return (
@@ -55,13 +55,8 @@ export function InviteUserDialog({ open, onClose }: { open: boolean; onClose: ()
             })
           }}
         >
-          {typeof page.flash.success === 'string' && (
-            <p role="status" data-flash-message={page.flash.success}>
-              {page.flash.success}
-            </p>
-          )}
           {form.errors.form && (
-            <p role="alert" className="text-destructive">
+            <p role="alert" className="text-sm text-destructive">
               {form.errors.form}
             </p>
           )}

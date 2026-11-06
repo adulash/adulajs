@@ -975,7 +975,7 @@ test.group('Administration screens in the browser', (group) => {
     }
   })
 
-  test('the mail setup dialog closes at once until another provider is chosen', async ({
+  test('the mail setup guide saves nothing, so it always closes at once', async ({
     browserContext,
     visit,
     assert,
@@ -1008,18 +1008,20 @@ test.group('Administration screens in the browser', (group) => {
         .click()
       await dialog.waitFor({ state: 'hidden' })
       assert.equal(await confirmClose.count(), 0)
-      // Another provider: Escape asks; going back to the first provider is clean again.
+      // Another provider only changes the lines shown: Escape still closes at once, and the
+      // next opening starts again from the first provider.
       await page.getByRole('button', { name: 'إعداد البريد', exact: true }).click()
       await dialog.waitFor()
       await choose('SendGrid')
       await page.keyboard.press('Escape')
-      await confirmClose.waitFor()
-      await confirmClose.getByRole('button', { name: 'متابعة التحرير' }).click()
-      await confirmClose.waitFor({ state: 'hidden' })
-      await choose(first)
-      await page.keyboard.press('Escape')
       await dialog.waitFor({ state: 'hidden' })
       assert.equal(await confirmClose.count(), 0)
+      await page.getByRole('button', { name: 'إعداد البريد', exact: true }).click()
+      await dialog.waitFor()
+      const reopened = await provider.textContent()
+      assert.equal(reopened?.trim(), first)
+      await page.keyboard.press('Escape')
+      await dialog.waitFor({ state: 'hidden' })
       await page.close()
     }
   })

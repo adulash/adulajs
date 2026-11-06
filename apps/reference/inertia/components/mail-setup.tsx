@@ -82,7 +82,7 @@ export function MailSetupDialog({
   const preset = mailPresets.find((item) => item.id === presetId) ?? mailPresets[0]
   return (
     <Dialog
-      mode="edit"
+      mode="view"
       open={open}
       onOpenChange={(next) => {
         // The next opening starts again from the first provider.
@@ -101,12 +101,8 @@ export function MailSetupDialog({
           </DialogClose>
         }
       >
-        {/* Choosing another provider is the only edit; returning to the first one is clean. */}
-        <form
-          className="space-y-4 text-sm"
-          data-dirty={String(presetId !== initial)}
-          onSubmit={(event) => event.preventDefault()}
-        >
+        {/* A guide: choosing a provider only changes the lines shown, so closing never asks. */}
+        <div className="space-y-4 text-sm">
           <MailReadinessNotice readiness={mailReadiness} />
           <ol className="list-[arabic-indic] space-y-4 ps-5" data-testid="mail-setup-steps">
             <li className="space-y-2 ps-1">
@@ -148,7 +144,7 @@ export function MailSetupDialog({
               موثّقًا لدى مزودك.
             </AlertDescription>
           </Alert>
-        </form>
+        </div>
       </LongDialogContent>
     </Dialog>
   )
