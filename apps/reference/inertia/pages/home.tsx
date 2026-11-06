@@ -198,20 +198,20 @@ export default function Home({ overview }: { overview?: OverviewState }) {
   const { t, dir } = useMessages()
   return (
     <>
-      <Head title={t('مساحة العمل · {app}', { app: 'AdulaJS' })} />
+      <Head title={t('مساحة العمل')} />
       {props.account && overview ? (
         <Overview overview={overview} props={props} />
       ) : (
-        <div className="mx-auto max-w-5xl space-y-6 px-6 py-12" dir={dir}>
+        <div className="mx-auto w-full max-w-md py-10" dir={dir}>
           <Card>
             <CardHeader>
               <CardTitle>
-                <h1 className="text-3xl">{t('مساحة العمل')}</h1>
+                <h1>{t('مساحة العمل')}</h1>
               </CardTitle>
               <CardDescription>{t('وحدات أعمالك وإعدادات حسابك في مكان واحد.')}</CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-wrap gap-3">
-              <Button asChild>
+            <CardContent>
+              <Button className="w-full" asChild>
                 <Link href="/login">{t('تسجيل الدخول')}</Link>
               </Button>
             </CardContent>
