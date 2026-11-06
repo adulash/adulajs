@@ -101,7 +101,7 @@ export function AttachmentPreviewDialog({
     <Dialog mode="view" open={open} onOpenChange={onOpenChange}>
       <LongDialogContent
         dir={dir}
-        width="full"
+        width="5xl"
         title={<span className="block truncate">{file.name}</span>}
         description={t('معاينة المرفق. يمكنك تنزيله من الزر أدناه.')}
         footer={

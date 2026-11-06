@@ -208,7 +208,7 @@ export function AvatarDialog({
     <Dialog mode="edit" open={open} onOpenChange={onOpenChange}>
       <LongDialogContent
         dir="rtl"
-        width="md"
+        width="lg"
         title={title}
         description="اختر صورة ثم اضبط موضعها داخل المربع. تُحفظ الصورة مربعة بحجم لا يتجاوز ٥١٢ بكسل، وتُزال منها بيانات الموقع والجهاز."
         footer={

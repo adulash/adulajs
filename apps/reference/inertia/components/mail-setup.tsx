@@ -23,8 +23,7 @@ export type MailSetupProps = {
 const warnings: Record<MailReadiness['warnings'][number], string> = {
   development_default:
     'لم يُضبط SMTP_HOST، لذلك يرسل النظام إلى خادم التطوير المحلي 127.0.0.1:1025.',
-  loopback_in_production:
-    'يشير SMTP_HOST إلى الخادم نفسه؛ تأكد من تشغيل خادم بريد محلي عليه.',
+  loopback_in_production: 'يشير SMTP_HOST إلى الخادم نفسه؛ تأكد من تشغيل خادم بريد محلي عليه.',
   port_security_mismatch: 'قيمة SMTP_SECURE لا تناسب المنفذ: استخدم true مع 465، وfalse مع 587.',
 }
 
@@ -103,7 +102,11 @@ export function MailSetupDialog({
         }
       >
         {/* Choosing another provider is the only edit; returning to the first one is clean. */}
-        <div className="space-y-4 text-sm" data-dirty={String(presetId !== initial)}>
+        <form
+          className="space-y-4 text-sm"
+          data-dirty={String(presetId !== initial)}
+          onSubmit={(event) => event.preventDefault()}
+        >
           <MailReadinessNotice readiness={mailReadiness} />
           <ol className="list-[arabic-indic] space-y-4 ps-5" data-testid="mail-setup-steps">
             <li className="space-y-2 ps-1">
@@ -141,11 +144,11 @@ export function MailSetupDialog({
           <Alert>
             <TriangleAlert />
             <AlertDescription>
-              لا تضع كلمة المرور في الإعدادات العامة أو في مستودع المشروع، واستخدم عنوان مرسل موثّقًا
-              لدى مزودك.
+              لا تضع كلمة المرور في الإعدادات العامة أو في مستودع المشروع، واستخدم عنوان مرسل
+              موثّقًا لدى مزودك.
             </AlertDescription>
           </Alert>
-        </div>
+        </form>
       </LongDialogContent>
     </Dialog>
   )

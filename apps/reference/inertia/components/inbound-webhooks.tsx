@@ -348,7 +348,7 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
       <Dialog mode="view" open={log !== null} onOpenChange={(value) => !value && setLog(null)}>
         <LongDialogContent
           dir="rtl"
-          width="xl"
+          width="3xl"
           title="المستلمات"
           description={log?.source.name}
           footer={

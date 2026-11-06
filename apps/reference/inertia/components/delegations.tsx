@@ -259,7 +259,7 @@ export function DelegationDialog({
     <Dialog mode="edit" open={open} onOpenChange={onOpenChange}>
       <LongDialogContent
         dir="rtl"
-        width="md"
+        width="lg"
         title={admin ? 'تفويض موافقات مستخدم' : 'تفويض موافقاتي'}
         description="تنتقل الموافقات التي تُطلب خلال المدة إلى المفوَّض إليه، ويقرر فيها نيابة عن صاحبها. المهام اليدوية لا تُفوَّض."
         footer={

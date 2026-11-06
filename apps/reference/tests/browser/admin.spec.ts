@@ -89,7 +89,25 @@ test.group('Administration screens in the browser', (group) => {
       const invite = page.locator('main').getByRole('link', { name: 'دعوة مستخدم', exact: true })
       assert.equal(await invite.getAttribute('data-variant'), 'default')
       await invite.click()
-      const dialog = page.getByRole('dialog')
+      const dialog = page.getByRole('dialog', { name: 'دعوة مستخدم' })
+      await dialog.waitFor()
+      // Over the users list, with an address that opens it again.
+      await page.waitForURL('**/admin/users?invite=1')
+      // The dialog hides the page from assistive technology, so the list is found by its markup.
+      assert.isTrue(await page.locator('main table').first().isVisible())
+      assert.include(await page.locator('main h1').first().innerText(), 'المستخدمون')
+      // The long dialog pattern: fixed header and footer around a scrolling body.
+      assert.equal(await dialog.getAttribute('data-long-dialog'), '')
+      assert.equal(await dialog.locator('[data-slot="long-dialog-footer"]').count(), 1)
+      // Unchanged, «إلغاء» closes at once and the address returns to the list.
+      await dialog.getByRole('button', { name: 'إلغاء', exact: true }).click()
+      await dialog.waitFor({ state: 'hidden' })
+      assert.equal(await page.getByRole('dialog', { name: 'إغلاق النموذج؟' }).count(), 0)
+      await page.waitForURL('**/admin/users')
+      // The direct address opens the same dialog over the list.
+      await page.goto(page.url().replace(/\/admin\/users.*$/, '/users/invite'))
+      await page.waitForURL('**/admin/users?invite=1')
+      await dialog.waitFor()
       await dialog.getByLabel('الاسم الكامل').fill('مستخدم الدعوة')
       await dialog.getByLabel('البريد الإلكتروني').fill(member.email)
       await dialog.getByRole('button', { name: 'إرسال الدعوة', exact: true }).click()
