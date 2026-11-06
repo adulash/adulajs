@@ -16,7 +16,7 @@ export default function Login({ socialProviders, signupEnabled }: Props) {
       <div dir={dir} className="mx-auto w-full max-w-md py-10">
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">{t('تسجيل الدخول')}</CardTitle>
+            <CardTitle>{t('تسجيل الدخول')}</CardTitle>
             <CardDescription>{t('أدخل بيانات حسابك للمتابعة إلى مساحة العمل')}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">

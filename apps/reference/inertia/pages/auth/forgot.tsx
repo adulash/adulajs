@@ -12,7 +12,7 @@ export default function Forgot() {
       <div dir="rtl" className="mx-auto w-full max-w-md py-10">
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">استعادة كلمة المرور</CardTitle>
+            <CardTitle>استعادة كلمة المرور</CardTitle>
             <CardDescription>
               أدخل بريدك الإلكتروني وسنرسل إليك رابطاً صالحاً لساعة واحدة لاختيار كلمة مرور
               جديدة.
