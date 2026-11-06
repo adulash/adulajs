@@ -285,4 +285,42 @@ test.group('Personal overview browser acceptance (#159)', (group) => {
       await removeSampleResources()
     }
   })
+
+  test('a failed task count says so and reloads only that count on «إعادة المحاولة»', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    // The deferred count request fails once, as on a dropped connection.
+    let blocked = true
+    const deferred = (request: any) =>
+      String(request.headers()['x-inertia-partial-data'] ?? '').includes('openTasks')
+    await browserContext.route('**/*', async (route: any) => {
+      if (blocked && deferred(route.request())) return route.abort('failed')
+      return route.fallback()
+    })
+    try {
+      await browserContext.loginAs(narrow.user)
+      const page = await visit('/')
+      const card = page.locator('[data-widget="core.tasks"]')
+      await card.getByRole('alert').getByText('تعذّر تحميل العدد').waitFor()
+      // Failure is not loading: no loading status remains.
+      assert.equal(await card.getByRole('status').count(), 0)
+      blocked = false
+      const reloads: string[] = []
+      page.on('request', (request: any) => {
+        const partial = request.headers()['x-inertia-partial-data']
+        if (partial) reloads.push(partial)
+      })
+      await card.getByRole('button', { name: 'إعادة المحاولة' }).click()
+      await card
+        .getByTestId('overview-counter-value')
+        .getByText(/^[0٠]$/)
+        .waitFor()
+      assert.deepEqual(reloads, ['openTasks'])
+      assert.equal(await card.getByRole('alert').count(), 0)
+    } finally {
+      await browserContext.unroute('**/*')
+    }
+  })
 })
