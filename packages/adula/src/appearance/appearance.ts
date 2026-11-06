@@ -96,8 +96,10 @@ function plainText(value: unknown, limit: number, label: string): string | null 
   if (typeof value !== 'string') throw invalid(`${label} يجب أن يكون نصًا`)
   const text = value.trim()
   if (!text) return null
+  // C0/C1 controls, the line and paragraph separators and the bidi embeddings, overrides
+  // and isolates, which could reorder the text around them on a page.
   // eslint-disable-next-line no-control-regex
-  if (/[\u0000-\u001f\u007f20282029]/.test(text))
+  if (/[\u0000-\u001f\u007f-\u009f\u2028\u2029\u202a-\u202e\u2066-\u2069]/.test(text))
     throw invalid(`${label} يجب أن يكون سطرًا واحدًا دون رموز تحكم`)
   if ([...text].length > limit) throw invalid(`${label} لا يتجاوز ${limit} حرفًا`)
   return text
@@ -412,16 +414,19 @@ export class Appearance {
   }
 
   /** A live appearance logo; any other attachment id is unknown here. */
-  async logo(id: number, db: Knex = this.db): Promise<AppearanceLogo | null> {
+  async logo(id: number, db: Knex = this.db, lock = false): Promise<AppearanceLogo | null> {
     if (!isAttachmentId(id)) return null
-    const row = await db('attachments')
+    const query = db('attachments')
       .where({
         id,
         resource: APPEARANCE_LOGO_OWNER.resource,
         field: APPEARANCE_LOGO_OWNER.field,
       })
       .whereNull('deleted_at')
-      .first('id', 'disk', 'path', 'mime_type', 'size', 'record_id')
+    // Binding locks the row, so an identity save and an occasion save that race for the same
+    // upload see each other's binding instead of both claiming it.
+    if (lock) query.forUpdate()
+    const row = await query.first('id', 'disk', 'path', 'mime_type', 'size', 'record_id')
     if (!row) return null
     return {
       id: Number(row.id),
@@ -498,7 +503,7 @@ export class Appearance {
     recordId: number
   ): Promise<RemovedLogoFile[]> {
     if (logoId !== null) {
-      const logo = await this.logo(logoId, trx)
+      const logo = await this.logo(logoId, trx, true)
       if (!logo || (logo.recordId !== null && logo.recordId !== recordId))
         throw invalid('الشعار غير موجود. ارفعه مرة أخرى.')
       await trx('attachments').where('id', logoId).update({ record_id: recordId })

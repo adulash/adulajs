@@ -90,7 +90,7 @@ export default class AppearanceController {
     })
     if (!file) throw new AdulaError(422, 'E_LOGO_REQUIRED', 'اختر صورة الشعار')
     if (file.errors.some((error) => error.type === 'size'))
-      throw new AdulaError(422, 'E_LOGO_SIZE', 'حجم الشعار يتجاوز ١ ميغابايت')
+      throw new AdulaError(422, 'E_LOGO_SIZE', 'حجم الشعار يتجاوز 1 ميغابايت')
     if (!file.isValid || !file.tmpPath)
       throw new AdulaError(422, 'E_LOGO_TYPE', 'الشعار يجب أن يكون صورة PNG أو JPEG أو WebP')
     // The name and the declared type are not trusted: the bytes are checked and re-encoded.

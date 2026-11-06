@@ -24,6 +24,8 @@ import {
   TableRow,
 } from '~/components/ui/table'
 import { failure, json } from '~/components/account/request'
+import { calendarDisplay } from '~/components/ui/calendar_date'
+import { useUiPreferences } from '~/components/ui/ui-preferences'
 import { checkColor, previewStyle, type AppearanceTheme } from '~/components/appearance'
 
 type Identity = {
@@ -139,6 +141,9 @@ async function uploadLogo(file: File) {
 
 export default function AdminAppearance({ identity, occasions, today, defaults, limits }: Props) {
   const { confirm, confirmation } = useConfirmAction()
+  const { calendar } = useUiPreferences()
+  // Occasion dates are calendar days, shown in the user's calendar (Gregorian, Hijri or both).
+  const day = (value: string) => calendarDisplay(value, calendar)
   const [editing, setEditing] = useState<IdentityDraft | null>(null)
   const [occasion, setOccasion] = useState<OccasionDraft | null>(null)
   const active = occasions.find((item) => item.status === 'active') ?? null
@@ -275,7 +280,7 @@ export default function AdminAppearance({ identity, occasions, today, defaults, 
               <div className="space-y-1 text-sm">
                 <Badge>{active.name}</Badge>
                 <p className="text-muted-foreground">
-                  حتى نهاية يوم <span dir="ltr">{active.endsOn}</span>
+                  حتى نهاية يوم <bdi>{day(active.endsOn)}</bdi>
                 </p>
               </div>
             ) : (
@@ -321,8 +326,8 @@ export default function AdminAppearance({ identity, occasions, today, defaults, 
                 {occasions.map((item) => (
                   <TableRow key={item.id}>
                     <TableCell className="font-medium">{item.name}</TableCell>
-                    <TableCell dir="ltr" className="text-end tabular-nums">
-                      {item.startsOn} – {item.endsOn}
+                    <TableCell className="tabular-nums">
+                      <bdi>{day(item.startsOn)}</bdi> – <bdi>{day(item.endsOn)}</bdi>
                     </TableCell>
                     <TableCell>
                       <Badge variant={STATUS[item.status].variant}>
@@ -432,7 +437,7 @@ function ColorField({
             ? 'يبقى لون الهوية الأساسية.'
             : 'يبقى لون النظام الافتراضي.'
           : check.ok
-            ? `التباين ${check.light}:1 في الوضع الفاتح و${check.dark}:1 في الوضع الداكن، ويبلغ معيار WCAG AA.`
+            ? `التباين ${check.light}:1 في الوضع الفاتح و${check.dark}:1 في الوضع الداكن، ويحقق حد التباين المطلوب لسهولة القراءة.`
             : check.reason}
       </p>
     </div>
@@ -487,7 +492,7 @@ function LogoField({
         className={`text-xs ${error ? 'text-destructive' : 'text-muted-foreground'}`}
         role={error ? 'alert' : undefined}
       >
-        {error || 'PNG أو JPEG أو WebP حتى ١ ميغابايت. يُصغَّر إلى ١٠٢٤×٥١٢ بكسل عند الحاجة.'}
+        {error || 'PNG أو JPEG أو WebP حتى 1 ميغابايت. يُصغَّر إلى 1024×512 بكسل عند الحاجة.'}
       </p>
     </div>
   )

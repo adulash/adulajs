@@ -67,14 +67,15 @@ export function logoHeaders(logo: { mimeType: string; size: number; id: number }
     'Content-Security-Policy': "default-src 'none'; sandbox",
     'Cross-Origin-Resource-Policy': 'same-origin',
     'ETag': `"logo-${logo.id}"`,
-    // A logo id never changes its bytes; a new logo is a new id and a new URL.
-    'Cache-Control': 'public, max-age=31536000, immutable',
+    // A logo id never changes its bytes, but whether it is public does (an occasion ends,
+    // a logo is replaced), so caches keep it briefly and then revalidate with the ETag.
+    'Cache-Control': 'public, max-age=300, must-revalidate',
   } as Record<string, string>
 }
 
 export async function prepareLogoImage(input: Uint8Array): Promise<LogoImage> {
   if (input.byteLength > LOGO_LIMITS.maxBytes)
-    throw new AdulaError(422, 'E_LOGO_SIZE', 'حجم الشعار يتجاوز ١ ميغابايت')
+    throw new AdulaError(422, 'E_LOGO_SIZE', 'حجم الشعار يتجاوز 1 ميغابايت')
   const type = detectLogoType(input)
   if (!type) throw wrongType()
   const { default: sharp } = await import('sharp')
@@ -121,8 +122,8 @@ export async function prepareLogoImage(input: Uint8Array): Promise<LogoImage> {
     width > LOGO_LIMITS.maxWidth ||
     height > LOGO_LIMITS.maxHeight
   )
-    throw new AdulaError(422, 'E_LOGO_DIMENSIONS', 'أبعاد الشعار يجب ألا تقل عن ١٦ بكسل')
+    throw new AdulaError(422, 'E_LOGO_DIMENSIONS', 'أبعاد الشعار يجب ألا تقل عن 16 بكسل')
   if (bytes.length > LOGO_LIMITS.maxBytes)
-    throw new AdulaError(422, 'E_LOGO_SIZE', 'حجم الشعار يتجاوز ١ ميغابايت')
+    throw new AdulaError(422, 'E_LOGO_SIZE', 'حجم الشعار يتجاوز 1 ميغابايت')
   return { type, mimeType: MIME[type], extname: EXTNAME[type], width, height, bytes }
 }

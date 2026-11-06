@@ -34,9 +34,12 @@ national day or another occasion was not possible at all.
   payload from the original survives. A logo is an `attachments` row (`core_appearance /
   logo`), so backups and storage migration carry it as they carry profile pictures (ADR
   050). An upload is unbound until the identity or an occasion is saved with it; until then
-  only an administrator can open it (`private, no-store`). A saved logo is public at
-  `/appearance/logos/:id`, because the login page shows it, with its stored type,
-  `nosniff`, a sandbox CSP and an immutable cache (a new logo is a new id). Replacing or
+  only an administrator can open it (`private, no-store`). The base identity's logo and the
+  logo of today's occasion are public at `/appearance/logos/:id`, because the login page
+  shows them, with their stored type, `nosniff`, a sandbox CSP and a five-minute cache that
+  revalidates with the ETag. The logo of an upcoming or ended occasion is served only to an
+  administrator, uncached, so an unannounced occasion does not leak before its date.
+  Binding an upload locks its row, so two saves cannot claim the same file. Replacing or
   removing a logo deletes the previous row and file.
 * **Occasions.** `appearance_occasions` rows have a name, a start and an end date (inclusive,
   read in the system time zone, `adula.timeZone`) and optional overrides: colour, logo, a

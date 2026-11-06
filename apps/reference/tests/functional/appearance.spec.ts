@@ -205,9 +205,41 @@ test.group('Appearance and occasions', (group) => {
     assert.equal(shown.header('content-type'), 'image/jpeg')
     assert.equal(shown.header('x-content-type-options'), 'nosniff')
     assert.include(shown.header('content-security-policy'), 'sandbox')
-    assert.include(shown.header('cache-control'), 'immutable')
+    assert.equal(shown.header('cache-control'), 'public, max-age=300, must-revalidate')
     const login = await asPage(client.get('/login'))
     assert.equal(login.body().props.appearance.logoUrl, url)
+
+    // An occasion's logo stays private until the occasion starts, and again after it ends.
+    const campaign = await upload(client, admin, await logoBytes('png'), 'eid.png', 'image/png')
+    const campaignUrl = campaign.body().data.url
+    const occasion = await json(client.post('/admin/appearance/occasions').loginAs(admin)).json({
+      name: 'العيد',
+      startsOn: '2026-09-20',
+      endsOn: '2026-09-23',
+      logoId: campaign.body().data.id,
+    })
+    occasion.assertStatus(200)
+    appearance().clock = () => new Date('2026-09-19T12:00:00Z')
+    const early = await client.get(campaignUrl)
+    early.assertStatus(404)
+    const adminEarly = await client.get(campaignUrl).loginAs(admin)
+    adminEarly.assertStatus(200)
+    assert.equal(adminEarly.header('cache-control'), 'private, no-store')
+    const revalidated = await client
+      .get(campaignUrl)
+      .loginAs(admin)
+      .header('if-none-match', String(adminEarly.header('etag')))
+    revalidated.assertStatus(304)
+    assert.equal(revalidated.header('cache-control'), 'private, no-store')
+    appearance().clock = () => new Date('2026-09-21T12:00:00Z')
+    const during = await client.get(campaignUrl)
+    during.assertStatus(200)
+    // The base logo stays public while the occasion overrides it.
+    const base = await client.get(url)
+    base.assertStatus(200)
+    appearance().clock = () => new Date('2026-09-24T12:00:00Z')
+    const ended = await client.get(campaignUrl)
+    ended.assertStatus(404)
 
     // Another attachment id is not an appearance logo.
     const avatarLike = await client.get('/appearance/logos/999999999')

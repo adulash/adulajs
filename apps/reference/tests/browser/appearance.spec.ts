@@ -1,13 +1,25 @@
 import { randomUUID } from 'node:crypto'
+import { mkdir } from 'node:fs/promises'
 import { crc32, deflateSync } from 'node:zlib'
 import { test } from '@japa/runner'
 import db from '@adonisjs/lucid/services/db'
 import User from '#models/user'
 import { derivePrimaryTheme } from 'adula'
 import { adula } from '#services/adula'
+import app from '@adonisjs/core/services/app'
 
 // «المظهر والهوية» in the browser (ADR 053): live preview, save, and an occasion that the
 // page shows on its dates and drops by itself afterwards (the clock is injected).
+
+const THEME = process.env.ADULA_TEST_THEME === 'dark' ? 'dark' : 'light'
+/** Saves a screenshot for the design review under .work/screenshots, one per theme. */
+async function snapshot(page: { screenshot(options: object): Promise<unknown> }, name: string) {
+  await mkdir(app.makePath('../../.work/screenshots'), { recursive: true })
+  await page.screenshot({
+    path: app.makePath(`../../.work/screenshots/appearance-${name}-${THEME}.png`),
+    fullPage: true,
+  })
+}
 
 function chunk(type: string, data: Buffer = Buffer.alloc(0)) {
   const head = Buffer.alloc(8)
@@ -113,7 +125,7 @@ test.group('Appearance in the browser (ADR 053)', (group) => {
     await color.fill('#006c35')
     await dialog
       .getByTestId('appearance-color-contrast')
-      .getByText(/WCAG AA/)
+      .getByText(/يحقق حد التباين المطلوب/)
       .waitFor()
     const light = preview.locator('[data-mode="light"]')
     const dark = preview.locator('[data-mode="dark"]')
@@ -133,6 +145,7 @@ test.group('Appearance in the browser (ADR 053)', (group) => {
     await dialog.getByRole('img', { name: 'الشعار المختار' }).waitFor()
     await dialog.getByLabel('عنوان صفحة الدخول', { exact: true }).fill('مرحبًا بك في المعاينة')
     await preview.getByText('مرحبًا بك في المعاينة').first().waitFor()
+    await snapshot(page, 'identity-dialog')
 
     await dialog.getByRole('button', { name: 'حفظ', exact: true }).click()
     await dialog.waitFor({ state: 'detached' })
@@ -216,6 +229,7 @@ test.group('Appearance in the browser (ADR 053)', (group) => {
       .getByText(/لا مناسبة نشطة اليوم/)
       .waitFor()
     await page.getByText('انتهت', { exact: true }).waitFor()
+    await snapshot(page, 'page')
     assert.equal(
       await primaryBecomes(page, (value) => value === expected('#1d4ed8')),
       expected('#1d4ed8')
@@ -244,5 +258,6 @@ test.group('Appearance in the browser (ADR 053)', (group) => {
     assert.isTrue(await preview.isVisible())
     const width = (await preview.boundingBox())!.width
     assert.isAtMost(width, 375)
+    await snapshot(page, 'identity-dialog-375')
   })
 })

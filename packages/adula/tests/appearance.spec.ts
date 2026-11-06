@@ -141,6 +141,20 @@ test.group('Appearance identity and occasions (ADR 053)', (group) => {
       await code(appearance.saveIdentity(admin, { company: 'سطر\nآخر' })),
       'E_APPEARANCE_INPUT'
     )
+    // Latin digits are ordinary text; the separators and bidi controls are not.
+    const digits = await appearance.saveIdentity(admin, {
+      company: 'Acme 2026',
+      logoId: logo.id,
+      loginTitle: 'منصة 2028 و2029',
+      primaryColor: '#006c35',
+    })
+    assert.equal(digits.identity.company, 'Acme 2026')
+    for (const company of ['سطر\u2028آخر', 'عدولة\u202e', 'عدولة\u2066x\u2069', '\u0085عدولة'])
+      assert.equal(
+        await code(appearance.saveIdentity(admin, { company })),
+        'E_APPEARANCE_INPUT',
+        JSON.stringify(company)
+      )
     assert.equal(
       await code(appearance.saveIdentity(admin, { css: 'body{}' })),
       'E_APPEARANCE_INPUT'

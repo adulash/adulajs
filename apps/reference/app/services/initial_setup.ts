@@ -79,7 +79,29 @@ export async function identity() {
 }
 
 /** The identity the project files declare; the setup checklist approves this one. */
-export async function fileIdentity() {
+type FileIdentity = { company: string; logo: string | null }
+const FILE_IDENTITY_MS = 30_000
+let fileIdentityCache: { at: number; value: Promise<FileIdentity> } | null = null
+
+/**
+ * The identity from company-identity.json, else the root organisation unit. Every Inertia
+ * request reads it through the shared `appearance` prop, so it is kept for 30 seconds, like
+ * the occasions; a failed read is not kept.
+ */
+export function fileIdentity(): Promise<FileIdentity> {
+  const now = Date.now()
+  if (fileIdentityCache && now - fileIdentityCache.at < FILE_IDENTITY_MS)
+    return fileIdentityCache.value
+  const value = readFileIdentity()
+  const entry = { at: now, value }
+  fileIdentityCache = entry
+  value.catch(() => {
+    if (fileIdentityCache === entry) fileIdentityCache = null
+  })
+  return value
+}
+
+async function readFileIdentity(): Promise<FileIdentity> {
   try {
     const brand = JSON.parse(await readFile(app.makePath('company-identity.json'), 'utf8')) as {
       company: string
