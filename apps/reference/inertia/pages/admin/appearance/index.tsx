@@ -400,12 +400,12 @@ function ColorField({
     <div className="space-y-2">
       <Label htmlFor={id}>{label}</Label>
       <div className="flex items-center gap-2">
-        <Input
-          type="color"
-          aria-label={`${label}: منتقي اللون`}
-          className="w-14 p-1"
-          value={check?.ok ? value.toLowerCase() : '#000000'}
-          onChange={(event) => onChange(event.target.value)}
+        {/* The same swatch as the identity summary; the hex field is the only input. */}
+        <span
+          aria-hidden
+          data-testid={`${id}-swatch`}
+          className="size-4 shrink-0 rounded-sm border"
+          style={{ background: check?.ok ? value.toLowerCase() : 'transparent' }}
         />
         <Input
           id={id}
