@@ -6,6 +6,7 @@ import type { OverviewState, OverviewWidget, ResourceNavigation } from 'adula'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
 import { useMessages } from '~/components/ui/messages'
+import { Skeleton } from '~/components/ui/skeleton'
 import { DashboardWidgetCard } from '~/components/ui/resource-dashboard'
 import { CustomizeOverviewDialog } from '~/components/overview/customize-dialog'
 import Workspace from '~/layouts/workspace'
@@ -73,9 +74,21 @@ function Counter({
         </CardDescription>
       </CardHeader>
       <CardContent className="px-5">
-        <p className="text-3xl font-semibold tabular-nums tracking-tight">
-          {typeof value === 'number' ? value.toLocaleString('ar') : t('غير متاح')}
-        </p>
+        {typeof value === 'number' ? (
+          <p
+            className="text-3xl font-semibold tabular-nums tracking-tight"
+            data-testid="overview-counter-value"
+          >
+            {value.toLocaleString('ar')}
+          </p>
+        ) : (
+          // A deferred count (the «مهامي» badge, #156) arrives after the page renders; until
+          // then the card shows that it is loading, never that the count is unavailable.
+          <div role="status" data-testid="overview-counter-value">
+            <Skeleton className="h-9 w-12" />
+            <span className="sr-only">{t('جارٍ التحميل...')}</span>
+          </div>
+        )}
       </CardContent>
     </Card>
   )
