@@ -568,56 +568,173 @@ test.group('Workspace shell in the browser', (group) => {
     }
   })
 
-  test('administration shows one entry per section, its pages as sub-tabs, and a resettable order (#157)', async ({
+  test('administration has two sidebar entries, its pages as vertical tabs, and a resettable order (ADR 049)', async ({
     browserContext,
     visit,
     assert,
   }) => {
+    const theme = process.env.ADULA_TEST_THEME ?? 'light'
     await browserContext.loginAs(admin.user)
     const page = await visit('/admin/users')
     await page.setViewportSize({ width: 1440, height: 900 })
     const sections = page.getByRole('navigation', { name: 'التنقل الإداري' })
-    for (const title of ['الأشخاص والصلاحيات', 'الإعدادات', 'المراقبة والتشغيل'])
-      await sections.getByRole('link', { name: title }).waitFor()
-    // Inner pages are no longer sidebar entries; they are sub-tabs inside the page.
+    const titles = async () => {
+      await sections.getByRole('link').first().waitFor()
+      const texts = await sections.getByRole('link').allInnerTexts()
+      return texts.map((text) => text.replace(/\d+/g, '').trim())
+    }
+    // Exactly two entries, with no sub-items under them (owner's review).
+    assert.deepEqual(await titles(), ['الأشخاص والصلاحيات', 'الإعدادات'])
     assert.equal(await sections.getByRole('link', { name: 'الأدوار والصلاحيات' }).count(), 0)
-    const tabs = page.getByRole('navigation', { name: 'صفحات القسم: الأشخاص والصلاحيات' })
+
+    // The section's pages are the registry Tabs, vertical, inside the page body.
+    const people = page.getByRole('tablist', { name: 'صفحات القسم: الأشخاص والصلاحيات' })
+    assert.equal(await people.getAttribute('aria-orientation'), 'vertical')
+    assert.equal(await people.getAttribute('data-slot'), 'tabs-list')
+    assert.isTrue(await page.locator('main').locator('[role=tablist]').isVisible())
+    const usersTab = people.getByRole('tab', { name: 'المستخدمون', exact: true })
+    assert.equal(await usersTab.getAttribute('aria-selected'), 'true')
+    // The page is the selected tab's panel.
+    const panel = page.getByRole('tabpanel')
+    assert.equal(await panel.getAttribute('aria-labelledby'), await usersTab.getAttribute('id'))
+    await page.assertVisible(panel.getByRole('heading', { name: 'المستخدمون', exact: true }))
+    // No reorder or restore control among the tabs.
+    assert.equal(await people.getByRole('button').count(), 0)
+    // At the start side (the right in RTL), beside the page.
+    const listBox = (await people.boundingBox())!
+    const panelBox = (await panel.boundingBox())!
+    assert.isAtLeast(listBox.x, panelBox.x + panelBox.width - 1)
+
+    // The active sidebar entry: the shell's pattern without a border; keyboard focus shows the
+    // ring, not the browser outline.
+    const entry = sections.getByRole('link', { name: 'الأشخاص والصلاحيات' })
+    assert.equal(await entry.getAttribute('aria-current'), 'page')
+    const style = (selector: string) =>
+      page.evaluate<Record<string, string>>(
+        `(() => { const s = getComputedStyle(document.querySelector(${JSON.stringify(selector)})); return { border: s.borderInlineStartWidth, background: s.backgroundColor, color: s.color, weight: s.fontWeight, outline: s.outlineStyle, shadow: s.boxShadow } })()`
+      )
+    const activeEntry = 'nav[aria-label="التنقل الإداري"] a[aria-current="page"]'
+    const active = await style(activeEntry)
+    assert.equal(active.border, '0px')
+    assert.equal(active.background, await tokenStyle(page, 'bg-accent', 'backgroundColor'))
+    assert.equal(active.color, await tokenStyle(page, 'text-primary', 'color'))
+    assert.equal(active.weight, '600')
+    await entry.focus()
+    await page.keyboard.press('Shift+Tab')
+    await page.keyboard.press('Tab')
+    const focused = await style(activeEntry)
+    assert.equal(focused.outline, 'none')
+    assert.notEqual(focused.shadow, 'none')
+
+    // The selected tab looks like the active sidebar entry: filled, semibold, primary text,
+    // with no visible border, bar or shadow (the default TabsList, not the line variant).
+    assert.equal(await people.getAttribute('data-variant'), 'default')
+    await page.mouse.move(0, 0)
+    const tab = await page.evaluate<Record<string, string>>(`(() => {
+      const element = document.querySelector('[role=tab][aria-selected=true]')
+      const s = getComputedStyle(element)
+      const bar = getComputedStyle(element, '::after')
+      return { background: s.backgroundColor, color: s.color, weight: s.fontWeight, border: s.borderInlineStartColor, shadow: s.boxShadow, bar: bar.opacity }
+    })()`)
+    assert.equal(tab.background, active.background)
+    assert.equal(tab.color, active.color)
+    assert.equal(tab.weight, '600')
+    assert.equal(tab.border, 'rgba(0, 0, 0, 0)')
+    // Tailwind composes box-shadow from ring and shadow layers; every layer is invisible.
+    for (const layer of tab.shadow === 'none' ? [] : tab.shadow.split(/,(?![^(]*\))/)) {
+      const color = /rgba?\(([^)]*)\)/.exec(layer)?.[1].split(',').map(Number) ?? []
+      const lengths = layer.replace(/rgba?\([^)]*\)/, '').match(/-?[\d.]+px/g) ?? []
+      assert.isTrue(
+        color[3] === 0 || lengths.every((length) => Number.parseFloat(length) === 0),
+        `visible shadow layer: ${layer}`
+      )
+    }
+    assert.equal(tab.bar, '0')
+
+    // Arrow keys move between tabs; Enter opens the focused one at its own address.
+    await usersTab.focus()
+    await page.keyboard.press('ArrowDown')
+    const rolesTab = people.getByRole('tab', { name: 'الأدوار والصلاحيات', exact: true })
     assert.equal(
-      await tabs.getByRole('link', { name: 'المستخدمون' }).getAttribute('aria-current'),
+      await page.evaluate<string>('document.activeElement?.textContent?.trim() ?? ""'),
+      'الأدوار والصلاحيات'
+    )
+    await page.keyboard.press('Enter')
+    await page.waitForURL((url) => url.pathname === '/admin/roles')
+    await page.getByRole('heading', { name: 'الأدوار والصلاحيات', exact: true }).waitFor()
+    assert.equal(await rolesTab.getAttribute('aria-selected'), 'true')
+    assert.equal(await usersTab.getAttribute('aria-selected'), 'false')
+
+    // Direct links, Back and Forward select the right tab.
+    const sessionsTab = people.getByRole('tab', { name: 'الجلسات', exact: true })
+    await page.goto('/admin/sessions')
+    await page.getByRole('heading', { name: 'الجلسات', exact: true }).waitFor()
+    assert.equal(await sessionsTab.getAttribute('aria-selected'), 'true')
+    await page.goBack()
+    await page.waitForURL((url) => url.pathname === '/admin/roles')
+    await page.getByRole('heading', { name: 'الأدوار والصلاحيات', exact: true }).waitFor()
+    assert.equal(await rolesTab.getAttribute('aria-selected'), 'true')
+    await page.goForward()
+    await page.waitForURL((url) => url.pathname === '/admin/sessions')
+    await page.getByRole('heading', { name: 'الجلسات', exact: true }).waitFor()
+    assert.equal(await sessionsTab.getAttribute('aria-selected'), 'true')
+
+    // «الإعدادات» gathers the settings, operations, backups, failures and the activity log.
+    await sections.getByRole('link', { name: /^الإعدادات/ }).click()
+    await page.waitForURL(/\/admin\/(setup|settings)$/)
+    const settings = page.getByRole('tablist', { name: 'صفحات القسم: الإعدادات' })
+    for (const label of [
+      'الإعدادات العامة',
+      'تشغيل النظام',
+      'النسخ الاحتياطي',
+      'تدفقات فاشلة',
+      'سجل النشاط',
+    ])
+      await settings.getByRole('tab', { name: new RegExp(`^${label}`) }).waitFor()
+    assert.equal(
+      await sections.getByRole('link', { name: /^الإعدادات/ }).getAttribute('aria-current'),
       'page'
     )
-    await tabs.getByRole('link', { name: 'الأدوار والصلاحيات' }).click()
-    await page.waitForURL((url) => url.pathname === '/admin/roles')
-    await sections.getByRole('link', { name: 'الإعدادات' }).click()
-    await page.waitForURL((url) => url.pathname === '/admin/settings')
-    const settingsTabs = page.getByRole('navigation', { name: 'صفحات القسم: الإعدادات' })
-    await settingsTabs.getByRole('link', { name: 'الإعدادات العامة' }).waitFor()
-    // Vertical at the start side (the right in RTL), beside the page.
-    const tabsBox = (await settingsTabs.boundingBox())!
-    const mainBox = (await page.locator('main').boundingBox())!
-    assert.isAbove(tabsBox.x, mainBox.x + mainBox.width / 2)
-    // The current tab looks like the sidebar's active entry: same background and text color,
-    // semibold, and no border or bar at its start (light and dark suites).
-    await settingsTabs.locator('a[aria-current="page"]').waitFor()
-    const [tab, entry] = await page.evaluate<[Record<string, string>, Record<string, string>]>(`[
-      document.querySelector('[data-admin-subtabs] a[aria-current="page"]'),
-      document.querySelector('nav[aria-label="التنقل الإداري"] a[aria-current="page"]'),
-    ].map((element) => {
-      const style = getComputedStyle(element)
-      return {
-        border: style.borderInlineStartWidth,
-        background: style.backgroundColor,
-        color: style.color,
-        weight: style.fontWeight,
-      }
-    })`)
-    assert.equal(tab.border, '0px')
-    assert.equal(tab.background, entry.background)
-    assert.equal(tab.color, entry.color)
-    assert.equal(tab.weight, '600')
-    assert.notEqual(tab.background, 'rgba(0, 0, 0, 0)')
 
-    // Arrange: move «المراقبة والتشغيل» to the top with the keyboard-accessible buttons.
+    // The header and the tabs stay on screen while a long page scrolls.
+    // The general settings page is long; the tab list fits a 900 px window.
+    await page.goto('/admin/settings')
+    await settings.waitFor()
+    const header = page.locator('[data-shell-top]')
+    await page.evaluate('window.scrollTo(0, document.documentElement.scrollHeight)')
+    assert.isAbove(await page.evaluate<number>('window.scrollY'), 100)
+    await page.waitForTimeout(150)
+    const headerBox = (await header.boundingBox())!
+    assert.isAtMost(Math.abs(headerBox.y), 0.5)
+    const stuck = (await settings.boundingBox())!
+    assert.isAtLeast(stuck.y, headerBox.y + headerBox.height - 0.5)
+    assert.isAtMost(stuck.y + stuck.height, 900)
+    await page.assertVisible(settings.getByRole('tab', { name: 'سجل النشاط', exact: true }))
+    await page.evaluate('window.scrollTo(0, 0)')
+    await page.screenshot({
+      path: join(await screenshotDir(), `admin-tabs-desktop-${theme}.png`),
+    })
+
+    // On a phone the tab list is one horizontal row that scrolls on its own.
+    await page.setViewportSize({ width: 375, height: 812 })
+    await page.goto('/admin/settings')
+    await settings.waitFor()
+    assert.equal(await settings.getAttribute('aria-orientation'), 'horizontal')
+    assert.isAbove(
+      await page.evaluate<number>(
+        '(() => { const list = document.querySelector("[role=tablist]"); return list.scrollWidth - list.clientWidth })()'
+      ),
+      0
+    )
+    assert.isAtMost(await page.evaluate<number>('document.documentElement.scrollWidth'), 375)
+    await page.screenshot({ path: join(await screenshotDir(), `admin-tabs-phone-${theme}.png`) })
+    await page.evaluate('window.scrollTo(0, document.documentElement.scrollHeight)')
+    await page.waitForTimeout(150)
+    assert.isAtMost(Math.abs((await header.boundingBox())!.y), 0.5)
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/admin/users')
+
+    // Arrange the two entries with the keyboard-accessible buttons; reset restores them.
     await page.getByRole('button', { name: 'قائمة الحساب' }).click()
     await page.getByRole('menuitem', { name: 'ترتيب القائمة…' }).click()
     const dialog = page.getByRole('dialog', { name: 'ترتيب القائمة' })
@@ -634,32 +751,18 @@ test.group('Workspace shell in the browser', (group) => {
       await dialog.getByRole('button', { name: 'حفظ الترتيب' }).getAttribute('data-variant'),
       'default'
     )
-    for (let step = 0; step < 2; step++)
-      await dialog.getByRole('button', { name: 'تحريك المراقبة والتشغيل لأعلى' }).click()
+    await dialog.getByRole('button', { name: 'تحريك الإعدادات لأعلى' }).click()
     await dialog.getByRole('button', { name: 'حفظ الترتيب' }).click()
     await dialog.waitFor({ state: 'detached' })
-    // Section entries only (the one-time setup may be listed first while it is pending).
-    const first = async () => {
-      // allTextContents does not wait: after a reload, let the sidebar render first.
-      await sections.getByRole('link', { name: 'الإعدادات' }).waitFor()
-      const titles = await sections.getByRole('link').allTextContents()
-      return titles.map((title) => title.trim()).find((title) => title !== 'الإعداد الأولي')
-    }
-    assert.match((await first())!, /^المراقبة والتشغيل/)
-    await stored(admin.user.id, 'shell.navOrder', [
-      'admin.operations',
-      'admin.people',
-      'admin.settings',
-    ])
+    assert.deepEqual(await titles(), ['الإعدادات', 'الأشخاص والصلاحيات'])
+    await stored(admin.user.id, 'shell.navOrder', ['admin.settings', 'admin.people'])
     await page.reload()
-    assert.match((await first())!, /^المراقبة والتشغيل/)
-
-    // Reset restores the default order.
+    assert.deepEqual(await titles(), ['الإعدادات', 'الأشخاص والصلاحيات'])
     await page.getByRole('button', { name: 'قائمة الحساب' }).click()
     await page.getByRole('menuitem', { name: 'ترتيب القائمة…' }).click()
     await dialog.getByRole('button', { name: 'استعادة الترتيب الافتراضي' }).click()
     await dialog.waitFor({ state: 'detached' })
-    assert.match((await first())!, /^الأشخاص والصلاحيات/)
+    assert.deepEqual(await titles(), ['الأشخاص والصلاحيات', 'الإعدادات'])
     await stored(admin.user.id, 'shell.navOrder', null)
 
     // A non-administrator never sees the administration, whatever their stored order says.
@@ -667,15 +770,38 @@ test.group('Workspace shell in the browser', (group) => {
       key: 'preference.shell.navOrder',
       scope: 'user',
       scope_id: String(member.user.id),
-      value: JSON.stringify(['admin.operations', 'module.suppliers']),
+      value: JSON.stringify(['admin.settings', 'module.suppliers']),
     })
     await browserContext.clearCookies()
     await browserContext.loginAs(member.user)
     const plain = await visit('/')
     await plain.setViewportSize({ width: 1440, height: 900 })
     await plain.getByRole('navigation', { name: 'التنقل الرئيسي' }).waitFor()
-    assert.equal(await plain.getByRole('link', { name: /^الإدارة/ }).count(), 0)
+    assert.equal(await plain.getByRole('navigation', { name: 'التنقل الإداري' }).count(), 0)
     assert.equal(await plain.getByRole('link', { name: 'الموردون' }).count(), 0)
     assert.equal(await plain.getByText('الموردون').count(), 0)
+  })
+
+  test('a disabled switch is muted with shadcn opacity and shows its reason beside it', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(admin.user)
+    const page = await visit('/admin/settings')
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.locator('[data-slot=switch]').first().waitFor()
+    // A provider without credentials cannot be switched on (the reference application has
+    // none): shadcn's opacity-50 mutes it, and its reason is written beside it.
+    const disabled = page.locator('[data-slot=switch][disabled]').first()
+    assert.isAbove(await disabled.count(), 0)
+    assert.equal(
+      await page.evaluate<string>(
+        'getComputedStyle(document.querySelector("[data-slot=switch][disabled]")).opacity'
+      ),
+      '0.5'
+    )
+    const row = disabled.locator('xpath=ancestor::li[1]')
+    await page.assertVisible(row.getByText(/غير مهيأ/))
   })
 })

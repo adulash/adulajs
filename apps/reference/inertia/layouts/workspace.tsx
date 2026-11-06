@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { usePage } from '@inertiajs/react'
 import { Link } from '@adonisjs/inertia/react'
 import {
@@ -55,6 +55,7 @@ import {
   groupModules,
   isActivePath,
   isSidebarMode,
+  navLinkClass,
   type ModuleGroup,
   type ShellLayout,
   type SidebarMode,
@@ -83,9 +84,6 @@ function useCollapsedModules() {
     })
   return { collapsed, toggle }
 }
-
-const navLinkClass = (active: boolean) =>
-  `flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm transition-colors ${active ? 'bg-accent font-semibold text-primary' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}`
 
 /** A daily-work entry of the navigation; `id` is its stable menu-order id. */
 export type WorkEntry = { id: string; href: string; label: string; icon: LucideIcon; badge: number }
@@ -116,6 +114,17 @@ export default function Workspace({ children }: { children: ReactNode }) {
   const [order, setOrder, resetOrder] = usePreference<string[]>('shell.navOrder')
   const [theme] = usePreference<Theme>('shell.theme')
   const [arranging, setArranging] = useState(false)
+  // The sticky top block (header, top menu, backup warning, impersonation): its height is
+  // --shell-top, below which the administration tabs stick (ADR 049).
+  const top = useRef<HTMLDivElement>(null)
+  const [shellTop, setShellTop] = useState(0)
+  useEffect(() => {
+    const node = top.current
+    if (!node) return
+    const observer = new ResizeObserver(() => setShellTop(node.offsetHeight))
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
   const layout = effectiveLayout(page.props.uiPreferences, ownLayout)
   const mode: SidebarMode = isSidebarMode(storedMode) ? storedMode : 'expanded'
   const navOrder = Array.isArray(order) ? order : []
@@ -200,6 +209,7 @@ export default function Workspace({ children }: { children: ReactNode }) {
   const sidebar = layout === 'sidebar'
   const shellStyle = {
     '--shell-sidebar': sidebar ? SIDEBAR_WIDTH[mode] : '0px',
+    '--shell-top': `${shellTop}px`,
   } as CSSProperties
   const brandName = (
     <span>
@@ -226,7 +236,7 @@ export default function Workspace({ children }: { children: ReactNode }) {
           id="workspace-sidebar"
           aria-label={t('القائمة الجانبية')}
           inert={mode === 'hidden'}
-          className={`right-scroll-bar-position fixed inset-y-0 start-0 z-30 hidden w-(--shell-sidebar) flex-col overflow-y-auto border-e border-border bg-card [&>*]:shrink-0 ${mode === 'hidden' ? '' : 'lg:flex'} ${preferences.pageTransitions ? 'motion-safe:transition-[width] motion-safe:duration-200' : ''}`}
+          className={`right-scroll-bar-position fixed inset-y-0 start-0 z-30 hidden w-(--shell-sidebar) flex-col overflow-y-auto border-e border-border bg-card [scrollbar-color:transparent_transparent] [scrollbar-width:thin] hover:[scrollbar-color:var(--border)_transparent] focus-within:[scrollbar-color:var(--border)_transparent] [&>*]:shrink-0 ${mode === 'hidden' ? '' : 'lg:flex'} ${preferences.pageTransitions ? 'motion-safe:transition-[width] motion-safe:duration-200' : ''}`}
         >
           {mode === 'icons' ? (
             <IconRail
@@ -322,43 +332,49 @@ export default function Workspace({ children }: { children: ReactNode }) {
         </aside>
       )}
       <div className="lg:ps-(--shell-sidebar)">
-        <header className="flex h-[72px] items-center justify-between gap-3 border-b border-border bg-background/80 px-5 backdrop-blur lg:px-10">
-          <div className="flex min-w-0 items-center gap-3 text-xs text-muted-foreground" data-breadcrumb>
-            {sidebar ? (
-              <SidebarControls mode={mode} onChange={(next) => void setMode(next)} />
-            ) : (
-              <Link href="/" className="hidden items-center gap-3 lg:flex">
-                <BrandMark size="sm" />
-                <strong className="text-base text-foreground">عدولة</strong>
-              </Link>
-            )}
-            <span className="font-semibold text-foreground lg:hidden">عدولة</span>
-            <span className={sidebar ? '' : 'lg:hidden'}>
-              {page.url.startsWith('/account') ? t('حسابي') : t('مساحة العمل')}
-            </span>
-            <span className={sidebar ? '' : 'lg:hidden'}>/</span>
-            <span className={`truncate text-foreground ${sidebar ? '' : 'lg:hidden'}`}>
-              {current}
-            </span>
-          </div>
-          <div className="flex shrink-0 items-center gap-2 text-[11px] text-muted-foreground">
-            <TasksButton />
-            <AssistantLauncher />
-            <NotificationBell />
-            <span className="hidden items-center gap-2 sm:flex">
-              <span className="size-1.5 rounded-full bg-primary" />
-              {t('بيئة التجربة')}
-            </span>
-            <span className={headerAccount}>
-              <AccountMenu variant="compact" onArrange={arrange} />
-            </span>
-          </div>
-        </header>
-        {!sidebar && (
-          <TopNavigation work={work} modules={modules} orderSections={orderSections} />
-        )}
-        <BackupBanner />
-        <ImpersonationBar />
+        {/* Sticky in both layouts; the warnings sit under the header and push the page down. */}
+        <div ref={top} className="sticky top-0 z-20 bg-background" data-shell-top>
+          <header className="flex h-[72px] items-center justify-between gap-3 border-b border-border bg-background/80 px-5 backdrop-blur lg:px-10">
+            <div
+              className="flex min-w-0 items-center gap-3 text-xs text-muted-foreground"
+              data-breadcrumb
+            >
+              {sidebar ? (
+                <SidebarControls mode={mode} onChange={(next) => void setMode(next)} />
+              ) : (
+                <Link href="/" className="hidden items-center gap-3 lg:flex">
+                  <BrandMark size="sm" />
+                  <strong className="text-base text-foreground">عدولة</strong>
+                </Link>
+              )}
+              <span className="font-semibold text-foreground lg:hidden">عدولة</span>
+              <span className={sidebar ? '' : 'lg:hidden'}>
+                {page.url.startsWith('/account') ? t('حسابي') : t('مساحة العمل')}
+              </span>
+              <span className={sidebar ? '' : 'lg:hidden'}>/</span>
+              <span className={`truncate text-foreground ${sidebar ? '' : 'lg:hidden'}`}>
+                {current}
+              </span>
+            </div>
+            <div className="flex shrink-0 items-center gap-2 text-[11px] text-muted-foreground">
+              <TasksButton />
+              <AssistantLauncher />
+              <NotificationBell />
+              <span className="hidden items-center gap-2 sm:flex">
+                <span className="size-1.5 rounded-full bg-primary" />
+                {t('بيئة التجربة')}
+              </span>
+              <span className={headerAccount}>
+                <AccountMenu variant="compact" onArrange={arrange} />
+              </span>
+            </div>
+          </header>
+          {!sidebar && (
+            <TopNavigation work={work} modules={modules} orderSections={orderSections} />
+          )}
+          <BackupBanner />
+          <ImpersonationBar />
+        </div>
         <nav
           aria-label={t('التنقل على الجوال')}
           className="flex gap-5 overflow-auto border-b border-border bg-card px-5 py-3 text-xs lg:hidden"
@@ -533,4 +549,3 @@ function IconRail({
     </>
   )
 }
-

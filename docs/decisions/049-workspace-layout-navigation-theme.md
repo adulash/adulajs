@@ -105,6 +105,37 @@ and the collapsed module groups live in `localStorage`.
   (`/admin/backups/restore`) keep their own tab. The failure badge sits on the operations
   section inside the administration.
 
+Amendment (2.3.0, owner's review):
+
+* The sidebar's administration area has exactly two entries, always shown to
+  administrators and without sub-items: «الإعدادات» (the one-time setup while it is
+  pending, the settings pages, operations, backups, failed workflows and the activity log)
+  and «الأشخاص والصلاحيات» (users, roles, organization units, sessions and delegations). The
+  former operations section is part of «الإعدادات»; its stored order id `admin.operations`
+  no longer matches a section and is ignored, as every unknown id is. The alerts badge sits
+  on «الإعدادات» and, inside it, on the tab that explains it: failed workflows on «تدفقات
+  فاشلة» and a stale backup on «النسخ الاحتياطي». The main sidebar is otherwise unchanged,
+  and the top layout keeps its drop-down menus.
+* A section's pages are the registry `Tabs` with `orientation="vertical"` inside the page
+  body, not a second sidebar or a list of styled links: a `tablist` with
+  `aria-orientation="vertical"`, one `tab` per page and the page itself as the `tabpanel`.
+  The list is the default `TabsList`; the selected tab uses the shell's active navigation
+  pattern (`bg-accent font-semibold text-primary`), with no border, bar or shadow.
+  Each tab is a link (`TabsTrigger asChild`), so the address selects the tab: direct links,
+  reloads, Back and Forward show the right one. Arrow keys move between tabs and Enter
+  opens one (manual activation, since opening a tab loads a page). The tabs stay visible
+  while the page scrolls (sticky under the header). Below the large breakpoint the list is
+  one horizontal row that scrolls. The tabs have no reorder or restore control; arranging
+  stays with the sidebar entries.
+* The workspace header (breadcrumb, bell, «مهامي», assistant) is sticky at the top in both
+  layouts, with the top menu, the backup warning and the impersonation bar under it, so the
+  warning never covers content. The sticky tabs sit below that block (`--shell-top`, its
+  measured height).
+* Every sidebar entry shows the shell's focus ring on keyboard focus
+  (`focus-visible:ring-[3px] focus-visible:ring-ring/50`) instead of the browser outline; the
+  active entry has no border. The sidebar's own scrollbar is thin and appears on hover, so
+  it does not read as a second page scrollbar.
+
 ### Dark mode (#155)
 
 * `@custom-variant dark (&:where(.dark, .dark *))` and a `.dark` block that overrides every
