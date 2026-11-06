@@ -402,6 +402,9 @@ test.group('Workspace shell in the browser', (group) => {
     const titleBefore = (await title.boundingBox())!.y
     await body.evaluate('(element) => { element.scrollTop = element.scrollHeight }')
     await inView()
+    // Up to 1px: the dialog is centred with a -50% transform, so its boxes sit on sub-pixel
+    // positions that the browser rounds differently once the body has scrolled. A header that
+    // scrolled away would move by its whole height, far beyond this.
     assert.isAtMost(Math.abs((await title.boundingBox())!.y - titleBefore), 1)
     // The shared footer: reset (ghost, RotateCcw), then cancel (outline), then save.
     const buttons = footer.getByRole('button')

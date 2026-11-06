@@ -79,7 +79,7 @@ test.group('Dialog close: ask only for unsaved changes', (group) => {
     await closedWithoutAsking()
   })
 
-  test('a plain form dialog without data-dirty closes at once until the user changes a field', async ({
+  test('a plain form dialog without data-dirty asks only while a value differs from the opening one', async ({
     browserContext,
     visit,
     assert,
@@ -95,10 +95,70 @@ test.group('Dialog close: ask only for unsaved changes', (group) => {
     await page.keyboard.press('Escape')
     await dialog.waitFor({ state: 'hidden' })
     assert.equal(await confirm.count(), 0)
-    // After typing, closing asks.
+    // Typing a value and erasing it again leaves nothing unsaved: it closes at once.
     await page.goto('/users/invite')
     await dialog.waitFor()
-    await dialog.getByLabel('الاسم الكامل').fill('مستخدم مدعو')
+    const name = dialog.getByLabel('الاسم الكامل')
+    await name.fill('مستخدم مدعو')
+    await name.fill('')
+    await page.keyboard.press('Escape')
+    await dialog.waitFor({ state: 'hidden' })
+    assert.equal(await confirm.count(), 0)
+    // A value that differs from the opening one asks before closing.
+    await page.goto('/users/invite')
+    await dialog.waitFor()
+    await name.fill('مستخدم مدعو')
+    await page.keyboard.press('Escape')
+    await confirm.waitFor()
+    await page.getByRole('button', { name: 'إغلاق دون حفظ', exact: true }).click()
+    await dialog.waitFor({ state: 'hidden' })
+  })
+
+  test('a region that is not a form reports data-dirty for its own controls', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    const runtime = adula()
+    const loaded = await runtime.actors.load(admin.user.id)
+    const saved = await runtime.resources.save('ui_samples', loaded, {
+      orgUnitId: admin.orgUnitId,
+      title: `عينة المنطقة ${randomUUID().slice(0, 8)}`,
+    })
+    await browserContext.loginAs(admin.user)
+    const page = await visit(`/resources/ui_samples/${saved.id}/edit`)
+    await page.setViewportSize({ width: 1440, height: 900 })
+    const dialog = page.getByRole('dialog', { name: 'تعديل عينة' })
+    const confirm = page.getByRole('dialog', { name: 'إغلاق النموذج؟' })
+    await dialog.waitFor()
+    // A settings panel outside the record form (as in the mail provider dialog) compares its
+    // own values and reports them on a plain element, not a form.
+    await page.evaluate(`(() => {
+      const body = document.querySelector('[role=dialog] [data-slot=long-dialog-body]')
+      const region = document.createElement('div')
+      region.setAttribute('data-dirty', 'false')
+      region.setAttribute('data-testid', 'region')
+      const input = document.createElement('input')
+      input.setAttribute('aria-label', 'إعداد المنطقة')
+      region.append(input)
+      body.append(region)
+    })()`)
+    const region = dialog.getByTestId('region')
+    // Typing inside the region is its own business: it still reports clean, so no question.
+    await dialog.getByLabel('إعداد المنطقة').fill('قيمة')
+    await page.keyboard.press('Escape')
+    await dialog.waitFor({ state: 'hidden' })
+    assert.equal(await confirm.count(), 0)
+    // A region that reports a change makes the dialog ask, like a dirty form.
+    await page.goto(`/resources/ui_samples/${saved.id}/edit`)
+    await dialog.waitFor()
+    await page.evaluate(`(() => {
+      const region = document.createElement('div')
+      region.setAttribute('data-dirty', 'true')
+      region.setAttribute('data-testid', 'region')
+      document.querySelector('[role=dialog] [data-slot=long-dialog-body]').append(region)
+    })()`)
+    await region.waitFor({ state: 'attached' })
     await page.keyboard.press('Escape')
     await confirm.waitFor()
     await page.getByRole('button', { name: 'إغلاق دون حفظ', exact: true }).click()

@@ -70,6 +70,8 @@ async function assertLongDialog(page: Page, dialog: Locator, height: number, ass
   const top = (await title.boundingBox())!.y
   await body.evaluate('(element) => { element.scrollTop = element.scrollHeight }')
   await check()
+  // Up to 1px: the -50% centring transform leaves sub-pixel positions that round differently
+  // after the body scrolls; a header that scrolled with it would move by its whole height.
   assert.isAtMost(Math.abs((await title.boundingBox())!.y - top), 1)
   assert.equal(
     await page.evaluate<string>(
