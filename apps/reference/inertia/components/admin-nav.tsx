@@ -146,19 +146,17 @@ export function AdminSectionTabs({ children }: { children: ReactNode }) {
       data-admin-tabs
     >
       <TabsList
+        variant="nav"
+        // Radix keeps the arrow-key orientation of the list's first render: crossing the large
+        // breakpoint mounts a new list (the page beside it stays mounted).
+        key={wide ? 'vertical' : 'horizontal'}
         aria-label={t('صفحات القسم: {section}', { section: t(section.title) })}
-        className="max-w-full shrink-0 justify-start overflow-x-auto lg:sticky lg:top-[calc(var(--shell-top,0px)+1.5rem)] lg:w-56 lg:overflow-visible"
+        className="max-w-full shrink-0 justify-start overflow-x-auto lg:sticky lg:top-6 lg:w-56 lg:overflow-visible"
       >
         {section.pages.map((entry) => {
           const count = entry.alerts?.(page.props) ?? 0
           return (
-            <TabsTrigger
-              key={entry.id}
-              value={entry.id}
-              asChild
-              // The shell's active navigation pattern, filled, with no border or bar.
-              className="flex-none data-[state=active]:bg-accent data-[state=active]:font-semibold data-[state=active]:text-primary group-data-[variant=default]/tabs-list:data-[state=active]:shadow-none dark:data-[state=active]:border-transparent dark:data-[state=active]:bg-accent dark:data-[state=active]:text-primary"
-            >
+            <TabsTrigger key={entry.id} value={entry.id} asChild className="flex-none">
               <Link href={entry.href}>
                 <entry.icon strokeWidth={1.6} />
                 {t(entry.label)}

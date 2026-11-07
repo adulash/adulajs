@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useState, type CSSProperties, type ReactNode } from 'react'
 import { usePage } from '@inertiajs/react'
 import { Link } from '@adonisjs/inertia/react'
 import {
@@ -7,7 +7,6 @@ import {
   ClipboardList,
   LayoutDashboard,
   FileUp,
-  Maximize2,
   PanelRightClose,
   PanelRightOpen,
   UserPlus,
@@ -25,6 +24,13 @@ import {
   DropdownMenuTrigger,
 } from '~/components/ui/dropdown-menu'
 import { Separator } from '~/components/ui/separator'
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '~/components/ui/breadcrumb'
 import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
 import { AccountMenu } from '~/components/account-menu'
 import { BrandMark } from '~/components/brand-mark'
@@ -110,21 +116,12 @@ export default function Workspace({ children }: { children: ReactNode }) {
   }>()
   const { collapsed, toggle } = useCollapsedModules()
   const [storedMode, setMode] = usePreference<SidebarMode>('shell.sidebar')
+  const [storedCollapse] = usePreference<'icons' | 'hidden'>('shell.sidebarCollapse')
+  const collapseTo: SidebarMode = storedCollapse === 'hidden' ? 'hidden' : 'icons'
   const [ownLayout] = usePreference<ShellLayout | null>('shell.layout')
   const [order, setOrder, resetOrder] = usePreference<string[]>('shell.navOrder')
   const [theme] = usePreference<Theme>('shell.theme')
   const [arranging, setArranging] = useState(false)
-  // The sticky top block (header, top menu, backup warning, impersonation): its height is
-  // --shell-top, below which the administration tabs stick (ADR 049).
-  const top = useRef<HTMLDivElement>(null)
-  const [shellTop, setShellTop] = useState(0)
-  useEffect(() => {
-    const node = top.current
-    if (!node) return
-    const observer = new ResizeObserver(() => setShellTop(node.offsetHeight))
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [])
   const layout = effectiveLayout(page.props.uiPreferences, ownLayout)
   const mode: SidebarMode = isSidebarMode(storedMode) ? storedMode : 'expanded'
   const navOrder = Array.isArray(order) ? order : []
@@ -209,152 +206,97 @@ export default function Workspace({ children }: { children: ReactNode }) {
   const sidebar = layout === 'sidebar'
   const shellStyle = {
     '--shell-sidebar': sidebar ? SIDEBAR_WIDTH[mode] : '0px',
-    '--shell-top': `${shellTop}px`,
   } as CSSProperties
-  const brandName = (
-    <span>
-      <strong className="block text-xl tracking-tight">عدولة</strong>
-      <span className="text-[11px] text-muted-foreground">{t('مساحة أعمالك، بوضوح')}</span>
-    </span>
+  // The brand belongs to the header (owner decision 20); the tagline shows beside a wide sidebar.
+  const brand = (
+    <Link href="/" className="flex min-w-0 items-center gap-3" data-brand>
+      <BrandMark size="sm" />
+      <span className="min-w-0">
+        <strong className="block truncate text-base leading-tight tracking-tight">عدولة</strong>
+        <span className="hidden truncate text-[11px] text-muted-foreground sm:block">
+          {t('مساحة أعمالك، بوضوح')}
+        </span>
+      </span>
+    </Link>
   )
+  // One control for the sidebar: open it, or collapse it the way the user chose (icons or
+  // hidden, from the account menu). The header trigger and the rail on the sidebar's edge share it.
+  const open = sidebar && mode === 'expanded'
+  const toggleSidebar = () => void setMode(open ? collapseTo : 'expanded')
+  const toggleLabel = open ? t('طي القائمة الجانبية') : t('إظهار القائمة الجانبية')
   // The account menu sits in the header whenever the expanded sidebar does not show it.
-  const headerAccount = !sidebar || mode === 'hidden' ? '' : 'lg:hidden'
+  const headerAccount = !sidebar || mode !== 'expanded' ? '' : 'lg:hidden'
+  const area = page.url.startsWith('/account') ? t('حسابي') : t('مساحة العمل')
 
   return (
     <div
       dir={dir}
-      className="min-h-screen bg-background text-foreground"
+      // From the large breakpoint the frame fills the window: the header on top, the sidebar
+      // and the page below it, and the page area scrolls on its own (scrollbar at the inline
+      // end of the window: the left in Arabic). Printing returns to the normal flow.
+      className="min-h-screen bg-background text-foreground lg:flex lg:h-svh lg:min-h-0 lg:flex-col lg:overflow-hidden print:block print:h-auto print:overflow-visible"
       data-workspace-shell
       data-layout={layout}
       data-sidebar={sidebar ? mode : undefined}
       style={shellStyle}
     >
       <FlashMessages />
-      {sidebar && (
-        // react-remove-scroll offsets this class by the scroll bar a dialog hides (RTL: right: 0).
-        <aside
-          id="workspace-sidebar"
-          aria-label={t('القائمة الجانبية')}
-          inert={mode === 'hidden'}
-          className={`right-scroll-bar-position fixed inset-y-0 start-0 z-30 hidden w-(--shell-sidebar) flex-col overflow-y-auto border-e border-border bg-card [scrollbar-color:transparent_transparent] [scrollbar-width:thin] hover:[scrollbar-color:var(--border)_transparent] focus-within:[scrollbar-color:var(--border)_transparent] [&>*]:shrink-0 ${mode === 'hidden' ? '' : 'lg:flex'} ${preferences.pageTransitions ? 'motion-safe:transition-[width] motion-safe:duration-200' : ''}`}
+      {/* One header from edge to edge (owner decision 20); the warnings sit right under it. */}
+      <div className="sticky top-0 z-30 shrink-0 bg-background" data-shell-top>
+        <header
+          className="flex h-[72px] items-center border-b border-border bg-background"
+          data-shell-header
         >
-          {mode === 'icons' ? (
-            <IconRail
-              work={work}
-              modules={modules}
-              isActive={isActive}
-              orderSections={orderSections}
-              onArrange={arrange}
-            />
-          ) : (
-            <>
-              <Link href="/" className="flex h-24 items-center gap-3 px-7">
-                <BrandMark />
-                {brandName}
-              </Link>
-              <p className="mb-3 px-7 text-[11px] font-semibold text-muted-foreground">
-                {t('العمل اليومي')}
-              </p>
-              <nav aria-label={t('التنقل الرئيسي')} className="space-y-5 px-4">
-                <div className="space-y-1">
-                  {work.map(({ href, label, icon: Icon, badge }) => (
-                    <Link
-                      key={href}
-                      href={href}
-                      aria-current={isActive(href) ? 'page' : undefined}
-                      className={navLinkClass(isActive(href))}
-                    >
-                      <Icon size={19} strokeWidth={1.6} />
-                      {label}
-                      {badge > 0 && (
-                        <Badge
-                          className="ms-auto px-1.5"
-                          aria-label={t('{count} مفتوحة', { count: badge })}
-                        >
-                          {badge}
-                        </Badge>
-                      )}
-                    </Link>
-                  ))}
-                </div>
-                {modules.map((group) => {
-                  const open = !collapsed.includes(group.module)
-                  return (
-                    <div key={group.module} role="group" aria-label={group.label}>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        aria-expanded={open}
-                        onClick={() => toggle(group.module)}
-                        className="h-8 w-full justify-between px-4 text-[11px] font-semibold text-muted-foreground"
-                      >
-                        {group.label}
-                        <ChevronDown
-                          size={14}
-                          className={`transition-transform ${open ? '' : 'rotate-90'}`}
-                        />
-                      </Button>
-                      {open && (
-                        <div className="mt-1 space-y-1">
-                          {group.links.map((entry) => (
-                            <Link
-                              key={entry.href}
-                              href={entry.href}
-                              aria-current={isActive(entry.href) ? 'page' : undefined}
-                              className={navLinkClass(isActive(entry.href))}
-                            >
-                              <ClipboardList size={18} strokeWidth={1.6} />
-                              {entry.label}
-                            </Link>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </nav>
-              <AdminNav order={orderSections} />
-              <div className="mx-5 mb-6 mt-auto border-t border-border pt-5">
-                {page.props.canInviteUsers && (
-                  <Link
-                    href="/users/invite"
-                    className="mb-4 flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground"
+          <div
+            // The start segment stands above the sidebar, as wide as it: the brand and the
+            // sidebar's own trigger.
+            className={`flex h-full min-w-0 shrink-0 items-center gap-2 ps-5 pe-3 ${sidebar && mode !== 'hidden' ? 'lg:w-(--shell-sidebar) lg:border-e lg:border-border' : ''} ${sidebar && mode === 'icons' ? 'lg:justify-center lg:px-0' : 'lg:ps-7'} ${preferences.pageTransitions ? 'motion-safe:transition-[width] motion-safe:duration-200' : ''}`}
+            data-header-start
+          >
+            <span className={`min-w-0 flex-1 ${sidebar && mode === 'icons' ? 'lg:hidden' : ''}`}>
+              {brand}
+            </span>
+            {sidebar && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="hidden lg:inline-flex"
+                    aria-label={toggleLabel}
+                    aria-controls="workspace-sidebar"
+                    aria-expanded={open}
+                    onClick={toggleSidebar}
+                    data-sidebar-trigger
                   >
-                    <UserPlus size={14} />
-                    {t('دعوة مستخدم')}
-                  </Link>
-                )}
-                <AccountMenu onArrange={arrange} />
-              </div>
-            </>
-          )}
-        </aside>
-      )}
-      <div className="lg:ps-(--shell-sidebar)">
-        {/* Sticky in both layouts; the warnings sit under the header and push the page down. */}
-        <div ref={top} className="sticky top-0 z-20 bg-background" data-shell-top>
-          <header className="flex h-[72px] items-center justify-between gap-3 border-b border-border bg-background/80 px-5 backdrop-blur lg:px-10">
-            <div
-              className="flex min-w-0 items-center gap-3 text-xs text-muted-foreground"
-              data-breadcrumb
-            >
-              {sidebar ? (
-                <SidebarControls mode={mode} onChange={(next) => void setMode(next)} />
-              ) : (
-                <Link href="/" className="hidden items-center gap-3 lg:flex">
-                  <BrandMark size="sm" />
-                  <strong className="text-base text-foreground">عدولة</strong>
-                </Link>
-              )}
-              <span className="font-semibold text-foreground lg:hidden">عدولة</span>
-              <span className={sidebar ? '' : 'lg:hidden'}>
-                {page.url.startsWith('/account') ? t('حسابي') : t('مساحة العمل')}
-              </span>
-              <span className={sidebar ? '' : 'lg:hidden'}>/</span>
-              <span className={`truncate text-foreground ${sidebar ? '' : 'lg:hidden'}`}>
-                {current}
-              </span>
+                    {open ? (
+                      <PanelRightClose className="ltr:-scale-x-100" aria-hidden />
+                    ) : (
+                      <PanelRightOpen className="ltr:-scale-x-100" aria-hidden />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="bottom">{toggleLabel}</TooltipContent>
+              </Tooltip>
+            )}
+          </div>
+          <div className="flex min-w-0 flex-1 items-center justify-between gap-3 pe-5 lg:pe-10">
+            <div className="flex min-w-0 items-center gap-3" data-breadcrumb>
+              {sidebar && mode === 'icons' && <span className="hidden lg:block">{brand}</span>}
+              <Separator
+                orientation="vertical"
+                className={`data-[orientation=vertical]:h-4 ${sidebar && mode === 'expanded' ? 'lg:hidden' : ''}`}
+              />
+              <Breadcrumb className={sidebar ? '' : 'lg:hidden'}>
+                <BreadcrumbList className="flex-nowrap text-xs">
+                  <BreadcrumbItem className="hidden sm:inline-flex">{area}</BreadcrumbItem>
+                  <BreadcrumbSeparator className="hidden sm:block" />
+                  <BreadcrumbItem className="min-w-0">
+                    <BreadcrumbPage className="truncate">{current}</BreadcrumbPage>
+                  </BreadcrumbItem>
+                </BreadcrumbList>
+              </Breadcrumb>
             </div>
             <div className="flex shrink-0 items-center gap-2 text-[11px] text-muted-foreground">
               <TasksButton />
@@ -365,48 +307,172 @@ export default function Workspace({ children }: { children: ReactNode }) {
                 {t('بيئة التجربة')}
               </span>
               <span className={headerAccount}>
-                <AccountMenu variant="compact" onArrange={arrange} />
+                <AccountMenu variant="compact" onArrange={arrange} sidebarChoice={sidebar} />
               </span>
             </div>
-          </header>
-          {!sidebar && (
-            <TopNavigation work={work} modules={modules} orderSections={orderSections} />
-          )}
-          <BackupBanner />
-          <ImpersonationBar />
-        </div>
-        <nav
-          aria-label={t('التنقل على الجوال')}
-          className="flex gap-5 overflow-auto border-b border-border bg-card px-5 py-3 text-xs lg:hidden"
-        >
-          {work.map((item) => (
-            <Link key={item.href} href={item.href}>
-              {item.label}
-              {item.badge > 0 ? ` (${item.badge})` : ''}
-            </Link>
-          ))}
-          {modules.flatMap((group) =>
-            group.links.map((item) => (
-              <Link key={item.href} href={item.href}>
-                {item.label}
-              </Link>
-            ))
-          )}
-          {/* The administration area stays one entry on small screens too. */}
-          {page.props.isAdmin && <Link href="/admin">{t('الإدارة')}</Link>}
-        </nav>
-        <main className="mx-auto max-w-[1440px] p-5 lg:px-10 lg:py-9">
-          {/* Administration pages show their section's pages as sub-tabs (#157). */}
-          <AdminSectionTabs>
-            <div
-              // A record dialog over a list keeps the list's key, so the list stays mounted.
-              key={(page.props.overlay?.list ?? page.url).split('?')[0]}
-              className={preferences.pageTransitions ? 'adula-page-enter' : undefined}
+          </div>
+        </header>
+        {!sidebar && <TopNavigation work={work} modules={modules} orderSections={orderSections} />}
+      </div>
+      <div className="lg:flex lg:min-h-0 lg:flex-1 print:block">
+        {sidebar && (
+          <div
+            className={`relative hidden shrink-0 print:hidden ${mode === 'hidden' ? '' : 'lg:flex'}`}
+          >
+            <aside
+              id="workspace-sidebar"
+              aria-label={t('القائمة الجانبية')}
+              inert={mode === 'hidden'}
+              // Its own thin scroller, apart from the page's (the owner's double scrollbar).
+              className={`flex w-(--shell-sidebar) flex-col overflow-y-auto border-e border-border bg-card pt-6 [scrollbar-color:transparent_transparent] [scrollbar-width:thin] hover:[scrollbar-color:var(--border)_transparent] focus-within:[scrollbar-color:var(--border)_transparent] [&>*]:shrink-0 ${preferences.pageTransitions ? 'motion-safe:transition-[width] motion-safe:duration-200' : ''}`}
             >
-              {children}
-            </div>
-          </AdminSectionTabs>
-        </main>
+              {mode === 'icons' ? (
+                <IconRail
+                  work={work}
+                  modules={modules}
+                  isActive={isActive}
+                  orderSections={orderSections}
+                  onArrange={arrange}
+                />
+              ) : (
+                <>
+                  <p className="mb-3 px-7 text-[11px] font-semibold text-muted-foreground">
+                    {t('العمل اليومي')}
+                  </p>
+                  <nav aria-label={t('التنقل الرئيسي')} className="space-y-5 px-4">
+                    <div className="space-y-1">
+                      {work.map(({ href, label, icon: Icon, badge }) => (
+                        <Link
+                          key={href}
+                          href={href}
+                          aria-current={isActive(href) ? 'page' : undefined}
+                          className={navLinkClass(isActive(href))}
+                        >
+                          <Icon size={19} strokeWidth={1.6} />
+                          {label}
+                          {badge > 0 && (
+                            <Badge
+                              className="ms-auto px-1.5"
+                              aria-label={t('{count} مفتوحة', { count: badge })}
+                            >
+                              {badge}
+                            </Badge>
+                          )}
+                        </Link>
+                      ))}
+                    </div>
+                    {modules.map((group) => {
+                      const expanded = !collapsed.includes(group.module)
+                      return (
+                        <div key={group.module} role="group" aria-label={group.label}>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            aria-expanded={expanded}
+                            onClick={() => toggle(group.module)}
+                            className="h-8 w-full justify-between px-4 text-[11px] font-semibold text-muted-foreground"
+                          >
+                            {group.label}
+                            <ChevronDown
+                              size={14}
+                              className={`transition-transform ${expanded ? '' : 'rotate-90'}`}
+                            />
+                          </Button>
+                          {expanded && (
+                            <div className="mt-1 space-y-1">
+                              {group.links.map((entry) => (
+                                <Link
+                                  key={entry.href}
+                                  href={entry.href}
+                                  aria-current={isActive(entry.href) ? 'page' : undefined}
+                                  className={navLinkClass(isActive(entry.href))}
+                                >
+                                  <ClipboardList size={18} strokeWidth={1.6} />
+                                  {entry.label}
+                                </Link>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </nav>
+                  <AdminNav order={orderSections} />
+                  <div className="mx-5 mb-6 mt-auto border-t border-border pt-5">
+                    {page.props.canInviteUsers && (
+                      <Link
+                        href="/users/invite"
+                        className="mb-4 flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        <UserPlus size={14} />
+                        {t('دعوة مستخدم')}
+                      </Link>
+                    )}
+                    <AccountMenu onArrange={arrange} sidebarChoice />
+                  </div>
+                </>
+              )}
+            </aside>
+            {/* The rail on the sidebar's edge toggles it too (shadcn SidebarRail). */}
+            <button
+              type="button"
+              tabIndex={-1}
+              aria-label={toggleLabel}
+              title={toggleLabel}
+              onClick={toggleSidebar}
+              className="absolute inset-y-0 -end-2 z-20 w-4 cursor-ew-resize after:absolute after:inset-y-0 after:start-1/2 after:w-[2px] after:transition-colors hover:after:bg-border"
+              data-sidebar-rail
+            />
+          </div>
+        )}
+        <div className="min-w-0 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col print:block">
+          {/* The warnings head the page column: right under the header, beside the sidebar. */}
+          <div className="shrink-0 print:hidden">
+            <BackupBanner />
+            <ImpersonationBar />
+          </div>
+          <div
+            // The page's scroll container from the large breakpoint; Inertia keeps and restores
+            // its position across visits (scroll-region).
+            scroll-region=""
+            className="min-w-0 lg:min-h-0 lg:flex-1 lg:overflow-y-auto print:overflow-visible"
+            data-page-scroll
+          >
+            <nav
+              aria-label={t('التنقل على الجوال')}
+              className="flex gap-5 overflow-auto border-b border-border bg-card px-5 py-3 text-xs lg:hidden"
+            >
+              {work.map((item) => (
+                <Link key={item.href} href={item.href}>
+                  {item.label}
+                  {item.badge > 0 ? ` (${item.badge})` : ''}
+                </Link>
+              ))}
+              {modules.flatMap((group) =>
+                group.links.map((item) => (
+                  <Link key={item.href} href={item.href}>
+                    {item.label}
+                  </Link>
+                ))
+              )}
+              {/* The administration area stays one entry on small screens too. */}
+              {page.props.isAdmin && <Link href="/admin">{t('الإدارة')}</Link>}
+            </nav>
+            <main className="mx-auto max-w-[1440px] p-5 lg:px-10 lg:py-9">
+              {/* Administration pages show their section's pages as vertical tabs (ADR 049). */}
+              <AdminSectionTabs>
+                <div
+                  // A record dialog over a list keeps the list's key, so the list stays mounted.
+                  key={(page.props.overlay?.list ?? page.url).split('?')[0]}
+                  className={preferences.pageTransitions ? 'adula-page-enter' : undefined}
+                >
+                  {children}
+                </div>
+              </AdminSectionTabs>
+            </main>
+          </div>
+        </div>
       </div>
       {arrange && (
         <NavOrderDialog
@@ -420,52 +486,6 @@ export default function Workspace({ children }: { children: ReactNode }) {
       )}
       <Toaster position="bottom-left" richColors theme={resolvedTheme(theme ?? 'light')} />
     </div>
-  )
-}
-
-/**
- * The sidebar's two controls (#153): collapse it to icons and back, and hide it for a
- * wider page. Each is a button with a truthful state for assistive technology.
- */
-function SidebarControls({
-  mode,
-  onChange,
-}: {
-  mode: SidebarMode
-  onChange: (mode: SidebarMode) => void
-}) {
-  const { t } = useMessages()
-  const control = (label: string, expanded: boolean, Icon: LucideIcon, next: SidebarMode) => (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label={label}
-          aria-controls="workspace-sidebar"
-          aria-expanded={expanded}
-          onClick={() => onChange(next)}
-        >
-          <Icon className="ltr:-scale-x-100" aria-hidden />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent side="bottom">{label}</TooltipContent>
-    </Tooltip>
-  )
-  return (
-    <span className="hidden items-center gap-1 lg:flex">
-      {mode === 'hidden' ? (
-        control(t('إظهار القائمة الجانبية'), false, PanelRightOpen, 'expanded')
-      ) : (
-        <>
-          {mode === 'expanded'
-            ? control(t('طي القائمة الجانبية'), true, PanelRightClose, 'icons')
-            : control(t('توسيع القائمة الجانبية'), false, PanelRightOpen, 'expanded')}
-          {control(t('إخفاء القائمة الجانبية'), true, Maximize2, 'hidden')}
-        </>
-      )}
-    </span>
   )
 }
 
@@ -488,9 +508,6 @@ function IconRail({
   const icons = moduleIcons(modules.map((group) => group.module))
   return (
     <>
-      <Link href="/" className="grid h-24 place-items-center" aria-label={t('نظرة عامة')}>
-        <BrandMark size="sm" />
-      </Link>
       <nav aria-label={t('التنقل الرئيسي')} className="flex flex-col items-center gap-1">
         {work.map((entry) => (
           <RailLink

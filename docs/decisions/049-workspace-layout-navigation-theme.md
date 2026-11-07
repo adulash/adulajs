@@ -119,8 +119,11 @@ Amendment (2.3.0, owner's review):
 * A section's pages are the registry `Tabs` with `orientation="vertical"` inside the page
   body, not a second sidebar or a list of styled links: a `tablist` with
   `aria-orientation="vertical"`, one `tab` per page and the page itself as the `tabpanel`.
-  The list is the default `TabsList`; the selected tab uses the shell's active navigation
-  pattern (`bg-accent font-semibold text-primary`), with no border, bar or shadow.
+  The list is the registry `TabsList` with its `nav` variant (added for navigation tabs), so
+  the selected tab uses the shell's active navigation pattern (`bg-accent font-semibold
+  text-primary`), with no border, bar or shadow, and screens do not restyle the primitive.
+  Radix keeps the arrow-key orientation of the list's first render, so the list remounts
+  when the window crosses the large breakpoint; the page beside it stays mounted.
   Each tab is a link (`TabsTrigger asChild`), so the address selects the tab: direct links,
   reloads, Back and Forward show the right one. Arrow keys move between tabs and Enter
   opens one (manual activation, since opening a tab loads a page). The tabs stay visible
@@ -135,6 +138,37 @@ Amendment (2.3.0, owner's review):
   (`focus-visible:ring-[3px] focus-visible:ring-ring/50`) instead of the browser outline; the
   active entry has no border. The sidebar's own scrollbar is thin and appears on hover, so
   it does not read as a second page scrollbar.
+
+Amendment (2.3.0, owner's decision of 2026-11-07, the workspace frame): this replaces the
+header bullet above and the two header buttons of #153.
+
+* One header runs from edge to edge at the top of the window, and the sidebar and the page sit
+  below it (shadcn's site-header layout). Owner: «لماذا لا يكون الهيدر كامل قطعة واحدة من الطرف
+  الى الطرف، والقائمة الجانبية والصفحات تظهر تحتها». The brand (mark, «عدولة» and its tagline)
+  is part of the header, not of the sidebar («شعار «عدولة» اجعله يصبح جزء من header»); the
+  sidebar begins with its navigation and the icon rail shows no brand tile.
+* The sidebar has one control, and it belongs visibly to the sidebar. Owner: «زر التحكم بإظهار
+  واخفاء القائمة يوجد في مكان اخر وليس ضمن القائمة وكأنه يتحكم بتوسيع الصفحة وتقليصها». The
+  header's start segment stands directly above the sidebar, as wide as it, and holds the brand
+  and one trigger (ghost `icon-sm`, PanelRight mirrored for the reading direction, a Tooltip,
+  `aria-expanded`, `aria-controls`). A rail on the sidebar's edge toggles it too (shadcn
+  SidebarRail; out of the tab order, since the trigger is the keyboard control). What
+  collapsing does is the user's preference `shell.sidebarCollapse` in the account menu, «عند
+  طي القائمة: أيقونات / إخفاء كامل», `icons` by default; when the sidebar is hidden the same
+  trigger brings it back. The Maximize2 «hide» button is gone. There is no keyboard shortcut
+  until the owner decides one (Ctrl+B was declined above).
+* The header shows the registry Breadcrumb (a new registry item composing shadcn's
+  breadcrumb: no new dependency) after a vertical Separator.
+* From the large breakpoint the page area below the header is the page's scroll container
+  (Inertia's `scroll-region`, so its position is kept and restored across visits). In
+  right-to-left pages the browser draws its scroll bar at the left edge, away from the
+  sidebar, whose own scroll bar stays thin, so two scroll bars never stand side by side
+  (owner: «شريط التحكم بتمرير الشاشة للصفحة ... نقله الى اليسار»). The document itself does
+  not scroll there, so a dialog's scroll lock shifts nothing and the #101 compensation is no
+  longer needed. The backup warning and the impersonation bar head the page column, right
+  under the header. The administration tabs stick inside the scroll container. Record dialogs
+  remember and restore the list's position in that container. Printing returns to the normal
+  flow. On phones the document scrolls as before under the sticky full-width header.
 
 ### Dark mode (#155)
 

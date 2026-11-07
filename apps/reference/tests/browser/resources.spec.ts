@@ -664,7 +664,7 @@ test.group('Generic resource browser acceptance', (group) => {
     assert.deepEqual(recordRequests, [record, record, record])
   })
 
-  test('the sidebar receives the scroll bar compensation a record dialog applies to the page', async ({
+  test('a record dialog moves nothing in the frame: the document itself never scrolls on a large screen', async ({
     browserContext,
     visit,
     assert,
@@ -672,27 +672,27 @@ test.group('Generic resource browser acceptance', (group) => {
     await browserContext.loginAs(admin.user)
     const page = await visit('/resources/ui_samples')
     await page.setViewportSize({ width: 1440, height: 900 })
-    await page.locator('[data-workspace-shell] > aside').waitFor()
-    // Headless Chromium draws no scroll bar; report a classic 15 px one to the scroll lock, which
-    // then offsets the page body by that width. The fixed sidebar must move with it (#101).
-    await page.evaluate(
-      'Object.defineProperty(document.documentElement, "clientWidth", { configurable: true, get: () => window.innerWidth - 15 })'
+    await page.locator('#workspace-sidebar').waitFor()
+    // The page scrolls in its own region (owner decision 20), so the scroll lock a dialog
+    // applies finds no document scroll bar to compensate and shifts neither part (#101).
+    assert.isAtMost(
+      await page.evaluate<number>('document.documentElement.scrollHeight - window.innerHeight'),
+      0
     )
-    const offsets = () =>
-      page.evaluate<[string, string]>(
-        '[getComputedStyle(document.querySelector("[data-workspace-shell] > aside")).right, getComputedStyle(document.body).marginRight]'
+    const boxes = () =>
+      page.evaluate<number[]>(
+        '["[data-shell-header]", "#workspace-sidebar", "[data-page-scroll]"].flatMap((selector) => { const box = document.querySelector(selector).getBoundingClientRect(); return [box.left, box.right] })'
       )
-    const before = await offsets()
-    assert.deepEqual(before, ['0px', '0px'])
+    const before = await boxes()
     await page
       .getByRole('link', { name: /عرض السجل/ })
       .first()
       .click()
     await page.getByRole('dialog', { name: 'تفاصيل · عينات الواجهة' }).waitFor()
-    assert.deepEqual(await offsets(), ['15px', '15px'])
+    assert.deepEqual(await boxes(), before)
     await page.keyboard.press('Escape')
     await page.getByRole('dialog').waitFor({ state: 'detached' })
-    assert.deepEqual(await offsets(), before)
+    assert.deepEqual(await boxes(), before)
   })
 
   test('record dialogs keep their top edge while late sections load, and forms fill the dialog', async ({

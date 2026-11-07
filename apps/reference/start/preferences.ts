@@ -28,6 +28,12 @@ export const SHELL_PREFERENCES: PreferenceDefinition[] = [
     default: 'expanded',
     validate: oneOf(['expanded', 'icons', 'hidden']),
   }),
+  // What collapsing the sidebar does: shrink it to icons or hide it (owner decision 20).
+  definePreference<'icons' | 'hidden'>({
+    key: 'shell.sidebarCollapse',
+    default: 'icons',
+    validate: oneOf(['icons', 'hidden']),
+  }),
   // The user's own layout when the system allows a choice; null follows the system (#154).
   definePreference<'sidebar' | 'top' | null>({
     key: 'shell.layout',

@@ -57,6 +57,38 @@ const LIST_RETURN = 'adula:list-return'
 type ListReturn = { href: string; scroll: number; record: string }
 
 /**
+ * The page's scroll container: the workspace's scroll region (Inertia's `scroll-region`) when
+ * it scrolls on its own, as on large screens; otherwise the window.
+ */
+function pageScroller(): HTMLElement | null {
+  const region = document.querySelector<HTMLElement>('[scroll-region]')
+  if (!region) return null
+  const { overflowY } = getComputedStyle(region)
+  return overflowY === 'auto' || overflowY === 'scroll' ? region : null
+}
+
+function pageScrollTop() {
+  return pageScroller()?.scrollTop ?? window.scrollY
+}
+
+/**
+ * Scrolls the page back to a remembered position once Inertia has settled its own scroll
+ * handling (a scroll region is set on the next frame) and the list is tall enough: it retries
+ * for a few frames until the position holds.
+ */
+function scrollPageTo(top: number) {
+  let frames = 0
+  const apply = () => {
+    const region = pageScroller()
+    if (region) region.scrollTo(0, top)
+    else window.scrollTo(0, top)
+    const current = region ? region.scrollTop : window.scrollY
+    if (Math.abs(current - top) > 1 && ++frames < 30) requestAnimationFrame(apply)
+  }
+  requestAnimationFrame(apply)
+}
+
+/**
  * Remembers the list view (query and scroll) before a record opens from it, so closing the
  * record dialog returns to that view. DataTable calls it; page overrides that link to records
  * from their own list can call it too.
@@ -67,7 +99,7 @@ export function rememberListView(record: string) {
       LIST_RETURN,
       JSON.stringify({
         href: window.location.pathname + window.location.search,
-        scroll: window.scrollY,
+        scroll: pageScrollTop(),
         record,
       } satisfies ListReturn)
     )
@@ -286,7 +318,7 @@ export function ResourceSurface({
               forgetListView()
               router.visit(saved?.href ?? backHref, {
                 onSuccess: () => {
-                  if (saved) window.scrollTo(0, saved.scroll)
+                  if (saved) scrollPageTo(saved.scroll)
                   // A direct route has no mounted DialogTrigger to restore focus to.
                   restoreFocus(saved?.record)
                 },

@@ -93,7 +93,7 @@ export async function adaptSource(filename, source, transformDirection) {
 }
 
 async function sync() {
-  const names = ['button', 'input', 'textarea', 'select', 'checkbox', 'switch', 'radio-group', 'table', 'form', 'label', 'dialog', 'sheet', 'dropdown-menu', 'popover', 'command', 'calendar', 'badge', 'card', 'tabs', 'sonner', 'skeleton', 'pagination', 'tooltip', 'separator', 'alert']
+  const names = ['button', 'input', 'textarea', 'select', 'checkbox', 'switch', 'radio-group', 'table', 'form', 'label', 'dialog', 'sheet', 'dropdown-menu', 'popover', 'command', 'calendar', 'badge', 'card', 'tabs', 'sonner', 'skeleton', 'pagination', 'tooltip', 'separator', 'alert', 'breadcrumb']
   await mkdir(new URL('registry/ui/', root), { recursive: true })
   const items = []
   const sources = []
