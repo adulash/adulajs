@@ -84,7 +84,7 @@ export function CustomizeOverviewDialog({
     <Dialog mode="edit" open={open} onOpenChange={onOpenChange}>
       <LongDialogContent
         dir={dir}
-        width="md"
+        width="lg"
         onEscapeKeyDown={keepEscapeForSorting}
         title={t('تخصيص النظرة العامة')}
         description={t('اختر العناصر الظاهرة ورتّبها بالسحب أو بلوحة المفاتيح.')}

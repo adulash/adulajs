@@ -9,6 +9,7 @@ import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Badge } from '~/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
+import { InviteUserDialog } from '~/components/invite-user-dialog'
 import {
   Table,
   TableBody,
@@ -21,7 +22,22 @@ import {
 type Props = { users: UserPage; search: string }
 
 export default function UsersIndex({ users, search }: Props) {
-  const { canInviteUsers } = usePage<{ canInviteUsers?: boolean }>().props
+  const page = usePage<{ canInviteUsers?: boolean }>()
+  const { canInviteUsers } = page.props
+  // `?invite=1` opens the invitation over the list, so the address can be shared or reloaded.
+  const query = new URLSearchParams(page.url.split('?')[1] ?? '')
+  const inviting = Boolean(canInviteUsers) && query.has('invite')
+  const listHref = (params: URLSearchParams) => {
+    const rest = params.toString()
+    return `/admin/users${rest ? `?${rest}` : ''}`
+  }
+  const withInvite = new URLSearchParams(query)
+  withInvite.set('invite', '1')
+  const inviteHref = listHref(withInvite)
+  const closeInvite = () => {
+    query.delete('invite')
+    router.visit(listHref(query), { preserveState: true, preserveScroll: true, replace: true })
+  }
   const [term, setTerm] = useState(search)
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -36,7 +52,9 @@ export default function UsersIndex({ users, search }: Props) {
       <AdminHeader title="المستخدمون" description="الأدوار والوحدات وحالة الحساب لكل مستخدم.">
         {canInviteUsers && (
           <Button asChild>
-            <Link href="/users/invite">إضافة مستخدم</Link>
+            <Link href={inviteHref} preserveState preserveScroll>
+              دعوة مستخدم
+            </Link>
           </Button>
         )}
       </AdminHeader>
@@ -125,6 +143,7 @@ export default function UsersIndex({ users, search }: Props) {
           </div>
         )}
       </section>
+      <InviteUserDialog open={inviting} onClose={closeInvite} />
     </>
   )
 }

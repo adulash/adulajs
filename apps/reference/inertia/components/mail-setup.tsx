@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '~/components/ui/select'
-import { Dialog } from '~/components/ui/dialog'
+import { Dialog, DialogClose } from '~/components/ui/dialog'
 import { LongDialogContent } from '~/components/ui/long-dialog'
 
 export type MailSetupProps = {
@@ -23,8 +23,7 @@ export type MailSetupProps = {
 const warnings: Record<MailReadiness['warnings'][number], string> = {
   development_default:
     'لم يُضبط SMTP_HOST، لذلك يرسل النظام إلى خادم التطوير المحلي 127.0.0.1:1025.',
-  loopback_in_production:
-    'يشير SMTP_HOST إلى الخادم نفسه؛ تأكد من تشغيل خادم بريد محلي عليه.',
+  loopback_in_production: 'يشير SMTP_HOST إلى الخادم نفسه؛ تأكد من تشغيل خادم بريد محلي عليه.',
   port_security_mismatch: 'قيمة SMTP_SECURE لا تناسب المنفذ: استخدم true مع 465، وfalse مع 587.',
 }
 
@@ -78,19 +77,31 @@ export function MailSetupDialog({
   mailReadiness,
   mailPresets,
 }: MailSetupProps & { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const [presetId, setPresetId] = useState(mailPresets[0]?.id ?? '')
+  const initial = mailPresets[0]?.id ?? ''
+  const [presetId, setPresetId] = useState(initial)
   const preset = mailPresets.find((item) => item.id === presetId) ?? mailPresets[0]
   return (
-    <Dialog mode="edit" open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      mode="view"
+      open={open}
+      onOpenChange={(next) => {
+        // The next opening starts again from the first provider.
+        if (!next) setPresetId(initial)
+        onOpenChange(next)
+      }}
+    >
       <LongDialogContent
         title="إعداد البريد"
         description="يرسل النظام البريد عبر خادم SMTP لدى مزودك. تبقى بيانات الدخول في بيئة النظام، ولا يحفظها النظام هنا."
         footer={
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            إغلاق
-          </Button>
+          <DialogClose asChild>
+            <Button type="button" variant="outline">
+              إغلاق
+            </Button>
+          </DialogClose>
         }
       >
+        {/* A guide: choosing a provider only changes the lines shown, so closing never asks. */}
         <div className="space-y-4 text-sm">
           <MailReadinessNotice readiness={mailReadiness} />
           <ol className="list-[arabic-indic] space-y-4 ps-5" data-testid="mail-setup-steps">
@@ -129,8 +140,8 @@ export function MailSetupDialog({
           <Alert>
             <TriangleAlert />
             <AlertDescription>
-              لا تضع كلمة المرور في الإعدادات العامة أو في مستودع المشروع، واستخدم عنوان مرسل موثّقًا
-              لدى مزودك.
+              لا تضع كلمة المرور في الإعدادات العامة أو في مستودع المشروع، واستخدم عنوان مرسل
+              موثّقًا لدى مزودك.
             </AlertDescription>
           </Alert>
         </div>

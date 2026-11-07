@@ -220,7 +220,7 @@ export function BulkBar({
       )}
       <Dialog open={pending !== null} onOpenChange={(open) => !open && close()}>
         <LongDialogContent
-          width="md"
+          width="lg"
           title={pending ? name(pending) : ''}
           description={
             <>

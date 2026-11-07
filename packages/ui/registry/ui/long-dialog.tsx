@@ -8,17 +8,24 @@ import {
   DialogTitle,
 } from '~/components/ui/dialog'
 
+// Named after the Tailwind max-width each one applies from the small screen breakpoint up.
 const widths = {
-  md: 'sm:max-w-lg',
-  lg: 'sm:max-w-xl',
-  xl: 'sm:max-w-3xl',
-  full: 'sm:max-w-5xl',
+  lg: 'sm:max-w-lg',
+  xl: 'sm:max-w-xl',
+  '2xl': 'sm:max-w-2xl',
+  '3xl': 'sm:max-w-3xl',
+  '4xl': 'sm:max-w-4xl',
+  '5xl': 'sm:max-w-5xl',
 } as const
 
 type LongDialogContentProps = {
   title: React.ReactNode
   description?: React.ReactNode
-  /** Actions shown in the fixed footer: «إلغاء» or «إغلاق» (outline) first, then the primary. */
+  /**
+   * Actions shown in the fixed footer: secondary actions first (pushed to the start side with
+   * `sm:me-auto`), then «إلغاء» or «إغلاق» as outline inside `DialogClose`, then the primary.
+   * A form reports `data-dirty` so closing asks for confirmation only when values changed.
+   */
   footer?: React.ReactNode
   /** Dialog width from the small screen breakpoint up; phones always use the full width. */
   width?: keyof typeof widths
@@ -34,7 +41,7 @@ export function LongDialogContent({
   title,
   description,
   footer,
-  width = 'lg',
+  width = 'xl',
   children,
   ...props
 }: LongDialogContentProps) {

@@ -149,7 +149,7 @@ export function RecordAssignments({
       <Dialog mode="edit" open={open} onOpenChange={setOpen}>
         <LongDialogContent
           dir="rtl"
-          width="md"
+          width="lg"
           title="إسناد مهمة"
           description="تظهر المهمة في «مهامي» لدى المكلف، ويُشعَر بها فوراً."
           footer={

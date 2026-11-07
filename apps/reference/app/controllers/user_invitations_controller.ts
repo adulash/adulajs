@@ -8,13 +8,34 @@ import { ValidationError } from '@vinejs/vine'
 import UserInvitationNotification from '#mails/user_invitation_notification'
 import { invitationValidator, acceptInvitationValidator } from '#validators/user'
 import { requestActor } from '#services/adula'
+import { isAdministrator } from '#middleware/admin_middleware'
 
 const service = () => new UserInvitations(db.connection().getWriteClient())
+
+/**
+ * Where the invitation dialog is shown: over the users list it was opened from (keeping its
+ * search), or the invitation page for someone who may invite without administering users.
+ */
+function dialogPage(ctx: HttpContext) {
+  try {
+    const referrer = new URL(ctx.request.header('referer') ?? '', ctx.request.completeUrl())
+    if (referrer.host === ctx.request.host() && referrer.pathname === '/admin/users') {
+      referrer.searchParams.set('invite', '1')
+      return `${referrer.pathname}${referrer.search}`
+    }
+  } catch {}
+  return '/users/invite'
+}
 
 export default class UserInvitationsController {
   async create(ctx: HttpContext) {
     if (!(await service().canInvite(ctx.auth.getUserOrFail().id)))
       throw new AdulaError(403, 'E_FORBIDDEN', 'ليس لديك صلاحية دعوة المستخدمين')
+    // Administrators invite over the users list; the direct address opens the same dialog there.
+    if (await isAdministrator(ctx.auth.getUserOrFail().id)) {
+      ctx.session.reflash()
+      return ctx.response.redirect('/admin/users?invite=1')
+    }
     return ctx.inertia.render('users/invite', {})
   }
 
@@ -43,9 +64,9 @@ export default class UserInvitationsController {
         'success',
         'تم إرسال الدعوة بالبريد. يمكن إعادة إرسالها بعد دقيقة؛ عندها يُلغى الرابط السابق.'
       )
-      return ctx.response.redirect('/users/invite')
+      return ctx.response.redirect(dialogPage(ctx))
     } catch (error) {
-      return this.failure(ctx, error)
+      return this.failure(ctx, error, dialogPage(ctx))
     }
   }
 
@@ -74,7 +95,7 @@ export default class UserInvitationsController {
     }
   }
 
-  private failure(ctx: HttpContext, error: unknown) {
+  private failure(ctx: HttpContext, error: unknown, target = ctx.request.url()) {
     if (ctx.request.accepts(['html', 'json']) === 'json') throw error
     if (error instanceof ValidationError) {
       const messages = Array.isArray(error.messages)
@@ -90,6 +111,6 @@ export default class UserInvitationsController {
       ctx.session.flash('inputErrorsBag', { form: error.message })
     } else throw error
     // Bearer-token pages deliberately omit Referer; redirect to the known GET route explicitly.
-    return ctx.response.redirect(ctx.request.url())
+    return ctx.response.redirect(target)
   }
 }
