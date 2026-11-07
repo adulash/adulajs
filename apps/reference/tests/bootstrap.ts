@@ -63,7 +63,8 @@ export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
     async () => {
       if (!env.get('DB_DATABASE').endsWith('_test') || !app.inTest)
         throw new Error('HTTP tests require a dedicated *_test database')
-      // Both stores use the explicit adula-reference-test prefix and Redis DB 15.
+      // Both stores use Redis DB 15 with the adula-reference-test:<test database> prefix,
+      // so clearing them touches only this run's database, never another checkout's run.
       await queue.clear(['events'])
       await cache.clear()
       await testUtils.db().migrate()

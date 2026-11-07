@@ -1,4 +1,5 @@
 import app from '@adonisjs/core/services/app'
+import env from '#start/env'
 import { defineConfig } from '@nemoventures/adonis-jobs'
 import type { InferQueues } from '@nemoventures/adonis-jobs/types'
 
@@ -6,7 +7,8 @@ const queueConfig = defineConfig({
   connection: { connectionName: 'main' },
   // Own connections keep cache/Redis shutdown from interrupting queue cleanup.
   useSharedConnection: false,
-  defaultPrefix: app.inTest ? 'adula-reference-test' : 'adula-reference',
+  // Each test database has its own prefix, so concurrent runs never clear or take each other's jobs.
+  defaultPrefix: app.inTest ? `adula-reference-test:${env.get('DB_DATABASE')}` : 'adula-reference',
   defaultQueue: 'events',
   healthCheck: { enabled: false },
   queues: {
