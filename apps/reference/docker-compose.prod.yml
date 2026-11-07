@@ -58,6 +58,8 @@ x-application-environment: &application-environment
   SMTP_REQUIRE_TLS:
   SMTP_USERNAME:
   SMTP_PASSWORD:
+  # `environment` makes the SMTP_* and MAIL_FROM_* variables win over the «البريد» tab.
+  MAIL_SETTINGS_SOURCE:
   GITHUB_CLIENT_ID:
   GITHUB_CLIENT_SECRET:
   GOOGLE_CLIENT_ID:
