@@ -138,9 +138,15 @@ test.group('Record collaboration browser acceptance', (group) => {
       // The page scrolls in the workspace's scroll region on large screens (owner decision 20).
       const scroller = `(() => { const region = document.querySelector('[scroll-region]'); return region && ['auto', 'scroll'].includes(getComputedStyle(region).overflowY) ? region : document.scrollingElement })()`
       await page.evaluate(`${scroller}.scrollTop = ${scroller}.scrollHeight`)
-      const scroll = await page.evaluate<number>(`${scroller}.scrollTop`)
-      assert.isAbove(scroll, 200)
+      assert.isAbove(await page.evaluate<number>(`${scroller}.scrollTop`), 200)
+      // The view to return to is the one at the moment of the click: Playwright may scroll the
+      // link while it clicks it, and the list remembers where the page actually was.
+      await page.evaluate(
+        `document.addEventListener('click', () => { window.adulaClickScroll = ${scroller}.scrollTop }, { capture: true, once: true })`
+      )
       await page.getByRole('link', { name: 'عينات الواجهة: عينة التعليقات' }).last().click()
+      const scroll = await page.evaluate<number>('window.adulaClickScroll')
+      assert.isAbove(scroll, 200)
       await page.getByRole('dialog', { name: 'تفاصيل · عينات الواجهة' }).waitFor()
       await page.keyboard.press('Escape')
       await page.waitForURL((url) => url.pathname === '/my-tasks' && url.search === '?tab=assigned')
@@ -148,7 +154,10 @@ test.group('Record collaboration browser acceptance', (group) => {
       // The page CSP refuses a polling string predicate in waitForFunction; poll through evaluate.
       for (const started = Date.now(); ;) {
         if (await page.evaluate<boolean>(`Math.abs(${scroller}.scrollTop - ${scroll}) <= 2`)) break
-        if (Date.now() - started > 20_000) assert.fail(`scroll did not return to ${scroll}`)
+        if (Date.now() - started > 20_000)
+          assert.fail(
+            `scroll did not return to ${scroll}: ${await page.evaluate<string>(`(() => { const element = ${scroller}; return JSON.stringify({ top: element.scrollTop, height: element.scrollHeight, client: element.clientHeight, region: element !== document.scrollingElement }) })()`)}`
+          )
         await new Promise((resolve) => setTimeout(resolve, 100))
       }
       // The remembered view is used once.
