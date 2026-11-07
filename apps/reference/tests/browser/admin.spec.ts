@@ -3,10 +3,13 @@ import mail from '@adonisjs/mail/services/main'
 import { randomUUID } from 'node:crypto'
 import db from '@adonisjs/lucid/services/db'
 import User from '#models/user'
+import env from '#start/env'
 import { UserInvitations } from 'adula'
 import UserInvitationNotification from '#mails/user_invitation_notification'
 import app from '@adonisjs/core/services/app'
 import { mkdir } from 'node:fs/promises'
+import { join } from 'node:path'
+import { screenshotDir } from '#tests/helpers/ui_fixtures'
 
 /** The browser global read inside page.evaluate (the test project has no DOM types). */
 type Styled = { getComputedStyle: (element: unknown) => { listStyleType: string } }
@@ -290,47 +293,110 @@ test.group('Administration screens in the browser', (group) => {
     assert.include(await dialog.getByRole('alert').innerText(), 'لا ينقل الملفات القائمة')
   })
 
-  test('mail setup dialog builds provider lines to copy without any secret', async ({
+  test('mail settings are saved from the dialog, and the password is write-only', async ({
     browserContext,
     visit,
     assert,
   }) => {
-    await browserContext.loginAs(admin)
-    const page = await visit('/admin/settings')
-    await page.evaluate(() => {
-      const copied: string[] = []
-      ;(globalThis as unknown as { copied: string[] }).copied = copied
-      Object.defineProperty(navigator, 'clipboard', {
-        configurable: true,
-        value: { writeText: async (text: string) => void copied.push(text) },
+    const secret = `smtp-browser-${randomUUID()}`
+    const allowPrivate = {
+      raw: process.env.WEBHOOKS_ALLOW_PRIVATE,
+      value: env.get('WEBHOOKS_ALLOW_PRIVATE'),
+    }
+    // The form saves a loopback relay, which only the explicit opt-in allows.
+    env.set('WEBHOOKS_ALLOW_PRIVATE', true)
+    try {
+      await browserContext.loginAs(admin)
+      const page = await visit('/admin/settings/mail')
+      // A tab of the horizontal «الإعدادات» row (owner decision 22), selected on its own address.
+      const tab = page.getByRole('tab', { name: 'البريد' })
+      assert.equal(await tab.getAttribute('aria-selected'), 'true')
+      assert.include(await page.locator('main').innerText(), 'لا إعداد محفوظ بعد')
+      await page.evaluate(() => {
+        const copied: string[] = []
+        ;(globalThis as unknown as { copied: string[] }).copied = copied
+        Object.defineProperty(navigator, 'clipboard', {
+          configurable: true,
+          value: { writeText: async (text: string) => void copied.push(text) },
+        })
       })
-    })
-    await page.getByRole('button', { name: 'إعداد البريد', exact: true }).click()
-    const dialog = page.getByRole('dialog')
-    await dialog.getByRole('heading', { name: 'إعداد البريد' }).waitFor()
-    const mailSteps = dialog.getByTestId('mail-setup-steps').locator(':scope > li')
-    assert.equal(await mailSteps.count(), 4)
-    assert.deepEqual(
-      await mailSteps.evaluateAll((items) =>
-        items.map((item) => (globalThis as unknown as Styled).getComputedStyle(item).listStyleType)
-      ),
-      ['arabic-indic', 'arabic-indic', 'arabic-indic', 'arabic-indic']
-    )
-    assert.include(
-      await dialog.getByTestId('mail-env-lines').innerText(),
-      'SMTP_HOST=smtp.gmail.com'
-    )
-    await dialog.getByRole('combobox', { name: 'اختر مزود البريد:' }).click()
-    await page.getByRole('option', { name: 'SendGrid', exact: true }).click()
-    const lines = await dialog.getByTestId('mail-env-lines').innerText()
-    assert.include(lines, 'SMTP_HOST=smtp.sendgrid.net')
-    assert.include(lines, 'SMTP_PORT=587')
-    assert.include(lines, 'SMTP_USERNAME=apikey')
-    assert.match(lines, /^SMTP_PASSWORD=$/m)
-    assert.include(await dialog.innerText(), 'مفتاح API من SendGrid')
-    await dialog.getByRole('button', { name: 'نسخ الأسطر', exact: true }).click()
-    const copied = await page.evaluate(() => (globalThis as unknown as { copied: string[] }).copied)
-    assert.deepEqual(copied, [lines.trim()])
+      await page.getByRole('button', { name: 'إعداد البريد', exact: true }).click()
+      const dialog = page.getByRole('dialog', { name: 'إعداد البريد' })
+      await dialog.waitFor()
+      const field = (name: string) => dialog.getByLabel(name, { exact: true })
+      assert.equal(await field('خادم SMTP').inputValue(), 'smtp.gmail.com')
+      assert.equal(await field('المنفذ').inputValue(), '465')
+
+      // A provider fills the server, port, security and fixed username.
+      await dialog.getByRole('combobox', { name: 'مزود البريد' }).click()
+      await page.getByRole('option', { name: 'SendGrid', exact: true }).click()
+      await page.getByRole('listbox').waitFor({ state: 'detached' })
+      assert.equal(await field('خادم SMTP').inputValue(), 'smtp.sendgrid.net')
+      assert.equal(await field('المنفذ').inputValue(), '587')
+      assert.equal(await field('اسم المستخدم').inputValue(), 'apikey')
+      assert.include(
+        await dialog.getByRole('combobox', { name: 'نوع الأمان' }).innerText(),
+        'STARTTLS'
+      )
+      assert.include(await dialog.innerText(), 'مفتاح API من SendGrid')
+      // The environment lines stay available as the alternative.
+      const lines = await dialog.getByTestId('mail-env-lines').innerText()
+      assert.include(lines, 'SMTP_HOST=smtp.sendgrid.net')
+      assert.match(lines, /^SMTP_PASSWORD=$/m)
+      await dialog.getByRole('button', { name: 'نسخ الأسطر', exact: true }).click()
+      const copied = await page.evaluate(
+        () => (globalThis as unknown as { copied: string[] }).copied
+      )
+      assert.deepEqual(copied, [lines.trim()])
+
+      await field('خادم SMTP').fill('127.0.0.1')
+      await field('المنفذ').fill('2525')
+      await field('كلمة المرور').fill(secret)
+      await field('اسم المرسل').fill('نظام الاختبار')
+      await field('عنوان المرسل').fill('no-reply@example.test')
+      await dialog.getByRole('button', { name: 'حفظ', exact: true }).click()
+      await dialog.waitFor({ state: 'hidden' })
+      await page.getByText('تم حفظ إعداد البريد').waitFor()
+      const stored = await knex()('settings').where('key', 'mail.smtp').first()
+      assert.equal(stored.value.host, '127.0.0.1')
+      assert.equal(stored.value.port, 2525)
+      assert.equal(stored.value.preset, 'sendgrid')
+      assert.isString(stored.value.secret)
+      assert.notInclude(JSON.stringify(stored.value), secret)
+      // The tab now shows the saved settings in force, the password only as a state.
+      const summary = await page.locator('main').innerText()
+      assert.include(summary, 'يرسل النظام بالإعداد المحفوظ هنا.')
+      assert.include(summary, '127.0.0.1:2525')
+      assert.include(summary, 'محفوظة')
+      assert.notInclude(await page.content(), secret)
+
+      // Reopened, the password is a saved state with «تغيير» and «حذف», never a value.
+      await page.getByRole('button', { name: 'إعداد البريد', exact: true }).click()
+      await dialog.waitFor()
+      const passwordGroup = dialog.getByRole('group', { name: 'كلمة المرور' })
+      await passwordGroup.getByText('كلمة مرور محفوظة').waitFor()
+      assert.equal(await dialog.locator('input[type="password"]').count(), 0)
+      assert.notInclude(await page.content(), secret)
+      await passwordGroup.getByRole('button', { name: 'تغيير', exact: true }).click()
+      assert.equal(await field('كلمة المرور').inputValue(), '')
+      await page.keyboard.press('Escape')
+      await dialog.waitFor({ state: 'hidden' })
+
+      await page.getByRole('button', { name: 'إعداد البريد', exact: true }).click()
+      await dialog.waitFor()
+      await passwordGroup.getByRole('button', { name: 'حذف', exact: true }).click()
+      const confirmation = page.getByRole('dialog', { name: 'حذف كلمة مرور البريد؟' })
+      await confirmation.getByRole('button', { name: 'حذف كلمة المرور', exact: true }).click()
+      await page.getByText('تم حذف كلمة مرور البريد.').waitFor()
+      await field('كلمة المرور').waitFor()
+      const cleared = await knex()('settings').where('key', 'mail.smtp').first()
+      assert.notProperty(cleared.value, 'secret')
+    } finally {
+      env.set('WEBHOOKS_ALLOW_PRIVATE', allowPrivate.value as never)
+      if (allowPrivate.raw === undefined) delete process.env.WEBHOOKS_ALLOW_PRIVATE
+      else process.env.WEBHOOKS_ALLOW_PRIVATE = allowPrivate.raw
+      await knex()('settings').where('key', 'mail.smtp').delete()
+    }
   })
 
   test('toggling a matrix cell writes the rule and the page reflects it', async ({
@@ -913,8 +979,8 @@ test.group('Administration screens in the browser', (group) => {
             mode === 'dark'
           )
           const surfaces = [
-            { open: 'إعداد الدخول الخارجي', title: 'الدخول الخارجي — اختياري' },
-            { open: 'إعداد البريد', title: 'إعداد البريد' },
+            { open: 'إعداد الدخول الخارجي', title: 'الدخول الخارجي — اختياري', close: 'إغلاق' },
+            { open: 'إعداد البريد', title: 'إعداد البريد', close: 'إلغاء' },
           ]
           for (const surface of surfaces) {
             await page.getByRole('button', { name: surface.open, exact: true }).click()
@@ -977,7 +1043,7 @@ test.group('Administration screens in the browser', (group) => {
               assert.deepEqual(await header.boundingBox(), headerBefore, `${label}: header stayed`)
               assert.deepEqual(await footer.boundingBox(), footerBefore, `${label}: footer stayed`)
             }
-            await footer.getByRole('button', { name: 'إغلاق', exact: true }).click()
+            await footer.getByRole('button', { name: surface.close, exact: true }).click()
             await dialog.waitFor({ state: 'hidden' })
           }
           await page.close()
@@ -990,7 +1056,7 @@ test.group('Administration screens in the browser', (group) => {
     }
   })
 
-  test('the mail setup guide saves nothing, so it always closes at once', async ({
+  test('the mail settings dialog closes at once until a value differs from the saved one', async ({
     browserContext,
     visit,
     assert,
@@ -1000,11 +1066,33 @@ test.group('Administration screens in the browser', (group) => {
       { width: 1440, height: 900 },
       { width: 375, height: 812 },
     ]) {
-      const page = await visit('/admin/settings')
+      const page = await visit('/admin/settings/mail')
       await page.setViewportSize(size)
       const dialog = page.getByRole('dialog', { name: 'إعداد البريد' })
       const confirmClose = page.getByRole('dialog', { name: 'إغلاق النموذج؟' })
-      const provider = dialog.getByRole('combobox', { name: 'اختر مزود البريد:' })
+      const provider = dialog.getByRole('combobox', { name: 'مزود البريد' })
+      const theme = await page.evaluate<string>(
+        'document.documentElement.classList.contains("dark") ? "dark" : "light"'
+      )
+      const shot = async (name: string) =>
+        page.screenshot({
+          path: join(await screenshotDir(), `mail-${name}-${size.width}-${theme}.png`),
+          fullPage: true,
+        })
+      // No horizontal scroll on the tab, phones included.
+      assert.isAtMost(
+        await page.evaluate<number>(
+          'document.documentElement.scrollWidth - document.documentElement.clientWidth'
+        ),
+        0
+      )
+      await shot('tab')
+      const host = dialog.getByLabel('خادم SMTP', { exact: true })
+      const password = dialog.getByLabel('كلمة المرور', { exact: true })
+      const open = async () => {
+        await page.getByRole('button', { name: 'إعداد البريد', exact: true }).click()
+        await dialog.waitFor()
+      }
       const choose = async (name: string) => {
         await provider.click()
         await page.getByRole('option', { name, exact: true }).click()
@@ -1013,30 +1101,50 @@ test.group('Administration screens in the browser', (group) => {
         const chosen = await provider.textContent()
         assert.equal(chosen?.trim(), name)
       }
-      await page.getByRole('button', { name: 'إعداد البريد', exact: true }).click()
-      await dialog.waitFor()
+      const closesAtOnce = async () => {
+        await page.keyboard.press('Escape')
+        await dialog.waitFor({ state: 'hidden' })
+        assert.equal(await confirmClose.count(), 0)
+      }
+      const asksFirst = async () => {
+        await page.keyboard.press('Escape')
+        await confirmClose.waitFor()
+        await confirmClose.getByRole('button', { name: 'متابعة التحرير' }).click()
+        await confirmClose.waitFor({ state: 'hidden' })
+      }
+      await open()
+      await dialog.evaluate(
+        async (element: { getAnimations(): { finished: Promise<unknown> }[] }) => {
+          await Promise.all(element.getAnimations().map((animation) => animation.finished))
+        }
+      )
+      await shot('dialog')
       const first = (await provider.textContent())!.trim()
-      // Unchanged: the footer's «إغلاق» closes at once.
+      // Unchanged: the footer's «إلغاء» closes at once.
       await dialog
         .locator('[data-slot="long-dialog-footer"]')
-        .getByRole('button', { name: 'إغلاق', exact: true })
+        .getByRole('button', { name: 'إلغاء', exact: true })
         .click()
       await dialog.waitFor({ state: 'hidden' })
       assert.equal(await confirmClose.count(), 0)
-      // Another provider only changes the lines shown: Escape still closes at once, and the
-      // next opening starts again from the first provider.
-      await page.getByRole('button', { name: 'إعداد البريد', exact: true }).click()
-      await dialog.waitFor()
+      // Another provider asks; going back to the first provider is clean again.
+      await open()
       await choose('SendGrid')
-      await page.keyboard.press('Escape')
-      await dialog.waitFor({ state: 'hidden' })
-      assert.equal(await confirmClose.count(), 0)
-      await page.getByRole('button', { name: 'إعداد البريد', exact: true }).click()
-      await dialog.waitFor()
-      const reopened = await provider.textContent()
-      assert.equal(reopened?.trim(), first)
-      await page.keyboard.press('Escape')
-      await dialog.waitFor({ state: 'hidden' })
+      await asksFirst()
+      await choose(first)
+      await closesAtOnce()
+      // Typing and restoring a value is clean; a typed password is a change.
+      await open()
+      const original = await host.inputValue()
+      await host.fill('smtp.example.com')
+      await asksFirst()
+      await host.fill(original)
+      await closesAtOnce()
+      await open()
+      await password.fill('x')
+      await asksFirst()
+      await password.fill('')
+      await closesAtOnce()
       await page.close()
     }
   })

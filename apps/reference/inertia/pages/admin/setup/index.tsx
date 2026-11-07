@@ -108,6 +108,8 @@ export default function SetupIndex(props: Props) {
         mailRecipient={props.mailRecipient}
         mailReadiness={props.mailReadiness}
         mailPresets={props.mailPresets}
+        mailSettings={props.mailSettings}
+        mailSettingsApply={props.mailSettingsApply}
         returnTo="setup"
       />
       <div className="grid gap-5 xl:grid-cols-2">

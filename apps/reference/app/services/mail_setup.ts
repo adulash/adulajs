@@ -52,7 +52,7 @@ export const mailPresets: MailPreset[] = [
     host: 'smtp.gmail.com',
     port: 465,
     secure: true,
-    note: 'فعّل التحقق بخطوتين في حساب Google، ثم أنشئ كلمة مرور تطبيق وضعها في SMTP_PASSWORD.',
+    note: 'فعّل التحقق بخطوتين في حساب Google، ثم أنشئ كلمة مرور تطبيق وأدخلها في «كلمة المرور».',
   },
   {
     id: 'zoho',

@@ -29,8 +29,15 @@ export function MailTest({
   mailRecipient,
   mailReadiness,
   mailPresets,
-  returnTo = 'settings',
-}: MailTestProps & { returnTo?: 'settings' | 'setup' }) {
+  mailSettings,
+  mailSettingsApply,
+  returnTo = 'mail',
+  setupButton = true,
+}: MailTestProps & {
+  returnTo?: 'mail' | 'setup'
+  /** False where the page offers «إعداد البريد» itself (the «البريد» tab). */
+  setupButton?: boolean
+}) {
   const [busy, setBusy] = useState(false)
   const [open, setOpen] = useState(false)
   const [setup, setSetup] = useState(false)
@@ -85,9 +92,11 @@ export function MailTest({
           >
             {busy ? 'جارٍ التنفيذ…' : 'إرسال بريد تجريبي'}
           </Button>
-          <Button variant="outline" onClick={() => setSetup(true)}>
-            إعداد البريد
-          </Button>
+          {setupButton && (
+            <Button variant="outline" onClick={() => setSetup(true)}>
+              إعداد البريد
+            </Button>
+          )}
           {pending && (
             <Button variant="outline" disabled={busy} onClick={() => setOpen(true)}>
               تأكيد استلام البريد
@@ -105,6 +114,8 @@ export function MailTest({
         onOpenChange={setSetup}
         mailReadiness={mailReadiness}
         mailPresets={mailPresets}
+        mailSettings={mailSettings}
+        mailSettingsApply={mailSettingsApply}
       />
       <Dialog mode="confirm" open={open} onOpenChange={setOpen}>
         <DialogContent>

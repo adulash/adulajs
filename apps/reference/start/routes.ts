@@ -17,6 +17,7 @@ import redis from '@adonisjs/redis/services/main'
 import {
   apiThrottle,
   assistantTestThrottle,
+  mailTestThrottle,
   assistantThrottle,
   channelChangeThrottle,
   channelCodeThrottle,
@@ -398,6 +399,7 @@ router
     router.post('jobs/sync/:name/run', [AdminJobsController, 'runSync'])
     router.get('jobs/sync/:name/runs', [AdminJobsController, 'syncRuns'])
     router.get('settings', [AdminSettingsController, 'index'])
+    router.get('settings/mail', [AdminSettingsController, 'mail'])
     router.get('templates', [AdminTemplatesController, 'index'])
     router.put('templates/:key', [AdminTemplatesController, 'update'])
     router.delete('templates/:key', [AdminTemplatesController, 'reset'])
@@ -435,8 +437,16 @@ router
     router.post('setup/check/:service', [SetupController, 'check'])
     router.post('setup/identity', [SetupController, 'confirmIdentity'])
     router.post('setup/notification', [SetupController, 'notification'])
-    router.post('settings/mail/test', [AdminSettingsController, 'testMail'])
+    router.post('settings/mail/test', [AdminSettingsController, 'testMail']).use(mailTestThrottle)
     router.post('settings/mail/confirm', [AdminSettingsController, 'confirmMail'])
+    // Each save resolves the host and writes an audited activity: bounded like the API.
+    router.put('settings/mail', [AdminSettingsController, 'updateMail']).use(apiThrottle)
+    router
+      .put('settings/mail/password', [AdminSettingsController, 'setMailPassword'])
+      .use(apiThrottle)
+    router
+      .delete('settings/mail/password', [AdminSettingsController, 'clearMailPassword'])
+      .use(apiThrottle)
     router.put('settings', [AdminSettingsController, 'upsert'])
     router.put('settings/authentication', [AdminAuthenticationSettingsController, 'update'])
     router.put('settings/channels', [AdminSettingsController, 'updateChannel'])

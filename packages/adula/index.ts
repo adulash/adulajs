@@ -577,6 +577,13 @@ export type { ResourceToolCall, ResourceToolError } from './src/admin/resource_t
 export { Assistant } from './src/ai/assistant.js'
 export type { AssistantProposal, AssistantTurnResult, AssistantStatus } from './src/ai/assistant.js'
 export { AssistantSettings, ASSISTANT_LIMITS } from './src/ai/settings.js'
+export { MailSettings, MAIL_SETTINGS_KEY } from './src/core/mail_settings.js'
+export type {
+  MailSettingsView,
+  MailSettingsInput,
+  MailRuntime,
+  MailSecurity,
+} from './src/core/mail_settings.js'
 export type { AssistantSettingsView, AssistantSettingsInput } from './src/ai/settings.js'
 export { createChatClient, AssistantError } from './src/ai/client.js'
 export type { ChatClient, ChatRequest, ChatCompletion } from './src/ai/client.js'

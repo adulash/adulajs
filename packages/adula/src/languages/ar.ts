@@ -128,6 +128,8 @@ export const arabicMessages: Readonly<Record<string, string>> = Object.freeze({
     'رفض خادم البريد عنوان المرسل. استخدم في MAIL_FROM_ADDRESS عنوانًا موثّقًا لدى مزودك.',
   'errors.E_MAIL_TEST_SEND.recipient_rejected':
     'رفض خادم البريد عنوان المستلم. راجع بريد حسابك ثم أعد المحاولة.',
+  'errors.E_MAIL_TEST_SEND.password_unreadable':
+    'تعذّر فتح كلمة مرور البريد المحفوظة، غالبًا بعد تغيير APP_KEY. أدخل كلمة المرور من جديد في تبويب «البريد»، ثم أعد المحاولة.',
   'errors.E_MAIL_NOT_CONFIGURED':
     'إعداد البريد غير مكتمل. افتح «إعداد البريد» وأكمل المتغيرات الناقصة، ثم أعد تشغيل الخادم.',
   'errors.E_MAIL_TEST_ANSWER': 'اختر هل وصلت الرسالة أم لم تصل',

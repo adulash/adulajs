@@ -201,6 +201,19 @@ export const channelTestThrottle = limiter.define('channel_test', (ctx) =>
     .limitExceeded(withMessage)
 )
 
+/**
+ * «إرسال بريد تجريبي» from the settings: 5 per 15 minutes per administrator, on top of the
+ * one-minute cooldown each administrator's test keeps, so the button cannot drive the SMTP
+ * account (or a stored relay) as a sender.
+ */
+export const mailTestThrottle = limiter.define('mail_test', (ctx) =>
+  limiter
+    .allowRequests(5)
+    .every('15 minutes')
+    .usingKey(`user:${ctx.auth.user?.id ?? ctx.request.ip()}`)
+    .limitExceeded(withMessage)
+)
+
 /** Disabling 2FA and regenerating recovery codes: 5 per 15 minutes per signed-in user. */
 export const twoFactorManageThrottle = limiter.define('two_factor_manage', (ctx) =>
   limiter
