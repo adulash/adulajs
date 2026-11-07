@@ -85,29 +85,32 @@ test.group('Dialog close: ask only for unsaved changes', (group) => {
     assert,
   }) => {
     await browserContext.loginAs(admin.user)
-    const page = await visit('/users/invite')
+    // The API token form is a plain form in a dialog: it reports no data-dirty of its own.
+    const page = await visit('/account/tokens')
     await page.setViewportSize({ width: 1440, height: 900 })
-    const dialog = page.getByRole('dialog', { name: 'إضافة مستخدم بدعوة بريدية' })
+    const dialog = page.getByRole('dialog', { name: 'إنشاء رمز API' })
     const confirm = page.getByRole('dialog', { name: 'إغلاق النموذج؟' })
-    await dialog.waitFor()
+    const open = async () => {
+      await page.getByRole('button', { name: 'إنشاء رمز', exact: true }).click()
+      await dialog.waitFor()
+    }
+    await open()
     // This form reports nothing; an untouched dialog still closes without a question.
-    assert.isNull(await dialog.locator('form').first().getAttribute('data-dirty'))
+    assert.equal(await dialog.locator('[data-dirty]').count(), 0)
     await page.keyboard.press('Escape')
     await dialog.waitFor({ state: 'hidden' })
     assert.equal(await confirm.count(), 0)
     // Typing a value and erasing it again leaves nothing unsaved: it closes at once.
-    await page.goto('/users/invite')
-    await dialog.waitFor()
-    const name = dialog.getByLabel('الاسم الكامل')
-    await name.fill('مستخدم مدعو')
+    await open()
+    const name = dialog.getByLabel('اسم الرمز')
+    await name.fill('رمز التجربة')
     await name.fill('')
     await page.keyboard.press('Escape')
     await dialog.waitFor({ state: 'hidden' })
     assert.equal(await confirm.count(), 0)
     // A value that differs from the opening one asks before closing.
-    await page.goto('/users/invite')
-    await dialog.waitFor()
-    await name.fill('مستخدم مدعو')
+    await open()
+    await name.fill('رمز التجربة')
     await page.keyboard.press('Escape')
     await confirm.waitFor()
     await page.getByRole('button', { name: 'إغلاق دون حفظ', exact: true }).click()

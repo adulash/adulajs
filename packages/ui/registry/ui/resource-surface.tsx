@@ -332,7 +332,7 @@ export function ResourceSurface({
       {/* The long dialog pattern: fixed header and footer, only the body scrolls. */}
       <LongDialogContent
         dir={dir}
-        width="full"
+        width="5xl"
         title={title}
         description={description}
         footer={
