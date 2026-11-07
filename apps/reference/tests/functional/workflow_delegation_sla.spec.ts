@@ -127,7 +127,11 @@ test.group('Workflow delegation and SLA over HTTP (ADR 044)', (group) => {
       .loginAs(manager)
       .headers(json)
     candidates.assertStatus(200)
-    assert.deepInclude(candidates.body().data, { id: deputy.user.id, name: 'نائب المدير' })
+    assert.deepInclude(candidates.body().data, {
+      id: deputy.user.id,
+      name: 'نائب المدير',
+      avatarUrl: null,
+    })
     const self = await client
       .get('/account/delegations/candidates')
       .qs({ q: 'مدير القسم المفوِّض' })
@@ -376,7 +380,11 @@ test.group('Workflow delegation and SLA over HTTP (ADR 044)', (group) => {
       .qs({ q: 'المدير العام للوحدة' })
       .loginAs(admin.user)
       .headers(json)
-    assert.deepInclude(candidates.body().data, { id: director.id, name: 'المدير العام للوحدة' })
+    assert.deepInclude(candidates.body().data, {
+      id: director.id,
+      name: 'المدير العام للوحدة',
+      avatarUrl: null,
+    })
 
     const revoked = await client
       .delete(`/admin/delegations/${delegation.id}`)

@@ -432,6 +432,7 @@ export const englishInterfaceMessages: Partial<
   'ui.overview.notifications': 'Unread notifications',
   'ui.overview.modules': 'Work modules',
   'ui.overview.unavailable': 'Unavailable',
+  'ui.overview.countFailed': 'Could not load the count',
   'ui.sortable.handle': 'Move handle for {item}',
   'ui.sortable.moveUp': 'Move {item} up',
   'ui.sortable.moveDown': 'Move {item} down',

@@ -437,7 +437,13 @@ export type {
   MatrixField,
 } from './src/core/roles.js'
 export { UsersAdmin } from './src/core/users.js'
-export { UserAvatars, avatarUrl, avatarHeaders } from './src/core/user_avatars.js'
+export {
+  UserAvatars,
+  avatarUrl,
+  avatarUrlFor,
+  avatarVersionColumn,
+  avatarHeaders,
+} from './src/core/user_avatars.js'
 export type { AvatarRecord, RemovedAvatarFile } from './src/core/user_avatars.js'
 export { prepareAvatarImage, AVATAR_LIMITS } from './src/core/avatar_image.js'
 export type { AvatarImage } from './src/core/avatar_image.js'

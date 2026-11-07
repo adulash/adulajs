@@ -19,6 +19,7 @@ import {
 } from '../database/schema.js'
 import { escapeLike } from '../core/like.js'
 import { canView, resourceLabel, type ActorLoader } from './shared.js'
+import { avatarUrlFor, avatarVersionColumn } from '../core/user_avatars.js'
 
 export type { ActorLoader } from './shared.js'
 
@@ -27,6 +28,8 @@ export type CommentEntry = {
   body: string
   authorId: number
   authorName: string | null
+  /** The author's versioned picture URL, or null without one (ADR 050). */
+  authorAvatarUrl?: string | null
   mentions: { id: number; name: string }[]
   createdAt: string
   editedAt: string | null
@@ -37,7 +40,10 @@ export type FieldChangeEntry = {
   field: string
   before: JsonValue
   after: JsonValue
+  actorId?: number | null
   actorName: string | null
+  /** The actor's versioned picture URL, or null without one (ADR 050). */
+  actorAvatarUrl?: string | null
   createdAt: string
 }
 export type RecordCollaborationState = {
@@ -103,7 +109,7 @@ export class RecordCollaboration {
       .whereNull('c.deleted_at')
       .orderBy('c.id', 'desc')
       .limit(51)
-      .select('c.*', 'u.full_name as author_name')
+      .select('c.*', 'u.full_name as author_name', avatarVersionColumn(this.db, 'c.author_id'))
     const page = rows.slice(0, 50)
     const mentions = page.length
       ? await this.db('comment_mentions as m')
@@ -128,6 +134,7 @@ export class RecordCollaboration {
         body: String(row.body),
         authorId: Number(row.author_id),
         authorName: row.author_name ? String(row.author_name) : null,
+        authorAvatarUrl: avatarUrlFor(row.author_id, row.avatar_version),
         mentions: mentions
           .filter((mention) => Number(mention.comment_id) === Number(row.id))
           .map((mention) => ({ id: Number(mention.id), name: String(mention.full_name ?? '') })),
@@ -160,7 +167,13 @@ export class RecordCollaboration {
       .where({ 'f.resource': resource.name, 'f.record_id': id })
       .orderBy('f.id', 'desc')
       .limit(200)
-      .select('f.*', 'a.created_at', 'u.full_name as actor_name')
+      .select(
+        'f.*',
+        'a.created_at',
+        'a.actor_id',
+        'u.full_name as actor_name',
+        avatarVersionColumn(this.db, 'a.actor_id')
+      )
     // Values are filtered per viewer: a private field's history is as private as the field.
     return rows
       .filter((row) => readableField(resource, record, ability, actor, String(row.field)))
@@ -170,7 +183,9 @@ export class RecordCollaboration {
         field: String(row.field),
         before: jsonValue(row.before),
         after: jsonValue(row.after),
+        actorId: row.actor_id === null ? null : Number(row.actor_id),
         actorName: row.actor_name ? String(row.actor_name) : null,
+        actorAvatarUrl: avatarUrlFor(row.actor_id, row.avatar_version),
         createdAt: new Date(row.created_at).toISOString(),
       }))
   }
@@ -222,7 +237,9 @@ export class RecordCollaboration {
         .insert({ resource: name, record_id: id, user_id: actor.id })
         .onConflict(['resource', 'record_id', 'user_id'])
         .ignore()
-      const author = await trx('users').where('id', actor.id).first('full_name')
+      const author = await trx('users as u')
+        .where('u.id', actor.id)
+        .first('u.full_name', avatarVersionColumn(trx, 'u.id'))
       const authorName = author?.full_name ? String(author.full_name) : `مستخدم #${actor.id}`
       const label = this.label(name)
       const variables = { author: authorName, resource: label, id, excerpt: body.slice(0, 200) }
@@ -261,6 +278,7 @@ export class RecordCollaboration {
         body,
         authorId: actor.id,
         authorName: author?.full_name ? String(author.full_name) : null,
+        authorAvatarUrl: avatarUrlFor(actor.id, author?.avatar_version),
         mentions: names.map((user) => ({
           id: Number(user.id),
           name: String(user.full_name ?? ''),

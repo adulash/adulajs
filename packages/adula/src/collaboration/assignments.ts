@@ -8,6 +8,7 @@ import { actionableBy, delegationActive } from '../workflows/delegations.js'
 import { assertTimeZone, calendarDate } from '../workflows/calendar.js'
 import { slaState, type SlaState } from '../workflows/sla.js'
 import { canonicalDate } from '../resource/values.js'
+import { avatarUrlFor, avatarVersionColumn } from '../core/user_avatars.js'
 
 export type AssignmentStatus = 'open' | 'done' | 'cancelled'
 export type Assignment = {
@@ -19,8 +20,12 @@ export type Assignment = {
   recordTitle: string | null
   assigneeId: number
   assigneeName: string | null
+  /** The assignee's versioned picture URL, or null without one (ADR 050). */
+  assigneeAvatarUrl?: string | null
   assignedBy: number | null
   assignedByName: string | null
+  /** Who assigned it: their versioned picture URL, or null without one (ADR 050). */
+  assignedByAvatarUrl?: string | null
   kind: string
   title: string
   note: string | null
@@ -504,6 +509,8 @@ export class Assignments {
         'u.full_name as assignee_name',
         'b.full_name as assigned_by_name',
         'ob.full_name as on_behalf_of_name',
+        avatarVersionColumn(db, 'a.assignee_id', 'assignee_avatar'),
+        avatarVersionColumn(db, 'a.assigned_by', 'assigned_by_avatar'),
         'wr.status as run_status',
         'wr.current_step as run_step',
         'wr.started_by as run_started_by',
@@ -550,8 +557,10 @@ export class Assignments {
       recordTitle: null,
       assigneeId: Number(row.assignee_id),
       assigneeName: row.assignee_name ? String(row.assignee_name) : null,
+      assigneeAvatarUrl: avatarUrlFor(row.assignee_id, row.assignee_avatar),
       assignedBy: row.assigned_by === null ? null : Number(row.assigned_by),
       assignedByName: row.assigned_by_name ? String(row.assigned_by_name) : null,
+      assignedByAvatarUrl: avatarUrlFor(row.assigned_by, row.assigned_by_avatar),
       kind: String(row.kind),
       title: String(row.title),
       note: row.note === null ? null : String(row.note),

@@ -1,8 +1,11 @@
 import { test } from '@japa/runner'
 import { join } from 'node:path'
 import db from '@adonisjs/lucid/services/db'
+import { adula } from '#services/adula'
 import {
+  installSampleResources,
   longDialogLayout,
+  removeSampleResources,
   screenshotDir,
   seedActor,
   type UiActor,
@@ -236,5 +239,88 @@ test.group('Personal overview browser acceptance (#159)', (group) => {
     await page.screenshot({ path: join(await screenshotDir(), 'overview-customize-phone.png') })
     await footer.getByRole('button', { name: 'حفظ', exact: true }).click()
     await dialog.waitFor({ state: 'hidden' })
+  })
+
+  test('the task counter shows the open tasks, and 0 rather than «غير متاح» without any', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await installSampleResources()
+    try {
+      const actor = await adula().actors.load(wide.user.id)
+      const saved = await adula().resources.save('ui_samples', actor, {
+        title: 'عينة عداد المهام',
+        orgUnitId: wide.orgUnitId,
+      })
+      await db
+        .connection()
+        .getWriteClient()('assignments')
+        .insert({
+          resource: 'ui_samples',
+          record_id: Number(saved.id),
+          assignee_id: wide.user.id,
+          assigned_by: wide.user.id,
+          title: 'مهمة للعداد',
+        })
+      const counter = (page: any) =>
+        page.locator('[data-widget="core.tasks"]').getByTestId('overview-counter-value')
+      await browserContext.loginAs(wide.user)
+      const page = await visit('/')
+      // The count is deferred: the card waits for it instead of claiming it is unavailable.
+      // `toLocaleString('ar')` gives Arabic-Indic or Western digits depending on the browser.
+      await counter(page)
+        .getByText(/^[1١]$/)
+        .waitFor()
+      assert.equal(await page.getByText('غير متاح').count(), 0)
+
+      await browserContext.clearCookies()
+      await browserContext.loginAs(narrow.user)
+      const empty = await visit('/')
+      await counter(empty)
+        .getByText(/^[0٠]$/)
+        .waitFor()
+      assert.equal(await empty.getByText('غير متاح').count(), 0)
+    } finally {
+      await removeSampleResources()
+    }
+  })
+
+  test('a failed task count says so and reloads only that count on «إعادة المحاولة»', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    // The deferred count request fails once, as on a dropped connection.
+    let blocked = true
+    const deferred = (request: any) =>
+      String(request.headers()['x-inertia-partial-data'] ?? '').includes('openTasks')
+    await browserContext.route('**/*', async (route: any) => {
+      if (blocked && deferred(route.request())) return route.abort('failed')
+      return route.fallback()
+    })
+    try {
+      await browserContext.loginAs(narrow.user)
+      const page = await visit('/')
+      const card = page.locator('[data-widget="core.tasks"]')
+      await card.getByRole('alert').getByText('تعذّر تحميل العدد').waitFor()
+      // Failure is not loading: no loading status remains.
+      assert.equal(await card.getByRole('status').count(), 0)
+      blocked = false
+      const reloads: string[] = []
+      page.on('request', (request: any) => {
+        const partial = request.headers()['x-inertia-partial-data']
+        if (partial) reloads.push(partial)
+      })
+      await card.getByRole('button', { name: 'إعادة المحاولة' }).click()
+      await card
+        .getByTestId('overview-counter-value')
+        .getByText(/^[0٠]$/)
+        .waitFor()
+      assert.deepEqual(reloads, ['openTasks'])
+      assert.equal(await card.getByRole('alert').count(), 0)
+    } finally {
+      await browserContext.unroute('**/*')
+    }
   })
 })

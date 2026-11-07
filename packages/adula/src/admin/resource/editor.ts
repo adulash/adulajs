@@ -8,6 +8,7 @@ import { AdulaError, documentLocked, forbiddenField, invalidCursor } from '../er
 import { attachmentLimit, fieldValue } from '../../resource/values.js'
 import type { Field } from '../../resource/types.js'
 import { escapeLike } from '../../core/like.js'
+import { avatarUrlFor, avatarVersionColumn } from '../../core/user_avatars.js'
 import { labelText } from '../../languages/catalog.js'
 import type { ResourceField } from '../presentation.js'
 import {
@@ -66,7 +67,8 @@ export async function editor(
       )
     })
     .map((key) => editorField(key, resource.fields[key]))
-  const options: Record<string, { value: string; label: string }[]> = {}
+  // User choices also carry the person's picture (null without one, ADR 050).
+  const options: Record<string, { value: string; label: string; avatarUrl?: string | null }[]> = {}
   const relationSearch: Record<string, boolean> = {}
   const onlyChoice = new Map<string, number>()
   const inline: Record<
@@ -194,11 +196,14 @@ export async function editor(
       options[field.key] = []
       const selected = record?.[field.key]
       if (selected !== null && selected !== undefined) {
-        const current = await db('users').where('id', Number(selected)).first('id', 'full_name')
+        const current = await db('users as u')
+          .where('u.id', Number(selected))
+          .first('u.id', 'u.full_name', avatarVersionColumn(db, 'u.id'))
         if (current)
           options[field.key].push({
             value: String(current.id),
             label: String(current.full_name || `#${current.id}`),
+            avatarUrl: avatarUrlFor(current.id, current.avatar_version),
           })
       }
     }
@@ -245,11 +250,15 @@ export async function editor(
         // The unit is chosen later in the form; saving checks the record's unit.
         const user = await eligibleUsers(db, null, actor)
           .where('u.id', Number(value))
-          .first('u.id', 'u.full_name')
+          .first('u.id', 'u.full_name', avatarVersionColumn(db, 'u.id'))
         if (!user) continue
         const choices = options[field.key] ?? (options[field.key] = [])
         if (!choices.some((option) => option.value === String(user.id)))
-          choices.push({ value: String(user.id), label: String(user.full_name || `#${user.id}`) })
+          choices.push({
+            value: String(user.id),
+            label: String(user.full_name || `#${user.id}`),
+            avatarUrl: avatarUrlFor(user.id, user.avatar_version),
+          })
       }
       if (field.type === 'lookup' || field.type === 'belongsTo') {
         const choices = options[field.key] ?? []
@@ -376,13 +385,14 @@ async function userOptions(
     .where('u.id', '>', after)
     .orderBy('u.id')
     .limit(51)
-    .select('u.id', 'u.full_name')
+    .select('u.id', 'u.full_name', avatarVersionColumn(ctx.db, 'u.id'))
   if (options.search) query.whereILike('u.full_name', `%${escapeLike(options.search)}%`)
   const rows = await query
   return {
     data: rows.slice(0, 50).map((row) => ({
       value: String(row.id),
       label: String(row.full_name || `#${row.id}`),
+      avatarUrl: avatarUrlFor(row.id, row.avatar_version),
     })),
     nextCursor: rows.length > 50 ? String(rows[49].id) : null,
   }

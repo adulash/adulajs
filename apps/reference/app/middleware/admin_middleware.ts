@@ -23,9 +23,10 @@ async function countRows(table: string, where: Record<string, string | number>) 
 
 /**
  * The «مهامي» badge. A failing record check (a resource whose table is missing, a database
- * error) hides the badge instead of failing every page, and never falls back to a raw count.
+ * error) hides the badge instead of failing every page, and never falls back to a raw count:
+ * the count is null, so the badge stays hidden and the overview offers to try again.
  */
-async function openTasks(userId: number) {
+async function openTasks(userId: number): Promise<number | null> {
   const runtime = adula()
   try {
     const actor = await runtime.actors.load(userId)
@@ -34,7 +35,7 @@ async function openTasks(userId: number) {
     return open
   } catch (error) {
     logger.error({ err: error, userId }, 'my tasks badge count failed')
-    return 0
+    return null
   }
 }
 
