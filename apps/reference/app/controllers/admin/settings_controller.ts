@@ -41,17 +41,26 @@ export default class SettingsController {
         ? await new SettingsAdmin(knex()).list(scope, scopeId)
         : []
     if (wantsJson(ctx)) return { data: settings, scope, scopeId }
-    const user = ctx.auth.getUserOrFail()
-    const state = await mailTest().current(user.id, user.email, await mailFingerprint())
     return ctx.inertia.render('admin/settings/index', {
       settings,
       scope,
       scopeId,
+      authentication: await authenticationSettings(),
+      messagingChannel: await adula().channelSettings.read(),
+    })
+  }
+
+  /**
+   * The «البريد» tab (owner decisions 16 and 22): the SMTP settings saved here, the provider
+   * presets and «إرسال بريد تجريبي». The stored password never reaches these props.
+   */
+  async mail(ctx: HttpContext) {
+    const user = ctx.auth.getUserOrFail()
+    const state = await mailTest().current(user.id, user.email, await mailFingerprint())
+    return ctx.inertia.render('admin/settings/mail', {
       mailTest: publicMailTest(state),
       mailRecipient: user.email,
       ...(await mailSetupProps()),
-      authentication: await authenticationSettings(),
-      messagingChannel: await adula().channelSettings.read(),
     })
   }
 
@@ -72,7 +81,7 @@ export default class SettingsController {
         )
       },
       'قُبل طلب الإرسال. تحقق من بريدك وأكد وصول الرسالة.',
-      ctx.request.input('returnTo') === 'setup' ? '/admin/setup' : '/admin/settings'
+      ctx.request.input('returnTo') === 'setup' ? '/admin/setup' : '/admin/settings/mail'
     )
   }
 
@@ -91,7 +100,7 @@ export default class SettingsController {
       ctx.request.input('received') === true
         ? 'تم تسجيل تأكيدك بوصول الرسالة'
         : 'تم تسجيل عدم وصول الرسالة. راجع البريد غير المرغوب وإعدادات البريد.',
-      ctx.request.input('returnTo') === 'setup' ? '/admin/setup' : '/admin/settings'
+      ctx.request.input('returnTo') === 'setup' ? '/admin/setup' : '/admin/settings/mail'
     )
   }
 

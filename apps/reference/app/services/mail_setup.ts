@@ -55,14 +55,6 @@ export const mailPresets: MailPreset[] = [
     note: 'فعّل التحقق بخطوتين في حساب Google، ثم أنشئ كلمة مرور تطبيق وضعها في SMTP_PASSWORD.',
   },
   {
-    id: 'microsoft365',
-    name: 'Microsoft 365',
-    host: 'smtp.office365.com',
-    port: 587,
-    secure: false,
-    note: 'فعّل «SMTP AUTH» للحساب المرسل في مركز إدارة Microsoft 365، واستخدم البريد كاملًا اسمًا للمستخدم.',
-  },
-  {
     id: 'zoho',
     name: 'Zoho Mail',
     host: 'smtp.zoho.com',

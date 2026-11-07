@@ -8,6 +8,8 @@ import { UserInvitations } from 'adula'
 import UserInvitationNotification from '#mails/user_invitation_notification'
 import app from '@adonisjs/core/services/app'
 import { mkdir } from 'node:fs/promises'
+import { join } from 'node:path'
+import { screenshotDir } from '#tests/helpers/ui_fixtures'
 
 /** The browser global read inside page.evaluate (the test project has no DOM types). */
 type Styled = { getComputedStyle: (element: unknown) => { listStyleType: string } }
@@ -305,7 +307,11 @@ test.group('Administration screens in the browser', (group) => {
     env.set('WEBHOOKS_ALLOW_PRIVATE', true)
     try {
       await browserContext.loginAs(admin)
-      const page = await visit('/admin/settings')
+      const page = await visit('/admin/settings/mail')
+      // A tab of the horizontal «الإعدادات» row (owner decision 22), selected on its own address.
+      const tab = page.getByRole('tab', { name: 'البريد' })
+      assert.equal(await tab.getAttribute('aria-selected'), 'true')
+      assert.include(await page.locator('main').innerText(), 'لا إعداد محفوظ بعد')
       await page.evaluate(() => {
         const copied: string[] = []
         ;(globalThis as unknown as { copied: string[] }).copied = copied
@@ -357,6 +363,12 @@ test.group('Administration screens in the browser', (group) => {
       assert.equal(stored.value.preset, 'sendgrid')
       assert.isString(stored.value.secret)
       assert.notInclude(JSON.stringify(stored.value), secret)
+      // The tab now shows the saved settings in force, the password only as a state.
+      const summary = await page.locator('main').innerText()
+      assert.include(summary, 'يرسل النظام بالإعداد المحفوظ هنا.')
+      assert.include(summary, '127.0.0.1:2525')
+      assert.include(summary, 'محفوظة')
+      assert.notInclude(await page.content(), secret)
 
       // Reopened, the password is a saved state with «تغيير» and «حذف», never a value.
       await page.getByRole('button', { name: 'إعداد البريد', exact: true }).click()
@@ -1054,11 +1066,27 @@ test.group('Administration screens in the browser', (group) => {
       { width: 1440, height: 900 },
       { width: 375, height: 812 },
     ]) {
-      const page = await visit('/admin/settings')
+      const page = await visit('/admin/settings/mail')
       await page.setViewportSize(size)
       const dialog = page.getByRole('dialog', { name: 'إعداد البريد' })
       const confirmClose = page.getByRole('dialog', { name: 'إغلاق النموذج؟' })
       const provider = dialog.getByRole('combobox', { name: 'مزود البريد' })
+      const theme = await page.evaluate<string>(
+        'document.documentElement.classList.contains("dark") ? "dark" : "light"'
+      )
+      const shot = async (name: string) =>
+        page.screenshot({
+          path: join(await screenshotDir(), `mail-${name}-${size.width}-${theme}.png`),
+          fullPage: true,
+        })
+      // No horizontal scroll on the tab, phones included.
+      assert.isAtMost(
+        await page.evaluate<number>(
+          'document.documentElement.scrollWidth - document.documentElement.clientWidth'
+        ),
+        0
+      )
+      await shot('tab')
       const host = dialog.getByLabel('خادم SMTP', { exact: true })
       const password = dialog.getByLabel('كلمة المرور', { exact: true })
       const open = async () => {
@@ -1070,7 +1098,8 @@ test.group('Administration screens in the browser', (group) => {
         await page.getByRole('option', { name, exact: true }).click()
         // Let the list close first, or it takes the next Escape for itself.
         await page.getByRole('listbox').waitFor({ state: 'detached' })
-        assert.equal((await provider.textContent())?.trim(), name)
+        const chosen = await provider.textContent()
+        assert.equal(chosen?.trim(), name)
       }
       const closesAtOnce = async () => {
         await page.keyboard.press('Escape')
@@ -1084,6 +1113,12 @@ test.group('Administration screens in the browser', (group) => {
         await confirmClose.waitFor({ state: 'hidden' })
       }
       await open()
+      await dialog.evaluate(
+        async (element: { getAnimations(): { finished: Promise<unknown> }[] }) => {
+          await Promise.all(element.getAnimations().map((animation) => animation.finished))
+        }
+      )
+      await shot('dialog')
       const first = (await provider.textContent())!.trim()
       // Unchanged: the footer's «إلغاء» closes at once.
       await dialog

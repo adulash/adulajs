@@ -131,13 +131,13 @@ test.group('Core administration screens', (group) => {
       }>('mail.delivery_test', 'user', String(admin.id))
       assert.equal(state?.recipient, admin.email)
       assert.equal(state?.status, 'pending')
-      const page = await asPage(client.get('/admin/settings').loginAs(admin))
+      const page = await asPage(client.get('/admin/settings/mail').loginAs(admin))
       assert.notProperty(page.body().props.mailTest, 'fingerprint')
       const confirmed = await asJson(
         client.post('/admin/settings/mail/confirm').loginAs(admin)
       ).json({ id: state!.id, received: true })
       confirmed.assertStatus(200)
-      const fresh = await asPage(client.get('/admin/settings').loginAs(admin))
+      const fresh = await asPage(client.get('/admin/settings/mail').loginAs(admin))
       assert.equal(fresh.body().props.mailTest.status, 'confirmed')
       const stale = await asJson(client.post('/admin/settings/mail/confirm').loginAs(admin)).json({
         id: state!.id,
@@ -273,7 +273,7 @@ test.group('Core administration screens', (group) => {
         presetEnvLines(preset)
       )
       env.set('SMTP_USERNAME', '')
-      const missing = await asPage(client.get('/admin/settings').loginAs(admin))
+      const missing = await asPage(client.get('/admin/settings/mail').loginAs(admin))
       assert.deepEqual(missing.body().props.mailReadiness.missing, ['SMTP_USERNAME'])
 
       const surfaces = [
@@ -319,6 +319,7 @@ test.group('Core administration screens', (group) => {
       '/admin/activity',
       '/admin/jobs',
       '/admin/settings',
+      '/admin/settings/mail',
       '/admin/setup',
     ]
     for (const path of pages) {

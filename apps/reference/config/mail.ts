@@ -18,11 +18,14 @@ class Smtp implements MailTransportContract {
   }
 
   async send(message: NodeMailerMessage) {
-    return (await this.#transport()).send(message)
+    const transport = await this.#transport()
+    return transport.send(message)
   }
 
   async close() {
-    if (this.#inner) await (await this.#inner).close?.()
+    if (!this.#inner) return
+    const transport = await this.#inner
+    await transport.close?.()
   }
 }
 

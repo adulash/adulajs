@@ -5,7 +5,6 @@ import type { SettingRow, SettingScope } from 'adula'
 import Workspace from '~/layouts/workspace'
 import { AdminHeader } from '~/components/admin-nav'
 import { UiSettings } from '~/components/ui-settings'
-import { MailTest, type MailTestProps } from '~/components/mail-test'
 import {
   AuthenticationSettings,
   type AuthenticationSettingsProps,
@@ -45,7 +44,7 @@ type Props = {
   scopeId: string
   authentication: AuthenticationSettingsProps
   messagingChannel: MessagingChannelProps
-} & MailTestProps
+}
 type Draft = { id: number | null; key: string; value: string }
 const SCOPES: [SettingScope, string][] = [
   ['system', 'النظام'],
@@ -66,12 +65,6 @@ export default function SettingsIndex({
   settings,
   scope,
   scopeId,
-  mailTest,
-  mailRecipient,
-  mailReadiness,
-  mailPresets,
-  mailSettings,
-  mailSettingsApply,
   authentication,
   messagingChannel,
 }: Props) {
@@ -109,14 +102,6 @@ export default function SettingsIndex({
       </AdminHeader>
       <UiSettings key={JSON.stringify(preferences)} initial={preferences} />
       <AuthenticationSettings authentication={authentication} />
-      <MailTest
-        mailTest={mailTest}
-        mailRecipient={mailRecipient}
-        mailReadiness={mailReadiness}
-        mailPresets={mailPresets}
-        mailSettings={mailSettings}
-        mailSettingsApply={mailSettingsApply}
-      />
       <MessagingChannelSettings channel={messagingChannel} />
       <h2 className="mb-4 text-lg font-semibold">إعدادات متقدمة</h2>
       <div className="mb-6 flex flex-wrap items-center gap-4">

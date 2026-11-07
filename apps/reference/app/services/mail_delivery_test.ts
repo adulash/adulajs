@@ -3,12 +3,7 @@ import mail from '@adonisjs/mail/services/main'
 import { MailDeliveryTest, type MailTestState } from 'adula'
 import db from '@adonisjs/lucid/services/db'
 import env from '#start/env'
-import {
-  mailReadiness,
-  mailPresets,
-  presetEnvLines,
-  type MailValues,
-} from '#services/mail_setup'
+import { mailReadiness, mailPresets, presetEnvLines, type MailValues } from '#services/mail_setup'
 import { environmentMail, storedSettingsApply } from '#services/mail_transport'
 import { adula } from '#services/adula'
 

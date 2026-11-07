@@ -318,9 +318,11 @@ worker then delivers it through each channel the recipient has enabled:
 
 ### E-mail server (SMTP)
 
-An administrator configures mail under «إعداد البريد» in `/admin/settings` (and in the setup
-center). The form offers presets for Gmail or Google Workspace, Microsoft 365, Zoho, Amazon
-SES, Mailgun, SendGrid and a custom server. Each preset fills the host, port, security and,
+An administrator configures mail in the «البريد» tab of «الإعدادات» (`/admin/settings/mail`,
+and in the setup center). The tab shows the settings in force, «إعداد البريد» opens the form,
+and «إرسال بريد تجريبي» checks delivery. The form offers presets for Gmail or Google
+Workspace, Zoho, Amazon SES, Mailgun, SendGrid and a custom server. There is no Microsoft 365
+preset, because Microsoft is retiring password sign-in for SMTP. Each preset fills the host, port, security and,
 for SendGrid, the fixed username `apikey`. The administrator completes the username, the
 password and the sender, saves, then uses «إرسال بريد تجريبي». The change applies to the next
 message in the web process and the worker, with no restart.
@@ -331,7 +333,14 @@ message in the web process and the worker, with no restart.
   without the sealed value.
 * **Host.** A bare name or address (no scheme, port or path). Private, loopback and metadata
   addresses are refused unless `WEBHOOKS_ALLOW_PRIVATE=true`, and the connection uses the
-  checked address with the certificate verified against the name.
+  checked address with the certificate verified against the name. Every message checks the
+  address again, so a name that later resolves inside is refused before connecting.
+* **Security.** TLS, STARTTLS or none. None is accepted only for an internal relay (a private
+  address, which itself needs the opt-in), at saving and again at sending, so the password and
+  the messages never cross the internet in clear text.
+* **Test message.** «إرسال بريد تجريبي» goes to the administrator's own address, with a fixed
+  subject and body. It waits one minute between tests and allows five per 15 minutes for each
+  administrator.
 * **Sender.** One plain address; the name is one line without `<`, `>` or `"`.
 * **Audit.** Each change is an activity in `core.mail` that names the changed fields, never
   their values.
@@ -341,7 +350,7 @@ message in the web process and the worker, with no restart.
 
 The JSON endpoints are `PUT /admin/settings/mail` (everything except the password),
 `PUT /admin/settings/mail/password` and `DELETE /admin/settings/mail/password`. All three
-require the administration permission.
+require the administration permission, like the tab itself.
 
 ### Text-message provider
 

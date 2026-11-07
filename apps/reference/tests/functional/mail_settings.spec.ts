@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { ApiRequest } from '@japa/api-client'
 import db from '@adonisjs/lucid/services/db'
 import mail from '@adonisjs/mail/services/main'
+import limiter from '@adonisjs/limiter/services/main'
 import env from '#start/env'
 import User from '#models/user'
 import { smtpSink } from '../helpers/smtp.js'
@@ -40,6 +41,19 @@ test.group('In-app mail settings', (group) => {
     await forget()
     return asJson(client.post('/admin/settings/mail/test').loginAs(admin))
   }
+  const expectStatus = async (request: Promise<any>, status: number) => {
+    const response = await request
+    response.assertStatus(status)
+    return response
+  }
+  const bodyOf = async (request: Promise<any>) => {
+    const response = await request
+    return response.body()
+  }
+  const propsOf = async (request: Promise<any>) => {
+    const body = await bodyOf(request)
+    return body.props
+  }
   const store = (client: any, values: Record<string, unknown>) =>
     asJson(client.put('/admin/settings/mail').loginAs(admin)).json(values)
 
@@ -66,6 +80,7 @@ test.group('In-app mail settings', (group) => {
     // The sink listens on loopback, which only an explicit opt-in allows.
     env.set('WEBHOOKS_ALLOW_PRIVATE', true)
     await mail.close('smtp')
+    await limiter.clear(['memory'])
     return async () => {
       for (const key of KEYS) {
         env.set(key, saved[key] as never)
@@ -118,24 +133,25 @@ test.group('In-app mail settings', (group) => {
       assert.include(sink.messages[0], 'sender@example.test')
 
       // A new sender applies to the next message in the same process: no restart, no reload.
-      ;(await store(client, { fromAddress: 'billing@example.test' })).assertStatus(200)
-      ;(await send(client)).assertStatus(200)
+      await expectStatus(store(client, { fromAddress: 'billing@example.test' }), 200)
+      await expectStatus(send(client), 200)
       assert.lengthOf(sink.messages, 2)
       assert.include(sink.messages[1], 'billing@example.test')
       assert.notInclude(sink.messages[1], 'sender@example.test')
 
       // A wrong password reads as a refused login, in Arabic, with the field to fix.
-      ;(
-        await asJson(client.put('/admin/settings/mail/password').loginAs(admin)).json({
+      await expectStatus(
+        asJson(client.put('/admin/settings/mail/password').loginAs(admin)).json({
           password: wrong,
-        })
-      ).assertStatus(200)
+        }),
+        200
+      )
       const refused = await send(client)
       refused.assertStatus(502)
       assert.equal(refused.body().error.code, 'E_MAIL_TEST_SEND')
       assert.include(refused.body().error.message, 'رفض خادم البريد اسم المستخدم')
 
-      const page = await asPage(client.get('/admin/settings').loginAs(admin))
+      const page = await asPage(client.get('/admin/settings/mail').loginAs(admin))
       const props = page.body().props
       assert.equal(props.mailReadiness.source, 'settings')
       assert.isTrue(props.mailReadiness.configured)
@@ -154,7 +170,8 @@ test.group('In-app mail settings', (group) => {
         JSON.stringify(
           await knex()('settings').whereIn('key', ['mail.smtp', 'mail.delivery_test'])
         ),
-        JSON.stringify((await asJson(client.get('/admin/settings').loginAs(admin))).body()),
+        JSON.stringify(await bodyOf(asJson(client.get('/admin/settings').loginAs(admin)))),
+        JSON.stringify(await propsOf(asPage(client.get('/admin/settings').loginAs(admin)))),
       ]
       for (const surface of surfaces) {
         assert.notInclude(surface, secret)
@@ -187,15 +204,15 @@ test.group('In-app mail settings', (group) => {
       env.set('SMTP_USERNAME', '')
       env.set('SMTP_PASSWORD', '')
       env.set('MAIL_FROM_ADDRESS', 'environment@example.test')
-      ;(await send(client)).assertStatus(200)
+      await expectStatus(send(client), 200)
       // The environment's sender is read at start, as before; only the connection is checked.
       assert.lengthOf(fromEnvironment.messages, 1)
-      let props = (await asPage(client.get('/admin/settings').loginAs(admin))).body().props
+      let props = await propsOf(asPage(client.get('/admin/settings/mail').loginAs(admin)))
       assert.equal(props.mailReadiness.source, 'environment')
       assert.isFalse(props.mailSettings.configured)
 
-      ;(
-        await store(client, {
+      await expectStatus(
+        store(client, {
           preset: 'custom',
           host: '127.0.0.1',
           port: fromSettings.port,
@@ -203,19 +220,20 @@ test.group('In-app mail settings', (group) => {
           username: '',
           fromName: '',
           fromAddress: 'settings@example.test',
-        })
-      ).assertStatus(200)
-      ;(await send(client)).assertStatus(200)
+        }),
+        200
+      )
+      await expectStatus(send(client), 200)
       assert.lengthOf(fromSettings.messages, 1)
       assert.include(fromSettings.messages[0], 'settings@example.test')
       assert.lengthOf(fromEnvironment.messages, 1)
 
       // The server's own override wins over the stored settings, which stay saved.
       env.set('MAIL_SETTINGS_SOURCE', 'environment')
-      ;(await send(client)).assertStatus(200)
+      await expectStatus(send(client), 200)
       assert.lengthOf(fromEnvironment.messages, 2)
       assert.lengthOf(fromSettings.messages, 1)
-      props = (await asPage(client.get('/admin/settings').loginAs(admin))).body().props
+      props = await propsOf(asPage(client.get('/admin/settings/mail').loginAs(admin)))
       assert.isFalse(props.mailSettingsApply)
       assert.equal(props.mailReadiness.source, 'environment')
       assert.isTrue(props.mailSettings.configured)
@@ -225,15 +243,17 @@ test.group('In-app mail settings', (group) => {
     }
   })
 
-  test('only administrators change mail settings, and internal hosts need the opt-in', async ({
+  test('only administrators reach the mail tab or change mail settings', async ({
     client,
     assert,
   }) => {
     const values = { host: 'smtp.gmail.com', port: 465, security: 'tls', fromAddress: 'a@b.co' }
     const requests = [
+      client.get('/admin/settings/mail'),
       client.put('/admin/settings/mail').json(values),
       client.put('/admin/settings/mail/password').json({ password: secret }),
       client.delete('/admin/settings/mail/password'),
+      client.post('/admin/settings/mail/test'),
     ]
     for (const request of requests) {
       const response = await request
@@ -242,20 +262,117 @@ test.group('In-app mail settings', (group) => {
         .header('Accept', 'application/json')
       response.assertStatus(403)
     }
+    // A page visit is refused the same way, without the settings in its props.
+    const page = await asPage(client.get('/admin/settings/mail').loginAs(member))
+    assert.notProperty(page.body().props ?? {}, 'mailSettings')
     assert.isUndefined(await knex()('settings').where('key', 'mail.smtp').first())
+    // Nor can an administrator bypass the checks through the generic settings editor.
+    const generic = await asJson(client.put('/admin/settings').loginAs(admin)).json({
+      key: 'mail.smtp',
+      scope: 'system',
+      value: JSON.stringify({ host: '169.254.169.254', port: 25, security: 'none' }),
+    })
+    generic.assertStatus(403)
+    assert.isUndefined(await knex()('settings').where('key', 'mail.smtp').first())
+    // The general settings tab no longer carries the mail props; the «البريد» tab does.
+    const general = await asPage(client.get('/admin/settings').loginAs(admin))
+    assert.notProperty(general.body().props, 'mailSettings')
+    const tab = await asPage(client.get('/admin/settings/mail').loginAs(admin))
+    assert.equal(tab.body().component, 'admin/settings/mail')
+    assert.isFalse(tab.body().props.mailSettings.configured)
+  })
 
+  test('internal hosts need the opt-in, at saving and again at sending', async ({
+    client,
+    assert,
+  }) => {
+    const values = { host: 'smtp.gmail.com', port: 465, security: 'tls', fromAddress: 'a@b.co' }
     env.set('WEBHOOKS_ALLOW_PRIVATE', false)
-    for (const host of ['127.0.0.1', '169.254.169.254', '10.0.0.8']) {
+    for (const host of ['127.0.0.1', '169.254.169.254', '10.0.0.8', '::1']) {
       const refused = await store(client, { ...values, host })
       refused.assertStatus(422)
       assert.equal(refused.body().error.code, 'E_MAIL_HOST')
     }
-    const injected = await store(client, {
-      ...values,
-      host: '127.0.0.1',
-      fromName: 'x\r\nBcc: victim@example.test',
-    })
-    injected.assertStatus(422)
     assert.isUndefined(await knex()('settings').where('key', 'mail.smtp').first())
+
+    // Saved while the opt-in was on: once it is off, the next message is refused before any
+    // connection, so a stored (or re-resolved) internal address is never reached.
+    const sink = await smtpSink()
+    try {
+      env.set('WEBHOOKS_ALLOW_PRIVATE', true)
+      const internal = { ...values, host: '127.0.0.1', port: sink.port, security: 'none' }
+      await expectStatus(store(client, internal), 200)
+      env.set('WEBHOOKS_ALLOW_PRIVATE', false)
+      const refused = await send(client)
+      refused.assertStatus(502)
+      assert.equal(refused.body().error.code, 'E_MAIL_TEST_SEND')
+      assert.lengthOf(sink.messages, 0)
+    } finally {
+      await sink.close()
+    }
+  })
+
+  test('unencrypted SMTP is for internal relays only', async ({ client, assert }) => {
+    // An address literal, so nothing is resolved or contacted: a public server with «بلا تشفير»
+    // would carry the password and the messages in clear text.
+    const values = { host: '8.8.8.8', port: 587, fromAddress: 'a@b.co' }
+    const plain = await store(client, { ...values, security: 'none' })
+    plain.assertStatus(422)
+    assert.equal(plain.body().error.code, 'E_MAIL_SECURITY')
+    assert.isUndefined(await knex()('settings').where('key', 'mail.smtp').first())
+    await expectStatus(store(client, { ...values, security: 'starttls' }), 200)
+    // Switching an existing public server to no encryption is refused as well.
+    const switched = await store(client, { security: 'none' })
+    switched.assertStatus(422)
+    assert.equal(switched.body().error.code, 'E_MAIL_SECURITY')
+    const kept = await knex()('settings').where('key', 'mail.smtp').first()
+    assert.equal(kept.value.security, 'starttls')
+    // An internal relay may still go without encryption (it needs the private opt-in).
+    await expectStatus(store(client, { host: '127.0.0.1', security: 'none' }), 200)
+  })
+
+  test('sender fields cannot add headers to a message', async ({ client, assert }) => {
+    // The host is valid (loopback with the opt-in), so each refusal is the field's own.
+    const values = { host: '127.0.0.1', port: 2525, security: 'none', fromAddress: 'a@b.co' }
+    const cases: [Record<string, string>, string][] = [
+      [{ fromName: 'x\r\nBcc: victim@example.test' }, 'E_MAIL_FROM_NAME'],
+      [{ fromName: 'x <victim@example.test>' }, 'E_MAIL_FROM_NAME'],
+      [{ fromAddress: 'a@b.co\r\nBcc: victim@example.test' }, 'E_MAIL_FROM_ADDRESS'],
+      [{ fromAddress: 'a@b.co, victim@example.test' }, 'E_MAIL_FROM_ADDRESS'],
+      [{ username: 'user\r\nRCPT TO:<victim@example.test>' }, 'E_MAIL_USERNAME'],
+    ]
+    for (const [field, code] of cases) {
+      const refused = await store(client, { ...values, ...field })
+      refused.assertStatus(422)
+      assert.equal(refused.body().error.code, code, JSON.stringify(field))
+    }
+    assert.isUndefined(await knex()('settings').where('key', 'mail.smtp').first())
+    await expectStatus(store(client, values), 200)
+    const password = await asJson(client.put('/admin/settings/mail/password').loginAs(admin)).json({
+      password: 'a\r\nQUIT',
+    })
+    password.assertStatus(422)
+    assert.equal(password.body().error.code, 'E_MAIL_PASSWORD')
+  })
+
+  test('«إرسال بريد تجريبي» is rate limited per administrator', async ({ client, assert }) => {
+    const sink = await smtpSink()
+    try {
+      const internal = {
+        preset: 'custom',
+        host: '127.0.0.1',
+        port: sink.port,
+        security: 'none',
+        fromAddress: 'sender@example.test',
+      }
+      await expectStatus(store(client, internal), 200)
+      // Each request clears the one-minute cooldown first, so only the limiter can refuse.
+      for (let attempt = 0; attempt < 5; attempt++) await expectStatus(send(client), 200)
+      const limited = await send(client)
+      limited.assertStatus(429)
+      assert.lengthOf(sink.messages, 5)
+    } finally {
+      await sink.close()
+    }
   })
 })

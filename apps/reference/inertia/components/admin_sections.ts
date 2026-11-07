@@ -1,5 +1,6 @@
 import {
   Activity,
+  AtSign,
   Bot,
   DatabaseBackup,
   GitBranch,
@@ -100,6 +101,7 @@ export const adminSections: AdminSection[] = [
         label: 'الإعدادات العامة',
         icon: SlidersHorizontal,
       },
+      { id: 'mail', href: '/admin/settings/mail', label: 'البريد', icon: AtSign },
       { id: 'lookups', href: '/admin/lookups', label: 'القوائم المرجعية', icon: ListChecks },
       { id: 'sequences', href: '/admin/sequences', label: 'الترقيم التسلسلي', icon: Hash },
       { id: 'templates', href: '/admin/templates', label: 'قوالب الرسائل', icon: Mail },

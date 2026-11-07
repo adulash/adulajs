@@ -3,6 +3,7 @@ import type { Knex } from 'knex'
 import type { Actor } from '../auth/ability.js'
 import type { SecretBox } from '../integrations/webhooks.js'
 import {
+  isBlockedAddress,
   resolveOutboundTarget,
   type OutboundOptions,
   type OutboundTarget,
@@ -74,6 +75,11 @@ const ADDRESS =
   /^[^\s@<>()",;:\\[\]]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?\.[A-Za-z]{2,}$/
 
 const invalid = (code: string, message: string) => new AdulaError(422, code, message)
+const PLAINTEXT_PUBLIC = () =>
+  invalid(
+    'E_MAIL_SECURITY',
+    'الإرسال بلا تشفير مسموح لخادم بريد داخلي فقط، لأنه يكشف كلمة المرور والرسائل في الطريق. اختر TLS أو STARTTLS.'
+  )
 
 /**
  * SMTP settings kept in the system setting `mail.smtp` (ADR 020 amendment), so an administrator
@@ -115,12 +121,18 @@ export class MailSettings {
     }
   }
 
-  /** The address a connection to `host` must use; refuses private targets per the policy. */
-  async target(host: string): Promise<OutboundTarget> {
-    return resolveOutboundTarget(
+  /**
+   * The address a connection to `host` must use; refuses private targets per the policy. An
+   * unencrypted connection (`none`) is refused unless the address is internal, so the password
+   * and the messages never cross the internet in clear text.
+   */
+  async target(host: string, security?: MailSecurity): Promise<OutboundTarget> {
+    const target = await resolveOutboundTarget(
       new URL(`smtp://${isIP(host) === 6 ? `[${host}]` : host}`),
       this.options
     )
+    if (security === 'none' && !isBlockedAddress(target.address)) throw PLAINTEXT_PUBLIC()
+    return target
   }
 
   private present(value: Stored | null): MailSettingsView {
@@ -215,6 +227,10 @@ export class MailSettings {
     }
     if (!next.host) throw invalid('E_MAIL_HOST', 'اكتب اسم خادم SMTP')
     if (!next.fromAddress) throw invalid('E_MAIL_FROM_ADDRESS', 'اكتب عنوان المرسل')
+    if (next.security === 'none') {
+      const target = await this.assertTarget(next.host as string)
+      if (!isBlockedAddress(target.address)) throw PLAINTEXT_PUBLIC()
+    }
 
     const passwordCleared = next.host !== current.host && current.hasPassword
     delete next.hasPassword
@@ -283,7 +299,7 @@ export class MailSettings {
 
   private async assertTarget(host: string) {
     try {
-      await this.target(host)
+      return await this.target(host)
     } catch (error) {
       if ((error as { category?: string }).category === 'dns')
         throw invalid('E_MAIL_HOST', 'تعذر العثور على خادم SMTP بهذا الاسم')

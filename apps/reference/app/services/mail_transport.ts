@@ -38,7 +38,7 @@ export type EffectiveMail = {
 export async function effectiveMail(): Promise<EffectiveMail> {
   const stored = storedSettingsApply() ? await adula().mailSettings.runtime() : null
   if (!stored) return { source: 'environment', options: smtpOptions(environmentMail()), from: null }
-  const target = await adula().mailSettings.target(stored.host)
+  const target = await adula().mailSettings.target(stored.host, stored.security)
   return {
     source: 'settings',
     options: {
@@ -74,16 +74,16 @@ export class SettingsSmtpTransport implements MailTransportContract {
   #current: { key: string; transport: SMTPTransport } | null = null
 
   async send(message: NodeMailerMessage) {
-    const mail = await effectiveMail()
-    const key = JSON.stringify(mail.options)
+    const effective = await effectiveMail()
+    const key = JSON.stringify(effective.options)
     if (this.#current?.key !== key) {
       await this.#current?.transport.close()
-      this.#current = { key, transport: new SMTPTransport(mail.options) }
+      this.#current = { key, transport: new SMTPTransport(effective.options) }
     }
-    if (mail.from && addressOf(message.from) === defaultFrom())
-      message.from = mail.from.name
-        ? { name: mail.from.name, address: mail.from.address }
-        : mail.from.address
+    if (effective.from && addressOf(message.from) === defaultFrom())
+      message.from = effective.from.name
+        ? { name: effective.from.name, address: effective.from.address }
+        : effective.from.address
     return this.#current.transport.send(message)
   }
 

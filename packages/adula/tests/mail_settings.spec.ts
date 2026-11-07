@@ -1,5 +1,11 @@
 import { test } from '@japa/runner'
-import { MailSettings, MAIL_SETTINGS_KEY, SettingsAdmin, type SecretBox } from '../index.js'
+import {
+  MailSettings,
+  MAIL_SETTINGS_KEY,
+  SettingsAdmin,
+  type MailSettingsView,
+  type SecretBox,
+} from '../index.js'
 import { admin, db, setup } from './helpers.js'
 import { failure } from './helpers/failure.js'
 
@@ -22,7 +28,24 @@ const valid = {
   fromName: 'نظام الشركة',
   fromAddress: 'no-reply@example.com',
 }
-const code = async (promise: Promise<unknown>) => (await failure(promise)).code
+const code = async (promise: Promise<unknown>) => {
+  const error = await failure(promise)
+  return error.code
+}
+const messageOf = async (promise: Promise<unknown>) => {
+  const error = await failure(promise)
+  return error.message
+}
+/** One field of the presented settings. */
+const field = async <K extends keyof MailSettingsView>(settings: MailSettings, key: K) => {
+  const view = await settings.read()
+  return view[key]
+}
+/** The address a connection would use. */
+const address = async (target: Promise<{ address: string }>) => {
+  const resolved = await target
+  return resolved.address
+}
 
 test.group('Mail settings', (group) => {
   group.setup(async () => {
@@ -37,7 +60,7 @@ test.group('Mail settings', (group) => {
     assert,
   }) => {
     const settings = strict()
-    assert.isFalse((await settings.read()).configured)
+    assert.isFalse(await field(settings, 'configured'))
     assert.isNull(await settings.runtime())
     await settings.save(admin, valid)
     const view = await settings.setPassword(admin, PASSWORD)
@@ -50,7 +73,7 @@ test.group('Mail settings', (group) => {
     const runtime = await settings.runtime()
     assert.equal(runtime?.password, PASSWORD)
     assert.equal(runtime?.security, 'starttls')
-    assert.equal((await settings.target(valid.host)).address, '93.184.215.14')
+    assert.equal(await address(settings.target(valid.host)), '93.184.215.14')
 
     // The audit names the changed fields and never a value.
     const activities = await db('activities').where('resource', 'core.mail').orderBy('id')
@@ -64,32 +87,28 @@ test.group('Mail settings', (group) => {
       assert.notInclude(audit, value)
 
     // The generic settings screen cannot read the sealed value or overwrite it.
-    const row = (await new SettingsAdmin(db).list('system')).find(
-      (entry) => entry.key === MAIL_SETTINGS_KEY
-    )!
+    const rows = await new SettingsAdmin(db).list('system')
+    const row = rows.find((entry) => entry.key === MAIL_SETTINGS_KEY)!
     assert.isTrue(row.readOnly)
     assert.notProperty(row.value as object, 'secret')
-    assert.equal(
-      (
-        await failure(
-          new SettingsAdmin(db).upsert(1, { key: MAIL_SETTINGS_KEY, scope: 'system', value: {} })
-        )
-      ).status,
-      403
+    const overwrite = await failure(
+      new SettingsAdmin(db).upsert(1, { key: MAIL_SETTINGS_KEY, scope: 'system', value: {} })
     )
+    assert.equal(overwrite.status, 403)
 
     // Saving the same host keeps the password; a new host drops it.
     await settings.save(admin, { fromName: 'المبيعات' })
-    assert.isTrue((await settings.read()).hasPassword)
+    assert.isTrue(await field(settings, 'hasPassword'))
     await settings.save(admin, { host: 'smtp.other.example' })
-    assert.isFalse((await settings.read()).hasPassword)
-    assert.isNull((await settings.runtime())?.password)
+    assert.isFalse(await field(settings, 'hasPassword'))
+    const runtimeAfter = await settings.runtime()
+    assert.isNull(runtimeAfter?.password)
     const last = await db('activities').where('resource', 'core.mail').orderBy('id', 'desc').first()
     assert.isTrue(last.changes.passwordCleared)
 
     await settings.setPassword(admin, PASSWORD)
     await settings.clearPassword(admin)
-    assert.isFalse((await settings.read()).hasPassword)
+    assert.isFalse(await field(settings, 'hasPassword'))
   })
 
   test('the host is a bare public name or address', async ({ assert }) => {
@@ -108,13 +127,36 @@ test.group('Mail settings', (group) => {
     for (const host of ['127.0.0.1', '169.254.169.254', '10.1.2.3', 'relay.internal', '::1'])
       assert.equal(await code(settings.save(admin, { ...valid, host })), 'E_MAIL_HOST', host)
     assert.equal(
-      (await failure(settings.save(admin, { ...valid, host: 'missing.example' }))).message,
+      await messageOf(settings.save(admin, { ...valid, host: 'missing.example' })),
       'تعذر العثور على خادم SMTP بهذا الاسم'
     )
     const allowed = new MailSettings(db, box, { resolve, allowPrivateTargets: true })
-    assert.equal((await allowed.save(admin, { ...valid, host: '127.0.0.1' })).host, '127.0.0.1')
+    const loopback = await allowed.save(admin, { ...valid, host: '127.0.0.1' })
+    assert.equal(loopback.host, '127.0.0.1')
     // A stored host that later points inside is refused at send time as well.
     await assert.rejects(() => settings.target('relay.internal'))
+  })
+
+  test('an unencrypted connection reaches internal relays only', async ({ assert }) => {
+    // «بلا تشفير» would carry the password and the messages over the internet in clear text.
+    const settings = strict()
+    const plain = settings.save(admin, { ...valid, security: 'none' })
+    assert.equal(await code(plain), 'E_MAIL_SECURITY')
+    await settings.save(admin, valid)
+    assert.equal(await code(settings.save(admin, { security: 'none' })), 'E_MAIL_SECURITY')
+    assert.equal(await field(settings, 'security'), 'starttls')
+    const internal = new MailSettings(db, box, { resolve, allowPrivateTargets: true })
+    const relay = await internal.save(admin, { ...valid, host: 'relay.internal', security: 'none' })
+    assert.equal(relay.security, 'none')
+    // Checked again at sending: a stored relay name that now resolves to a public address is
+    // refused, and an encrypted connection to it is not.
+    const moved = new MailSettings(db, box, {
+      resolve: async () => ['93.184.215.14'],
+      allowPrivateTargets: true,
+    })
+    assert.equal(await code(moved.target('relay.internal', 'none')), 'E_MAIL_SECURITY')
+    assert.equal(await address(moved.target('relay.internal', 'tls')), '93.184.215.14')
+    assert.equal(await address(internal.target('relay.internal', 'none')), '10.0.0.5')
   })
 
   test('headers cannot be injected through the account or the sender', async ({ assert }) => {
@@ -149,6 +191,6 @@ test.group('Mail settings', (group) => {
     assert.equal(await code(settings.setPassword(admin, 'a\r\nb')), 'E_MAIL_PASSWORD')
     assert.equal(await code(settings.setPassword(admin, '')), 'E_MAIL_PASSWORD')
     assert.equal(await code(settings.setPassword(admin, 'x'.repeat(501))), 'E_MAIL_PASSWORD')
-    assert.isFalse((await settings.read()).hasPassword)
+    assert.isFalse(await field(settings, 'hasPassword'))
   })
 })
