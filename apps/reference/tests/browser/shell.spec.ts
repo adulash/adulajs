@@ -217,6 +217,57 @@ test.group('Workspace shell in the browser', (group) => {
     await page.screenshot({ path: join(await screenshotDir(), `frame-375-${theme}.png`) })
   })
 
+  test('changing «عند طي القائمة» while the sidebar is collapsed applies the new mode at once (owner decision 20)', async ({
+    browserContext,
+    visit,
+  }) => {
+    // Start from the defaults: an expanded sidebar that collapses to icons.
+    await knex()('settings')
+      .where({ scope: 'user', scope_id: String(member.user.id) })
+      .whereIn('key', ['preference.shell.sidebar', 'preference.shell.sidebarCollapse'])
+      .delete()
+    await browserContext.loginAs(member.user)
+    const page = await visit('/')
+    await page.setViewportSize({ width: 1440, height: 900 })
+    const sidebar = page.locator('#workspace-sidebar')
+    const trigger = page.locator('[data-sidebar-trigger]')
+    const shell = (mode: string) => page.locator(`[data-workspace-shell][data-sidebar="${mode}"]`)
+    const choose = async (name: string) => {
+      await page.getByRole('button', { name: 'قائمة الحساب' }).first().click()
+      await page.getByRole('menuitemradio', { name }).click()
+      await page.keyboard.press('Escape')
+    }
+    await sidebar.getByRole('navigation', { name: 'التنقل الرئيسي' }).waitFor()
+    await trigger.click()
+    await shell('icons').waitFor()
+
+    // Collapsed to icons: choosing «إخفاء كامل» hides the sidebar now, not at the next collapse.
+    await choose('إخفاء كامل')
+    await shell('hidden').waitFor()
+    await sidebar.waitFor({ state: 'hidden' })
+    await stored(member.user.id, 'shell.sidebarCollapse', 'hidden')
+    await stored(member.user.id, 'shell.sidebar', 'hidden')
+
+    // Hidden: choosing «أيقونات» shows the rail at once.
+    await choose('أيقونات')
+    await shell('icons').waitFor()
+    await sidebar.waitFor()
+    await stored(member.user.id, 'shell.sidebarCollapse', 'icons')
+    await stored(member.user.id, 'shell.sidebar', 'icons')
+
+    // An expanded sidebar stays expanded; the choice waits for its next collapse.
+    await trigger.click()
+    await shell('expanded').waitFor()
+    await choose('إخفاء كامل')
+    await stored(member.user.id, 'shell.sidebarCollapse', 'hidden')
+    await shell('expanded').waitFor()
+    await stored(member.user.id, 'shell.sidebar', 'expanded')
+    await trigger.click()
+    await shell('hidden').waitFor()
+    await choose('أيقونات')
+    await shell('icons').waitFor()
+  })
+
   test('every module group in the collapsed rail shows an icon and its name as a tooltip (#153)', async ({
     browserContext,
     visit,
