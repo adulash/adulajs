@@ -2,13 +2,18 @@ import { test } from '@japa/runner'
 import { join } from 'node:path'
 import type { Page } from 'playwright'
 import { screenshotDir } from '#tests/helpers/ui_fixtures'
+import { configureSignup } from '#tests/helpers/signup'
 
 /**
  * The guest shell (home, sign-in and the other account pages) follows the design standard:
  * a sticky header of project-owned buttons, no legacy frame, and cards at a readable width.
  * Runs in light mode and, in the dark suite (ADULA_TEST_THEME=dark), in dark mode.
  */
-test.group('Guest shell', () => {
+test.group('Guest shell', (group) => {
+  // Earlier suites create administrators, which closes the default signup policy; the sign-up
+  // link these tests assert needs signup explicitly open.
+  group.each.setup(() => configureSignup(true))
+
   const theme = (page: Page) =>
     page.evaluate<string>('document.documentElement.classList.contains("dark") ? "dark" : "light"')
 
