@@ -12,9 +12,9 @@ export function OccasionBanner({ className = '' }: { className?: string }) {
   if (!banner) return null
   return (
     <div className={`mx-auto max-w-[1440px] ${className}`} data-occasion-banner>
-      <Alert role="status" className="border-primary/30">
-        <PartyPopper className="text-primary" />
-        <AlertDescription className="text-foreground">{banner}</AlertDescription>
+      <Alert role="status">
+        <PartyPopper />
+        <AlertDescription>{banner}</AlertDescription>
       </Alert>
     </div>
   )
