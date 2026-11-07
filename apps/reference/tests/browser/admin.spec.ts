@@ -90,7 +90,25 @@ test.group('Administration screens in the browser', (group) => {
       const invite = page.locator('main').getByRole('link', { name: 'دعوة مستخدم', exact: true })
       assert.equal(await invite.getAttribute('data-variant'), 'default')
       await invite.click()
-      const dialog = page.getByRole('dialog')
+      const dialog = page.getByRole('dialog', { name: 'دعوة مستخدم' })
+      await dialog.waitFor()
+      // Over the users list, with an address that opens it again.
+      await page.waitForURL('**/admin/users?invite=1')
+      // The dialog hides the page from assistive technology, so the list is found by its markup.
+      assert.isTrue(await page.locator('main table').first().isVisible())
+      assert.include(await page.locator('main h1').first().innerText(), 'المستخدمون')
+      // The long dialog pattern: fixed header and footer around a scrolling body.
+      assert.equal(await dialog.getAttribute('data-long-dialog'), '')
+      assert.equal(await dialog.locator('[data-slot="long-dialog-footer"]').count(), 1)
+      // Unchanged, «إلغاء» closes at once and the address returns to the list.
+      await dialog.getByRole('button', { name: 'إلغاء', exact: true }).click()
+      await dialog.waitFor({ state: 'hidden' })
+      assert.equal(await page.getByRole('dialog', { name: 'إغلاق النموذج؟' }).count(), 0)
+      await page.waitForURL('**/admin/users')
+      // The direct address opens the same dialog over the list.
+      await page.goto(page.url().replace(/\/admin\/users.*$/, '/users/invite'))
+      await page.waitForURL('**/admin/users?invite=1')
+      await dialog.waitFor()
       await dialog.getByLabel('الاسم الكامل').fill('مستخدم الدعوة')
       await dialog.getByLabel('البريد الإلكتروني').fill(member.email)
       await dialog.getByRole('button', { name: 'إرسال الدعوة', exact: true }).click()
@@ -495,7 +513,8 @@ test.group('Administration screens in the browser', (group) => {
         .where({ role_id: assignment.role_id, subject: 'all', action: 'manage', inverted: false })
         .first()
     )
-    await page.getByRole('link', { name: 'المستخدمون', exact: true }).click()
+    // Back to the users through the section's tab (ADR 049).
+    await page.getByRole('tab', { name: 'المستخدمون', exact: true }).click()
     await page.getByRole('heading', { name: 'المستخدمون', exact: true }).waitFor()
   })
 
@@ -508,18 +527,14 @@ test.group('Administration screens in the browser', (group) => {
     const page = await visit('/')
     await page.locator('[data-workspace-shell]').waitFor()
     await page.evaluate('window.__testShell = document.querySelector("[data-workspace-shell]")')
-    await page
-      .locator('aside')
-      .getByRole('link', { name: /^الإدارة/ })
-      .click()
-    // A section entry, then its page as a sub-tab (#157): the shell stays mounted throughout.
+    // A section entry, then its page as a tab (ADR 049): the shell stays mounted throughout.
     await page
       .getByRole('navigation', { name: 'التنقل الإداري' })
       .getByRole('link', { name: 'الأشخاص والصلاحيات' })
       .click()
     await page
-      .getByRole('navigation', { name: 'صفحات القسم: الأشخاص والصلاحيات' })
-      .getByRole('link', { name: 'الأدوار والصلاحيات', exact: true })
+      .getByRole('tablist', { name: 'صفحات القسم: الأشخاص والصلاحيات' })
+      .getByRole('tab', { name: 'الأدوار والصلاحيات', exact: true })
       .click()
     await page.getByRole('heading', { name: 'الأدوار والصلاحيات', exact: true }).waitFor()
     assert.isTrue(
@@ -563,23 +578,46 @@ test.group('Administration screens in the browser', (group) => {
       // Approvals merged into My tasks; the overview has no duplicate home link.
       assert.equal(await page.getByRole('link', { name: 'صندوق الموافقات' }).count(), 0)
       assert.equal(await page.getByRole('link', { name: 'الصفحة الرئيسية' }).count(), 0)
-      // Administration is one entry outside the admin area, with a badge for failures.
+      // Administration is exactly two entries, inside and outside the admin area (owner's
+      // review, ADR 049), with no sub-items; the alerts count sits on «الإعدادات».
       assert.equal(await page.getByRole('link', { name: 'الأدوار والصلاحيات' }).count(), 0)
-      const entry = page.locator('aside').getByRole('link', { name: /^الإدارة/ })
-      await page.assertVisible(entry.getByLabel(/تنبيه إداري/))
-      await entry.click()
-      // Inside the administration: one entry per section (#157); the failure badge moves to
-      // the operations section, whose pages are sub-tabs inside the page.
       const areas = page.getByRole('navigation', { name: 'التنقل الإداري' })
-      for (const category of ['الأشخاص والصلاحيات', 'الإعدادات', 'المراقبة والتشغيل'])
-        await areas.getByRole('link', { name: new RegExp(`^${category}`) }).waitFor()
-      const operations = areas.getByRole('link', { name: /^المراقبة والتشغيل/ })
-      await page.assertVisible(operations.getByLabel(/تنبيه إداري/))
-      await operations.click()
-      await page
-        .getByRole('navigation', { name: 'صفحات القسم: المراقبة والتشغيل' })
-        .getByRole('link', { name: 'تدفقات فاشلة' })
-        .waitFor()
+      const titles = async () => {
+        await areas.getByRole('link').first().waitFor()
+        const texts = await areas.getByRole('link').allInnerTexts()
+        return texts.map((text) => text.replace(/\d+/g, '').trim())
+      }
+      assert.deepEqual(await titles(), ['الأشخاص والصلاحيات', 'الإعدادات'])
+      const settings = areas.getByRole('link', { name: /^الإعدادات/ })
+      await page.assertVisible(settings.getByLabel(/تنبيه إداري/))
+      await settings.click()
+      await page.waitForURL(/\/admin\/(setup|settings)$/)
+      assert.deepEqual(await titles(), ['الأشخاص والصلاحيات', 'الإعدادات'])
+      // The failed workflow's count is on its own tab, which opens the failures.
+      const failures = page
+        .getByRole('tablist', { name: 'صفحات القسم: الإعدادات' })
+        .getByRole('tab', { name: /^تدفقات فاشلة/ })
+      await page.assertVisible(failures.getByLabel(/تنبيه إداري/))
+      // A count badge, not a coloured frame around the tab (owner decision 22).
+      assert.equal(await failures.locator('[data-slot=badge]').count(), 1)
+      // At 1440 the wrapped tabs keep «تدفقات فاشلة» and its badge whole inside the window.
+      await page.setViewportSize({ width: 1440, height: 900 })
+      for (const part of [failures, failures.locator('[data-slot=badge]')]) {
+        const box = (await part.boundingBox())!
+        assert.isAtLeast(box.x, 0)
+        assert.isAtMost(box.x + box.width, 1440)
+        assert.isAtLeast(box.y, 0)
+        assert.isAtMost(box.y + box.height, 900)
+      }
+      assert.notEqual(
+        await failures.evaluate('(element) => getComputedStyle(element).borderTopColor'),
+        await page.evaluate<string>(
+          `(() => { const probe = document.createElement('span'); probe.className = 'border-destructive'; document.body.append(probe); const value = getComputedStyle(probe).borderTopColor; probe.remove(); return value })()`
+        )
+      )
+      await failures.click()
+      await page.waitForURL((url) => url.pathname === '/admin/workflows')
+      assert.equal(await failures.getAttribute('aria-selected'), 'true')
 
       // A member without create rights sees neither imports nor administration.
       await browserContext.clearCookies()
@@ -587,13 +625,8 @@ test.group('Administration screens in the browser', (group) => {
       const plain = await visit('/')
       await plain.getByRole('navigation', { name: 'التنقل الرئيسي' }).waitFor()
       assert.equal(await plain.getByRole('link', { name: 'الاستيراد' }).count(), 0)
-      assert.equal(
-        await plain
-          .locator('aside')
-          .getByRole('link', { name: /^الإدارة/ })
-          .count(),
-        0
-      )
+      assert.equal(await plain.getByRole('navigation', { name: 'التنقل الإداري' }).count(), 0)
+      assert.equal(await plain.getByRole('link', { name: /^الإعدادات/ }).count(), 0)
     } finally {
       await knex()('workflow_runs').where('id', failed.id).delete()
     }

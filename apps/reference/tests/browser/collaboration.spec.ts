@@ -4,6 +4,7 @@ import db from '@adonisjs/lucid/services/db'
 import { adula } from '#services/adula'
 import {
   installSampleResources,
+  longDialogLayout,
   removeSampleResources,
   screenshotDir,
   seedActor,
@@ -134,8 +135,10 @@ test.group('Record collaboration browser acceptance', (group) => {
       const page = await visit('/my-tasks?tab=assigned')
       await page.setViewportSize({ width: 1280, height: 700 })
       await page.getByText('مهمة العودة 12').waitFor()
-      await page.evaluate('window.scrollTo(0, document.documentElement.scrollHeight)')
-      const scroll = await page.evaluate<number>('window.scrollY')
+      // The page scrolls in the workspace's scroll region on large screens (owner decision 20).
+      const scroller = `(() => { const region = document.querySelector('[scroll-region]'); return region && ['auto', 'scroll'].includes(getComputedStyle(region).overflowY) ? region : document.scrollingElement })()`
+      await page.evaluate(`${scroller}.scrollTop = ${scroller}.scrollHeight`)
+      const scroll = await page.evaluate<number>(`${scroller}.scrollTop`)
       assert.isAbove(scroll, 200)
       await page.getByRole('link', { name: 'عينات الواجهة: عينة التعليقات' }).last().click()
       await page.getByRole('dialog', { name: 'تفاصيل · عينات الواجهة' }).waitFor()
@@ -144,7 +147,7 @@ test.group('Record collaboration browser acceptance', (group) => {
       await page.getByRole('heading', { name: 'مهامي' }).waitFor()
       // The page CSP refuses a polling string predicate in waitForFunction; poll through evaluate.
       for (const started = Date.now(); ;) {
-        if (await page.evaluate<boolean>(`Math.abs(window.scrollY - ${scroll}) <= 2`)) break
+        if (await page.evaluate<boolean>(`Math.abs(${scroller}.scrollTop - ${scroll}) <= 2`)) break
         if (Date.now() - started > 20_000) assert.fail(`scroll did not return to ${scroll}`)
         await new Promise((resolve) => setTimeout(resolve, 100))
       }
@@ -155,5 +158,55 @@ test.group('Record collaboration browser acceptance', (group) => {
     } finally {
       await db.from('assignments').where('assignee_id', reader.user.id).delete()
     }
+  })
+
+  test('the assignment dialog closes at once while clean and asks only after a change', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(owner.user)
+    const page = await visit(`/resources/ui_samples/${id}`)
+    await page.setViewportSize({ width: 375, height: 812 })
+    const section = page.getByRole('region', { name: 'المهام المسندة' })
+    const open = section.getByRole('button', { name: 'إسناد مهمة' })
+    const dialog = page.getByRole('dialog', { name: 'إسناد مهمة' })
+    const guard = page.getByRole('dialog', { name: 'إغلاق النموذج؟' })
+
+    await open.click()
+    await dialog.waitFor()
+    assert.deepEqual(await longDialogLayout(dialog, 812), {
+      footerOnScreen: true,
+      headerOnScreen: true,
+      bodyScrolls: true,
+    })
+    assert.isTrue(await dialog.getByRole('button', { name: 'إسناد', exact: true }).isVisible())
+    await dialog.getByRole('button', { name: 'إلغاء', exact: true }).click()
+    await dialog.waitFor({ state: 'hidden' })
+    assert.equal(await guard.count(), 0)
+
+    await open.click()
+    const title = dialog.getByLabel('عنوان المهمة')
+    await title.fill('مهمة')
+    await title.fill('')
+    await page.keyboard.press('Escape')
+    await dialog.waitFor({ state: 'hidden' })
+    assert.equal(await guard.count(), 0)
+
+    await open.click()
+    await title.fill('مهمة لم تُسند')
+    await dialog.getByRole('button', { name: 'إغلاق', exact: true }).click()
+    await guard.waitFor()
+    await guard.getByRole('button', { name: 'متابعة التحرير', exact: true }).click()
+    assert.equal(await title.inputValue(), 'مهمة لم تُسند')
+    await dialog.getByRole('button', { name: 'إلغاء', exact: true }).click()
+    await guard.getByRole('button', { name: 'إغلاق دون حفظ', exact: true }).click()
+    await dialog.waitFor({ state: 'hidden' })
+    // The discarded draft does not come back, and nothing was assigned.
+    await open.click()
+    assert.equal(await title.inputValue(), '')
+    await page.keyboard.press('Escape')
+    await dialog.waitFor({ state: 'hidden' })
+    assert.equal(await section.getByText('مهمة لم تُسند').count(), 0)
   })
 })

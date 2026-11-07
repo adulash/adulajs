@@ -8,14 +8,8 @@ import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Textarea } from '~/components/ui/textarea'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '~/components/ui/dialog'
+import { Dialog, DialogClose } from '~/components/ui/dialog'
+import { LongDialogContent } from '~/components/ui/long-dialog'
 import {
   Select,
   SelectContent,
@@ -68,12 +62,19 @@ export function RecordAssignments({
   }, [load])
   useEffect(() => {
     if (!open) return
+    // Each opening starts from an empty draft, so «إغلاق دون حفظ» really discards it.
+    setAssigneeId('')
+    setTitle('')
+    setNote('')
+    setDueOn('')
+    setError('')
     axios
       .get<{ data: MentionCandidate[] }>(`${base}/mentions`, json)
       .then((response) => setPeople(response.data.data))
       .catch(() => setPeople([]))
   }, [open, base])
 
+  const dirty = assigneeId !== '' || title !== '' || note !== '' || dueOn !== ''
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     setBusy(true)
@@ -85,10 +86,6 @@ export function RecordAssignments({
         json
       )
       setOpen(false)
-      setTitle('')
-      setNote('')
-      setDueOn('')
-      setAssigneeId('')
       await load()
     } catch (caught) {
       setError(
@@ -137,7 +134,10 @@ export function RecordAssignments({
                 {statusLabel[row.status]}
               </Badge>
               <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-                <UserAvatar user={{ id: row.assigneeId, name: row.assigneeName }} size="xs" />
+                <UserAvatar
+                  user={{ id: row.assigneeId, name: row.assigneeName, avatarUrl: row.assigneeAvatarUrl }}
+                  size="xs"
+                />
                 المكلف: {row.assigneeName ?? `#${row.assigneeId}`}
               </span>
               {row.dueOn && (
@@ -149,15 +149,36 @@ export function RecordAssignments({
           ))}
         </ul>
       )}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent dir="rtl" className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>إسناد مهمة</DialogTitle>
-            <DialogDescription>
-              تظهر المهمة في «مهامي» لدى المكلف، ويُشعَر بها فوراً.
-            </DialogDescription>
-          </DialogHeader>
-          <form id="assignment-form" className="space-y-4" onSubmit={submit}>
+      <Dialog mode="edit" open={open} onOpenChange={setOpen}>
+        <LongDialogContent
+          dir="rtl"
+          width="lg"
+          title="إسناد مهمة"
+          description="تظهر المهمة في «مهامي» لدى المكلف، ويُشعَر بها فوراً."
+          footer={
+            <>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  إلغاء
+                </Button>
+              </DialogClose>
+              <Button
+                type="submit"
+                form="assignment-form"
+                disabled={busy || !assigneeId || !title.trim()}
+              >
+                إسناد
+              </Button>
+            </>
+          }
+        >
+          <form
+            id="assignment-form"
+            className="space-y-4"
+            onSubmit={submit}
+            // Closing asks first only when a value differs from the empty draft it opened with.
+            data-dirty={String(dirty)}
+          >
             <div className="space-y-2">
               <Label htmlFor="assignment-assignee">المكلف</Label>
               <Select value={assigneeId} onValueChange={setAssigneeId}>
@@ -207,19 +228,7 @@ export function RecordAssignments({
               </p>
             )}
           </form>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              إلغاء
-            </Button>
-            <Button
-              type="submit"
-              form="assignment-form"
-              disabled={busy || !assigneeId || !title.trim()}
-            >
-              إسناد
-            </Button>
-          </DialogFooter>
-        </DialogContent>
+        </LongDialogContent>
       </Dialog>
     </section>
   )

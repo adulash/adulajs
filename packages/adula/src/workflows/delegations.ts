@@ -4,14 +4,19 @@ import { logActivity } from '../core/activity.js'
 import { notifyWithTemplate } from '../core/message_templates.js'
 import { escapeLike } from '../core/like.js'
 import { assertTimeZone, calendarDate } from './calendar.js'
+import { avatarUrlFor, avatarVersionColumn } from '../core/user_avatars.js'
 
 /** A user's approvals routed to a delegate for an inclusive date range (ADR 044). */
 export type WorkflowDelegation = {
   id: number
   delegatorId: number
   delegatorName: string | null
+  /** The delegator's versioned picture URL, or null without one (ADR 050). */
+  delegatorAvatarUrl?: string | null
   delegateId: number
   delegateName: string | null
+  /** The delegate's versioned picture URL, or null without one (ADR 050). */
+  delegateAvatarUrl?: string | null
   /** Inclusive dates (YYYY-MM-DD), days in the system time zone (UTC by default). */
   startsOn: string
   endsOn: string
@@ -169,7 +174,10 @@ export class WorkflowDelegations {
    * applies to a user's own delegation. 0 (administrators managing anyone's delegation)
    * offers every active user.
    */
-  async candidates(search: unknown, exceptId: number): Promise<{ id: number; name: string }[]> {
+  async candidates(
+    search: unknown,
+    exceptId: number
+  ): Promise<{ id: number; name: string; avatarUrl?: string | null }[]> {
     const text = typeof search === 'string' ? search.trim().slice(0, 100) : ''
     if (text.length < 2) return []
     const rows = await this.db('users as u')
@@ -185,10 +193,11 @@ export class WorkflowDelegations {
       )
       .orderBy('u.full_name')
       .limit(20)
-      .select('u.id', 'u.full_name', 'u.email')
+      .select('u.id', 'u.full_name', 'u.email', avatarVersionColumn(this.db, 'u.id'))
     return rows.map((row: Record<string, any>) => ({
       id: Number(row.id),
       name: String(row.full_name ?? row.email ?? `#${row.id}`),
+      avatarUrl: avatarUrlFor(row.id, row.avatar_version),
     }))
   }
 
@@ -363,7 +372,13 @@ export class WorkflowDelegations {
     return db('workflow_delegations as d')
       .leftJoin('users as f', 'f.id', 'd.delegator_id')
       .leftJoin('users as t', 't.id', 'd.delegate_id')
-      .select('d.*', 'f.full_name as delegator_name', 't.full_name as delegate_name')
+      .select(
+        'd.*',
+        'f.full_name as delegator_name',
+        't.full_name as delegate_name',
+        avatarVersionColumn(db, 'd.delegator_id', 'delegator_avatar'),
+        avatarVersionColumn(db, 'd.delegate_id', 'delegate_avatar')
+      )
   }
 
   private present(row: Record<string, any>): WorkflowDelegation {
@@ -374,8 +389,10 @@ export class WorkflowDelegations {
       id: Number(row.id),
       delegatorId: Number(row.delegator_id),
       delegatorName: row.delegator_name ? String(row.delegator_name) : null,
+      delegatorAvatarUrl: avatarUrlFor(row.delegator_id, row.delegator_avatar),
       delegateId: Number(row.delegate_id),
       delegateName: row.delegate_name ? String(row.delegate_name) : null,
+      delegateAvatarUrl: avatarUrlFor(row.delegate_id, row.delegate_avatar),
       startsOn,
       endsOn,
       note: row.note ? String(row.note) : null,

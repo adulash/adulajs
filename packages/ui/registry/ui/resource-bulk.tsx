@@ -7,12 +7,14 @@ import { Alert, AlertDescription, AlertTitle } from '~/components/ui/alert'
 import { Button } from '~/components/ui/button'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '~/components/ui/dialog'
+import { LongDialogContent } from '~/components/ui/long-dialog'
 import { failureMessage } from '~/components/ui/resource-actions'
 import { documentCount, recordCount, useMessages } from '~/components/ui/messages'
 import { relationLabel } from '~/components/ui/resource-value'
@@ -217,14 +219,39 @@ export function BulkBar({
         </div>
       )}
       <Dialog open={pending !== null} onOpenChange={(open) => !open && close()}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{pending ? name(pending) : ''}</DialogTitle>
-            <DialogDescription>
+        <LongDialogContent
+          width="lg"
+          title={pending ? name(pending) : ''}
+          description={
+            <>
               {pending ? describe(pending, ids.length) : ''}{' '}
               {!result && t('يُتحقق من صلاحيتك لكل سجل على حدة.')}
-            </DialogDescription>
-          </DialogHeader>
+            </>
+          }
+          footer={
+            result ? (
+              <Button type="button" onClick={close}>
+                {t('إغلاق')}
+              </Button>
+            ) : (
+              <>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline" disabled={busy}>
+                    {t('إلغاء')}
+                  </Button>
+                </DialogClose>
+                <Button
+                  type="button"
+                  variant={pending && destructive(pending) ? 'destructive' : 'default'}
+                  disabled={busy}
+                  onClick={() => void execute()}
+                >
+                  {busy ? t('جارٍ التنفيذ...') : t('تأكيد')}
+                </Button>
+              </>
+            )
+          }
+        >
           {result && (
             <div className="grid gap-3">
               {result.succeeded.length > 0 && (
@@ -246,7 +273,7 @@ export function BulkBar({
                     })}
                   </AlertTitle>
                   <AlertDescription>
-                    <ul className="max-h-48 w-full space-y-1 overflow-y-auto text-xs">
+                    <ul className="w-full space-y-1 text-xs">
                       {result.failed.map((entry) => (
                         <li key={String(entry.id)}>
                           <span className="font-medium">
@@ -270,28 +297,7 @@ export function BulkBar({
               {failure}
             </p>
           )}
-          <DialogFooter>
-            {result ? (
-              <Button type="button" onClick={close}>
-                {t('إغلاق')}
-              </Button>
-            ) : (
-              <>
-                <Button type="button" variant="outline" disabled={busy} onClick={close}>
-                  {t('تراجع')}
-                </Button>
-                <Button
-                  type="button"
-                  variant={pending && destructive(pending) ? 'destructive' : 'default'}
-                  disabled={busy}
-                  onClick={() => void execute()}
-                >
-                  {busy ? t('جارٍ التنفيذ...') : t('تأكيد')}
-                </Button>
-              </>
-            )}
-          </DialogFooter>
-        </DialogContent>
+        </LongDialogContent>
       </Dialog>
     </>
   )

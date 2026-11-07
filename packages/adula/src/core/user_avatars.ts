@@ -46,6 +46,30 @@ export function avatarUrl(userId: number, version?: number | null) {
 }
 
 /**
+ * A select column with the current picture version of the user in `userColumn`, as `alias`.
+ * It belongs in the query that already resolves the person's name, so a list of people costs
+ * no query per row (the `attachments (resource, record_id, field)` index serves it).
+ */
+export function avatarVersionColumn(db: Knex, userColumn: string, alias = 'avatar_version') {
+  return db.raw(
+    `(select max(av.id) from attachments av where av.resource = ? and av.field = ? and av.deleted_at is null and av.record_id = ??) as ??`,
+    [AVATAR_OWNER.resource, AVATAR_OWNER.field, userColumn, alias]
+  )
+}
+
+/**
+ * The versioned picture URL of a user, or null when they have none: the page then shows the
+ * initials and requests nothing, so a user without a picture costs no 404.
+ */
+export function avatarUrlFor(userId: unknown, version: unknown): string | null {
+  const id = Number(userId)
+  const current = Number(version)
+  return Number.isSafeInteger(id) && id > 0 && Number.isSafeInteger(current) && current > 0
+    ? avatarUrl(id, current)
+    : null
+}
+
+/**
  * Response headers of a profile picture: the stored, allow-listed type only, no sniffing and
  * no script. A versioned URL never changes its bytes, so it is cached privately for a year;
  * the plain URL is revalidated after five minutes with the version as its ETag.

@@ -387,6 +387,9 @@ export const arabicInterfaceMessages = {
   'ui.account.layoutDefault': 'الافتراضي للنظام',
   'ui.account.layoutSidebar': 'قائمة جانبية',
   'ui.account.layoutTop': 'قائمة علوية',
+  'ui.account.sidebarCollapse': 'عند طي القائمة',
+  'ui.account.sidebarCollapseIcons': 'أيقونات',
+  'ui.account.sidebarCollapseHidden': 'إخفاء كامل',
   'ui.account.arrange': 'ترتيب القائمة…',
   'ui.navOrder.title': 'ترتيب القائمة',
   'ui.navOrder.description':
@@ -417,6 +420,7 @@ export const arabicInterfaceMessages = {
   'ui.overview.notifications': 'الإشعارات غير المقروءة',
   'ui.overview.modules': 'وحدات العمل',
   'ui.overview.unavailable': 'غير متاح',
+  'ui.overview.countFailed': 'تعذّر تحميل العدد',
   'ui.sortable.handle': 'مقبض نقل {item}',
   'ui.sortable.moveUp': 'نقل {item} للأعلى',
   'ui.sortable.moveDown': 'نقل {item} للأسفل',

@@ -398,6 +398,9 @@ export const englishInterfaceMessages: Partial<
   'ui.account.layoutDefault': 'System default',
   'ui.account.layoutSidebar': 'Sidebar menu',
   'ui.account.layoutTop': 'Top menu',
+  'ui.account.sidebarCollapse': 'When the menu collapses',
+  'ui.account.sidebarCollapseIcons': 'Icons',
+  'ui.account.sidebarCollapseHidden': 'Hide completely',
   'ui.account.arrange': 'Arrange the menu…',
   'ui.navOrder.title': 'Arrange the menu',
   'ui.navOrder.description':
@@ -429,6 +432,7 @@ export const englishInterfaceMessages: Partial<
   'ui.overview.notifications': 'Unread notifications',
   'ui.overview.modules': 'Work modules',
   'ui.overview.unavailable': 'Unavailable',
+  'ui.overview.countFailed': 'Could not load the count',
   'ui.sortable.handle': 'Move handle for {item}',
   'ui.sortable.moveUp': 'Move {item} up',
   'ui.sortable.moveDown': 'Move {item} down',

@@ -1,11 +1,12 @@
-import { useState, type ReactNode } from 'react'
-import { Head, usePage } from '@inertiajs/react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { Head, router, usePage } from '@inertiajs/react'
 import { Link } from '@adonisjs/inertia/react'
-import { Bell, ListTodo, Settings2 } from 'lucide-react'
+import { Bell, ListTodo, RotateCcw, Settings2 } from 'lucide-react'
 import type { OverviewState, OverviewWidget, ResourceNavigation } from 'adula'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
 import { useMessages } from '~/components/ui/messages'
+import { Skeleton } from '~/components/ui/skeleton'
 import { DashboardWidgetCard } from '~/components/ui/resource-dashboard'
 import { CustomizeOverviewDialog } from '~/components/overview/customize-dialog'
 import Workspace from '~/layouts/workspace'
@@ -16,7 +17,8 @@ type Props = {
   isAdmin: boolean
   impersonating?: boolean
   navigation: ResourceNavigation
-  openTasks?: number
+  /** Deferred; null when the server could not count (see admin_middleware). */
+  openTasks?: number | null
   unreadNotifications?: number
 }
 
@@ -50,18 +52,41 @@ function Welcome({ isAdmin }: { isAdmin: boolean }) {
   )
 }
 
+/**
+ * Whether a deferred prop failed to arrive: the server reported no value (null), or the request
+ * that loads it finished without one (a network or server error). Loading looks different.
+ */
+function useDeferredFailure(prop: string | undefined, value: number | null | undefined) {
+  const [failed, setFailed] = useState(false)
+  const current = useRef(value)
+  current.current = value
+  useEffect(() => {
+    if (!prop) return
+    return router.on('finish', (event) => {
+      if (!event.detail.visit.only.includes(prop)) return
+      // The props of a successful response are in place by now; wait one tick to be sure.
+      setTimeout(() => setFailed(current.current === undefined), 0)
+    })
+  }, [prop])
+  return value === null || (failed && value === undefined)
+}
+
 function Counter({
   label,
   value,
   href,
   icon,
+  deferred,
 }: {
   label: string
-  value: number | undefined
+  value: number | null | undefined
   href: string
   icon: ReactNode
+  /** The deferred prop behind the value, reloaded alone by «إعادة المحاولة». */
+  deferred?: string
 }) {
   const { t } = useMessages()
+  const failed = useDeferredFailure(deferred, value)
   return (
     <Card className="gap-2 py-5">
       <CardHeader className="px-5">
@@ -73,9 +98,36 @@ function Counter({
         </CardDescription>
       </CardHeader>
       <CardContent className="px-5">
-        <p className="text-3xl font-semibold tabular-nums tracking-tight">
-          {typeof value === 'number' ? value.toLocaleString('ar') : t('غير متاح')}
-        </p>
+        {failed && deferred ? (
+          <div className="flex flex-wrap items-center gap-2" data-testid="overview-counter-value">
+            <p role="alert" className="text-sm text-destructive">
+              {t('تعذّر تحميل العدد')}
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => router.reload({ only: [deferred] })}
+            >
+              <RotateCcw />
+              {t('إعادة المحاولة')}
+            </Button>
+          </div>
+        ) : typeof value === 'number' ? (
+          <p
+            className="text-3xl font-semibold tabular-nums tracking-tight"
+            data-testid="overview-counter-value"
+          >
+            {value.toLocaleString('ar')}
+          </p>
+        ) : (
+          // A deferred count (the «مهامي» badge, #156) arrives after the page renders; until
+          // then the card shows that it is loading, never that the count is unavailable.
+          <div role="status" data-testid="overview-counter-value">
+            <Skeleton className="h-9 w-12" />
+            <span className="sr-only">{t('جارٍ التحميل...')}</span>
+          </div>
+        )}
       </CardContent>
     </Card>
   )
@@ -120,6 +172,7 @@ function Widget({ widget, props }: { widget: OverviewWidget; props: Props }) {
         <Counter
           label={t('مهامي المفتوحة')}
           value={props.openTasks}
+          deferred="openTasks"
           href="/my-tasks"
           icon={<ListTodo size={15} />}
         />
@@ -198,20 +251,20 @@ export default function Home({ overview }: { overview?: OverviewState }) {
   const { t, dir } = useMessages()
   return (
     <>
-      <Head title={t('مساحة العمل · {app}', { app: 'AdulaJS' })} />
+      <Head title={t('مساحة العمل')} />
       {props.account && overview ? (
         <Overview overview={overview} props={props} />
       ) : (
-        <div className="mx-auto max-w-5xl space-y-6 px-6 py-12" dir={dir}>
+        <div className="mx-auto w-full max-w-md py-10" dir={dir}>
           <Card>
             <CardHeader>
               <CardTitle>
-                <h1 className="text-3xl">{t('مساحة العمل')}</h1>
+                <h1>{t('مساحة العمل')}</h1>
               </CardTitle>
               <CardDescription>{t('وحدات أعمالك وإعدادات حسابك في مكان واحد.')}</CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-wrap gap-3">
-              <Button asChild>
+            <CardContent>
+              <Button className="w-full" asChild>
                 <Link href="/login">{t('تسجيل الدخول')}</Link>
               </Button>
             </CardContent>

@@ -329,7 +329,7 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
       <Dialog open={draft !== null} onOpenChange={(value) => !value && setDraft(null)}>
         <LongDialogContent
           dir="rtl"
-          width="full"
+          width="5xl"
           title={editing ? 'تعديل قالب الطباعة' : 'قالب طباعة جديد'}
           description={
             editing

@@ -4,6 +4,7 @@ import axios from 'axios'
 import { Check, ChevronsUpDown, Trash2, UserRoundCheck } from 'lucide-react'
 import type { ResourceField, WorkflowDelegation } from 'adula'
 import { Badge } from '~/components/ui/badge'
+import { UserAvatar } from '~/components/ui/user-avatar'
 import { Button } from '~/components/ui/button'
 import {
   Command,
@@ -12,14 +13,8 @@ import {
   CommandItem,
   CommandList,
 } from '~/components/ui/command'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '~/components/ui/dialog'
+import { Dialog, DialogClose } from '~/components/ui/dialog'
+import { LongDialogContent } from '~/components/ui/long-dialog'
 import { Label } from '~/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
 import {
@@ -37,7 +32,7 @@ import { calendarIso } from '~/components/ui/calendar_date'
 import { useConfirmAction } from '~/components/ui/confirm-action'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
 
-export type Candidate = { id: number; name: string }
+export type Candidate = { id: number; name: string; avatarUrl?: string | null }
 const json = { headers: { Accept: 'application/json' }, withXSRFToken: true }
 
 export const delegationStatusLabel: Record<WorkflowDelegation['status'], string> = {
@@ -118,7 +113,10 @@ export function UserPicker({
           aria-invalid={invalid || undefined}
           className="h-10 w-full justify-between font-normal"
         >
-          <span className={value ? '' : 'text-muted-foreground'}>{value?.name ?? placeholder}</span>
+          <span className={`flex min-w-0 items-center gap-2 ${value ? '' : 'text-muted-foreground'}`}>
+            {value && <UserAvatar user={value} size="sm" />}
+            <span className="truncate">{value?.name ?? placeholder}</span>
+          </span>
           <ChevronsUpDown size={14} className="text-muted-foreground" />
         </Button>
       </PopoverTrigger>
@@ -153,6 +151,7 @@ export function UserPicker({
                   className={value?.id === user.id ? 'opacity-100' : 'opacity-0'}
                   aria-hidden="true"
                 />
+                <UserAvatar user={user} size="xs" />
                 {user.name}
               </CommandItem>
             ))}
@@ -211,6 +210,8 @@ export function DelegationDialog({
   const [delegator, setDelegator] = useState<Candidate | null>(null)
   const [delegate, setDelegate] = useState<Candidate | null>(null)
   const [startsOn, setStartsOn] = useState(today)
+  // The start date the dialog opened with; a value equal to it is not a change.
+  const [openedOn, setOpenedOn] = useState(today)
   const [endsOn, setEndsOn] = useState('')
   const [note, setNote] = useState('')
   const [error, setError] = useState('')
@@ -219,11 +220,19 @@ export function DelegationDialog({
     if (!open) return
     setDelegator(null)
     setDelegate(null)
-    setStartsOn(systemToday(timeZone))
+    const start = systemToday(timeZone)
+    setStartsOn(start)
+    setOpenedOn(start)
     setEndsOn('')
     setNote('')
     setError('')
   }, [open, timeZone])
+  const dirty =
+    delegator !== null ||
+    delegate !== null ||
+    startsOn !== openedOn ||
+    endsOn !== '' ||
+    note !== ''
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     if (admin && !delegator) return setError('اختر صاحب الموافقات.')
@@ -253,15 +262,33 @@ export function DelegationDialog({
   }
   return (
     <Dialog mode="edit" open={open} onOpenChange={onOpenChange}>
-      <DialogContent dir="rtl" className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{admin ? 'تفويض موافقات مستخدم' : 'تفويض موافقاتي'}</DialogTitle>
-          <DialogDescription>
-            تنتقل الموافقات التي تُطلب خلال المدة إلى المفوَّض إليه، ويقرر فيها نيابة عن صاحبها.
-            المهام اليدوية لا تُفوَّض.
-          </DialogDescription>
-        </DialogHeader>
-        <form id="delegation-form" className="space-y-4" noValidate onSubmit={submit}>
+      <LongDialogContent
+        dir="rtl"
+        width="lg"
+        title={admin ? 'تفويض موافقات مستخدم' : 'تفويض موافقاتي'}
+        description="تنتقل الموافقات التي تُطلب خلال المدة إلى المفوَّض إليه، ويقرر فيها نيابة عن صاحبها. المهام اليدوية لا تُفوَّض."
+        footer={
+          <>
+            <DialogClose asChild>
+              <Button type="button" variant="outline" disabled={busy}>
+                إلغاء
+              </Button>
+            </DialogClose>
+            <Button type="submit" form="delegation-form" disabled={busy}>
+              <UserRoundCheck size={15} />
+              حفظ التفويض
+            </Button>
+          </>
+        }
+      >
+        <form
+          id="delegation-form"
+          className="space-y-4"
+          noValidate
+          onSubmit={submit}
+          // Closing asks first only when a value differs from the one the dialog opened with.
+          data-dirty={String(dirty)}
+        >
           {admin && (
             <div className="space-y-2">
               <Label htmlFor="delegation-delegator">صاحب الموافقات</Label>
@@ -327,16 +354,7 @@ export function DelegationDialog({
             </p>
           )}
         </form>
-        <DialogFooter>
-          <Button type="button" variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>
-            إلغاء
-          </Button>
-          <Button type="submit" form="delegation-form" disabled={busy}>
-            <UserRoundCheck size={15} />
-            حفظ التفويض
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+      </LongDialogContent>
     </Dialog>
   )
 }
@@ -402,10 +420,34 @@ export function DelegationTable({
             {delegations.map((item) => (
               <TableRow key={item.id}>
                 {columns.includes('delegator') && (
-                  <TableCell className="font-medium">{item.delegatorName ?? `#${item.delegatorId}`}</TableCell>
+                  <TableCell className="font-medium">
+                    <span className="inline-flex items-center gap-1.5">
+                      <UserAvatar
+                        user={{
+                          id: item.delegatorId,
+                          name: item.delegatorName,
+                          avatarUrl: item.delegatorAvatarUrl,
+                        }}
+                        size="xs"
+                      />
+                      {item.delegatorName ?? `#${item.delegatorId}`}
+                    </span>
+                  </TableCell>
                 )}
                 {columns.includes('delegate') && (
-                  <TableCell className="font-medium">{item.delegateName ?? `#${item.delegateId}`}</TableCell>
+                  <TableCell className="font-medium">
+                    <span className="inline-flex items-center gap-1.5">
+                      <UserAvatar
+                        user={{
+                          id: item.delegateId,
+                          name: item.delegateName,
+                          avatarUrl: item.delegateAvatarUrl,
+                        }}
+                        size="xs"
+                      />
+                      {item.delegateName ?? `#${item.delegateId}`}
+                    </span>
+                  </TableCell>
                 )}
                 <TableCell className="tabular-nums">
                   <bdi>{formatDate(item.startsOn, calendar)}</bdi> إلى{' '}

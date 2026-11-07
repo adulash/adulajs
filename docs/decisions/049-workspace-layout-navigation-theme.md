@@ -105,6 +105,102 @@ and the collapsed module groups live in `localStorage`.
   (`/admin/backups/restore`) keep their own tab. The failure badge sits on the operations
   section inside the administration.
 
+Amendment (2.3.0, owner's review):
+
+* The sidebar's administration area has exactly two entries, always shown to
+  administrators and without sub-items: «الإعدادات» (the one-time setup while it is
+  pending, the settings pages, operations, backups, failed workflows and the activity log)
+  and «الأشخاص والصلاحيات» (users, roles, organization units, sessions and delegations). The
+  former operations section is part of «الإعدادات»; its stored order id `admin.operations`
+  no longer matches a section and is ignored, as every unknown id is. The alerts badge sits
+  on «الإعدادات» and, inside it, on the tab that explains it: failed workflows on «تدفقات
+  فاشلة» and a stale backup on «النسخ الاحتياطي». The main sidebar is otherwise unchanged,
+  and the top layout keeps its drop-down menus.
+* A section's pages are the registry `Tabs` with `orientation="vertical"` inside the page
+  body, not a second sidebar or a list of styled links: a `tablist` with
+  `aria-orientation="vertical"`, one `tab` per page and the page itself as the `tabpanel`.
+  The list is the registry `TabsList` with its `nav` variant (added for navigation tabs), so
+  the selected tab uses the shell's active navigation pattern (`bg-accent font-semibold
+  text-primary`), with no border, bar or shadow, and screens do not restyle the primitive.
+  Radix keeps the arrow-key orientation of the list's first render, so the list remounts
+  when the window crosses the large breakpoint; the page beside it stays mounted.
+  Each tab is a link (`TabsTrigger asChild`), so the address selects the tab: direct links,
+  reloads, Back and Forward show the right one. Arrow keys move between tabs and Enter
+  opens one (manual activation, since opening a tab loads a page). The tabs stay visible
+  while the page scrolls (sticky under the header). Below the large breakpoint the list is
+  one horizontal row that scrolls. The tabs have no reorder or restore control; arranging
+  stays with the sidebar entries.
+* The workspace header (breadcrumb, bell, «مهامي», assistant) is sticky at the top in both
+  layouts, with the top menu, the backup warning and the impersonation bar under it, so the
+  warning never covers content. The sticky tabs sit below that block (`--shell-top`, its
+  measured height).
+* Every sidebar entry shows the shell's focus ring on keyboard focus
+  (`focus-visible:ring-[3px] focus-visible:ring-ring/50`) instead of the browser outline; the
+  active entry has no border. The sidebar's own scrollbar is thin and appears on hover, so
+  it does not read as a second page scrollbar.
+
+Amendment (2.3.0, owner's decision of 2026-11-07, the workspace frame): this replaces the
+header bullet above and the two header buttons of #153.
+
+* One header runs from edge to edge at the top of the window, and the sidebar and the page sit
+  below it (shadcn's site-header layout). Owner: «لماذا لا يكون الهيدر كامل قطعة واحدة من الطرف
+  الى الطرف، والقائمة الجانبية والصفحات تظهر تحتها». The brand (mark, «عدولة» and its tagline)
+  is part of the header, not of the sidebar («شعار «عدولة» اجعله يصبح جزء من header»); the
+  sidebar begins with its navigation and the icon rail shows no brand tile.
+* The sidebar has one control, and it belongs visibly to the sidebar. Owner: «زر التحكم بإظهار
+  واخفاء القائمة يوجد في مكان اخر وليس ضمن القائمة وكأنه يتحكم بتوسيع الصفحة وتقليصها». The
+  header's start segment stands directly above the sidebar, as wide as it, and holds the brand
+  and one trigger (ghost `icon-sm`, PanelRight mirrored for the reading direction, a Tooltip,
+  `aria-expanded`, `aria-controls`). A rail on the sidebar's edge toggles it too (shadcn
+  SidebarRail; out of the tab order, since the trigger is the keyboard control). What
+  collapsing does is the user's preference `shell.sidebarCollapse` in the account menu, «عند
+  طي القائمة: أيقونات / إخفاء كامل», `icons` by default; when the sidebar is hidden the same
+  trigger brings it back. The Maximize2 «hide» button is gone. There is no keyboard shortcut
+  until the owner decides one (Ctrl+B was declined above).
+* The header shows the registry Breadcrumb (a new registry item composing shadcn's
+  breadcrumb: no new dependency) after a vertical Separator.
+* From the large breakpoint the page area below the header is the page's scroll container
+  (Inertia's `scroll-region`, so its position is kept and restored across visits). In
+  right-to-left pages the browser draws its scroll bar at the left edge, away from the
+  sidebar, whose own scroll bar stays thin, so two scroll bars never stand side by side
+  (owner: «شريط التحكم بتمرير الشاشة للصفحة ... نقله الى اليسار»). The document itself does
+  not scroll there, so a dialog's scroll lock shifts nothing and the #101 compensation is no
+  longer needed. The backup warning and the impersonation bar head the page column, right
+  under the header. The administration tabs stick inside the scroll container. Record dialogs
+  remember and restore the list's position in that container. Printing returns to the normal
+  flow. On phones the document scrolls as before under the sticky full-width header.
+
+Amendment (2.3.0, owner's decision of 2026-11-07, horizontal administration tabs): this
+replaces the vertical tabs of the owner's-review amendment above and its `nav` variant.
+Owner: «لا اريد قائمة جانبية فرعية اضافية، اريدها ان تكون تبويبات اعلى الصفحة بشكل افقي اسفل
+الheader الاساسي بحيث يكون Tabs ولكل صفحة tab خاص بها».
+
+* A section's pages are one row of the registry `Tabs` in their default orientation and look
+  (`TabsList` and `TabsTrigger` as shadcn ships them), right below the main header across the
+  page area. There is no tab column beside the page, so the page uses the full content width.
+  The registry's `nav` variant is removed; `tabs.tsx` is the stored shadcn component again.
+* One tab per page, each a link (`TabsTrigger asChild`), with the page as the `tabpanel`:
+  the address selects the tab (direct links, reloads, Back and Forward), arrow keys move
+  between tabs and Enter opens one (manual activation).
+* The row heads the page column, above the backup warning and the impersonation bar. From the
+  large breakpoint it sits outside the page's scroll region, so it stays in view while the
+  page scrolls. From the medium (tablet) breakpoint the list wraps onto further rows so no tab
+  or badge is hidden: the registry `TabsList` has a `wrap` option for this (AdulaJS addition;
+  the default segmented look is unchanged). The tabs and the backup warning share the page's
+  centred `max-w-[1440px]` column, so their edges line up with the page. On phones the order
+  is the header, the main phone navigation (scrolled to its current entry), then the tab row,
+  which sticks under the header and scrolls sideways, bringing the active tab into view; its
+  inline padding keeps the focus ring of the first and last tab whole.
+* Alerts stay a count badge on the tab and on the «الإعدادات» sidebar entry. The sidebar keeps
+  its two administration entries without sub-items.
+* Every navigation link opens its target page at its own address (owner: «تأكد ان الازرار في
+  القائمة الجانبية تعمل وكذلك التبويبات توجه الى الصفحة الهدف»). «لوحات المؤشرات» links to the
+  first dashboard the viewer may see and stays current on every dashboard; «دعوة مستخدم» opens
+  the invitation over the users list for administrators; the phone navigation shows the same
+  two administration entries as the sidebar instead of one `/admin` link, and marks the
+  current page. A browser test clicks every link the sidebar renders (expanded, as icons and on
+  a phone) and every administration tab.
+
 ### Dark mode (#155)
 
 * `@custom-variant dark (&:where(.dark, .dark *))` and a `.dark` block that overrides every

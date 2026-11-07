@@ -21,12 +21,14 @@ import { Label } from '~/components/ui/label'
 import { Skeleton } from '~/components/ui/skeleton'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '~/components/ui/dialog'
+import { LongDialogContent } from '~/components/ui/long-dialog'
 import { failure, json } from './request'
 
 /** Profile prop `twoFactor` (app/services/two_factor.ts profileTwoFactor). */
@@ -364,13 +366,40 @@ export function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorProps }) {
       </CardContent>
 
       <Dialog
-        mode={codes ? 'view' : 'edit'}
+        // While the key loads nothing can be typed yet, so the dialog closes at once.
+        mode={codes || (!enrolment && !reauth) ? 'view' : 'edit'}
         open={panel === 'enrol'}
         onOpenChange={(open) => !open && close()}
       >
-        <DialogContent
+        <LongDialogContent
           dir="rtl"
-          className="max-h-[90vh] overflow-y-auto sm:max-w-xl"
+          width="xl"
+          title={codes ? 'رموز الاسترداد' : 'تفعيل التحقق بخطوتين'}
+          description={codes ? 'فُعّل التحقق بخطوتين. سيُطلب الرمز من تطبيقك في كل دخول قادم.' : 'أضف الحساب إلى تطبيق مصادقة (مثل Microsoft Authenticator أو Google Authenticator) ثم أدخل الرمز الذي يظهر فيه.'}
+          footer={
+            codes ? (
+              <Button type="button" onClick={close}>
+                حفظت الرموز
+              </Button>
+            ) : (
+              <>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline">
+                    إلغاء
+                  </Button>
+                </DialogClose>
+                {reauth && !enrolment ? (
+                  <Button type="submit" form="two-factor-reauth" disabled={busy}>
+                    متابعة
+                  </Button>
+                ) : (
+                  <Button type="submit" form="two-factor-enrol" disabled={!enrolment || busy}>
+                    {busy && enrolment ? 'جارٍ التحقق…' : 'تأكيد وتفعيل'}
+                  </Button>
+                )}
+              </>
+            )
+          }
           // While the secret loads the only focusable control is «إلغاء»; focus the dialog
           // itself instead, and the code field focuses itself when it mounts.
           onOpenAutoFocus={(event) => {
@@ -379,18 +408,16 @@ export function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorProps }) {
             ;(event.currentTarget as HTMLElement | null)?.focus()
           }}
         >
-          <DialogHeader>
-            <DialogTitle>{codes ? 'رموز الاسترداد' : 'تفعيل التحقق بخطوتين'}</DialogTitle>
-            <DialogDescription>
-              {codes
-                ? 'فُعّل التحقق بخطوتين. سيُطلب الرمز من تطبيقك في كل دخول قادم.'
-                : 'أضف الحساب إلى تطبيق مصادقة (مثل Microsoft Authenticator أو Google Authenticator) ثم أدخل الرمز الذي يظهر فيه.'}
-            </DialogDescription>
-          </DialogHeader>
           {codes ? (
             <RecoveryCodes codes={codes} account={account} />
           ) : enrolment ? (
-            <form id="two-factor-enrol" onSubmit={confirm} className="space-y-5">
+            <form
+              id="two-factor-enrol"
+              onSubmit={confirm}
+              className="space-y-5"
+              // The code is the only value typed here; the secret is the server's.
+              data-dirty={String(code !== '')}
+            >
               <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
                 <dt className="text-muted-foreground">الجهة</dt>
                 <dd dir="ltr" className="text-start font-medium">
@@ -455,6 +482,7 @@ export function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorProps }) {
             <form
               id="two-factor-reauth"
               className="space-y-4"
+              data-dirty={String(password !== '')}
               onSubmit={(event) => {
                 event.preventDefault()
                 void begin(password)
@@ -491,29 +519,7 @@ export function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorProps }) {
           ) : (
             <ErrorLine message={error} />
           )}
-          <DialogFooter>
-            {codes ? (
-              <Button type="button" onClick={close}>
-                حفظت الرموز
-              </Button>
-            ) : (
-              <>
-                <Button type="button" variant="outline" onClick={close}>
-                  إلغاء
-                </Button>
-                {reauth && !enrolment ? (
-                  <Button type="submit" form="two-factor-reauth" disabled={busy}>
-                    متابعة
-                  </Button>
-                ) : (
-                  <Button type="submit" form="two-factor-enrol" disabled={!enrolment || busy}>
-                    {busy && enrolment ? 'جارٍ التحقق…' : 'تأكيد وتفعيل'}
-                  </Button>
-                )}
-              </>
-            )}
-          </DialogFooter>
-        </DialogContent>
+        </LongDialogContent>
       </Dialog>
 
       <Dialog
@@ -521,21 +527,39 @@ export function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorProps }) {
         open={panel === 'regenerate'}
         onOpenChange={(open) => !open && close()}
       >
-        <DialogContent dir="rtl" className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
-              {codes ? 'رموز الاسترداد الجديدة' : 'إنشاء رموز استرداد جديدة'}
-            </DialogTitle>
-            <DialogDescription>
-              {codes
-                ? 'أُلغيت الرموز السابقة كلها؛ هذه وحدها صالحة الآن.'
-                : 'تُلغى الرموز الحالية كلها فور الإنشاء. أدخل الرمز الحالي من تطبيق المصادقة (لا يُقبل رمز استرداد هنا).'}
-            </DialogDescription>
-          </DialogHeader>
+        <LongDialogContent
+          dir="rtl"
+          width="lg"
+          title={codes ? 'رموز الاسترداد الجديدة' : 'إنشاء رموز استرداد جديدة'}
+          description={codes ? 'أُلغيت الرموز السابقة كلها؛ هذه وحدها صالحة الآن.' : 'تُلغى الرموز الحالية كلها فور الإنشاء. أدخل الرمز الحالي من تطبيق المصادقة (لا يُقبل رمز استرداد هنا).'}
+          footer={
+            codes ? (
+              <Button type="button" onClick={close}>
+                حفظت الرموز
+              </Button>
+            ) : (
+              <>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline">
+                    إلغاء
+                  </Button>
+                </DialogClose>
+                <Button type="submit" form="two-factor-regenerate" disabled={busy}>
+                  إنشاء الرموز
+                </Button>
+              </>
+            )
+          }
+        >
           {codes ? (
             <RecoveryCodes codes={codes} account={account} />
           ) : (
-            <form id="two-factor-regenerate" onSubmit={regenerate} className="space-y-4">
+            <form
+              id="two-factor-regenerate"
+              onSubmit={regenerate}
+              className="space-y-4"
+              data-dirty={String(code !== '')}
+            >
               <CodeField
                 id="two-factor-regenerate-code"
                 value={code}
@@ -545,23 +569,7 @@ export function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorProps }) {
               <ErrorLine message={error} />
             </form>
           )}
-          <DialogFooter>
-            {codes ? (
-              <Button type="button" onClick={close}>
-                حفظت الرموز
-              </Button>
-            ) : (
-              <>
-                <Button type="button" variant="outline" onClick={close}>
-                  إلغاء
-                </Button>
-                <Button type="submit" form="two-factor-regenerate" disabled={busy}>
-                  إنشاء الرموز
-                </Button>
-              </>
-            )}
-          </DialogFooter>
-        </DialogContent>
+        </LongDialogContent>
       </Dialog>
 
       <Dialog mode="edit" open={panel === 'disable'} onOpenChange={(open) => !open && close()}>
@@ -573,7 +581,12 @@ export function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorProps }) {
               المرور ورمز من التطبيق أو رمز استرداد.
             </DialogDescription>
           </DialogHeader>
-          <form id="two-factor-disable" onSubmit={disable} className="space-y-4">
+          <form
+            id="two-factor-disable"
+            onSubmit={disable}
+            className="space-y-4"
+            data-dirty={String(password !== '' || code !== '')}
+          >
             <div className="space-y-2">
               <Label htmlFor="two-factor-disable-password">كلمة المرور الحالية</Label>
               <Input
@@ -591,9 +604,11 @@ export function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorProps }) {
             <ErrorLine message={error} />
           </form>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={close}>
-              تراجع
-            </Button>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                إلغاء
+              </Button>
+            </DialogClose>
             <Button type="submit" form="two-factor-disable" variant="destructive" disabled={busy}>
               إيقاف التحقق
             </Button>

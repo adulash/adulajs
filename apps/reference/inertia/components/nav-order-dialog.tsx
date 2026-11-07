@@ -97,7 +97,7 @@ export function NavOrderDialog({
     <Dialog mode="edit" open={open} onOpenChange={onOpenChange}>
       {/* The long dialog pattern: fixed header and footer, only the lists scroll. */}
       <LongDialogContent
-        width="md"
+        width="lg"
         title={t('ترتيب القائمة')}
         description={t(
           'رتّب عناصر القائمة كما يناسب عملك. يظهر الترتيب نفسه في القائمة الجانبية والعلوية.'

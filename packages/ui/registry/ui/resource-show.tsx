@@ -22,6 +22,7 @@ import { RecordCollaboration } from '~/components/ui/record-collaboration'
 import { RecordAssignments } from '~/components/ui/record-assignments'
 import { RecordWorkflows } from '~/components/ui/record-workflows'
 import { RecordPrint } from '~/components/ui/record-print'
+import { RecordFooter, RecordFooterClose } from '~/components/ui/resource-surface'
 
 export type ResourceChildren = Children
 const meta = new Set(['id', 'version', 'docStatus', 'orgUnitId'])
@@ -79,7 +80,32 @@ export function ResourceShow({
     field ? label(field.label) : undefined
   return (
     <div className="max-w-5xl space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
+      {resource.submittable && (
+        <Badge
+          variant={result.data.docStatus === 1 ? 'default' : 'secondary'}
+          className={result.data.docStatus === 2 ? 'bg-destructive/10 text-destructive' : ''}
+        >
+          {documentStatus(result.data.docStatus, t)}
+        </Badge>
+      )}
+      <RecordFooter>
+        <div className="me-auto flex flex-wrap items-center gap-2">
+          <RecordPrint resource={resource.name} id={result.data.id as number} />
+          <ResourceActions
+            resource={resource.name}
+            id={result.data.id as number}
+            version={result.data.version ?? undefined}
+            permissions={result.permissions}
+            onDone={(action) =>
+              onAction
+                ? onAction(action)
+                : action === 'delete'
+                  ? router.visit(`/resources/${resource.name}`)
+                  : router.reload()
+            }
+          />
+        </div>
+        <RecordFooterClose />
         <Can permissions={result.permissions} action="update">
           {onEdit ? (
             <Button onClick={onEdit}>
@@ -95,29 +121,7 @@ export function ResourceShow({
             </Button>
           )}
         </Can>
-        <RecordPrint resource={resource.name} id={result.data.id as number} />
-        <ResourceActions
-          resource={resource.name}
-          id={result.data.id as number}
-          version={result.data.version ?? undefined}
-          permissions={result.permissions}
-          onDone={(action) =>
-            onAction
-              ? onAction(action)
-              : action === 'delete'
-                ? router.visit(`/resources/${resource.name}`)
-                : router.reload()
-          }
-        />
-        {resource.submittable && (
-          <Badge
-            variant={result.data.docStatus === 1 ? 'default' : 'secondary'}
-            className={result.data.docStatus === 2 ? 'bg-destructive/10 text-destructive' : ''}
-          >
-            {documentStatus(result.data.docStatus, t)}
-          </Badge>
-        )}
-      </div>
+      </RecordFooter>
       <dl className="grid gap-7 rounded-xl border bg-card p-7 md:grid-cols-2">
         {fields.map((field) => (
           <div
@@ -258,7 +262,14 @@ export function ResourceShow({
                   </span>
                   <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
                     {entry.actorId ? (
-                      <UserAvatar user={{ id: entry.actorId, name: entry.actorName }} size="xs" />
+                      <UserAvatar
+                        user={{
+                          id: entry.actorId,
+                          name: entry.actorName,
+                          avatarUrl: entry.actorAvatarUrl,
+                        }}
+                        size="xs"
+                      />
                     ) : null}
                     {entry.actorName ?? t('مستخدم #{id}', { id: String(entry.actorId) })}
                   </span>

@@ -116,7 +116,8 @@ test.group('Profile picture browser acceptance (#158)', (group) => {
     const record = await visit(`/resources/ui_samples/${recordId}`)
     const panel = record.getByRole('region', { name: 'التعاون حول السجل' })
     await panel.getByText('تعليق بصورة').waitFor()
-    const avatar = panel.locator(`img[src="/users/${owner.user.id}/avatar"]`)
+    // The comment carries the versioned URL (ADR 050), so the browser may cache it for good.
+    const avatar = panel.locator(`img[src^="/users/${owner.user.id}/avatar?v="]`)
     await avatar.waitFor()
     const loaded = await avatar.evaluate(
       (img) => (img as unknown as { naturalWidth: number }).naturalWidth
@@ -179,7 +180,10 @@ test.group('Profile picture browser acceptance (#158)', (group) => {
     assert.isTrue(await save.isVisible())
     assert.isTrue(await save.isEnabled())
     await page.screenshot({ path: join(await screenshotDir(), 'avatar-dialog-mobile.png') })
+    // A chosen picture is a change: «إلغاء» asks before it discards the picture.
     await dialog.getByRole('button', { name: 'إلغاء' }).click()
+    const guard = page.getByRole('dialog', { name: 'إغلاق النموذج؟' })
+    await guard.getByRole('button', { name: 'إغلاق دون حفظ', exact: true }).click()
     await dialog.waitFor({ state: 'hidden' })
   })
 })

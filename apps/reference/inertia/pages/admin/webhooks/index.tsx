@@ -307,7 +307,7 @@ export default function WebhooksIndex({ webhooks, events, inbound }: Props) {
       <Dialog mode="view" open={log !== null} onOpenChange={(value) => !value && setLog(null)}>
         <LongDialogContent
           dir="rtl"
-          width="xl"
+          width="3xl"
           title="سجل المحاولات"
           description={log?.webhook.name}
           footer={

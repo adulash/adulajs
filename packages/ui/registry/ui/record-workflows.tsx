@@ -6,15 +6,10 @@ import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { Label } from '~/components/ui/label'
 import { Textarea } from '~/components/ui/textarea'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '~/components/ui/dialog'
+import { Dialog, DialogClose } from '~/components/ui/dialog'
+import { LongDialogContent } from '~/components/ui/long-dialog'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
+import { UserAvatar } from '~/components/ui/user-avatar'
 import { formatDatetime } from '~/components/ui/resource-value'
 
 const json = { headers: { Accept: 'application/json' }, withXSRFToken: true }
@@ -185,23 +180,51 @@ export function WorkflowDecision({
           </Button>
         ))}
       </div>
-      <Dialog open={choice !== null} onOpenChange={(next) => !next && !busy && setChoice(null)}>
-        <DialogContent dir="rtl">
-          <DialogHeader>
-            <DialogTitle>
-              {choice && (form ? `تأكيد القرار: ${choice.label}` : dialogTitle[choice.key])}
-            </DialogTitle>
-            <DialogDescription>
-              {run.myApproval.title} — {run.resourceLabel}:{' '}
-              {run.recordTitle ?? `#${run.recordId}`}
-            </DialogDescription>
-          </DialogHeader>
+      <Dialog
+        mode="edit"
+        open={choice !== null}
+        onOpenChange={(next) => !next && !busy && setChoice(null)}
+      >
+        <LongDialogContent
+          dir="rtl"
+          width="lg"
+          title={choice && (form ? `تأكيد القرار: ${choice.label}` : dialogTitle[choice.key])}
+          description={`${run.myApproval.title} — ${run.resourceLabel}: ${run.recordTitle ?? `#${run.recordId}`}`}
+          footer={
+            <>
+              <DialogClose asChild>
+                <Button type="button" variant="outline" disabled={busy}>
+                  إلغاء
+                </Button>
+              </DialogClose>
+              <Button
+                type="submit"
+                form={`decision-form-${run.id}`}
+                variant={rejecting ? 'destructive' : 'default'}
+                disabled={busy}
+              >
+                {choice?.label}
+              </Button>
+            </>
+          }
+        >
           {behalf && (
-            <p className="rounded-lg bg-info/10 px-3 py-2 text-xs text-info">
+            <p className="mb-4 rounded-lg bg-info/10 px-3 py-2 text-xs text-info">
               تقرر نيابة عن {behalf.name ?? 'زميل'} بموجب تفويض، ويُسجَّل القرار باسمك نيابة عنه.
             </p>
           )}
-          <div className="space-y-2">
+          <form
+            id={`decision-form-${run.id}`}
+            className="space-y-2"
+            // The required note is checked here, with an Arabic message, not by the browser.
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault()
+              void submit()
+            }}
+            // The note is the only value typed here, and it opens empty.
+            data-dirty={String(comment !== '')}
+          >
             <Label htmlFor={`decision-comment-${run.id}`} className="flex items-center gap-1">
               {choice?.comment === 'required' ? (
                 <>
@@ -221,26 +244,16 @@ export function WorkflowDecision({
               required={choice?.comment === 'required'}
               onChange={(event) => setComment(event.target.value)}
             />
-          </div>
+          </form>
           {error && (
-            <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+            <p
+              role="alert"
+              className="mt-4 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive"
+            >
               {error}
             </p>
           )}
-          <DialogFooter>
-            <Button type="button" variant="outline" disabled={busy} onClick={() => setChoice(null)}>
-              تراجع
-            </Button>
-            <Button
-              type="button"
-              variant={rejecting ? 'destructive' : 'default'}
-              disabled={busy}
-              onClick={() => void submit()}
-            >
-              {choice?.label}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
+        </LongDialogContent>
       </Dialog>
     </>
   )
@@ -316,7 +329,21 @@ export function RecordWorkflows({ resource, id }: { resource: string; id: number
                 {run.history.map((entry, index) => (
                   <li key={index} className="flex flex-wrap gap-x-3">
                     <span className="font-medium">{eventLabel[entry.event] ?? entry.event}</span>
-                    {entry.actorName && <span>{entry.actorName}</span>}
+                    {entry.actorName && (
+                      <span className="inline-flex items-center gap-1.5">
+                        {entry.actorId ? (
+                          <UserAvatar
+                            user={{
+                              id: entry.actorId,
+                              name: entry.actorName,
+                              avatarUrl: entry.actorAvatarUrl,
+                            }}
+                            size="xs"
+                          />
+                        ) : null}
+                        {entry.actorName}
+                      </span>
+                    )}
                     {entry.onBehalfOfName && (
                       <span className="text-info">نيابة عن {entry.onBehalfOfName}</span>
                     )}

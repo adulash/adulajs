@@ -6,7 +6,7 @@ import { registry } from '#start/modules'
 import User from '#models/user'
 import { adula } from '#services/adula'
 import { listeners } from '#start/listeners'
-import { screenshotDir, seedActor, type UiActor } from '#tests/helpers/ui_fixtures'
+import { isDecorative, screenshotDir, seedActor, type UiActor } from '#tests/helpers/ui_fixtures'
 
 const knex = () => db.connection().getWriteClient()
 
@@ -49,6 +49,7 @@ test.group('Workflow approvals browser acceptance', (group) => {
   test('the manager approves from the inbox and the record shows the history', async ({
     browserContext,
     visit,
+    assert,
   }) => {
     await browserContext.loginAs(manager)
     // The old inbox link lands on the approvals tab of My tasks (#35).
@@ -68,6 +69,9 @@ test.group('Workflow approvals browser acceptance', (group) => {
     const panel = record.getByRole('region', { name: 'سير العمل' })
     await panel.getByText('بانتظار موافقة').waitFor()
     await panel.getByText('«مطابق للميزانية»').waitFor()
+    // The history names who decided, with their picture beside the name (ADR 050).
+    const decided = panel.getByRole('listitem').filter({ hasText: manager.fullName! }).first()
+    assert.isTrue(await isDecorative(decided))
     await record.screenshot({ path: join(await screenshotDir(), 'record-workflow.png') })
   })
 })

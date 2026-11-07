@@ -16,7 +16,7 @@ export default function Reset({ token, valid }: Props) {
       <div dir="rtl" className="mx-auto w-full max-w-md py-10">
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">كلمة مرور جديدة</CardTitle>
+            <CardTitle>كلمة مرور جديدة</CardTitle>
             <CardDescription>اختر كلمة مرور جديدة لحسابك. ستُنهى جلساتك السابقة كلها.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">

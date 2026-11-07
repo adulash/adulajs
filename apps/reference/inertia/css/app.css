@@ -1,4 +1,5 @@
 /* adula:legacy-layer */
+/* Kept for adula:ui, which expects this file; no layout uses data-adula-legacy any more. */
 @layer theme, base, legacy, components, utilities;
 @layer legacy {
   @scope ([data-adula-legacy]) {

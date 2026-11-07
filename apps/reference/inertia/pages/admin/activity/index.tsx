@@ -17,6 +17,7 @@ import {
   TableHeader,
   TableRow,
 } from '~/components/ui/table'
+import { UserAvatar } from '~/components/ui/user-avatar'
 
 type Filters = { resource: string; action: string; actorId: string; from: string; to: string }
 /** One changed field, already formatted by the server; values are null when withheld. */
@@ -33,6 +34,7 @@ type Row = ActivityPage['data'][number] & {
   actionLabel: string
   recordTitle: string | null
   actorName: string | null
+  actorAvatarUrl: string | null
   fieldChanges: FieldChange[]
 }
 type Page = { data: Row[]; nextCursor: string | null }
@@ -217,7 +219,17 @@ export default function ActivityIndex({ activity, facets, filters }: Props) {
                 </TableCell>
                 <TableCell>{row.actionLabel}</TableCell>
                 <TableCell className="text-xs">
-                  {row.actorName ?? row.actor ?? row.actorId}
+                  {row.actorName ? (
+                    <span className="inline-flex items-center gap-1.5">
+                      <UserAvatar
+                        user={{ id: row.actorId, name: row.actorName, avatarUrl: row.actorAvatarUrl }}
+                        size="xs"
+                      />
+                      {row.actorName}
+                    </span>
+                  ) : (
+                    (row.actor ?? row.actorId)
+                  )}
                 </TableCell>
                 <TableCell>
                   {row.fieldChanges.length > 0 ? (

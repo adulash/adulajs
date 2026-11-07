@@ -275,4 +275,32 @@ test.group('Profile pictures', (group) => {
       .withInertia()
     assert.isNull(other.body().props.account.avatarUrl)
   })
+
+  test('people payloads carry a versioned picture URL, and null for a user without one', async ({
+    client,
+    assert,
+  }) => {
+    const set = await upload(client, `/admin/users/${colleague.id}/avatar`, admin, png(96))
+    set.assertStatus(200)
+    const [row] = await avatarRows(colleague.id)
+    const list = await client
+      .get(`/admin/users?q=avatar-`)
+      .loginAs(admin)
+      .header('Accept', 'application/json')
+    list.assertStatus(200)
+    const urls = new Map(
+      list
+        .body()
+        .data.map((user: { id: number; avatarUrl: string | null }) => [user.id, user.avatarUrl])
+    )
+    assert.equal(urls.get(colleague.id), `/users/${colleague.id}/avatar?v=${row.id}`)
+    // No picture: null, so the page shows initials and never asks for one.
+    assert.strictEqual(urls.get(admin.id), null)
+    const removed = await client
+      .delete(`/admin/users/${colleague.id}/avatar`)
+      .loginAs(admin)
+      .withCsrfToken()
+      .header('Accept', 'application/json')
+    removed.assertStatus(200)
+  })
 })

@@ -179,6 +179,7 @@ test.group('Conditional policies configured without code', (group) => {
     assert.deepInclude(listed.body().related.inspector, {
       id: mine.id,
       fullName: mine.fullName,
+      avatarUrl: null,
     })
     assert.notInclude(JSON.stringify(listed.body()), '@example.test')
     // A conditional rule keeps queries by field closed (canQueryField); administrators filter.

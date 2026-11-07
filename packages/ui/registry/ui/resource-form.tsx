@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { router } from '@inertiajs/react'
 import { Link } from '@adonisjs/inertia/react'
 import axios from 'axios'
@@ -18,6 +18,7 @@ import { Label } from '~/components/ui/label'
 import { useMessages } from '~/components/ui/messages'
 import { inputValue, isAttachment, parseValue } from '~/components/ui/resource-value'
 import { hiddenFields, listInput } from '~/components/ui/field_values'
+import { RecordFooter } from '~/components/ui/resource-surface'
 
 type Failure = { message: string; conflict: boolean }
 type RowErrors = Record<string, Record<string, Record<string, string>>>
@@ -121,6 +122,8 @@ export function ResourceForm({
   const opened = useRef(state)
   const dirty = state !== opened.current
   const form = useRef<HTMLFormElement>(null)
+  // The save button sits in the dialog's fixed footer, outside the form's markup.
+  const formId = useId()
   // Counts refused submits, so focus moves to the first invalid field after the errors render.
   const [refused, setRefused] = useState(0)
   useEffect(() => {
@@ -310,6 +313,7 @@ export function ResourceForm({
   return (
     <form
       ref={form}
+      id={formId}
       onSubmit={submit}
       noValidate
       // The page keeps a reading width; a dialog body is already bounded.
@@ -419,8 +423,8 @@ export function ResourceForm({
       {editor.record?.version !== undefined && editor.record.version !== null && (
         <input type="hidden" name="version" value={String(editor.record.version)} />
       )}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2">
+      <RecordFooter>
+        <div className="me-auto flex flex-wrap gap-2">
           {editor.record && (
             <ResourceActions
               resource={editor.name}
@@ -435,22 +439,20 @@ export function ResourceForm({
             />
           )}
         </div>
-        <div className="flex gap-3">
-          {onCancel ? (
-            <Button type="button" variant="outline" onClick={onCancel}>
-              {t('إلغاء')}
-            </Button>
-          ) : (
-            <Button type="button" variant="outline" asChild>
-              <Link href={editor.record ? `${base}/${editor.record.id}` : base}>{t('إلغاء')}</Link>
-            </Button>
-          )}
-          <Button type="submit" disabled={busy}>
-            <Save size={16} />
-            {busy ? t('جارٍ الحفظ...') : t('حفظ السجل')}
+        {onCancel ? (
+          <Button type="button" variant="outline" onClick={onCancel}>
+            {t('إلغاء')}
           </Button>
-        </div>
-      </div>
+        ) : (
+          <Button type="button" variant="outline" asChild>
+            <Link href={editor.record ? `${base}/${editor.record.id}` : base}>{t('إلغاء')}</Link>
+          </Button>
+        )}
+        <Button type="submit" form={formId} disabled={busy}>
+          <Save size={16} />
+          {busy ? t('جارٍ الحفظ...') : t('حفظ السجل')}
+        </Button>
+      </RecordFooter>
     </form>
   )
 }

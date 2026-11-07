@@ -8,13 +8,14 @@ import {
   DialogTitle,
 } from '~/components/ui/dialog'
 
+// Named after the Tailwind max-width each one applies from the small screen breakpoint up.
 const widths = {
-  md: 'sm:max-w-lg',
-  lg: 'sm:max-w-xl',
+  lg: 'sm:max-w-lg',
+  xl: 'sm:max-w-xl',
   '2xl': 'sm:max-w-2xl',
-  xl: 'sm:max-w-3xl',
+  '3xl': 'sm:max-w-3xl',
   '4xl': 'sm:max-w-4xl',
-  full: 'sm:max-w-5xl',
+  '5xl': 'sm:max-w-5xl',
 } as const
 
 type LongDialogContentProps = {
@@ -40,7 +41,7 @@ export function LongDialogContent({
   title,
   description,
   footer,
-  width = 'lg',
+  width = 'xl',
   children,
   ...props
 }: LongDialogContentProps) {

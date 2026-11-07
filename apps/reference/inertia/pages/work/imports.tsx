@@ -62,7 +62,7 @@ function ValidatedBatch({ id, onClose }: { id: number | null; onClose: () => voi
     <Dialog open={id !== null} onOpenChange={(value) => !value && onClose()}>
       <LongDialogContent
         dir="rtl"
-        width="xl"
+        width="3xl"
         title={`تقرير التحقق ${batch ? `— ${batch.fileName}` : ''}`}
         description="نتيجة كل صف كما سيُستورد. لم يُحفظ شيء بعد."
         footer={

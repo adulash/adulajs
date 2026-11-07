@@ -69,13 +69,34 @@ preferences.
   `X-Content-Type-Options: nosniff`, `Content-Security-Policy: default-src 'none';
   sandbox`, `Content-Disposition: inline`, `Cross-Origin-Resource-Policy: same-origin`,
   an ETag of the version. The cache policy is `private, max-age=300`, or
-  `private, max-age=31536000, immutable` for a URL with the current `?v=`. Only the shared
-  `account` prop and the admin user page carry the versioned URL; other places derive
-  `/users/:id/avatar` from the user id, so core payload types stay unchanged.
+  `private, max-age=31536000, immutable` for a URL with the current `?v=`.
+* **Payloads (amended in 2.3.0).** Every payload that resolves a person's name also carries
+  that person's picture URL: the versioned `avatarUrl(id, version)`, or `null` when they
+  have none, so the page shows initials and requests nothing (no 404 per user without a
+  picture). The version comes from the query that reads the name, through
+  `avatarVersionColumn` (a scalar subquery served by the `attachments (resource, record_id,
+  field)` index), so a list of people costs no query per row; `avatarUrlFor` turns it into the
+  URL. This supersedes the earlier rule that core payload types stay unchanged. The additions
+  are optional, output-only fields: `UserSummary.avatarUrl`, `Assignment.assigneeAvatarUrl`
+  and `assignedByAvatarUrl`, `WorkflowDelegation.delegatorAvatarUrl` and
+  `delegateAvatarUrl`, delegation candidates' `avatarUrl`, `CommentEntry.authorAvatarUrl`,
+  `FieldChangeEntry.actorId` and `actorAvatarUrl`, workflow history `actorId` and
+  `actorAvatarUrl`, record activity `actorAvatarUrl`, user field options and related user
+  rows `avatarUrl`. The reference application adds `avatarUrl` to administrative sessions
+  and `actorAvatarUrl` to the activity log. Without a `v` (an older payload) the component
+  still falls back to `/users/:id/avatar`.
 * **Interface.** The copied `user-avatar` component (Radix Avatar) shows the picture with
-  the initials while it loads and when there is none. The record components (comments,
-  mentions, assignments, activity, user pickers) and the account menu use it. Workflow
-  history carries no actor id yet and still shows names only.
+  the initials (on `bg-muted`, «؟» without a name, no per-user colours) while it loads and
+  when there is none. It sits beside a visible name and is hidden from assistive
+  technology (`labelled` off, empty `alt`); one picture per cell, never a stack, and several
+  people stay comma-separated names. Sizes: `xs` (20px) beside names in rows and cells,
+  `sm` (28px) for a list's main identity column and picker triggers, `md` (36px) for the
+  header and account trigger, `lg` (64px) for the profile and the admin user page. It
+  appears in user fields (record details and list cells), the admin users table, sessions
+  and activity log, the delegation table and picker, workflow history, «مهامي» («أسندها» or
+  «طلبها»), the record change log, comments, mentions, assignments and user pickers. Names
+  inside sentences, «النظام», the impersonation bar and screens without a person keep
+  names only.
 
 ### Personal overview
 
@@ -122,6 +143,9 @@ pointer events and the keyboard.
 
 * New copied components: `user-avatar`, `slider`, `sortable-list`. `resource-dashboard`
   exports `DashboardWidgetCard`. Systems re-copy the record components to show pictures.
+* 2.3.0 adds `avatarVersionColumn` and `avatarUrlFor` and the optional picture fields above
+  (additive, minor); `resource-value` and `data-table` now depend on `user-avatar`, and
+  `resource-value` exports `relatedUser`.
 * New public API: `UserAvatars`, `avatarUrl`, `avatarHeaders`, `prepareAvatarImage`,
   `AVATAR_LIMITS` and the types `AvatarRecord`, `RemovedAvatarFile`, `AvatarImage`;
   `Dashboards.overview` and the types `OverviewBuiltin`, `OverviewLayout`,
