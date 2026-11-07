@@ -51,6 +51,14 @@ export function AccountMenu({
   const [theme, setTheme] = usePreference<Theme>('shell.theme')
   const [layout, setLayout] = usePreference<ShellLayout | null>('shell.layout')
   const [collapse, setCollapse] = usePreference<'icons' | 'hidden'>('shell.sidebarCollapse')
+  const [sidebarMode, setSidebarMode] = usePreference<string>('shell.sidebar')
+  // A collapsed sidebar takes the new collapse mode at once, not at its next collapse.
+  const chooseCollapse = (value: string) => {
+    const next = value === 'hidden' ? 'hidden' : 'icons'
+    void setCollapse(next)
+    if ((sidebarMode === 'icons' || sidebarMode === 'hidden') && sidebarMode !== next)
+      void setSidebarMode(next)
+  }
   const user = page.props.account
   if (!user) return null
   const avatar = (
@@ -156,7 +164,7 @@ export function AccountMenu({
             </DropdownMenuLabel>
             <DropdownMenuRadioGroup
               value={collapse === 'hidden' ? 'hidden' : 'icons'}
-              onValueChange={(value) => void setCollapse(value === 'hidden' ? 'hidden' : 'icons')}
+              onValueChange={chooseCollapse}
             >
               <DropdownMenuRadioItem value="icons">{t('أيقونات')}</DropdownMenuRadioItem>
               <DropdownMenuRadioItem value="hidden">{t('إخفاء كامل')}</DropdownMenuRadioItem>
