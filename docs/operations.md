@@ -15,6 +15,11 @@ Only Caddy publishes a port. Keep credentials in the untracked `.env`;
 secrets. Add `docker-compose.pdf.yml` and set `GOTENBERG_URL=http://gotenberg:3000` for PDF
 printing (plan for 8 GB hosts).
 
+Mail settings saved in the «البريد» tab apply to `web`, `worker` and `scheduler` without a
+restart. Set `MAIL_SETTINGS_SOURCE=environment` in `.env` to make the `SMTP_*` and
+`MAIL_FROM_*` variables win instead; Compose passes it to the application services only
+([integration](integration.md)).
+
 Serve the system over HTTPS with HTTP/2; the bundled Caddy does. Each browser shares one
 realtime stream across its tabs, but a proxy in front must not downgrade to HTTP/1.1.
 
