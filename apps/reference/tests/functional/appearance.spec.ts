@@ -83,8 +83,13 @@ test.group('Appearance and occasions', (group) => {
     appearance().forget()
     appearance().clock = () => new Date('2026-01-01T09:00:00Z')
   })
-  group.teardown(() => {
+  // Later specs see the shells' own identity.
+  group.teardown(async () => {
     appearance().clock = realClock
+    await knex()('appearance_occasions').delete()
+    await knex()('settings').where('key', 'appearance.identity').delete()
+    await knex()('attachments').where('resource', 'core_appearance').delete()
+    appearance().forget()
   })
 
   const upload = (client: ApiClient, user: User, bytes: Buffer, filename: string, type: string) =>

@@ -12,6 +12,11 @@ export const logoUrl = (id: number) => `/appearance/logos/${id}`
 export type SharedAppearance = {
   company: string
   logoUrl: string | null
+  /**
+   * Only what «المظهر والهوية» sets (the saved identity or today's occasion). The shells show
+   * it in place of their own name and mark; null keeps the shell's identity.
+   */
+  brand: { company: string | null; logoUrl: string | null }
   login: { title: string | null; description: string | null }
   guestHome: { title: string | null; description: string | null }
   banner: string | null
@@ -24,6 +29,10 @@ export async function sharedAppearance(): Promise<SharedAppearance> {
   return {
     company: resolved.company ?? base.company,
     logoUrl: resolved.logoId ? logoUrl(resolved.logoId) : base.logo,
+    brand: {
+      company: resolved.company,
+      logoUrl: resolved.logoId ? logoUrl(resolved.logoId) : null,
+    },
     login: resolved.login,
     guestHome: resolved.guestHome,
     banner: resolved.banner,

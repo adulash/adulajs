@@ -4,7 +4,9 @@ import { crc32, deflateSync } from 'node:zlib'
 import { test } from '@japa/runner'
 import db from '@adonisjs/lucid/services/db'
 import User from '#models/user'
-import { derivePrimaryTheme } from 'adula'
+import drive from '@adonisjs/drive/services/main'
+import env from '#start/env'
+import { derivePrimaryTheme, prepareLogoImage } from 'adula'
 import { adula } from '#services/adula'
 import app from '@adonisjs/core/services/app'
 
@@ -85,14 +87,20 @@ test.group('Appearance in the browser (ADR 053)', (group) => {
     await knex()('role_rules').insert({ role_id: role.id, subject: 'all', action: 'manage' })
     await knex()('user_roles').insert({ user_id: admin.id, role_id: role.id })
   })
-  group.each.setup(async () => {
+  // Every test starts and ends with no saved appearance, so other specs see the shells' own
+  // identity whatever order the files run in.
+  const clear = async () => {
     await knex()('appearance_occasions').delete()
     await knex()('settings').where('key', 'appearance.identity').delete()
     await knex()('attachments').where('resource', 'core_appearance').delete()
     appearance().forget()
+  }
+  group.each.setup(async () => {
+    await clear()
     appearance().clock = () => new Date('2026-01-15T09:00:00Z')
-    return () => {
+    return async () => {
       appearance().clock = realClock
+      await clear()
     }
   })
 
@@ -274,5 +282,122 @@ test.group('Appearance in the browser (ADR 053)', (group) => {
     const width = (await preview.boundingBox())!.width
     assert.isAtMost(width, 375)
     await snapshot(page, 'identity-dialog-375')
+  })
+
+  test('untouched appearance dialogs close at once; a change asks first', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(admin)
+    const page = await visit('/admin/appearance')
+    const confirm = page.getByRole('dialog', { name: 'إغلاق النموذج؟' })
+    for (const [button, name] of [
+      ['تعديل الهوية', 'تعديل الهوية'],
+      ['إضافة مناسبة', 'إضافة مناسبة'],
+    ]) {
+      const dialog = page.getByRole('dialog', { name })
+      await page.getByRole('button', { name: button, exact: true }).click()
+      await dialog.waitFor()
+      await page.keyboard.press('Escape')
+      await dialog.waitFor({ state: 'hidden' })
+      assert.equal(await confirm.count(), 0)
+      await page.getByRole('button', { name: button, exact: true }).click()
+      await dialog.getByRole('button', { name: 'إلغاء', exact: true }).click()
+      await dialog.waitFor({ state: 'hidden' })
+      assert.equal(await confirm.count(), 0)
+    }
+    await page.getByRole('button', { name: 'تعديل الهوية', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'تعديل الهوية' })
+    await dialog.getByLabel('اسم الشركة', { exact: true }).fill('تغيير غير محفوظ')
+    await page.keyboard.press('Escape')
+    await confirm.waitFor()
+    await page.getByRole('button', { name: 'إغلاق دون حفظ', exact: true }).click()
+    await dialog.waitFor({ state: 'hidden' })
+  })
+
+  test("the workspace and guest shells show the saved identity and today's occasion", async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    const actor = { id: admin.id }
+    const image = await prepareLogoImage(png(96, 96))
+    const diskName = env.get('DRIVE_DISK')
+    const path = `appearance/${randomUUID()}.${image.extname}`
+    await drive.use(diskName as never).put(path, image.bytes, { contentType: image.mimeType })
+    const logo = await appearance().registerLogo(actor, { disk: diskName, path, image })
+    await appearance().saveIdentity(actor, {
+      company: 'شركة الهوية',
+      logoId: logo.id,
+      loginTitle: 'أهلًا بك في شركة الهوية',
+      loginDescription: 'ادخل بحسابك في الشركة.',
+      primaryColor: '#1d4ed8',
+    })
+    await appearance().saveOccasion(actor, {
+      name: 'اليوم الوطني',
+      startsOn: '2026-09-20',
+      endsOn: '2026-09-23',
+      primaryColor: '#006c35',
+      banner: 'كل عام والوطن بخير',
+    })
+    appearance().clock = () => new Date('2026-09-21T09:00:00Z')
+
+    // The guest shell: name, logo, the login texts, the banner, the colour and the title.
+    const guest = await visit('/login')
+    for (const [width, height] of [
+      [1440, 900],
+      [375, 812],
+    ]) {
+      await guest.setViewportSize({ width, height })
+      const header = guest.locator('header').first()
+      await header.getByText('شركة الهوية', { exact: true }).waitFor()
+      assert.equal(
+        await header.locator('[data-brand-logo]').getAttribute('src'),
+        `/appearance/logos/${logo.id}`
+      )
+      await guest.getByText('أهلًا بك في شركة الهوية', { exact: true }).waitFor()
+      await guest.getByText('ادخل بحسابك في الشركة.', { exact: true }).waitFor()
+      await guest.locator('[data-occasion-banner]').getByText('كل عام والوطن بخير').waitFor()
+      assert.equal(
+        await primaryBecomes(guest, (value) => value === expected('#006c35')),
+        expected('#006c35')
+      )
+      assert.include(await guest.title(), 'شركة الهوية')
+      await snapshot(guest, `login-occasion-${width}`)
+    }
+
+    // The workspace shell: the same name, logo, banner and colour in the full-width header.
+    await browserContext.loginAs(admin)
+    const page = await visit('/')
+    for (const [width, height] of [
+      [1440, 900],
+      [375, 812],
+    ]) {
+      await page.setViewportSize({ width, height })
+      const brand = page.locator('[data-brand]').first()
+      await brand.getByText('شركة الهوية', { exact: true }).waitFor()
+      assert.equal(
+        await brand.locator('[data-brand-logo]').getAttribute('src'),
+        `/appearance/logos/${logo.id}`
+      )
+      await page.locator('[data-occasion-banner]').getByText('كل عام والوطن بخير').waitFor()
+      assert.equal(
+        await primaryBecomes(page, (value) => value === expected('#006c35')),
+        expected('#006c35')
+      )
+      assert.include(await page.title(), 'شركة الهوية')
+      await snapshot(page, `workspace-occasion-${width}`)
+    }
+
+    // After the last day the banner goes and the base colour returns, with nothing run.
+    appearance().clock = () => new Date('2026-09-24T09:00:00Z')
+    await page.reload()
+    await page.locator('[data-brand]').first().getByText('شركة الهوية', { exact: true }).waitFor()
+    assert.equal(
+      await primaryBecomes(page, (value) => value === expected('#1d4ed8')),
+      expected('#1d4ed8')
+    )
+    assert.equal(await page.locator('[data-occasion-banner]').count(), 0)
   })
 })

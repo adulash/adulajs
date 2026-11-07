@@ -49,6 +49,8 @@ import { FlashMessages } from '~/components/flash-messages'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
 import { useMessages } from '~/components/ui/messages'
 import { BackupBanner } from '~/components/backup-banner'
+import { OccasionBanner } from '~/components/occasion-banner'
+import { useAppearance } from '~/components/appearance'
 import { NotificationBell } from '~/components/notification-bell'
 import AssistantLauncher from '~/components/assistant/assistant-launcher'
 import { TasksButton } from '~/components/tasks-button'
@@ -129,6 +131,7 @@ export default function Workspace({ children }: { children: ReactNode }) {
     /** Set while a record dialog is open over a list (ADR 035). */
     overlay?: { list: string }
   }>()
+  const appearance = useAppearance()
   const { collapsed, toggle } = useCollapsedModules()
   const [storedMode, setMode] = usePreference<SidebarMode>('shell.sidebar')
   const [storedCollapse] = usePreference<'icons' | 'hidden'>('shell.sidebarCollapse')
@@ -235,11 +238,15 @@ export default function Workspace({ children }: { children: ReactNode }) {
     '--shell-sidebar': sidebar ? SIDEBAR_WIDTH[mode] : '0px',
   } as CSSProperties
   // The brand belongs to the header (owner decision 20); the tagline shows beside a wide sidebar.
+  // «المظهر والهوية» (ADR 053) may replace the name and the mark, today's occasion included.
+  const appearanceBrand = appearance?.brand
   const brand = (
     <Link href="/" className="flex min-w-0 items-center gap-3" data-brand>
-      <BrandMark size="sm" />
+      <BrandMark size="sm" logo={appearanceBrand?.logoUrl} />
       <span className="min-w-0">
-        <strong className="block truncate text-base leading-tight tracking-tight">عدولة</strong>
+        <strong className="block truncate text-base leading-tight tracking-tight">
+          {appearanceBrand?.company ?? <>عدولة</>}
+        </strong>
         <span className="hidden truncate text-[11px] text-muted-foreground sm:block">
           {t('مساحة أعمالك، بوضوح')}
         </span>
@@ -519,6 +526,7 @@ export default function Workspace({ children }: { children: ReactNode }) {
           {/* The warnings head the page column, beside the sidebar. */}
           <div className="shrink-0 print:hidden">
             <BackupBanner />
+            <OccasionBanner className="px-5 pt-4 lg:px-10" />
             <ImpersonationBar />
           </div>
           <div

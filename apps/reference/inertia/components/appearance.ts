@@ -1,3 +1,5 @@
+import { usePage } from '@inertiajs/react'
+
 /**
  * The resolved appearance on the page (ADR 053): the `appearance` shared prop sets the primary
  * colour tokens for the light and dark themes and names the document title. The values were
@@ -8,6 +10,8 @@ export type AppearanceTheme = { light: ThemeColors; dark: ThemeColors }
 export type SharedAppearance = {
   company: string
   logoUrl: string | null
+  /** Only what «المظهر والهوية» sets; null keeps the shell's own name and mark. */
+  brand: { company: string | null; logoUrl: string | null }
   login: { title: string | null; description: string | null }
   guestHome: { title: string | null; description: string | null }
   banner: string | null
@@ -19,8 +23,16 @@ const HEX = /^#[0-9a-f]{6}$/
 const STYLE_ID = 'adula-appearance'
 let company: string | null = null
 
-/** The company name for the document title, once a page has shared it. */
+/**
+ * The company name set in «المظهر والهوية», for the document title; null keeps the
+ * application's own name.
+ */
 export const appearanceCompany = () => company
+
+/** The resolved appearance of the current page (absent only on an error page). */
+export function useAppearance(): SharedAppearance | undefined {
+  return usePage<{ appearance?: SharedAppearance }>().props.appearance
+}
 
 function block(selector: string, colors: ThemeColors) {
   const primary = colors['--primary']
@@ -32,7 +44,7 @@ function block(selector: string, colors: ThemeColors) {
 /** Writes (or removes) the one style element that overrides the primary tokens. */
 export function applyAppearance(appearance: SharedAppearance | undefined) {
   if (typeof document === 'undefined') return
-  company = appearance?.company ?? null
+  company = appearance?.brand?.company ?? null
   const theme = appearance?.theme
   // Doubled selectors outrank the theme's own `:root` and `.dark` whatever order the style
   // elements end up in (Vite injects stylesheets after this one in development).

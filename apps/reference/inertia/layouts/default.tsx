@@ -5,6 +5,8 @@ import { type ReactElement, useEffect } from 'react'
 import { Form, Link } from '@adonisjs/inertia/react'
 import { ImpersonationBar } from '~/components/admin-nav'
 import { BrandMark } from '~/components/brand-mark'
+import { OccasionBanner } from '~/components/occasion-banner'
+import { useAppearance } from '~/components/appearance'
 import { Button } from '~/components/ui/button'
 import { UserAvatar } from '~/components/ui/user-avatar'
 import { useMessages } from '~/components/ui/messages'
@@ -26,6 +28,8 @@ const AUTH_PAGES = new Set([
  */
 export default function Layout({ children }: { children: ReactElement<Data.SharedProps> }) {
   const { url, flash, component } = usePage()
+  // «المظهر والهوية» (ADR 053) may replace the name and the mark, today's occasion included.
+  const brand = useAppearance()?.brand
   const { t, dir } = useMessages()
   useEffect(() => {
     toast.dismiss()
@@ -52,8 +56,8 @@ export default function Layout({ children }: { children: ReactElement<Data.Share
       <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
         <div className="flex h-[72px] items-center justify-between gap-3 px-5 lg:px-10">
           <Link route="home" className="flex items-center gap-3">
-            <BrandMark size="sm" />
-            <strong className="text-base text-foreground">عدولة</strong>
+            <BrandMark size="sm" logo={brand?.logoUrl} />
+            <strong className="text-base text-foreground">{brand?.company ?? <>عدولة</>}</strong>
           </Link>
           <nav aria-label={t('الحساب')} className="flex items-center gap-2">
             {account ? (
@@ -89,6 +93,7 @@ export default function Layout({ children }: { children: ReactElement<Data.Share
           </nav>
         </div>
       </header>
+      <OccasionBanner className="px-5 pt-4 lg:px-10" />
       <main className="px-4 sm:px-6">{children}</main>
       <Toaster position="top-center" richColors />
     </div>
