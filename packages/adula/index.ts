@@ -587,3 +587,33 @@ export type {
 export type { AssistantSettingsView, AssistantSettingsInput } from './src/ai/settings.js'
 export { createChatClient, AssistantError } from './src/ai/client.js'
 export type { ChatClient, ChatRequest, ChatCompletion } from './src/ai/client.js'
+export {
+  Appearance,
+  APPEARANCE_LOGO_OWNER,
+  APPEARANCE_SETTING_KEY,
+  APPEARANCE_TEXT_LIMITS,
+  BASE_LOGO_RECORD,
+  dateIn,
+} from './src/appearance/appearance.js'
+export type {
+  AppearanceIdentity,
+  AppearanceLogo,
+  AppearanceOccasion,
+  RemovedLogoFile,
+  ResolvedAppearance,
+} from './src/appearance/appearance.js'
+export {
+  checkPrimaryColor,
+  contrast,
+  derivePrimaryTheme,
+  normalizeColor,
+  WCAG_AA,
+} from './src/appearance/colors.js'
+export type { ContrastCheck, DerivedTheme, ThemeColors } from './src/appearance/colors.js'
+export {
+  LOGO_LIMITS,
+  detectLogoType,
+  logoHeaders,
+  prepareLogoImage,
+} from './src/appearance/logo.js'
+export type { LogoImage, LogoType } from './src/appearance/logo.js'

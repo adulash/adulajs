@@ -14,6 +14,7 @@ import {
 } from 'adula'
 import db from '@adonisjs/lucid/services/db'
 import { signupEnabled } from '#services/signup'
+import { sharedAppearance } from '#services/appearance'
 import { preferences as preferenceDefinitions } from '#start/preferences'
 import {
   availableLanguages,
@@ -80,6 +81,9 @@ export default class InertiaMiddleware extends BaseInertiaMiddleware {
       messages: clientMessages(language),
       // Guests see the signup link only while the signup routes answer.
       signupEnabled: ctx.inertia.always(auth?.user ? false : await signupEnabled()),
+      // The company name, logo, texts and colour for this request, with the active occasion
+      // applied (ADR 053). Guests get it too: the login and guest pages use it.
+      appearance: ctx.inertia.always(await sharedAppearance()),
       ...(await sharedAdminProps(ctx)),
     }
   }

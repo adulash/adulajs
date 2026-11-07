@@ -68,6 +68,8 @@ const AdminBackupsController = () => import('#controllers/admin/backups_controll
 const AdminSettingsController = () => import('#controllers/admin/settings_controller')
 const AssistantController = () => import('#controllers/assistant_controller')
 const AdminAssistantController = () => import('#controllers/admin/assistant_controller')
+const AdminAppearanceController = () => import('#controllers/admin/appearance_controller')
+const AppearanceLogosController = () => import('#controllers/appearance_logos_controller')
 const AdminAuthenticationSettingsController = () =>
   import('#controllers/admin/authentication_settings_controller')
 const SetupController = () => import('#controllers/admin/setup_controller')
@@ -237,6 +239,9 @@ router
   .prefix('api/v1')
   .as('api')
   .use([middleware.apiAuth(), apiThrottle])
+
+// Appearance logos (ADR 053) are public: the login and guest pages show them before sign-in.
+router.get('appearance/logos/:id', [AppearanceLogosController, 'show']).where('id', /^\d+$/)
 
 router
   .group(() => {
@@ -445,6 +450,17 @@ router
       .post('settings/channels/test', [AdminSettingsController, 'testChannel'])
       .use(channelTestThrottle)
     router.delete('settings/:id', [AdminSettingsController, 'destroy'])
+    router.get('appearance', [AdminAppearanceController, 'index'])
+    router.put('appearance', [AdminAppearanceController, 'updateIdentity'])
+    router.delete('appearance', [AdminAppearanceController, 'resetIdentity'])
+    router.post('appearance/logos', [AdminAppearanceController, 'uploadLogo']).use(apiThrottle)
+    router.post('appearance/occasions', [AdminAppearanceController, 'storeOccasion'])
+    router
+      .put('appearance/occasions/:id', [AdminAppearanceController, 'updateOccasion'])
+      .where('id', /^\d+$/)
+    router
+      .delete('appearance/occasions/:id', [AdminAppearanceController, 'destroyOccasion'])
+      .where('id', /^\d+$/)
     router.get('assistant', [AdminAssistantController, 'index'])
     router.put('assistant', [AdminAssistantController, 'update'])
     router.put('assistant/key', [AdminAssistantController, 'setKey'])

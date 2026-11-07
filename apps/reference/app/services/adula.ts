@@ -34,10 +34,12 @@ import {
 } from 'adula'
 import { SyncJobs } from 'adula'
 import { syncJobDefinitions } from '#start/sync_jobs'
-import { UserPreferences } from 'adula'
+import { UserPreferences, Appearance } from 'adula'
 import { preferences } from '#start/preferences'
 
 export { IMPERSONATOR_KEY } from '#services/impersonation'
+
+let appearanceService: Appearance | undefined
 
 export function adula() {
   const knex = db.connection().getWriteClient()
@@ -76,6 +78,9 @@ export function adula() {
       },
       outboundPolicy()
     ),
+    // Identity and occasion themes (ADR 053), resolved per request in the system time zone.
+    // One instance per process: it keeps the short cache, and tests set its clock.
+    appearance: (appearanceService ??= new Appearance(knex, { timeZone })),
     assistant: new Assistant(
       knex,
       registry,

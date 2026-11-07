@@ -17,6 +17,7 @@ declare module '@adonisjs/inertia/types' {
     'account/sessions': ExtractProps<(typeof import('../../inertia/pages/account/sessions.tsx'))['default']>
     'account/tokens': ExtractProps<(typeof import('../../inertia/pages/account/tokens.tsx'))['default']>
     'admin/activity/index': ExtractProps<(typeof import('../../inertia/pages/admin/activity/index.tsx'))['default']>
+    'admin/appearance/index': ExtractProps<(typeof import('../../inertia/pages/admin/appearance/index.tsx'))['default']>
     'admin/assistant/index': ExtractProps<(typeof import('../../inertia/pages/admin/assistant/index.tsx'))['default']>
     'admin/backups/index': ExtractProps<(typeof import('../../inertia/pages/admin/backups/index.tsx'))['default']>
     'admin/delegations/index': ExtractProps<(typeof import('../../inertia/pages/admin/delegations/index.tsx'))['default']>
