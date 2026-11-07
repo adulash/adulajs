@@ -164,6 +164,8 @@ export const sampleModule: Module = {
 export async function installSampleResources() {
   const knex = db.connection().getWriteClient()
   await knex.raw('DROP TABLE IF EXISTS ui_sample_lines, ui_samples CASCADE')
+  // Start from no sample rows, whatever an earlier suite (or an interrupted run) left behind.
+  await purgeSampleRows(knex)
   await createResourceTable(knex, samples)
   await createResourceTable(knex, sampleLines)
   await knex('lookups')
@@ -180,18 +182,40 @@ export async function removeSampleResources() {
   registry.register(modules)
   const knex = db.connection().getWriteClient()
   await knex.raw('DROP TABLE IF EXISTS ui_sample_lines, ui_samples CASCADE')
-  // Dropping the tables restarts their identities, so stale activity rows would
-  // otherwise attach to the records of the next suite that installs them.
-  const resources = ['ui_samples', 'ui_sample_lines']
+  await purgeSampleRows(knex)
+}
+
+const sampleResources = ['ui_samples', 'ui_sample_lines']
+// Every table keyed by (resource, record_id) that the sample suites write to.
+const sampleRowTables = [
+  'field_changes',
+  'activities',
+  'assignments',
+  'comments',
+  'followers',
+  'taggables',
+] as const
+
+/**
+ * Dropping the sample tables restarts their identities, so a row one suite leaves behind
+ * attaches to record 1 of the next suite's samples: a stale comment shows on its detail view,
+ * a stale assignment is returned first by `assignments.forRecord`.
+ */
+async function purgeSampleRows(
+  knex: ReturnType<ReturnType<typeof db.connection>['getWriteClient']>
+) {
+  const resources = sampleResources
+  // Field changes cascade from activities; delete them explicitly too, they carry the resource.
+  await knex('field_changes').whereIn('resource', resources).del()
   await knex('activities').whereIn('resource', resources).del()
-  // The same holds for collaboration rows: a comment left by one suite would
-  // appear on record 1 of the next suite's samples.
+  // Escalations cascade from assignments.
+  await knex('assignments').whereIn('resource', resources).del()
   const comments = knex('comments').whereIn('resource', resources).select('id')
   await knex('comment_mentions').whereIn('comment_id', comments).del()
   await knex('comments').whereIn('resource', resources).del()
   await knex('followers').whereIn('resource', resources).del()
   await knex('taggables').whereIn('resource', resources).del()
-  for (const table of ['activities', 'comments', 'followers', 'taggables']) {
+  for (const table of sampleRowTables) {
     const left = await knex(table).whereIn('resource', resources).count({ count: '*' }).first()
     if (Number(left?.count) !== 0) throw new Error(`Sample ${table} rows survived cleanup`)
   }
