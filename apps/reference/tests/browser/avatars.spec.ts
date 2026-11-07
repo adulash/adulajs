@@ -116,7 +116,8 @@ test.group('Profile picture browser acceptance (#158)', (group) => {
     const record = await visit(`/resources/ui_samples/${recordId}`)
     const panel = record.getByRole('region', { name: 'التعاون حول السجل' })
     await panel.getByText('تعليق بصورة').waitFor()
-    const avatar = panel.locator(`img[src="/users/${owner.user.id}/avatar"]`)
+    // The comment carries the versioned URL (ADR 050), so the browser may cache it for good.
+    const avatar = panel.locator(`img[src^="/users/${owner.user.id}/avatar?v="]`)
     await avatar.waitFor()
     const loaded = await avatar.evaluate(
       (img) => (img as unknown as { naturalWidth: number }).naturalWidth

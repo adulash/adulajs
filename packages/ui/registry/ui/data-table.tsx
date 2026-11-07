@@ -61,7 +61,13 @@ import { Can } from '~/components/ui/can'
 import { Input } from '~/components/ui/input'
 import { ResourceActions } from '~/components/ui/resource-actions'
 import { openRecord, rememberListView } from '~/components/ui/resource-surface'
-import { displayValue, type LookupOptions, type Option } from '~/components/ui/resource-value'
+import {
+  displayValue,
+  relatedUser,
+  type LookupOptions,
+  type Option,
+} from '~/components/ui/resource-value'
+import { UserAvatar } from '~/components/ui/user-avatar'
 import {
   FilterControl,
   describeFilter,
@@ -1114,10 +1120,19 @@ function Cell({
   const numeric = ['money', 'integer', 'decimal', 'percent', 'date', 'datetime'].includes(
     field.type
   )
+  const person = relatedUser(field, row, related)
   return (
     <td className="px-5 py-2" title={text}>
       {field.type === 'boolean' && row[field.key] !== null && row[field.key] !== undefined ? (
         <Badge variant={row[field.key] ? 'default' : 'secondary'}>{text}</Badge>
+      ) : person ? (
+        // One picture per cell, beside the name it decorates (ADR 050).
+        <span className="inline-flex items-center gap-1.5">
+          <UserAvatar user={person} size="xs" />
+          <bdi dir="auto" className="line-clamp-2 max-w-md break-words">
+            {text}
+          </bdi>
+        </span>
       ) : (
         // The cell keeps the page direction; the value is isolated so «-3» and «12-3-ABC» read
         // in their own order (#113), and text wraps to two lines instead of forcing width (#109).

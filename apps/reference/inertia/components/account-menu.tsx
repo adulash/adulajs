@@ -35,10 +35,13 @@ type Account = { id: number; fullName: string | null; email: string; avatarUrl: 
 export function AccountMenu({
   variant = 'full',
   onArrange,
+  sidebarChoice = false,
 }: {
   variant?: 'full' | 'compact'
   /** Opens the navigation order dialog; the menu item is shown when it is given. */
   onArrange?: () => void
+  /** Offers what collapsing the sidebar does (the sidebar layout only). */
+  sidebarChoice?: boolean
 }) {
   const page = usePage<{
     account?: Account
@@ -47,6 +50,15 @@ export function AccountMenu({
   const { t } = useMessages()
   const [theme, setTheme] = usePreference<Theme>('shell.theme')
   const [layout, setLayout] = usePreference<ShellLayout | null>('shell.layout')
+  const [collapse, setCollapse] = usePreference<'icons' | 'hidden'>('shell.sidebarCollapse')
+  const [sidebarMode, setSidebarMode] = usePreference<string>('shell.sidebar')
+  // A collapsed sidebar takes the new collapse mode at once, not at its next collapse.
+  const chooseCollapse = (value: string) => {
+    const next = value === 'hidden' ? 'hidden' : 'icons'
+    void setCollapse(next)
+    if ((sidebarMode === 'icons' || sidebarMode === 'hidden') && sidebarMode !== next)
+      void setSidebarMode(next)
+  }
   const user = page.props.account
   if (!user) return null
   const avatar = (
@@ -118,7 +130,9 @@ export function AccountMenu({
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuLabel className="text-xs text-muted-foreground">{t('المظهر')}</DropdownMenuLabel>
+        <DropdownMenuLabel className="text-xs text-muted-foreground">
+          {t('المظهر')}
+        </DropdownMenuLabel>
         <DropdownMenuRadioGroup value={theme} onValueChange={chooseTheme}>
           <DropdownMenuRadioItem value="light">{t('فاتح')}</DropdownMenuRadioItem>
           <DropdownMenuRadioItem value="dark">{t('داكن')}</DropdownMenuRadioItem>
@@ -139,6 +153,21 @@ export function AccountMenu({
               <DropdownMenuRadioItem value="default">{t('الافتراضي للنظام')}</DropdownMenuRadioItem>
               <DropdownMenuRadioItem value="sidebar">{t('قائمة جانبية')}</DropdownMenuRadioItem>
               <DropdownMenuRadioItem value="top">{t('قائمة علوية')}</DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+          </>
+        )}
+        {sidebarChoice && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-xs text-muted-foreground">
+              {t('عند طي القائمة')}
+            </DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={collapse === 'hidden' ? 'hidden' : 'icons'}
+              onValueChange={chooseCollapse}
+            >
+              <DropdownMenuRadioItem value="icons">{t('أيقونات')}</DropdownMenuRadioItem>
+              <DropdownMenuRadioItem value="hidden">{t('إخفاء كامل')}</DropdownMenuRadioItem>
             </DropdownMenuRadioGroup>
           </>
         )}

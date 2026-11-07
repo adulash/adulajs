@@ -1,19 +1,20 @@
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { router, usePage } from '@inertiajs/react'
 import { Link } from '@adonisjs/inertia/react'
-import { Settings, ShieldCheck, UserCog } from 'lucide-react'
+import { ShieldCheck, UserCog } from 'lucide-react'
 import { calendarDisplay } from '~/components/ui/calendar_date'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
 import { useMessages } from '~/components/ui/messages'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
+import { Separator } from '~/components/ui/separator'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs'
 import { RailLink } from '~/components/rail-link'
+import { navLinkClass } from '~/components/shell_navigation'
 import {
   ALERTS_SECTION,
   sectionFor,
-  setupPage,
   visibleSections,
-  type AdminPage,
   type AdminSection,
   type AdminShellProps,
 } from '~/components/admin_sections'
@@ -21,33 +22,30 @@ import {
 export { adminLinks, adminSections, setupPage } from '~/components/admin_sections'
 export type { AdminPage, AdminSection } from '~/components/admin_sections'
 
-const linkClass = (active: boolean) =>
-  `flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm transition-colors ${active ? 'bg-accent font-semibold text-primary' : 'text-muted-foreground hover:bg-background hover:text-foreground'}`
+type AdminNavProps = AdminShellProps & { isAdmin?: boolean }
 
-type AdminNavProps = AdminShellProps & { isAdmin?: boolean; adminAlerts?: number }
-
-/** The first page a section entry opens. */
+/** The first page a section entry opens (the setup while it is pending, for the settings). */
 export function sectionHref(section: AdminSection) {
   return section.pages[0].href
 }
 
 /**
  * The administration entries in the order the user chose (#157): the sidebar shows one
- * entry per section, and each section's pages are sub-tabs inside the page.
+ * entry per section, and each section's pages are horizontal tabs under the header (owner decision 22).
  */
 export function useAdminEntries(order: (sections: AdminSection[]) => AdminSection[] = (s) => s) {
   const page = usePage<AdminNavProps>()
   const props = page.props
   const sections = order(visibleSections(props))
   const current = sectionFor(page.url, props)
-  const setup = setupPage.visible?.(props) ? setupPage : null
-  return { sections, current, setup, alerts: props.adminAlerts ?? 0, isAdmin: !!props.isAdmin }
+  return { sections, current, alerts: props.adminAlerts ?? 0, isAdmin: !!props.isAdmin }
 }
 
 /**
- * One administration entry for administrators, pinned under daily work. Inside the
- * administration area it lists one entry per section (#157); the one-time setup is listed
- * first until it is complete. A badge signals failed workflows or a stale backup.
+ * The administration area of the sidebar: exactly two entries, «الإعدادات» and «الأشخاص
+ * والصلاحيات», without sub-items (owner's review of 2.3.0, ADR 049). Their pages are tabs
+ * inside the page. The alerts count sits on «الإعدادات», where the failed workflows and the
+ * backups are.
  */
 export function AdminNav({
   order,
@@ -57,144 +55,147 @@ export function AdminNav({
   /** The collapsed sidebar: icons with their names as tooltips (#153). */
   compact?: boolean
 }) {
-  const page = usePage<AdminNavProps>()
   const { t } = useMessages()
-  const { sections, current, setup, alerts, isAdmin } = useAdminEntries(order)
+  const { sections, current, alerts, isAdmin } = useAdminEntries(order)
   if (!isAdmin) return null
-  const inside = page.url.startsWith('/admin')
-  if (compact) {
-    const alertLabel = t('{count} تنبيه إداري', { count: alerts })
+  const alertLabel = t('{count} تنبيه إداري', { count: alerts })
+  if (compact)
     return (
-      <div className="mt-4 flex flex-col items-center gap-1 border-t border-border pt-4">
-        <RailLink
-          href="/admin"
-          label={t('الإدارة')}
-          icon={Settings}
-          active={page.url === '/admin'}
-          badge={inside ? 0 : alerts}
-          badgeLabel={alertLabel}
-        />
-        {inside && (
-          <nav aria-label={t('التنقل الإداري')} className="flex flex-col items-center gap-1">
-            {setup && (
-              <RailLink
-                href={setup.href}
-                label={t(setup.label)}
-                icon={setup.icon}
-                active={page.url.startsWith(setup.href)}
-              />
-            )}
-            {sections.map((section) => (
-              <RailLink
-                key={section.id}
-                href={sectionHref(section)}
-                label={t(section.title)}
-                icon={section.icon}
-                active={current?.section.id === section.id}
-                badge={section.id === ALERTS_SECTION ? alerts : 0}
-                badgeLabel={alertLabel}
-              />
-            ))}
-          </nav>
-        )}
-      </div>
+      <nav aria-label={t('التنقل الإداري')} className="flex flex-col items-center gap-1">
+        <Separator className="my-2 w-8 data-[orientation=horizontal]:w-8" />
+        {sections.map((section) => (
+          <RailLink
+            key={section.id}
+            href={sectionHref(section)}
+            label={t(section.title)}
+            icon={section.icon}
+            active={current?.section.id === section.id}
+            badge={section.id === ALERTS_SECTION ? alerts : 0}
+            badgeLabel={alertLabel}
+          />
+        ))}
+      </nav>
     )
-  }
-  const alertBadge = alerts > 0 && (
-    <Badge
-      variant="destructive"
-      className="ms-auto px-1.5"
-      aria-label={t('{count} تنبيه إداري', { count: alerts })}
-    >
-      {alerts}
-    </Badge>
-  )
   return (
-    <div className="mt-6 border-t border-border px-4 pt-5">
-      <Link
-        href="/admin"
-        aria-current={inside && page.url === '/admin' ? 'page' : undefined}
-        className={`${linkClass(false)} ${inside ? 'font-semibold text-foreground' : ''}`}
-      >
-        <Settings size={17} strokeWidth={1.6} />
-        {t('الإدارة')}
-        {!inside && alertBadge}
-      </Link>
-      {inside && (
-        <nav aria-label={t('التنقل الإداري')} className="mt-2 space-y-1">
-          {setup && <AdminEntry page={setup} active={page.url.startsWith(setup.href)} />}
-          {sections.map((section) => (
+    <div className="mt-6 border-t border-border pt-5">
+      <p className="mb-3 px-7 text-[11px] font-semibold text-muted-foreground">{t('الإدارة')}</p>
+      <nav aria-label={t('التنقل الإداري')} className="space-y-1 px-4">
+        {sections.map((section) => {
+          const active = current?.section.id === section.id
+          return (
             <Link
               key={section.id}
               href={sectionHref(section)}
-              aria-current={current?.section.id === section.id ? 'page' : undefined}
-              className={linkClass(current?.section.id === section.id)}
+              aria-current={active ? 'page' : undefined}
+              className={navLinkClass(active)}
             >
-              <section.icon size={17} strokeWidth={1.6} />
+              <section.icon size={19} strokeWidth={1.6} />
               {t(section.title)}
-              {section.id === ALERTS_SECTION && alertBadge}
+              {section.id === ALERTS_SECTION && alerts > 0 && (
+                <Badge variant="destructive" className="ms-auto px-1.5" aria-label={alertLabel}>
+                  {alerts}
+                </Badge>
+              )}
             </Link>
-          ))}
-        </nav>
-      )}
+          )
+        })}
+      </nav>
     </div>
   )
 }
 
-function AdminEntry({ page, active }: { page: AdminPage; active: boolean }) {
-  const { t } = useMessages()
-  return (
-    <Link
-      href={page.href}
-      aria-current={active ? 'page' : undefined}
-      className={linkClass(active)}
-    >
-      <page.icon size={17} strokeWidth={1.6} />
-      {t(page.label)}
-    </Link>
-  )
+/** The current section and page when the section has more than one page to show as tabs. */
+function useSectionTabs() {
+  const page = usePage<AdminNavProps>()
+  const current = sectionFor(page.url, page.props)
+  return current && current.section.pages.length > 1 ? { ...current, props: page.props } : null
 }
 
 /**
- * The pages of the current administration section as vertical sub-tabs at the start side
- * (#157); below the large breakpoint they become one scrolling row.
+ * The pages of the current administration section as the registry Tabs in their default
+ * look (owner decision 22): one horizontal row right below the main header, across the page
+ * area. Each tab is a link to its page, so the address selects the tab (direct links,
+ * reloads, Back and Forward), and the page is the tab panel. Arrow keys move between tabs;
+ * Enter opens one (manual activation, since opening a tab loads a page). The row stays in
+ * view while the page scrolls; it wraps onto further rows on a large screen and,
+ * on a phone, scrolls sideways to its active tab.
+ *
+ * It wraps the page column, so the row and the panel inside the page share one Tabs root.
  */
-export function AdminSectionTabs({ children }: { children: ReactNode }) {
-  const page = usePage<AdminNavProps>()
-  const { t } = useMessages()
-  const current = sectionFor(page.url, page.props)
-  if (!current || current.section.pages.length < 2) return <>{children}</>
-  const { section } = current
+export function AdminSectionTabs({
+  children,
+  className,
+}: {
+  children: ReactNode
+  className?: string
+}) {
+  const { t, dir } = useMessages()
+  const current = useSectionTabs()
+  const list = useRef<HTMLDivElement>(null)
+  const active = current?.page.id
+  useEffect(() => {
+    const trigger = list.current?.querySelector<HTMLElement>('[data-state="active"]')
+    trigger?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [active])
+  if (!current) return <div className={className}>{children}</div>
+  const { section, props } = current
   return (
-    <div className="lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-8">
-      <nav
-        aria-label={t('صفحات القسم: {section}', { section: t(section.title) })}
-        className="mb-6 lg:mb-0"
-        data-admin-subtabs
+    <Tabs
+      dir={dir}
+      activationMode="manual"
+      value={current.page.id}
+      className={`gap-0 ${className ?? ''}`}
+      data-admin-tabs
+    >
+      <div
+        // Under the main header: sticky on a phone, where the document scrolls; outside the
+        // page's own scroll region from the large breakpoint, so it never scrolls away.
+        className="sticky top-[72px] z-20 shrink-0 border-b border-border bg-background lg:static print:hidden"
+        data-admin-tabs-row
       >
-        <p className="mb-2 px-3 text-[11px] font-semibold text-muted-foreground">
-          {t(section.title)}
-        </p>
-        <ul className="flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
+        {/* The same centred column as the page below it. */}
+        <div className="mx-auto max-w-[1440px] px-5 py-2 lg:px-10" data-admin-tabs-column>
+        <TabsList
+          ref={list}
+          aria-label={t('صفحات القسم: {section}', { section: t(section.title) })}
+          wrap
+        >
           {section.pages.map((entry) => {
-            const active = entry.id === current.page.id
+            const count = entry.alerts?.(props) ?? 0
             return (
-              <li key={entry.id} className="shrink-0">
-                <Link
-                  href={entry.href}
-                  aria-current={active ? 'page' : undefined}
-                  className={`flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-2 text-sm transition-colors ${active ? 'bg-accent font-semibold text-primary' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}`}
-                >
-                  <entry.icon size={16} strokeWidth={1.6} />
+              <TabsTrigger key={entry.id} value={entry.id} asChild>
+                <Link href={entry.href}>
+                  <entry.icon strokeWidth={1.6} />
                   {t(entry.label)}
+                  {count > 0 && (
+                    <Badge
+                      variant="destructive"
+                      className="px-1.5"
+                      aria-label={t('{count} تنبيه إداري', { count })}
+                    >
+                      {count}
+                    </Badge>
+                  )}
                 </Link>
-              </li>
+              </TabsTrigger>
             )
           })}
-        </ul>
-      </nav>
-      <div className="min-w-0">{children}</div>
-    </div>
+        </TabsList>
+        </div>
+      </div>
+      {children}
+    </Tabs>
+  )
+}
+
+/** The page inside its section's tab panel; any other page passes through. */
+export function AdminTabPanel({ children }: { children: ReactNode }) {
+  const current = useSectionTabs()
+  if (!current) return <>{children}</>
+  return (
+    <TabsContent value={current.page.id} className="w-full min-w-0">
+      {children}
+    </TabsContent>
   )
 }
 

@@ -7,9 +7,48 @@ import { Button } from '~/components/ui/button'
 import { useMessages } from '~/components/ui/messages'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
 
-const DialogContentContext = React.createContext<React.RefObject<HTMLDivElement | null> | null>(
-  null
-)
+/**
+ * Controls outside every region that reports data-dirty: the value each had before the user
+ * changed it, and the ones the user changed. Closing compares them, so a value changed and
+ * restored is clean.
+ */
+type Changes = { initial: Map<Element, string>; changed: Set<Element> }
+type DialogState = {
+  content: React.RefObject<HTMLDivElement | null>
+  changes: React.RefObject<Changes>
+}
+const DialogContentContext = React.createContext<DialogState | null>(null)
+
+const CONTROLS = 'input, textarea, select'
+
+/** A comparable value of a form control (checked state, selected options, files or text). */
+function controlValue(element: Element) {
+  if (element instanceof HTMLInputElement) {
+    if (element.type === 'checkbox' || element.type === 'radio') return String(element.checked)
+    if (element.type === 'file')
+      return [...(element.files ?? [])].map((file) => `${file.name}:${file.size}`).join('|')
+    return element.value
+  }
+  if (element instanceof HTMLSelectElement)
+    return [...element.selectedOptions].map((option) => option.value).join('|')
+  if (element instanceof HTMLTextAreaElement) return element.value
+  return ''
+}
+
+/** True for a control the dialog compares itself: one outside every data-dirty region. */
+function unreported(element: Element) {
+  return Boolean(element.matches?.(CONTROLS)) && !element.closest('[data-dirty]')
+}
+
+/**
+ * Remembers a control's value before the user changes it. On mount every control is recorded;
+ * taking focus records it again until it changes, so values loaded after opening count as the
+ * starting point.
+ */
+function remember(changes: Changes, element: Element, focus = false) {
+  if (!unreported(element) || changes.changed.has(element)) return
+  if (focus || !changes.initial.has(element)) changes.initial.set(element, controlValue(element))
+}
 
 function Dialog({
   mode,
@@ -18,32 +57,42 @@ function Dialog({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Root> & { mode?: 'view' | 'edit' | 'confirm' }) {
   const content = React.useRef<HTMLDivElement>(null)
+  const changes = React.useRef<Changes>({ initial: new Map(), changed: new Set() })
+  const state = React.useMemo(() => ({ content, changes }), [])
   const [confirming, setConfirming] = React.useState(false)
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(props.defaultOpen ?? false)
   const preferences = useUiPreferences()
   const { t, dir } = useMessages()
   const open = props.open ?? uncontrolledOpen
+  // Each opening starts clean (cleared on closing: the content records its values on mount).
+  React.useEffect(() => {
+    if (!open) changes.current = { initial: new Map(), changed: new Set() }
+  }, [open])
   const commit = (next: boolean) => {
     setUncontrolledOpen(next)
     onOpenChange?.(next)
   }
   const request = (next: boolean) => {
-    const forms = [...(content.current?.querySelectorAll<HTMLFormElement>('form') ?? [])]
-    // ResourceForm reports whether its values differ from the opened ones (data-dirty); a
-    // dialog with any form that reports nothing keeps the earlier rule, so plain forms still ask.
-    const reporting = forms.filter((form) => form.dataset.dirty !== undefined)
-    const editing =
-      mode !== 'view' &&
-      mode !== 'confirm' &&
-      (reporting.some((form) => form.dataset.dirty === 'true') ||
-        (reporting.length < forms.length || forms.length === 0
-          ? mode === 'edit' || (!mode && forms.length > 0)
-          : false))
+    // Ask only when there are unsaved changes. Every element that reports data-dirty, a form
+    // or not, decides for its own controls ("false" is clean whatever changed inside it). Any
+    // other control counts when its value differs from the one it had before the user changed
+    // it; a value changed and restored is clean. An untouched dialog closes at once.
+    const regions = [...(content.current?.querySelectorAll<HTMLElement>('[data-dirty]') ?? [])]
+    const { initial, changed } = changes.current
+    const unsaved =
+      regions.some((region) => region.dataset.dirty === 'true') ||
+      [...changed].some(
+        (element) =>
+          element.isConnected &&
+          unreported(element) &&
+          controlValue(element) !== initial.get(element)
+      )
+    const editing = mode !== 'view' && mode !== 'confirm' && unsaved
     if (!next && editing && preferences.confirmDialogClose) setConfirming(true)
     else commit(next)
   }
   return (
-    <DialogContentContext.Provider value={content}>
+    <DialogContentContext.Provider value={state}>
       <DialogPrimitive.Root data-slot="dialog" {...props} open={open} onOpenChange={request}>
         {children}
       </DialogPrimitive.Root>
@@ -111,12 +160,27 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  onInputCapture,
+  onChangeCapture,
+  onFocusCapture,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
-  const content = React.useContext(DialogContentContext)
+  const dialog = React.useContext(DialogContentContext)
+  const content = dialog?.content
   const { t } = useMessages()
+  // Controls outside every data-dirty region: their values on mount, or when they take focus
+  // before a change, are the baseline; a change marks them for comparison on closing.
+  React.useEffect(() => {
+    const node = content?.current
+    if (!dialog || !node) return
+    for (const element of node.querySelectorAll(CONTROLS)) remember(dialog.changes.current, element)
+  }, [dialog, content])
+  const touch = (target: EventTarget) => {
+    const element = target as Element
+    if (dialog && unreported(element)) dialog.changes.current.changed.add(element)
+  }
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
@@ -125,6 +189,18 @@ function DialogContent({
           if (content) content.current = node
           if (typeof ref === 'function') return ref(node)
           if (ref) ref.current = node
+        }}
+        onFocusCapture={(event) => {
+          if (dialog) remember(dialog.changes.current, event.target as Element, true)
+          onFocusCapture?.(event)
+        }}
+        onInputCapture={(event) => {
+          touch(event.target)
+          onInputCapture?.(event)
+        }}
+        onChangeCapture={(event) => {
+          touch(event.target)
+          onChangeCapture?.(event)
         }}
         data-slot="dialog-content"
         className={cn(

@@ -1,4 +1,4 @@
-import { buildAbility, localizeText } from 'adula'
+import { avatarUrlFor, avatarVersionColumn, buildAbility, localizeText } from 'adula'
 import type { Actor, ActivityPage, Field, Resource } from 'adula'
 import type database from '@adonisjs/lucid/services/db'
 import { adula } from '#services/adula'
@@ -121,6 +121,8 @@ export type PresentedActivity = ActivityPage['data'][number] & {
   actionLabel: string
   recordTitle: string | null
   actorName: string | null
+  /** The actor's versioned picture URL, or null without one (ADR 050). */
+  actorAvatarUrl: string | null
   fieldChanges: PresentedFieldChange[]
 }
 
@@ -157,6 +159,24 @@ const scalar = (value: unknown): string | null => {
   if (typeof value === 'boolean') return value ? 'نعم' : 'لا'
   if (typeof value === 'string' || typeof value === 'number') return String(value)
   return JSON.stringify(value)
+}
+
+/** Actors of a page by id: their name and picture, from one query (ADR 050). */
+async function actorDetails(db: Knex, ids: Iterable<number>) {
+  const list = [...new Set(ids)].filter((id) => Number.isSafeInteger(id) && id > 0)
+  if (!list.length) return new Map<number, { name: string; avatarUrl: string | null }>()
+  const rows = await db('users as u')
+    .whereIn('u.id', list)
+    .select('u.id', 'u.full_name', 'u.email', avatarVersionColumn(db, 'u.id'))
+  return new Map(
+    rows.map((row) => [
+      Number(row.id),
+      {
+        name: String(row.full_name || row.email),
+        avatarUrl: avatarUrlFor(row.id, row.avatar_version),
+      },
+    ])
+  )
 }
 
 /** Names of users, by id (full name, else e-mail). */
@@ -305,7 +325,7 @@ export async function presentActivity(
   const format = await formatter(context, stored)
   const ability = buildAbility(viewer.rules, registry.all())
   const titles = await recordTitles(context, rows)
-  const actors = await userNames(
+  const actors = await actorDetails(
     db,
     rows.map((row) => Number(row.actorId))
   )
@@ -342,7 +362,9 @@ export async function presentActivity(
         row.recordId === null
           ? null
           : (titles.get(row.resource)?.get(Number(row.recordId)) ?? null),
-      actorName: row.actorId === null ? null : (actors.get(Number(row.actorId)) ?? null),
+      actorName: row.actorId === null ? null : (actors.get(Number(row.actorId))?.name ?? null),
+      actorAvatarUrl:
+        row.actorId === null ? null : (actors.get(Number(row.actorId))?.avatarUrl ?? null),
       fieldChanges: changes.get(String(row.id)) ?? [],
     })),
   }

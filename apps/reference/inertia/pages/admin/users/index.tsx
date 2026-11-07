@@ -8,6 +8,7 @@ import { AdminHeader } from '~/components/admin-nav'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Badge } from '~/components/ui/badge'
+import { UserAvatar } from '~/components/ui/user-avatar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
 import { InviteUserDialog } from '~/components/invite-user-dialog'
 import {
@@ -86,9 +87,17 @@ export default function UsersIndex({ users, search }: Props) {
             {users.data.map((user) => (
               <TableRow key={user.id}>
                 <TableCell className="min-w-40 whitespace-normal">
-                  <strong className="block wrap-anywhere">{user.fullName || '—'}</strong>
-                  <span className="block text-xs wrap-anywhere text-muted-foreground" dir="ltr">
-                    {user.email}
+                  <span className="flex items-center gap-3">
+                    <UserAvatar
+                      user={{ id: user.id, name: user.fullName, avatarUrl: user.avatarUrl }}
+                      size="sm"
+                    />
+                    <span className="min-w-0">
+                      <strong className="block wrap-anywhere">{user.fullName || '—'}</strong>
+                      <span className="block text-xs wrap-anywhere text-muted-foreground" dir="ltr">
+                        {user.email}
+                      </span>
+                    </span>
                   </span>
                 </TableCell>
                 <TableCell className="min-w-0">

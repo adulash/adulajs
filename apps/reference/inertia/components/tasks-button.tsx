@@ -11,7 +11,7 @@ import { headerIconClass } from '~/components/header_icon'
  * open: the same server count, read as the user, so the two never disagree.
  */
 export function TasksButton() {
-  const page = usePage<{ account?: { id: number }; openTasks?: number }>()
+  const page = usePage<{ account?: { id: number }; openTasks?: number | null }>()
   const { t } = useMessages()
   if (!page.props.account) return null
   // A deferred prop: undefined until it arrives, then no badge for zero.

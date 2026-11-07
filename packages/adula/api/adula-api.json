@@ -142,7 +142,7 @@
     },
     "Assignment": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ id: number; resource: string; resourceLabel: string; recordId: number; recordTitle: string | null; assigneeId: number; assigneeName: string | null; assignedBy: number | null; assignedByName: string | null; kind: string; title: string; note: string | null; dueOn: string | null; status: AssignmentStatus; outcome: string | null; createdAt: string; completedAt: string | null; workflowRunId: string | null; managed: boolean; closeNote: CloseNotePolicy; closeReason: string | null; canComplete: boolean; canCancel: boolean; canDecide?: boolean | undefined; onBehalfOf?: { id: number; name: string | null; } | null | undefined; dueAt?: string | null | undefined; sla?: SlaState | null | undefined; }"
+      "type": "{ id: number; resource: string; resourceLabel: string; recordId: number; recordTitle: string | null; assigneeId: number; assigneeName: string | null; assigneeAvatarUrl?: string | null | undefined; assignedBy: number | null; assignedByName: string | null; assignedByAvatarUrl?: string | null | undefined; kind: string; title: string; note: string | null; dueOn: string | null; status: AssignmentStatus; outcome: string | null; createdAt: string; completedAt: string | null; workflowRunId: string | null; managed: boolean; closeNote: CloseNotePolicy; closeReason: string | null; canComplete: boolean; canCancel: boolean; canDecide?: boolean | undefined; onBehalfOf?: { id: number; name: string | null; } | null | undefined; dueAt?: string | null | undefined; sla?: SlaState | null | undefined; }"
     },
     "AssignmentOptions": {
       "kind": "TypeAliasDeclaration",
@@ -255,6 +255,14 @@
     "avatarUrl": {
       "kind": "FunctionDeclaration",
       "type": "(userId: number, version?: number | null | undefined) => string"
+    },
+    "avatarUrlFor": {
+      "kind": "FunctionDeclaration",
+      "type": "(userId: unknown, version: unknown) => string | null"
+    },
+    "avatarVersionColumn": {
+      "kind": "FunctionDeclaration",
+      "type": "(db: Knex<any, any[]>, userColumn: string, alias?: string | undefined) => Raw<any>"
     },
     "BACKUP_ARCHIVE_EXTENSION": {
       "kind": "VariableDeclaration",
@@ -518,7 +526,7 @@
     },
     "CommentEntry": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ id: number; body: string; authorId: number; authorName: string | null; mentions: { id: number; name: string; }[]; createdAt: string; editedAt: string | null; own: boolean; }"
+      "type": "{ id: number; body: string; authorId: number; authorName: string | null; authorAvatarUrl?: string | null | undefined; mentions: { id: number; name: string; }[]; createdAt: string; editedAt: string | null; own: boolean; }"
     },
     "conditionSql": {
       "kind": "FunctionDeclaration",
@@ -614,7 +622,7 @@
     },
     "createResourceController": {
       "kind": "FunctionDeclaration",
-      "type": "(resolveRuntime: (ctx: HttpContext) => Promise<ResourceRuntime>, renderList?: ((ctx: HttpContext, resource: Resource, result: { data: SerializedRecord[]; permissions: { [k: string]: Partial<Record<Action | \"restore\", boolean>>; }; meta: { limit: number; estimatedTotal: number | undefined; nextCursor: string | null; }; related: Record<string, SerializedRecord[]>; }) => unknown) | undefined, renderForm?: ((ctx: HttpContext, resource: Resource, editor: { mode: string; name: string; label: string; recordLabel: string | null; fields: ResourceField[]; defaults: SerializedRecord; inline: Record<string, { rows: SerializedRecord[]; hasMore: boolean; canCreate: boolean; permissions: Record<string, { update: boolean; delete: boolean; }>; fields: ResourceField[]; createFields: string[]; updateFields: Record<string, string[]>; }>; options: Record<string, { value: string; label: string; }[]>; relationSearch: Record<string, boolean>; orgUnits: { value: string; label: string; }[]; scoped: boolean; scopeFrom: string | null; record: SerializedRecord | null; }) => unknown) | undefined, renderShow?: ((ctx: HttpContext, resource: Resource, result: { data: SerializedRecord; permissions: Partial<Record<Action | \"restore\", boolean>>; related: Record<string, SerializedRecord[]>; }) => unknown) | undefined, renderTrash?: ((ctx: HttpContext, resource: Resource, result: { data: SerializedRecord[]; permissions: { [k: string]: Partial<Record<Action | \"restore\", boolean>>; }; meta: { limit: number; estimatedTotal: number | undefined; nextCursor: string | null; }; related: Record<string, SerializedRecord[]>; }) => unknown) | undefined) => new () => ResourceController"
+      "type": "(resolveRuntime: (ctx: HttpContext) => Promise<ResourceRuntime>, renderList?: ((ctx: HttpContext, resource: Resource, result: { data: SerializedRecord[]; permissions: { [k: string]: Partial<Record<Action | \"restore\", boolean>>; }; meta: { limit: number; estimatedTotal: number | undefined; nextCursor: string | null; }; related: Record<string, SerializedRecord[]>; }) => unknown) | undefined, renderForm?: ((ctx: HttpContext, resource: Resource, editor: { mode: string; name: string; label: string; recordLabel: string | null; fields: ResourceField[]; defaults: SerializedRecord; inline: Record<string, { rows: SerializedRecord[]; hasMore: boolean; canCreate: boolean; permissions: Record<string, { update: boolean; delete: boolean; }>; fields: ResourceField[]; createFields: string[]; updateFields: Record<string, string[]>; }>; options: Record<string, { value: string; label: string; avatarUrl?: string | null | undefined; }[]>; relationSearch: Record<string, boolean>; orgUnits: { value: string; label: string; }[]; scoped: boolean; scopeFrom: string | null; record: SerializedRecord | null; }) => unknown) | undefined, renderShow?: ((ctx: HttpContext, resource: Resource, result: { data: SerializedRecord; permissions: Partial<Record<Action | \"restore\", boolean>>; related: Record<string, SerializedRecord[]>; }) => unknown) | undefined, renderTrash?: ((ctx: HttpContext, resource: Resource, result: { data: SerializedRecord[]; permissions: { [k: string]: Partial<Record<Action | \"restore\", boolean>>; }; meta: { limit: number; estimatedTotal: number | undefined; nextCursor: string | null; }; related: Record<string, SerializedRecord[]>; }) => unknown) | undefined) => new () => ResourceController"
     },
     "createResourceTable": {
       "kind": "FunctionDeclaration",
@@ -834,7 +842,7 @@
     },
     "FieldChangeEntry": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ id: number; field: string; before: JsonValue; after: JsonValue; actorName: string | null; createdAt: string; }"
+      "type": "{ id: number; field: string; before: JsonValue; after: JsonValue; actorId?: number | null | undefined; actorName: string | null; actorAvatarUrl?: string | null | undefined; createdAt: string; }"
     },
     "fieldColumnType": {
       "kind": "FunctionDeclaration",
@@ -1714,7 +1722,7 @@
     },
     "ResourceActivity": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ id: number; action: Action; fields: string[]; actorId: number; actorName: string | null; actorEmail: string | null; createdAt: string; }[]"
+      "type": "{ id: number; action: Action; fields: string[]; actorId: number; actorName: string | null; actorAvatarUrl: string | null; actorEmail: string | null; createdAt: string; }[]"
     },
     "resourceAddition": {
       "kind": "FunctionDeclaration",
@@ -1738,7 +1746,7 @@
     },
     "ResourceEditor": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ mode: string; name: string; label: string; recordLabel: string | null; fields: ResourceField[]; defaults: SerializedRecord; inline: Record<string, { rows: SerializedRecord[]; hasMore: boolean; canCreate: boolean; permissions: Record<string, { update: boolean; delete: boolean; }>; fields: ResourceField[]; createFields: string[]; updateFields: Record<string, string[]>; }>; options: Record<string, { value: string; label: string; }[]>; relationSearch: Record<string, boolean>; orgUnits: { value: string; label: string; }[]; scoped: boolean; scopeFrom: string | null; record: SerializedRecord | null; }"
+      "type": "{ mode: string; name: string; label: string; recordLabel: string | null; fields: ResourceField[]; defaults: SerializedRecord; inline: Record<string, { rows: SerializedRecord[]; hasMore: boolean; canCreate: boolean; permissions: Record<string, { update: boolean; delete: boolean; }>; fields: ResourceField[]; createFields: string[]; updateFields: Record<string, string[]>; }>; options: Record<string, { value: string; label: string; avatarUrl?: string | null | undefined; }[]>; relationSearch: Record<string, boolean>; orgUnits: { value: string; label: string; }[]; scoped: boolean; scopeFrom: string | null; record: SerializedRecord | null; }"
     },
     "ResourceField": {
       "kind": "TypeAliasDeclaration",
@@ -2190,7 +2198,7 @@
     },
     "UserSummary": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ id: number; fullName: string | null; email: string; disabledAt: string | null; roles: UserRoleAssignment[]; orgUnits: UserOrgUnit[]; }"
+      "type": "{ id: number; fullName: string | null; avatarUrl?: string | null | undefined; email: string; disabledAt: string | null; roles: UserRoleAssignment[]; orgUnits: UserOrgUnit[]; }"
     },
     "validateUiPreferences": {
       "kind": "FunctionDeclaration",
@@ -2242,7 +2250,7 @@
     },
     "WorkflowDelegation": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ id: number; delegatorId: number; delegatorName: string | null; delegateId: number; delegateName: string | null; startsOn: string; endsOn: string; note: string | null; status: \"scheduled\" | \"active\" | \"ended\" | \"revoked\"; createdBy: number | null; createdAt: string; revokedAt: string | null; }"
+      "type": "{ id: number; delegatorId: number; delegatorName: string | null; delegatorAvatarUrl?: string | null | undefined; delegateId: number; delegateName: string | null; delegateAvatarUrl?: string | null | undefined; startsOn: string; endsOn: string; note: string | null; status: \"scheduled\" | \"active\" | \"ended\" | \"revoked\"; createdBy: number | null; createdAt: string; revokedAt: string | null; }"
     },
     "WorkflowDelegationInput": {
       "kind": "TypeAliasDeclaration",
@@ -2278,7 +2286,7 @@
     },
     "WorkflowRun": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ id: string; resource: string; resourceLabel: string; recordId: number; recordTitle: string | null; definition: string; label: string; version: number; status: WorkflowRunStatus; step: string | null; stepLabel: string | null; outcome: string | null; attempts: number; lastError: string | null; wakeAt: string | null; createdAt: string; completedAt: string | null; history: { step: string | null; event: string; actorName: string | null; onBehalfOfName?: string | null | undefined; detail: { [key: string]: JsonValue; }; at: string; }[]; myApproval: { assignmentId: number; title: string; decision?: WorkflowDecisionForm | undefined; onBehalfOf?: { id: number; name: string | null; } | null | undefined; } | null; sla?: WorkflowSlaStatus | null | undefined; }"
+      "type": "{ id: string; resource: string; resourceLabel: string; recordId: number; recordTitle: string | null; definition: string; label: string; version: number; status: WorkflowRunStatus; step: string | null; stepLabel: string | null; outcome: string | null; attempts: number; lastError: string | null; wakeAt: string | null; createdAt: string; completedAt: string | null; history: { step: string | null; event: string; actorId?: number | null | undefined; actorName: string | null; actorAvatarUrl?: string | null | undefined; onBehalfOfName?: string | null | undefined; detail: { [key: string]: JsonValue; }; at: string; }[]; myApproval: { assignmentId: number; title: string; decision?: WorkflowDecisionForm | undefined; onBehalfOf?: { id: number; name: string | null; } | null | undefined; } | null; sla?: WorkflowSlaStatus | null | undefined; }"
     },
     "WorkflowRunStatus": {
       "kind": "TypeAliasDeclaration",

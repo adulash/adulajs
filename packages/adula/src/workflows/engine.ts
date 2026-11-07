@@ -25,6 +25,7 @@ import {
 } from './define_workflow.js'
 
 import { slaState, type SlaEvaluation, type WorkflowSlaStatus } from './sla.js'
+import { avatarUrlFor, avatarVersionColumn } from '../core/user_avatars.js'
 
 export { slaState } from './sla.js'
 export type { SlaEvaluation, SlaState, WorkflowSlaStatus } from './sla.js'
@@ -53,7 +54,11 @@ export type WorkflowRun = {
   history: {
     step: string | null
     event: string
+    /** The user who acted; null for system steps («النظام»). */
+    actorId?: number | null
     actorName: string | null
+    /** The actor's versioned picture URL, or null without one (ADR 050). */
+    actorAvatarUrl?: string | null
     /** Set when the actor decided as a delegate (ADR 044). */
     onBehalfOfName?: string | null
     detail: { [key: string]: JsonValue }
@@ -842,7 +847,7 @@ export class WorkflowEngine {
       .where('e.run_id', row.id)
       .orderBy('e.id')
       .limit(200)
-      .select('e.*', 'u.full_name as actor_name')
+      .select('e.*', 'u.full_name as actor_name', avatarVersionColumn(this.db, 'e.actor_id'))
     const mine = actor
       ? await this.db('assignments as a')
           .where({
@@ -891,7 +896,10 @@ export class WorkflowEngine {
       history: history.map((event) => ({
         step: event.step ?? null,
         event: String(event.event),
+        actorId:
+          event.actor_id === null || event.actor_id === undefined ? null : Number(event.actor_id),
         actorName: event.actor_name ? String(event.actor_name) : null,
+        actorAvatarUrl: avatarUrlFor(event.actor_id, event.avatar_version),
         onBehalfOfName:
           typeof event.detail?.onBehalfOfName === 'string' ? event.detail.onBehalfOfName : null,
         detail: (event.detail ?? {}) as { [key: string]: JsonValue },

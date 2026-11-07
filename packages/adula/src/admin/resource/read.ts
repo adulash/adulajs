@@ -6,6 +6,7 @@ import { buildAbility, canRecord, type Actor, type AdulaAbility } from '../../au
 import { accessibleBy } from '../../auth/sql.js'
 import { fromRow, serialize } from '../contracts.js'
 import { AdulaError, notFound } from '../errors.js'
+import { avatarUrlFor, avatarVersionColumn } from '../../core/user_avatars.js'
 import { formatTitle, titleFields } from '../record_title.js'
 import type { ResourceDescription, ResourceNavigation } from '../presentation.js'
 import {
@@ -184,12 +185,14 @@ export async function preload(
         .filter((v) => v !== null && v !== undefined) as number[]
       // A display name only: readers of the record need not read account e-mails.
       if (ids.length) {
-        const users = await db('users')
-          .whereIn('id', [...new Set(ids)])
-          .select('id', 'full_name')
+        const users = await db('users as u')
+          .whereIn('u.id', [...new Set(ids)])
+          .select('u.id', 'u.full_name', avatarVersionColumn(db, 'u.id'))
         related[key] = users.map((row) => ({
           id: Number(row.id),
           fullName: String(row.full_name ?? ''),
+          // The versioned picture, or null so the page shows initials and requests nothing.
+          avatarUrl: avatarUrlFor(row.id, row.avatar_version),
         }))
       }
       continue
@@ -471,7 +474,8 @@ async function activityOf(
       'a.changes',
       'a.actor_id',
       'a.created_at',
-      'u.full_name as actor_name'
+      'u.full_name as actor_name',
+      avatarVersionColumn(ctx.db, 'a.actor_id')
     )
   const updates = rows.filter((row) => row.action === 'update').map((row) => Number(row.id))
   const changed = new Map<number, string[]>()
@@ -500,6 +504,7 @@ async function activityOf(
     actorId: Number(row.actor_id),
     // A display name only: record viewers need not be able to read account e-mails.
     actorName: row.actor_name ? String(row.actor_name) : null,
+    actorAvatarUrl: avatarUrlFor(row.actor_id, row.avatar_version),
     /**
      * @deprecated Always null. Kept so project-owned copies of resource-show from
      * earlier releases still compile; they fall back to the actor id.

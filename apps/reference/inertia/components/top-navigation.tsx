@@ -11,15 +11,11 @@ import {
   DropdownMenuTrigger,
 } from '~/components/ui/dropdown-menu'
 import { useMessages } from '~/components/ui/messages'
-import {
-  useAdminEntries,
-  sectionHref,
-  type AdminSection,
-} from '~/components/admin-nav'
+import { useAdminEntries, sectionHref, type AdminSection } from '~/components/admin-nav'
 import { isActivePath, type ModuleGroup } from '~/components/shell_navigation'
 import { moduleIcons } from '~/components/module_icons'
 
-type Entry = { href: string; label: string; icon?: LucideIcon; badge?: number }
+type Entry = { href: string; match?: string; label: string; icon?: LucideIcon; badge?: number }
 
 // The shell's active navigation pattern (navLinkClass): a filled entry, no underline.
 const itemClass = (active: boolean) =>
@@ -52,13 +48,16 @@ export function TopNavigation({
   const icons = moduleIcons(modules.map((group) => group.module))
   return (
     <div className="hidden border-b border-border bg-card lg:block" data-top-navigation>
-      <nav aria-label={t('التنقل الرئيسي')} className="flex items-center gap-1 overflow-x-auto px-10 py-2">
-        {work.map(({ href, label, icon: Icon, badge = 0 }) => (
+      <nav
+        aria-label={t('التنقل الرئيسي')}
+        className="flex items-center gap-1 overflow-x-auto px-10 py-2"
+      >
+        {work.map(({ href, match, label, icon: Icon, badge = 0 }) => (
           <Link
             key={href}
             href={href}
-            aria-current={isActive(href) ? 'page' : undefined}
-            className={itemClass(isActive(href))}
+            aria-current={isActive(match ?? href) ? 'page' : undefined}
+            className={itemClass(isActive(match ?? href))}
           >
             {Icon && <Icon size={16} strokeWidth={1.6} aria-hidden />}
             {label}
@@ -134,14 +133,6 @@ export function TopNavigation({
                 </Link>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              {admin.setup && (
-                <DropdownMenuItem asChild>
-                  <Link href={admin.setup.href}>
-                    <admin.setup.icon />
-                    {t(admin.setup.label)}
-                  </Link>
-                </DropdownMenuItem>
-              )}
               {admin.sections.map((section) => (
                 <DropdownMenuItem key={section.id} asChild>
                   <Link

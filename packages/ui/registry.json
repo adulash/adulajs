@@ -288,6 +288,21 @@
       "type": "registry:ui"
     },
     {
+      "name": "breadcrumb",
+      "dependencies": [
+        "cn@0.3.0",
+        "radix-ui@1.6.7",
+        "lucide-react@1.47.0"
+      ],
+      "files": [
+        {
+          "path": "registry/ui/breadcrumb.tsx",
+          "type": "registry:ui"
+        }
+      ],
+      "type": "registry:ui"
+    },
+    {
       "name": "tabs",
       "dependencies": [
         "cn@0.3.0",
@@ -478,7 +493,8 @@
         "attachment-preview",
         "calendar-date",
         "ui-preferences",
-        "messages"
+        "messages",
+        "user-avatar"
       ],
       "dependencies": [
         "lucide-react@1.47.0"
@@ -548,7 +564,8 @@
         "alert",
         "checkbox",
         "list-filters",
-        "resource-bulk"
+        "resource-bulk",
+        "user-avatar"
       ],
       "dependencies": [
         "@tanstack/react-table@9.2.4",
@@ -573,6 +590,7 @@
         "resource-actions",
         "resource-field",
         "resource-value",
+        "resource-surface",
         "messages"
       ],
       "dependencies": [
@@ -650,7 +668,8 @@
         "textarea",
         "dialog",
         "ui-preferences",
-        "resource-value"
+        "resource-value",
+        "user-avatar"
       ],
       "dependencies": [
         "lucide-react@1.47.0",
@@ -699,6 +718,7 @@
         "record-assignments",
         "record-workflows",
         "record-print",
+        "resource-surface",
         "messages",
         "user-avatar"
       ],
@@ -803,6 +823,7 @@
       "registryDependencies": [
         "button",
         "dialog",
+        "long-dialog",
         "messages"
       ],
       "dependencies": [],

@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto'
 import env from '#start/env'
 import db from '@adonisjs/lucid/services/db'
+import { avatarUrlFor, avatarVersionColumn } from 'adula'
 import type { HttpContext } from '@adonisjs/core/http'
 import { logAuthActivity, requestContext } from '#services/auth_activity'
 
@@ -15,7 +16,12 @@ export type UserSession = {
   lastSeenAt: string
   revokedAt: string | null
 }
-export type ActiveSession = UserSession & { email: string; fullName: string | null }
+export type ActiveSession = UserSession & {
+  email: string
+  fullName: string | null
+  /** The user's versioned picture URL, or null without one (ADR 050). */
+  avatarUrl: string | null
+}
 
 /** Presence is refreshed at most once per window to keep reads cheap. */
 const PRESENCE_WINDOW_MS = 5 * 60 * 1000
@@ -121,11 +127,17 @@ export async function listActiveSessions(): Promise<ActiveSession[]> {
     .join('users', 'users.id', 'user_sessions.user_id')
     .whereNull('user_sessions.revoked_at')
     .orderBy('user_sessions.last_seen_at', 'desc')
-    .select('user_sessions.*', 'users.email', 'users.full_name')
+    .select(
+      'user_sessions.*',
+      'users.email',
+      'users.full_name',
+      avatarVersionColumn(knex(), 'users.id')
+    )
   return rows.map((row) => ({
     ...toSession(row),
     email: String(row.email),
     fullName: (row.full_name as string | null) ?? null,
+    avatarUrl: avatarUrlFor(row.user_id, row.avatar_version),
   }))
 }
 
