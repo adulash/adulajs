@@ -72,6 +72,11 @@ All three share one version and are published together from a `v<version>` tag
   over an OpenRouter key sealed in `ai.assistant`; reads through the shared resource tool
   runner as the signed-in user, proposes writes that run only after the user confirms,
   per-user rate and daily token limits, `core.ai` audit entries, `adula:assistant:prune`.
+* Appearance and occasions (ADR 053): `Appearance` with the base identity in
+  `appearance.identity`, WCAG AA colour checks for both themes, PNG/JPEG/WebP logos stored as
+  attachments, dated occasions without overlaps resolved per request in the system time zone,
+  the `appearance` shared prop and «المظهر والهوية». The guest and workspace shells show the
+  name, logo and banner after their 2.3.0 branches merge.
 * Encrypted backups (ADR 051): download by an administrator, Google Drive and OneDrive
   uploads (manual or scheduled), `backup:seal` and `backup:open`. Real Drive and OneDrive
   delivery is unverified until the owner's OAuth clients complete a connection; tests use

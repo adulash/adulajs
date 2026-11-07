@@ -11,6 +11,7 @@ import { DashboardWidgetCard } from '~/components/ui/resource-dashboard'
 import { CustomizeOverviewDialog } from '~/components/overview/customize-dialog'
 import Workspace from '~/layouts/workspace'
 import Layout from '~/layouts/default'
+import { useAppearance } from '~/components/appearance'
 
 type Props = {
   account?: { email: string }
@@ -249,6 +250,8 @@ function Overview({ overview, props }: { overview: OverviewState; props: Props }
 export default function Home({ overview }: { overview?: OverviewState }) {
   const props = usePage<Props>().props
   const { t, dir } = useMessages()
+  // The guest home texts set in «المظهر والهوية» (ADR 053), else the default wording.
+  const guest = useAppearance()?.guestHome
   return (
     <>
       <Head title={t('مساحة العمل')} />
@@ -259,9 +262,11 @@ export default function Home({ overview }: { overview?: OverviewState }) {
           <Card>
             <CardHeader>
               <CardTitle>
-                <h1>{t('مساحة العمل')}</h1>
+                <h1>{guest?.title ?? t('مساحة العمل')}</h1>
               </CardTitle>
-              <CardDescription>{t('وحدات أعمالك وإعدادات حسابك في مكان واحد.')}</CardDescription>
+              <CardDescription>
+                {guest?.description ?? t('وحدات أعمالك وإعدادات حسابك في مكان واحد.')}
+              </CardDescription>
             </CardHeader>
             <CardContent>
               <Button className="w-full" asChild>

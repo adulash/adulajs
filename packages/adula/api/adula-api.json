@@ -100,6 +100,34 @@
       "kind": "FunctionDeclaration",
       "type": "(document: ApiClientDocument, options?: ApiClientOptions | undefined) => string"
     },
+    "Appearance": {
+      "kind": "ClassDeclaration",
+      "type": "typeof Appearance"
+    },
+    "APPEARANCE_LOGO_OWNER": {
+      "kind": "VariableDeclaration",
+      "type": "Readonly<{ resource: \"core_appearance\"; field: \"logo\"; }>"
+    },
+    "APPEARANCE_SETTING_KEY": {
+      "kind": "VariableDeclaration",
+      "type": "\"appearance.identity\""
+    },
+    "APPEARANCE_TEXT_LIMITS": {
+      "kind": "VariableDeclaration",
+      "type": "Readonly<{ company: 120; loginTitle: 120; loginDescription: 300; guestTitle: 120; guestDescription: 300; name: 80; banner: 160; }>"
+    },
+    "AppearanceIdentity": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ company: string | null; logoId: number | null; loginTitle: string | null; loginDescription: string | null; guestTitle: string | null; guestDescription: string | null; primaryColor: string | null; }"
+    },
+    "AppearanceLogo": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ id: number; disk: string; path: string; mimeType: string; size: number; recordId: number | null; }"
+    },
+    "AppearanceOccasion": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ id: number; name: string; startsOn: string; endsOn: string; primaryColor: string | null; logoId: number | null; banner: string | null; loginTitle: string | null; loginDescription: string | null; }"
+    },
     "applyVisibility": {
       "kind": "FunctionDeclaration",
       "type": "(resource: Pick<Resource, \"fields\">, record: RecordData, options?: { existing?: RecordData | undefined; writable?: ((key: string) => boolean) | undefined; } | undefined) => Set<string>"
@@ -320,6 +348,10 @@
       "kind": "VariableDeclaration",
       "type": "\"ar\""
     },
+    "BASE_LOGO_RECORD": {
+      "kind": "VariableDeclaration",
+      "type": "0"
+    },
     "buildAbility": {
       "kind": "FunctionDeclaration",
       "type": "(rules: readonly Rule[], schemas?: readonly Pick<Resource, \"fields\" | \"name\">[] | undefined) => AdulaAbility"
@@ -448,6 +480,10 @@
       "kind": "TypeAliasDeclaration",
       "type": "{ baseUrl: string; key: string; body: Record<string, unknown>; signal: AbortSignal; }"
     },
+    "checkPrimaryColor": {
+      "kind": "FunctionDeclaration",
+      "type": "(value: unknown) => ContrastCheck"
+    },
     "claimAttachment": {
       "kind": "FunctionDeclaration",
       "type": "(trx: Transaction<any, any[]>, input: ClaimInput) => Promise<AttachmentRecord>"
@@ -503,6 +539,14 @@
     "consumeEvent": {
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>, listener: Listener, event: DomainEvent) => Promise<boolean>"
+    },
+    "contrast": {
+      "kind": "FunctionDeclaration",
+      "type": "(first: string, second: string) => number"
+    },
+    "ContrastCheck": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ ok: true; theme: DerivedTheme; } | { ok: false; reason: string; light: number; dark: number; }"
     },
     "createAssignmentsSchema": {
       "kind": "FunctionDeclaration",
@@ -668,6 +712,10 @@
       "kind": "TypeAliasDeclaration",
       "type": "{ key: string; label: string; resource: string; href: string; measure: DashboardMeasure; format: DashboardFormat; kind: \"total\" | \"grouped\"; groupBy: string | null; value?: string | number | null | undefined; rows?: DashboardGroupRow[] | undefined; truncated: boolean; }"
     },
+    "dateIn": {
+      "kind": "FunctionDeclaration",
+      "type": "(timeZone: string, now: Date) => string"
+    },
     "decimalShape": {
       "kind": "FunctionDeclaration",
       "type": "(field: { type: string; precision?: number | undefined; scale?: number | undefined; }) => { precision: number; scale: number; }"
@@ -728,9 +776,21 @@
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>, send: MailSender, limit?: number | undefined) => Promise<{ sent: number; failed: number; }>"
     },
+    "DerivedTheme": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ light: ThemeColors; dark: ThemeColors; }"
+    },
+    "derivePrimaryTheme": {
+      "kind": "FunctionDeclaration",
+      "type": "(value: unknown) => DerivedTheme"
+    },
     "describeDrift": {
       "kind": "FunctionDeclaration",
       "type": "(drift: SchemaDrift) => string[]"
+    },
+    "detectLogoType": {
+      "kind": "FunctionDeclaration",
+      "type": "(bytes: Uint8Array<ArrayBufferLike>) => LogoType | null"
     },
     "diagnoseAttachments": {
       "kind": "FunctionDeclaration",
@@ -1128,6 +1188,22 @@
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>, entry: ActivityEntry) => Promise<void>"
     },
+    "LOGO_LIMITS": {
+      "kind": "VariableDeclaration",
+      "type": "Readonly<{ maxBytes: number; maxInputSide: 4096; maxWidth: 1024; maxHeight: 512; minSide: 16; }>"
+    },
+    "logoHeaders": {
+      "kind": "FunctionDeclaration",
+      "type": "(logo: { mimeType: string; size: number; id: number; }) => Record<string, string>"
+    },
+    "LogoImage": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ type: LogoType; mimeType: \"image/png\" | \"image/webp\" | \"image/jpeg\"; extname: \"png\" | \"webp\" | \"jpg\"; width: number; height: number; bytes: Buffer<ArrayBufferLike>; }"
+    },
+    "LogoType": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"png\" | \"webp\" | \"jpeg\""
+    },
     "LookupFieldUse": {
       "kind": "TypeAliasDeclaration",
       "type": "{ resource: string; field: string; label: string; }"
@@ -1255,6 +1331,10 @@
     "nextStep": {
       "kind": "FunctionDeclaration",
       "type": "(definition: WorkflowDefinition, current: string, event: WorkflowEvent) => string"
+    },
+    "normalizeColor": {
+      "kind": "FunctionDeclaration",
+      "type": "(value: unknown) => string | null"
     },
     "normalizeRecoveryCode": {
       "kind": "FunctionDeclaration",
@@ -1411,6 +1491,10 @@
     "prepareAvatarImage": {
       "kind": "FunctionDeclaration",
       "type": "(input: Uint8Array<ArrayBufferLike>) => Promise<AvatarImage>"
+    },
+    "prepareLogoImage": {
+      "kind": "FunctionDeclaration",
+      "type": "(input: Uint8Array<ArrayBufferLike>) => Promise<LogoImage>"
     },
     "PRINT_HELPERS": {
       "kind": "VariableDeclaration",
@@ -1588,6 +1672,10 @@
       "kind": "TypeAliasDeclaration",
       "type": "{ disk: string; path: string; }"
     },
+    "RemovedLogoFile": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ disk: string; path: string; }"
+    },
     "RenderedMessage": {
       "kind": "TypeAliasDeclaration",
       "type": "{ subject: string; body: string; mail: boolean; }"
@@ -1607,6 +1695,10 @@
     "resolveActorConditions": {
       "kind": "FunctionDeclaration",
       "type": "(conditions: Conditions | undefined, actorId: number, accepts?: ((field: string) => boolean) | undefined) => Conditions | undefined"
+    },
+    "ResolvedAppearance": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ company: string | null; logoId: number | null; login: { title: string | null; description: string | null; }; guestHome: { title: string | null; description: string | null; }; banner: string | null; occasion: { id: number; name: string; startsOn: string; endsOn: string; } | null; theme: DerivedTheme | null; }"
     },
     "resolveInstallAdministrator": {
       "kind": "FunctionDeclaration",
@@ -1996,6 +2088,10 @@
       "kind": "TypeAliasDeclaration",
       "type": "\"rtl\" | \"ltr\""
     },
+    "ThemeColors": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ '--primary': string; '--primary-foreground': string; }"
+    },
     "translate": {
       "kind": "FunctionDeclaration",
       "type": "(key: string, language?: string | undefined, params?: Readonly<Record<string, string | number>> | undefined) => string"
@@ -2111,6 +2207,10 @@
     "verifyBackup": {
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>, inspect: () => Promise<BackupObject[]>, now?: number | undefined, prefix?: string | undefined) => Promise<BackupStatus>"
+    },
+    "WCAG_AA": {
+      "kind": "VariableDeclaration",
+      "type": "4.5"
     },
     "Webhook": {
       "kind": "TypeAliasDeclaration",

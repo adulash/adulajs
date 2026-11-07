@@ -1366,3 +1366,33 @@ export async function createCloudBackupsSchema(db: Knex) {
   )
   await db.raw('CREATE INDEX backup_runs_kind_created ON backup_runs (kind, created_at DESC)')
 }
+
+/**
+ * Appearance occasions (ADR 053): dated overrides of the base identity, which is the system
+ * setting `appearance.identity`. Logos are `attachments` rows, so only the id is kept here.
+ * Overlapping ranges are refused by the service under a table lock.
+ */
+export async function createAppearanceSchema(db: Knex) {
+  await db.schema.createTable('appearance_occasions', (t) => {
+    t.increments('id')
+    t.string('name', 80).notNullable()
+    t.date('starts_on').notNullable()
+    t.date('ends_on').notNullable()
+    t.string('primary_color', 7)
+    t.integer('logo_id')
+    t.string('banner', 160)
+    t.string('login_title', 120)
+    t.string('login_description', 300)
+    t.integer('created_by').references('id').inTable('users').onDelete('SET NULL')
+    t.integer('updated_by').references('id').inTable('users').onDelete('SET NULL')
+    t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+    t.timestamp('updated_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+    t.index(['starts_on', 'ends_on'])
+  })
+  await db.raw(
+    'ALTER TABLE appearance_occasions ADD CONSTRAINT appearance_occasions_dates CHECK (ends_on >= starts_on)'
+  )
+  await db.raw(
+    "ALTER TABLE appearance_occasions ADD CONSTRAINT appearance_occasions_color CHECK (primary_color IS NULL OR primary_color ~ '^#[0-9a-f]{6}$')"
+  )
+}

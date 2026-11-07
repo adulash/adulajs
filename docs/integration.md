@@ -406,6 +406,22 @@ changes; a change runs when the user confirms it in a review dialog.
 `adula:assistant:prune` runs daily from the scheduler. Every tool call is in the activity
 log under `core.ai` with the conversation number, without record contents.
 
+## Appearance and occasions
+
+«الإدارة ← الإعدادات ← المظهر والهوية» sets the company name, logo, login and guest home
+texts and the primary colour, and dated occasions that override them (ADR 053).
+
+* The colour is `#rrggbb` only and must reach WCAG AA in the light and dark themes; the
+  dark theme uses a lighter tint of it. A failing colour is refused with the ratio.
+* Logos are PNG, JPEG or WebP up to 1 MiB, re-encoded without metadata and stored as
+  attachments; SVG is refused. A saved logo is public at `/appearance/logos/:id`.
+* An occasion runs from the start of its first day to the end of its last day in
+  `adula.timeZone`. Overlapping occasions are refused, and the base identity returns by
+  itself after the end date: nothing is scheduled.
+* Pages read the result from the `appearance` shared prop (`company`, `logoUrl`, `login`,
+  `guestHome`, `banner`, `occasion`, `theme`); a null text keeps the page's own wording.
+  Printed documents use the saved name and logo through `identity()`.
+
 ## Webhooks
 
 * **Outgoing webhooks** (`/admin/webhooks`): an HTTPS endpoint subscribes to record

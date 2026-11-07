@@ -9,6 +9,7 @@ import {
   ListChecks,
   Mail,
   Network,
+  Palette,
   Printer,
   Rocket,
   ShieldCheck,
@@ -110,6 +111,7 @@ export const adminSections: AdminSection[] = [
         icon: Printer,
       },
       { id: 'webhooks', href: '/admin/webhooks', label: 'الربط الخارجي', icon: Webhook },
+      { id: 'appearance', href: '/admin/appearance', label: 'المظهر والهوية', icon: Palette },
       { id: 'assistant', href: '/admin/assistant', label: 'المساعد الذكي', icon: Bot },
       { id: 'jobs', href: '/admin/jobs', label: 'تشغيل النظام', icon: Activity },
       {
