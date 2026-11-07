@@ -420,7 +420,7 @@ function ColorField({
         <Input
           id={id}
           dir="ltr"
-          placeholder={optional ? 'دون تغيير' : '#006c35'}
+          placeholder={optional ? 'دون تغيير' : '#RRGGBB'}
           value={value}
           maxLength={7}
           spellCheck={false}

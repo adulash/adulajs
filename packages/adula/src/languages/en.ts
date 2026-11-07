@@ -128,6 +128,8 @@ export const englishMessages: Readonly<Record<string, string>> = Object.freeze({
     'The mail server rejected the sender address. Use an address verified with your provider in MAIL_FROM_ADDRESS.',
   'errors.E_MAIL_TEST_SEND.recipient_rejected':
     'The mail server rejected the recipient address. Check your account email and try again.',
+  'errors.E_MAIL_TEST_SEND.password_unreadable':
+    'The saved mail password cannot be opened, usually after APP_KEY changed. Enter the password again in the mail tab, then try again.',
   'errors.E_MAIL_NOT_CONFIGURED':
     'The mail configuration is incomplete. Open “Mail setup”, complete the missing variables, then restart the server.',
   'errors.E_MAIL_TEST_ANSWER': 'Choose whether the message arrived or not',
