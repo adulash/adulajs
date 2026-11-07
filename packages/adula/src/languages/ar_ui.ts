@@ -387,6 +387,9 @@ export const arabicInterfaceMessages = {
   'ui.account.layoutDefault': 'الافتراضي للنظام',
   'ui.account.layoutSidebar': 'قائمة جانبية',
   'ui.account.layoutTop': 'قائمة علوية',
+  'ui.account.sidebarCollapse': 'عند طي القائمة',
+  'ui.account.sidebarCollapseIcons': 'أيقونات',
+  'ui.account.sidebarCollapseHidden': 'إخفاء كامل',
   'ui.account.arrange': 'ترتيب القائمة…',
   'ui.navOrder.title': 'ترتيب القائمة',
   'ui.navOrder.description':

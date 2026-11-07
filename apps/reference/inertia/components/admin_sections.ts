@@ -20,9 +20,15 @@ import {
 } from 'lucide-react'
 
 /** Shared props an administration page can be shown or hidden by. */
-export type AdminShellProps = { setupPending?: boolean; [key: string]: unknown }
+export type AdminShellProps = {
+  setupPending?: boolean
+  /** Failed workflows plus one for a stale backup (the administration alerts). */
+  adminAlerts?: number
+  backupWarning?: boolean
+  [key: string]: unknown
+}
 
-/** One page of an administration section, shown as a vertical sub-tab (ADR 049). */
+/** One page of an administration section, shown as a vertical tab (ADR 049). */
 export type AdminPage = {
   /** Unique within its section: `users`. */
   id: string
@@ -35,17 +41,34 @@ export type AdminPage = {
   match?: (url: string) => boolean
   /** Hides a page that does not apply; the server still authorizes every request. */
   visible?: (props: AdminShellProps) => boolean
+  /** The alerts this page explains, shown as a count on its tab. */
+  alerts?: (props: AdminShellProps) => number
 }
 
 /**
- * One administration section: one sidebar entry, its pages as sub-tabs. The id is stable
+ * One administration section: one sidebar entry, its pages as vertical tabs. The id is stable
  * (it is stored in users' menu order as `admin.<id>`): never rename a released id.
  */
 export type AdminSection = { id: string; title: string; icon: LucideIcon; pages: AdminPage[] }
 
+/** The one-time setup, the first settings tab until it is complete. */
+export const setupPage: AdminPage = {
+  id: 'setup',
+  href: '/admin/setup',
+  label: 'الإعداد الأولي',
+  icon: Rocket,
+  visible: (props) => Boolean(props.setupPending),
+}
+
+/** A stale backup counts as one alert; the rest of the alerts are failed workflows. */
+const backupAlerts = (props: AdminShellProps) => (props.backupWarning ? 1 : 0)
+const workflowAlerts = (props: AdminShellProps) =>
+  Math.max(0, (props.adminAlerts ?? 0) - backupAlerts(props))
+
 /**
- * The administration area by concern (#34, #157). To add a page, append it to a section; to
- * add a section, append one here. Its routes belong inside the `middleware.admin()` group.
+ * The administration area: exactly two sidebar entries (owner's review of 2.3.0, ADR 049).
+ * To add a page, append it to one of these sections; do not add a section. Its routes belong
+ * inside the `middleware.admin()` group.
  */
 export const adminSections: AdminSection[] = [
   {
@@ -70,6 +93,7 @@ export const adminSections: AdminSection[] = [
     title: 'الإعدادات',
     icon: SlidersHorizontal,
     pages: [
+      setupPage,
       {
         id: 'general',
         href: '/admin/settings',
@@ -87,32 +111,28 @@ export const adminSections: AdminSection[] = [
       },
       { id: 'webhooks', href: '/admin/webhooks', label: 'الربط الخارجي', icon: Webhook },
       { id: 'assistant', href: '/admin/assistant', label: 'المساعد الذكي', icon: Bot },
-    ],
-  },
-  {
-    id: 'operations',
-    title: 'المراقبة والتشغيل',
-    icon: Activity,
-    pages: [
       { id: 'jobs', href: '/admin/jobs', label: 'تشغيل النظام', icon: Activity },
-      { id: 'backups', href: '/admin/backups', label: 'النسخ الاحتياطي', icon: DatabaseBackup },
-      { id: 'workflows', href: '/admin/workflows', label: 'تدفقات فاشلة', icon: GitBranch },
+      {
+        id: 'backups',
+        href: '/admin/backups',
+        label: 'النسخ الاحتياطي',
+        icon: DatabaseBackup,
+        alerts: backupAlerts,
+      },
+      {
+        id: 'workflows',
+        href: '/admin/workflows',
+        label: 'تدفقات فاشلة',
+        icon: GitBranch,
+        alerts: workflowAlerts,
+      },
       { id: 'activity', href: '/admin/activity', label: 'سجل النشاط', icon: History },
     ],
   },
 ]
 
-/** The one-time setup, listed before the sections until it is complete. */
-export const setupPage: AdminPage = {
-  id: 'setup',
-  href: '/admin/setup',
-  label: 'الإعداد الأولي',
-  icon: Rocket,
-  visible: (props) => Boolean(props.setupPending),
-}
-
 /** The section that collects failed workflows and stale backups carries the alerts badge. */
-export const ALERTS_SECTION = 'operations'
+export const ALERTS_SECTION = 'settings'
 
 function pathOf(url: string) {
   return url.split(/[?#]/, 1)[0]
@@ -156,7 +176,4 @@ export function sectionFor(
 }
 
 /** Every administration page, for the breadcrumb. */
-export const adminLinks: AdminPage[] = [
-  setupPage,
-  ...adminSections.flatMap((section) => section.pages),
-]
+export const adminLinks: AdminPage[] = adminSections.flatMap((section) => section.pages)

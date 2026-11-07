@@ -288,6 +288,21 @@
       "type": "registry:ui"
     },
     {
+      "name": "breadcrumb",
+      "dependencies": [
+        "cn@0.3.0",
+        "radix-ui@1.6.7",
+        "lucide-react@1.47.0"
+      ],
+      "files": [
+        {
+          "path": "registry/ui/breadcrumb.tsx",
+          "type": "registry:ui"
+        }
+      ],
+      "type": "registry:ui"
+    },
+    {
       "name": "tabs",
       "dependencies": [
         "cn@0.3.0",
@@ -573,6 +588,7 @@
         "resource-actions",
         "resource-field",
         "resource-value",
+        "resource-surface",
         "messages"
       ],
       "dependencies": [
@@ -699,6 +715,7 @@
         "record-assignments",
         "record-workflows",
         "record-print",
+        "resource-surface",
         "messages",
         "user-avatar"
       ],
@@ -803,6 +820,7 @@
       "registryDependencies": [
         "button",
         "dialog",
+        "long-dialog",
         "messages"
       ],
       "dependencies": [],

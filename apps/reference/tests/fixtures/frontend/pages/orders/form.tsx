@@ -1,6 +1,6 @@
 import { Head, router } from '@inertiajs/react'
 import { Link } from '@adonisjs/inertia/react'
-import { useState, type ReactElement } from 'react'
+import { useId, useState, type ReactElement } from 'react'
 import axios from 'axios'
 import { Check, FileText, Paperclip, Save } from 'lucide-react'
 import { toast } from 'sonner'
@@ -9,7 +9,7 @@ import { Input } from '~/components/ui/input'
 import { Textarea } from '~/components/ui/textarea'
 import { Label } from '~/components/ui/label'
 import { Alert, AlertDescription } from '~/components/ui/alert'
-import { ResourceSurface } from '~/components/ui/resource-surface'
+import { RecordFooter, ResourceSurface } from '~/components/ui/resource-surface'
 import { ResourceSelect } from '~/components/ui/resource-field'
 import Workspace from '~/layouts/workspace'
 import type { ResourceEditor } from 'adula'
@@ -59,6 +59,7 @@ export default function OrderForm({ editor }: { editor: ResourceEditor }) {
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [failure, setFailure] = useState('')
   const [busy, setBusy] = useState(false)
+  const formId = useId()
   const [lines, setLines] = useState<Line[]>(() =>
     (editor.inline.lines?.rows ?? []).map((row) => ({
       id: Number(row.id),
@@ -179,6 +180,7 @@ export default function OrderForm({ editor }: { editor: ResourceEditor }) {
         backHref="/resources/orders"
       >
         <form
+          id={formId}
           onSubmit={submit}
           className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_270px]"
         >
@@ -406,15 +408,16 @@ export default function OrderForm({ editor }: { editor: ResourceEditor }) {
                 )}
               </section>
             )}
-            <div className="flex items-center justify-end gap-3 pb-8">
-              <Button type="button" variant="outline" asChild>
+            {/* The record dialog's fixed footer; the save button names the form it submits. */}
+            <RecordFooter>
+              <Button type="button" variant="outline" className="ms-auto" asChild>
                 <Link href="/resources/orders">إلغاء</Link>
               </Button>
-              <Button type="submit" disabled={busy}>
+              <Button type="submit" form={formId} disabled={busy}>
                 <Save size={16} />
                 {busy ? 'جارٍ الحفظ...' : 'حفظ الطلب'}
               </Button>
-            </div>
+            </RecordFooter>
           </div>
           <aside className="rounded-xl border border-border bg-card p-6">
             <FileText className="mb-4 text-primary" size={26} strokeWidth={1.4} />
