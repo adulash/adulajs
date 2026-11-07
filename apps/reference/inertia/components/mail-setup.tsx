@@ -284,8 +284,11 @@ export function MailSetupDialog({
                 <TriangleAlert />
                 <AlertTitle>يرسل النظام بمتغيرات البيئة</AlertTitle>
                 <AlertDescription>
-                  ضبط مسؤول الخادم MAIL_SETTINGS_SOURCE=environment، فلا يُطبَّق ما تحفظه هنا حتى
-                  يُزال هذا المتغير.
+                  ضبط مسؤول الخادم{' '}
+                  <code dir="ltr" className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+                    MAIL_SETTINGS_SOURCE=environment
+                  </code>
+                  ، فلا يُطبَّق ما تحفظه هنا حتى يُزال هذا المتغير.
                 </AlertDescription>
               </Alert>
             )}
@@ -401,7 +404,7 @@ export function MailSetupDialog({
                     disabled={busy}
                     onClick={() => setChangingPassword(true)}
                   >
-                    <KeyRound size={14} />
+                    <KeyRound />
                     تغيير
                   </Button>
                   <Button
@@ -411,7 +414,7 @@ export function MailSetupDialog({
                     disabled={busy}
                     onClick={removePassword}
                   >
-                    <Trash2 size={14} />
+                    <Trash2 />
                     حذف
                   </Button>
                 </div>

@@ -80,8 +80,12 @@ export default function AdminMail(props: MailTestProps) {
           <TriangleAlert />
           <AlertTitle>أدخل كلمة مرور البريد من جديد</AlertTitle>
           <AlertDescription>
-            تعذّر فتح كلمة المرور المحفوظة، غالبًا بعد تغيير مفتاح التطبيق APP_KEY. لن يرسل النظام
-            البريد دون تسجيل الدخول؛ افتح «إعداد البريد» وأدخل كلمة المرور، ثم احفظ.
+            تعذّر فتح كلمة المرور المحفوظة، غالبًا بعد تغيير مفتاح التطبيق{' '}
+            <code dir="ltr" className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+              APP_KEY
+            </code>
+            . لن يرسل النظام البريد دون تسجيل الدخول؛ افتح «إعداد البريد» وأدخل كلمة المرور، ثم
+            احفظ.
           </AlertDescription>
         </Alert>
       )}
@@ -89,11 +93,19 @@ export default function AdminMail(props: MailTestProps) {
         <CardHeader>
           <CardTitle>الإعداد الحالي</CardTitle>
           <CardDescription>
-            {mailReadiness.source === 'settings'
-              ? 'يرسل النظام بالإعداد المحفوظ هنا.'
-              : settings.configured && !mailSettingsApply
-                ? 'يرسل النظام بمتغيرات البيئة، لأن مسؤول الخادم ضبط MAIL_SETTINGS_SOURCE=environment.'
-                : 'لا إعداد محفوظ بعد، فيرسل النظام بمتغيرات البيئة.'}
+            {mailReadiness.source === 'settings' ? (
+              'يرسل النظام بالإعداد المحفوظ هنا.'
+            ) : settings.configured && !mailSettingsApply ? (
+              <>
+                يرسل النظام بمتغيرات البيئة، لأن مسؤول الخادم ضبط{' '}
+                <code dir="ltr" className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
+                  MAIL_SETTINGS_SOURCE=environment
+                </code>
+                .
+              </>
+            ) : (
+              'لا إعداد محفوظ بعد، فيرسل النظام بمتغيرات البيئة.'
+            )}
           </CardDescription>
         </CardHeader>
         {settings.configured && (
