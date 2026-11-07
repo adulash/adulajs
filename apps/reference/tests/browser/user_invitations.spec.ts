@@ -61,7 +61,9 @@ test.group('User invitation E2E through browser and SMTP', (group) => {
         await form.getByLabel('البريد الإلكتروني').fill(recipient)
         await form.getByRole('button', { name: 'إرسال الدعوة', exact: true }).click()
         // The workspace shows the result as a flash message, once.
-        await page.getByText('تم إرسال الدعوة بالبريد.', { exact: false }).waitFor()
+        const sent = page.getByText('تم إرسال الدعوة بالبريد.', { exact: false })
+        await sent.first().waitFor()
+        assert.equal(await sent.count(), 1)
 
         assert.lengthOf(sink.messages, 1)
         const [headers, ...body] = sink.messages[0].split('\r\n\r\n')
