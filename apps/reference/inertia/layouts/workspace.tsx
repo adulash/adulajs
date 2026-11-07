@@ -113,7 +113,7 @@ const SIDEBAR_WIDTH: Record<SidebarMode, string> = {
 
 /** A phone navigation link; the current page is marked like the other navigation. */
 const phoneLinkClass = (active: boolean) =>
-  `rounded-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 ${active ? 'font-semibold text-primary' : 'text-muted-foreground hover:text-foreground'}`
+  `inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 ${active ? 'bg-accent font-semibold text-primary' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}`
 
 export default function Workspace({ children }: { children: ReactNode }) {
   const preferences = useUiPreferences()
@@ -447,6 +447,64 @@ export default function Workspace({ children }: { children: ReactNode }) {
             />
           </div>
         )}
+        {/* Phones: the main navigation first, then the section tabs and the page. */}
+        <nav
+          aria-label={t('التنقل على الجوال')}
+          className="flex gap-1 overflow-auto border-b border-border bg-card px-3 py-2 text-xs whitespace-nowrap lg:hidden"
+        >
+          {work.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={isActive(item.match ?? item.href) ? 'page' : undefined}
+              className={phoneLinkClass(isActive(item.match ?? item.href))}
+            >
+              {item.label}
+              {item.badge > 0 && (
+                <Badge className="px-1.5" aria-label={t('{count} مفتوحة', { count: item.badge })}>
+                  {item.badge}
+                </Badge>
+              )}
+            </Link>
+          ))}
+          {modules.flatMap((group) =>
+            group.links.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={isActive(item.href) ? 'page' : undefined}
+                className={phoneLinkClass(isActive(item.href))}
+              >
+                {item.label}
+              </Link>
+            ))
+          )}
+          {/* The same two administration entries as the sidebar, each opening its first
+              page directly. */}
+          {admin.isAdmin &&
+            admin.sections.map((section) => {
+              const active = admin.current?.section.id === section.id
+              return (
+                <Link
+                  key={section.id}
+                  href={sectionHref(section)}
+                  aria-current={active ? 'page' : undefined}
+                  className={phoneLinkClass(active)}
+                >
+                  {t(section.title)}
+                  {section.id === ALERTS_SECTION && admin.alerts > 0 && (
+                    <Badge
+                      variant="destructive"
+                      className="px-1.5"
+                      aria-label={t('{count} تنبيه إداري', { count: admin.alerts })}
+                    >
+                      {admin.alerts}
+                    </Badge>
+                  )}
+                </Link>
+              )
+            })}
+        </nav>
         {/* Administration pages put their section's tabs at the head of this column, right
             under the header (owner decision 22). */}
         <AdminSectionTabs className="min-w-0 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col print:block">
@@ -462,51 +520,6 @@ export default function Workspace({ children }: { children: ReactNode }) {
             className="min-w-0 lg:min-h-0 lg:flex-1 lg:overflow-y-auto print:overflow-visible"
             data-page-scroll
           >
-            <nav
-              aria-label={t('التنقل على الجوال')}
-              className="flex gap-5 overflow-auto border-b border-border bg-card px-5 py-3 text-xs whitespace-nowrap lg:hidden"
-            >
-              {work.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  aria-current={isActive(item.match ?? item.href) ? 'page' : undefined}
-                  className={phoneLinkClass(isActive(item.match ?? item.href))}
-                >
-                  {item.label}
-                  {item.badge > 0 ? ` (${item.badge})` : ''}
-                </Link>
-              ))}
-              {modules.flatMap((group) =>
-                group.links.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    aria-current={isActive(item.href) ? 'page' : undefined}
-                    className={phoneLinkClass(isActive(item.href))}
-                  >
-                    {item.label}
-                  </Link>
-                ))
-              )}
-              {/* The same two administration entries as the sidebar, each opening its first
-                  page directly. */}
-              {admin.isAdmin &&
-                admin.sections.map((section) => {
-                  const active = admin.current?.section.id === section.id
-                  return (
-                    <Link
-                      key={section.id}
-                      href={sectionHref(section)}
-                      aria-current={active ? 'page' : undefined}
-                      className={phoneLinkClass(active)}
-                    >
-                      {t(section.title)}
-                      {section.id === ALERTS_SECTION && admin.alerts > 0 ? ` (${admin.alerts})` : ''}
-                    </Link>
-                  )
-                })}
-            </nav>
             <main className="mx-auto max-w-[1440px] p-5 lg:px-10 lg:py-9">
               <AdminTabPanel>
                 <div

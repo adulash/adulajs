@@ -184,8 +184,11 @@ Owner: «لا اريد قائمة جانبية فرعية اضافية، اري�
   between tabs and Enter opens one (manual activation).
 * The row heads the page column, above the backup warning and the impersonation bar. From the
   large breakpoint it sits outside the page's scroll region, so it stays in view while the
-  page scrolls; on phones it sticks under the header and scrolls sideways, bringing the
-  active tab into view.
+  page scrolls, and the list wraps onto further rows so no tab or badge is hidden: the
+  registry `TabsList` has a `wrap` option for this (AdulaJS addition; the default segmented
+  look is unchanged). On phones the order is the header, the main phone navigation, then the
+  tab row, which sticks under the header and scrolls sideways, bringing the active tab into
+  view; its inline padding keeps the focus ring of the first and last tab whole.
 * Alerts stay a count badge on the tab and on the «الإعدادات» sidebar entry. The sidebar keeps
   its two administration entries without sub-items.
 * Every navigation link opens its target page at its own address (owner: «تأكد ان الازرار في

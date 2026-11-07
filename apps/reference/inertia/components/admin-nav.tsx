@@ -117,7 +117,8 @@ function useSectionTabs() {
  * area. Each tab is a link to its page, so the address selects the tab (direct links,
  * reloads, Back and Forward), and the page is the tab panel. Arrow keys move between tabs;
  * Enter opens one (manual activation, since opening a tab loads a page). The row stays in
- * view while the page scrolls; on a phone it scrolls sideways to its active tab.
+ * view while the page scrolls; it wraps onto further rows on a large screen and,
+ * on a phone, scrolls sideways to its active tab.
  *
  * It wraps the page column, so the row and the panel inside the page share one Tabs root.
  */
@@ -155,12 +156,12 @@ export function AdminSectionTabs({
         <TabsList
           ref={list}
           aria-label={t('صفحات القسم: {section}', { section: t(section.title) })}
-          className="max-w-full justify-start overflow-x-auto [scrollbar-width:none]"
+          wrap
         >
           {section.pages.map((entry) => {
             const count = entry.alerts?.(props) ?? 0
             return (
-              <TabsTrigger key={entry.id} value={entry.id} asChild className="flex-none">
+              <TabsTrigger key={entry.id} value={entry.id} asChild>
                 <Link href={entry.href}>
                   <entry.icon strokeWidth={1.6} />
                   {t(entry.label)}

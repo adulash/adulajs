@@ -820,6 +820,32 @@ test.group('Workspace shell in the browser', (group) => {
       'page'
     )
 
+    // On a large screen the eleven tabs wrap onto further rows instead of scrolling: every tab
+    // and its badge is whole and inside the window (the registry's TabsList wrap option).
+    assert.equal(await settings.getAttribute('data-wrap'), 'true')
+    for (const width of [1024, 1440, 1920]) {
+      await page.setViewportSize({ width, height: 900 })
+      await page.goto('/admin/settings')
+      await settings.waitFor()
+      const fit = await page.evaluate<{ overflow: number; outside: string[] }>(`(() => {
+        const list = document.querySelector('[role=tablist]')
+        const box = list.getBoundingClientRect()
+        const outside = [...list.querySelectorAll('[role=tab], [role=tab] [data-slot=badge]')]
+          .filter((element) => {
+            const rect = element.getBoundingClientRect()
+            return rect.left < Math.max(0, box.left) - 0.5 || rect.right > Math.min(innerWidth, box.right) + 0.5 || rect.top < box.top - 0.5 || rect.bottom > box.bottom + 0.5
+          })
+          .map((element) => element.textContent.trim())
+        return { overflow: list.scrollWidth - list.clientWidth, outside }
+      })()`)
+      assert.isAtMost(fit.overflow, 0, `${width}`)
+      assert.deepEqual(fit.outside, [], `${width}`)
+      await page.screenshot({
+        path: join(await screenshotDir(), `admin-tabs-${width}-${theme}.png`),
+      })
+    }
+    await page.setViewportSize({ width: 1440, height: 900 })
+
     // The header and the tabs stay on screen while a long page scrolls: the row sits outside
     // the page's scroll region.
     await page.goto('/admin/settings')
@@ -866,7 +892,65 @@ test.group('Workspace shell in the browser', (group) => {
       await new Promise((resolve) => setTimeout(resolve, 50))
     }
     assert.isAtMost(await page.evaluate<number>('document.documentElement.scrollWidth'), 375)
+    // Phone order: the header, the main phone navigation, the section tabs, then the warnings
+    // and the page.
+    const phoneNav = (await page
+      .getByRole('navigation', { name: 'التنقل على الجوال' })
+      .boundingBox())!
+    const rowAtTop = (await tabsRow.boundingBox())!
+    assert.isAtMost(Math.abs(phoneNav.y - 72), 1)
+    assert.isAtMost(Math.abs(rowAtTop.y - (phoneNav.y + phoneNav.height)), 1)
+    const banner = page.getByRole('alert').filter({ hasText: 'لا توجد نسخة احتياطية خارجية حديثة' })
+    if (await banner.count())
+      assert.isAtLeast((await banner.boundingBox())!.y, rowAtTop.y + rowAtTop.height - 1)
+    // The phone navigation uses the shell's patterns: the alerts count is the destructive count
+    // Badge (as on the sidebar entry and the tab), and the current entry is filled.
+    const phoneLinks = page.getByRole('navigation', { name: 'التنقل على الجوال' })
+    const phoneSettings = phoneLinks.getByRole('link', { name: /^الإعدادات/ })
+    assert.notMatch(await phoneSettings.innerText(), /\(/)
+    const alertCount = await page
+      .locator('nav[aria-label="التنقل الإداري"] [data-slot=badge]')
+      .count()
+    const phoneBadge = phoneSettings.locator('[data-slot=badge]')
+    assert.equal(await phoneBadge.count(), alertCount)
+    if (alertCount) {
+      assert.equal(await phoneBadge.getAttribute('data-variant'), 'destructive')
+      assert.match((await phoneBadge.getAttribute('aria-label')) ?? '', /تنبيه إداري/)
+    }
+    assert.equal(await phoneSettings.getAttribute('aria-current'), 'page')
+    const phoneActive = await page.evaluate<Record<string, string>>(
+      `(() => { const s = getComputedStyle(document.querySelector('nav[aria-label="التنقل على الجوال"] a[aria-current="page"]')); return { background: s.backgroundColor, color: s.color, weight: s.fontWeight } })()`
+    )
+    assert.equal(phoneActive.background, await tokenStyle(page, 'bg-accent', 'backgroundColor'))
+    assert.equal(phoneActive.color, await tokenStyle(page, 'text-primary', 'color'))
+    assert.equal(phoneActive.weight, '600')
     await page.screenshot({ path: join(await screenshotDir(), `admin-tabs-phone-${theme}.png`) })
+    // The focus ring of the first and the last tab fits inside the scrolling row (the list's
+    // padding holds the 3 px ring).
+    const ringFits = (which: 'first' | 'last') =>
+      page.evaluate<boolean>(`(() => {
+        const list = document.querySelector('[role=tablist]')
+        const tabs = list.querySelectorAll('[role=tab]')
+        const tab = ${which === 'first' ? 'tabs[0]' : 'tabs[tabs.length - 1]'}
+        const box = list.getBoundingClientRect()
+        const rect = tab.getBoundingClientRect()
+        return document.activeElement === tab && rect.left - 3 >= box.left - 0.5 && rect.right + 3 <= box.right + 0.5 && rect.top - 3 >= box.top - 0.5 && rect.bottom + 3 <= box.bottom + 0.5
+      })()`)
+    await settings.getByRole('tab', { name: 'سجل النشاط', exact: true }).focus()
+    for (const [key, which] of [
+      ['Home', 'first'],
+      ['End', 'last'],
+    ] as const) {
+      await page.keyboard.press(key)
+      for (const started = Date.now(); !(await ringFits(which));) {
+        if (Date.now() - started > 5_000) assert.isTrue(await ringFits(which), which)
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+      await page.screenshot({
+        path: join(await screenshotDir(), `admin-tabs-phone-focus-${which}-${theme}.png`),
+      })
+    }
+    await page.locator('main h1').first().click()
     await page.evaluate('window.scrollTo(0, document.documentElement.scrollHeight)')
     await page.waitForTimeout(150)
     assert.isAbove(await page.evaluate<number>('window.scrollY'), 100)
