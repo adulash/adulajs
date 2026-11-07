@@ -373,7 +373,7 @@ export function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorProps }) {
       >
         <LongDialogContent
           dir="rtl"
-          width="lg"
+          width="xl"
           title={codes ? 'رموز الاسترداد' : 'تفعيل التحقق بخطوتين'}
           description={codes ? 'فُعّل التحقق بخطوتين. سيُطلب الرمز من تطبيقك في كل دخول قادم.' : 'أضف الحساب إلى تطبيق مصادقة (مثل Microsoft Authenticator أو Google Authenticator) ثم أدخل الرمز الذي يظهر فيه.'}
           footer={
@@ -529,7 +529,7 @@ export function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorProps }) {
       >
         <LongDialogContent
           dir="rtl"
-          width="md"
+          width="lg"
           title={codes ? 'رموز الاسترداد الجديدة' : 'إنشاء رموز استرداد جديدة'}
           description={codes ? 'أُلغيت الرموز السابقة كلها؛ هذه وحدها صالحة الآن.' : 'تُلغى الرموز الحالية كلها فور الإنشاء. أدخل الرمز الحالي من تطبيق المصادقة (لا يُقبل رمز استرداد هنا).'}
           footer={

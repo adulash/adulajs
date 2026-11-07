@@ -13,12 +13,14 @@ import { ResourceSelect } from '~/components/ui/resource-field'
 import { useConfirmAction } from '~/components/ui/confirm-action'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '~/components/ui/dialog'
+import { LongDialogContent } from '~/components/ui/long-dialog'
 
 const json = { headers: { Accept: 'application/json' }, withXSRFToken: true }
 type Draft = {
@@ -59,6 +61,8 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
   const { confirm, confirmation } = useConfirmAction()
   const [editing, setEditing] = useState<InboundSource | 'new' | null>(null)
   const [draft, setDraft] = useState<Draft>(blank)
+  // The values the form opened with: closing asks for confirmation only when they changed.
+  const [opened, setOpened] = useState(JSON.stringify(blank))
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [secret, setSecret] = useState<{ source: InboundSource; value: string } | null>(null)
@@ -70,7 +74,9 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
   const open = (source: InboundSource | 'new') => {
     setEditing(source)
     setError('')
-    setDraft(source === 'new' ? blank : { ...source, key: source.key })
+    const next = source === 'new' ? blank : { ...source, key: source.key }
+    setOpened(JSON.stringify(next))
+    setDraft(next)
   }
   const save = async (event: FormEvent) => {
     event.preventDefault()
@@ -193,14 +199,30 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
       </ul>
 
       <Dialog open={editing !== null} onOpenChange={(value) => !value && setEditing(null)}>
-        <DialogContent dir="rtl" className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{editing === 'new' ? 'إضافة مصدر وارد' : 'تعديل المصدر'}</DialogTitle>
-            <DialogDescription>
-              القيم الافتراضية تناسب GitHub. غيّر الترويسات لمرسل يستخدم أسماء أخرى.
-            </DialogDescription>
-          </DialogHeader>
-          <form id="inbound-form" className="grid gap-4 sm:grid-cols-2" onSubmit={save}>
+        <LongDialogContent
+          dir="rtl"
+          width="2xl"
+          title={editing === 'new' ? 'إضافة مصدر وارد' : 'تعديل المصدر'}
+          description="القيم الافتراضية تناسب GitHub. غيّر الترويسات لمرسل يستخدم أسماء أخرى."
+          footer={
+            <>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  إلغاء
+                </Button>
+              </DialogClose>
+              <Button type="submit" form="inbound-form" disabled={busy}>
+                حفظ
+              </Button>
+            </>
+          }
+        >
+          <form
+            id="inbound-form"
+            className="grid gap-4 sm:grid-cols-2"
+            data-dirty={String(JSON.stringify(draft) !== opened)}
+            onSubmit={save}
+          >
             <div className="space-y-2">
               <Label htmlFor="inbound-name">الاسم</Label>
               <Input
@@ -284,15 +306,7 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
               </p>
             )}
           </form>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setEditing(null)}>
-              إلغاء
-            </Button>
-            <Button type="submit" form="inbound-form" disabled={busy}>
-              حفظ
-            </Button>
-          </DialogFooter>
-        </DialogContent>
+        </LongDialogContent>
       </Dialog>
 
       <Dialog open={secret !== null} onOpenChange={(value) => !value && setSecret(null)}>
@@ -331,13 +345,21 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={log !== null} onOpenChange={(value) => !value && setLog(null)}>
-        <DialogContent dir="rtl" className="sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>المستلمات</DialogTitle>
-            <DialogDescription>{log?.source.name}</DialogDescription>
-          </DialogHeader>
-          <div className="max-h-96 overflow-auto">
+      <Dialog mode="view" open={log !== null} onOpenChange={(value) => !value && setLog(null)}>
+        <LongDialogContent
+          dir="rtl"
+          width="3xl"
+          title="المستلمات"
+          description={log?.source.name}
+          footer={
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                إغلاق
+              </Button>
+            </DialogClose>
+          }
+        >
+          <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-muted text-xs text-muted-foreground">
                 <tr>
@@ -392,7 +414,7 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
               </tbody>
             </table>
           </div>
-        </DialogContent>
+        </LongDialogContent>
       </Dialog>
       {confirmation}
     </section>

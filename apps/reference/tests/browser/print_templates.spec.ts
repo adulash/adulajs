@@ -128,4 +128,61 @@ test.group('Print templates browser acceptance', (group) => {
     await printed.screenshot({ path: join(shots, 'print-templates-printed.png'), fullPage: true })
     assert.deepEqual(alerts, [])
   })
+
+  test('the template dialog is a long dialog that closes at once when unchanged and asks when changed', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(owner.user)
+    for (const size of [
+      { width: 1440, height: 900 },
+      { width: 375, height: 812 },
+    ]) {
+      const page = await visit('/admin/print-templates')
+      await page.setViewportSize(size)
+      const dialog = page.getByRole('dialog', { name: 'قالب طباعة جديد' })
+      const confirmClose = page.getByRole('dialog', { name: 'إغلاق النموذج؟' })
+      const openDialog = async () => {
+        await page.getByRole('button', { name: 'قالب جديد' }).click()
+        await dialog.waitFor()
+      }
+      const label = dialog.getByLabel('اسم القالب')
+
+      // Fixed header and footer around the scrolling body, the footer on screen.
+      await openDialog()
+      const footer = dialog.locator('[data-slot="long-dialog-footer"]')
+      await footer.getByRole('button', { name: 'إنشاء القالب' }).waitFor()
+      const box = (await footer.boundingBox())!
+      assert.isAtMost(box.y + box.height, size.height, `${size.width}: footer on screen`)
+      assert.equal(await dialog.locator('[data-slot="long-dialog-body"]').count(), 1)
+
+      // Unchanged: Escape closes at once.
+      await page.keyboard.press('Escape')
+      await dialog.waitFor({ state: 'hidden' })
+      assert.equal(await confirmClose.count(), 0)
+
+      // Changed: Escape asks; keep editing, restore the value, and it closes at once again.
+      await openDialog()
+      await label.fill('مسودة لم تُحفظ')
+      await page.keyboard.press('Escape')
+      await confirmClose.waitFor()
+      await confirmClose.getByRole('button', { name: 'متابعة التحرير' }).click()
+      await confirmClose.waitFor({ state: 'hidden' })
+      assert.equal(await label.inputValue(), 'مسودة لم تُحفظ')
+      await label.fill('')
+      await footer.getByRole('button', { name: 'إلغاء', exact: true }).click()
+      await dialog.waitFor({ state: 'hidden' })
+      assert.equal(await confirmClose.count(), 0)
+
+      // Changed again: «إلغاء» asks too, and «إغلاق دون حفظ» closes.
+      await openDialog()
+      await label.fill('مسودة أخرى')
+      await footer.getByRole('button', { name: 'إلغاء', exact: true }).click()
+      await confirmClose.waitFor()
+      await confirmClose.getByRole('button', { name: 'إغلاق دون حفظ' }).click()
+      await dialog.waitFor({ state: 'hidden' })
+      await page.close()
+    }
+  })
 })

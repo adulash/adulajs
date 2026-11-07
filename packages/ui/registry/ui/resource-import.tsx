@@ -230,7 +230,7 @@ export function ResourceImport({
       >
         <LongDialogContent
           dir="rtl"
-          width="xl"
+          width="3xl"
           title={<>استيراد إلى {label}</>}
           description={description}
           footer={

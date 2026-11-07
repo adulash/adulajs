@@ -12,7 +12,7 @@ export default function Signup() {
       <div dir="rtl" className="mx-auto w-full max-w-md py-10">
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">إنشاء حساب</CardTitle>
+            <CardTitle>إنشاء حساب</CardTitle>
             <CardDescription>
               أدخل بياناتك. يمنحك مدير النظام صلاحيات العمل بعد إنشاء الحساب.
             </CardDescription>

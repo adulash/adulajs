@@ -9,14 +9,8 @@ import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Switch } from '~/components/ui/switch'
 import { Textarea } from '~/components/ui/textarea'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '~/components/ui/dialog'
+import { Dialog, DialogClose } from '~/components/ui/dialog'
+import { LongDialogContent } from '~/components/ui/long-dialog'
 
 type Props = { templates: MessageTemplate[] }
 
@@ -32,6 +26,9 @@ export default function TemplatesIndex({ templates }: Props) {
   const [body, setBody] = useState('')
   const [mail, setMail] = useState(false)
   const [processing, setProcessing] = useState(false)
+  const dirty =
+    editing !== null &&
+    (subject !== editing.subject || body !== editing.body || mail !== editing.mail)
   const open = (template: MessageTemplate) => {
     setEditing(template)
     setSubject(template.subject)
@@ -142,13 +139,31 @@ export default function TemplatesIndex({ templates }: Props) {
         </table>
       </div>
       <Dialog open={editing !== null} onOpenChange={(value) => !value && setEditing(null)}>
-        <DialogContent dir="rtl" className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>تعديل القالب</DialogTitle>
-            <DialogDescription>{editing?.label}</DialogDescription>
-          </DialogHeader>
+        <LongDialogContent
+          dir="rtl"
+          width="2xl"
+          title="تعديل القالب"
+          description={editing?.label}
+          footer={
+            <>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  إلغاء
+                </Button>
+              </DialogClose>
+              <Button type="submit" form="template-form" disabled={processing}>
+                حفظ القالب
+              </Button>
+            </>
+          }
+        >
           {editing && (
-            <form id="template-form" className="space-y-4" onSubmit={save}>
+            <form
+              id="template-form"
+              className="space-y-4"
+              data-dirty={String(dirty)}
+              onSubmit={save}
+            >
               <div className="space-y-2">
                 <Label htmlFor="template-subject">العنوان</Label>
                 <Input
@@ -187,15 +202,7 @@ export default function TemplatesIndex({ templates }: Props) {
               </div>
             </form>
           )}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setEditing(null)}>
-              إلغاء
-            </Button>
-            <Button type="submit" form="template-form" disabled={processing}>
-              حفظ القالب
-            </Button>
-          </DialogFooter>
-        </DialogContent>
+        </LongDialogContent>
       </Dialog>
     </>
   )

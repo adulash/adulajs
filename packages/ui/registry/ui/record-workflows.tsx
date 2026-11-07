@@ -187,7 +187,7 @@ export function WorkflowDecision({
       >
         <LongDialogContent
           dir="rtl"
-          width="md"
+          width="lg"
           title={choice && (form ? `تأكيد القرار: ${choice.label}` : dialogTitle[choice.key])}
           description={`${run.myApproval.title} — ${run.resourceLabel}: ${run.recordTitle ?? `#${run.recordId}`}`}
           footer={
