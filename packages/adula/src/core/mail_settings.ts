@@ -3,7 +3,10 @@ import type { Knex } from 'knex'
 import type { Actor } from '../auth/ability.js'
 import type { SecretBox } from '../integrations/webhooks.js'
 import {
+  defaultResolve,
   isBlockedAddress,
+  isLinkLocalAddress,
+  OutboundTargetError,
   resolveOutboundTarget,
   type OutboundOptions,
   type OutboundTarget,
@@ -27,6 +30,11 @@ export type MailSettingsView = {
   security: MailSecurity
   username: string
   hasPassword: boolean
+  /**
+   * A password is stored but cannot be opened (APP_KEY rotated, or the value is damaged).
+   * Nothing is sent until it is entered again; sending never falls back to no sign-in.
+   */
+  passwordUnreadable: boolean
   fromName: string
   fromAddress: string
   updatedAt: string | null
@@ -75,6 +83,17 @@ const ADDRESS =
   /^[^\s@<>()",;:\\[\]]{1,64}@[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?\.[A-Za-z]{2,}$/
 
 const invalid = (code: string, message: string) => new AdulaError(422, code, message)
+
+/**
+ * The stored SMTP password cannot be opened. It carries a category only, never the sealed or
+ * the opened value, and classifies as `password_unreadable` (see classifyMailFailure).
+ */
+export class MailPasswordUnreadableError extends Error {
+  readonly code = 'E_MAIL_PASSWORD_UNREADABLE'
+  constructor() {
+    super('The stored SMTP password cannot be opened; enter it again')
+  }
+}
 const PLAINTEXT_PUBLIC = () =>
   invalid(
     'E_MAIL_SECURITY',
@@ -99,17 +118,17 @@ export class MailSettings {
     return this.present(await this.stored())
   }
 
-  /** The stored options with the opened password, or null while nothing is stored. */
+  /**
+   * The stored options with the opened password, or null while nothing is stored. A stored
+   * password that cannot be opened throws MailPasswordUnreadableError: the message is not sent
+   * without the sign-in the administrator configured.
+   */
   async runtime(): Promise<MailRuntime | null> {
     const value = await this.stored()
     const view = this.present(value)
     if (!view.configured) return null
-    let password: string | null = null
-    try {
-      password = typeof value?.secret === 'string' ? this.secrets.open(value.secret) : null
-    } catch {
-      password = null
-    }
+    if (view.passwordUnreadable) throw new MailPasswordUnreadableError()
+    const password = view.hasPassword ? this.open(value?.secret) : null
     return {
       host: view.host,
       port: view.port,
@@ -127,12 +146,35 @@ export class MailSettings {
    * and the messages never cross the internet in clear text.
    */
   async target(host: string, security?: MailSecurity): Promise<OutboundTarget> {
+    // Resolved once here, so link-local (the metadata address) is refused even with the
+    // private-network opt-in; the same addresses are then checked and pinned as usual.
+    let addresses: string[]
+    if (isIP(host)) addresses = [host]
+    else {
+      try {
+        addresses = await (this.options.resolve ?? defaultResolve)(host)
+      } catch {
+        throw new OutboundTargetError('dns')
+      }
+    }
+    if (addresses.some(isLinkLocalAddress)) throw new OutboundTargetError('blocked-target')
     const target = await resolveOutboundTarget(
       new URL(`smtp://${isIP(host) === 6 ? `[${host}]` : host}`),
-      this.options
+      { ...this.options, resolve: async () => addresses }
     )
     if (security === 'none' && !isBlockedAddress(target.address)) throw PLAINTEXT_PUBLIC()
     return target
+  }
+
+  /** The opened password, or null when it cannot be opened; never logged or returned. */
+  private open(secret: unknown): string | null {
+    if (typeof secret !== 'string' || !secret) return null
+    try {
+      const opened = this.secrets.open(secret)
+      return typeof opened === 'string' && opened ? opened : null
+    } catch {
+      return null
+    }
   }
 
   private present(value: Stored | null): MailSettingsView {
@@ -149,6 +191,8 @@ export class MailSettings {
       security,
       username: typeof v.username === 'string' ? v.username : '',
       hasPassword: typeof v.secret === 'string' && v.secret.length > 0,
+      passwordUnreadable:
+        typeof v.secret === 'string' && v.secret.length > 0 && this.open(v.secret) === null,
       fromName: typeof v.fromName === 'string' ? v.fromName : '',
       fromAddress: typeof v.fromAddress === 'string' ? v.fromAddress : '',
       updatedAt: typeof v.updatedAt === 'string' ? v.updatedAt : null,
@@ -234,6 +278,7 @@ export class MailSettings {
 
     const passwordCleared = next.host !== current.host && current.hasPassword
     delete next.hasPassword
+    delete next.passwordUnreadable
     delete next.configured
     next.updatedAt = new Date().toISOString()
     if (!passwordCleared && typeof previous.secret === 'string') next.secret = previous.secret

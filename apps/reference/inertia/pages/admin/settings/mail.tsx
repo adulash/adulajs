@@ -1,10 +1,11 @@
 import { useState, type ReactElement } from 'react'
 import { Head } from '@inertiajs/react'
-import { Settings2 } from 'lucide-react'
+import { Settings2, TriangleAlert } from 'lucide-react'
 import Workspace from '~/layouts/workspace'
 import { AdminHeader } from '~/components/admin-nav'
 import { MailSetupDialog } from '~/components/mail-setup'
 import { MailTest, type MailTestProps } from '~/components/mail-test'
+import { Alert, AlertDescription, AlertTitle } from '~/components/ui/alert'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
@@ -40,14 +41,25 @@ export default function AdminMail(props: MailTestProps) {
     ],
     [
       'كلمة المرور',
-      <Badge key="password" variant={settings.hasPassword ? 'default' : 'outline'}>
-        {settings.hasPassword ? 'محفوظة' : 'غير محفوظة'}
+      <Badge
+        key="password"
+        variant={
+          settings.passwordUnreadable ? 'destructive' : settings.hasPassword ? 'default' : 'outline'
+        }
+      >
+        {settings.passwordUnreadable
+          ? 'تعذّر فتحها'
+          : settings.hasPassword
+            ? 'محفوظة'
+            : 'غير محفوظة'}
       </Badge>,
     ],
     [
       'المرسل',
       <span key="from" dir="ltr">
-        {settings.fromName ? `${settings.fromName} <${settings.fromAddress}>` : settings.fromAddress}
+        {settings.fromName
+          ? `${settings.fromName} <${settings.fromAddress}>`
+          : settings.fromAddress}
       </span>,
     ],
   ]
@@ -63,6 +75,16 @@ export default function AdminMail(props: MailTestProps) {
           إعداد البريد
         </Button>
       </AdminHeader>
+      {settings.passwordUnreadable && (
+        <Alert variant="destructive" className="mb-6">
+          <TriangleAlert />
+          <AlertTitle>أدخل كلمة مرور البريد من جديد</AlertTitle>
+          <AlertDescription>
+            تعذّر فتح كلمة المرور المحفوظة، غالبًا بعد تغيير مفتاح التطبيق APP_KEY. لن يرسل النظام
+            البريد دون تسجيل الدخول؛ افتح «إعداد البريد» وأدخل كلمة المرور، ثم احفظ.
+          </AlertDescription>
+        </Alert>
+      )}
       <Card className="mb-6">
         <CardHeader>
           <CardTitle>الإعداد الحالي</CardTitle>

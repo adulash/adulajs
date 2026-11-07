@@ -4,6 +4,8 @@ import type { ApiRequest } from '@japa/api-client'
 import db from '@adonisjs/lucid/services/db'
 import mail from '@adonisjs/mail/services/main'
 import limiter from '@adonisjs/limiter/services/main'
+import { Encryption } from '@adonisjs/core/encryption'
+import { AES256GCM } from '@adonisjs/core/encryption/drivers/aes_256_gcm'
 import env from '#start/env'
 import User from '#models/user'
 import { smtpSink } from '../helpers/smtp.js'
@@ -374,5 +376,111 @@ test.group('In-app mail settings', (group) => {
     } finally {
       await sink.close()
     }
+  })
+
+  test('a password sealed with another APP_KEY is never replaced by sending without sign-in', async ({
+    client,
+    assert,
+  }) => {
+    const sink = await smtpSink({ auth: { user: 'mailer@example.test', pass: secret } })
+    try {
+      const values = {
+        preset: 'custom',
+        host: '127.0.0.1',
+        port: sink.port,
+        security: 'none',
+        username: 'mailer@example.test',
+        fromAddress: 'sender@example.test',
+      }
+      await expectStatus(store(client, values), 200)
+      // The password sealed under a previous key, as after rotating APP_KEY.
+      const previousKey = new Encryption({
+        driver: (key) => new AES256GCM({ id: 'gcm', key }),
+        keys: [`previous-app-key-${unique}-0123456789`],
+      })
+      await knex()('settings')
+        .where('key', 'mail.smtp')
+        .update({
+          value: knex().raw(`value || ?::jsonb`, [
+            JSON.stringify({ secret: previousKey.encrypt(secret) }),
+          ]),
+        })
+
+      const props = await propsOf(asPage(client.get('/admin/settings/mail').loginAs(admin)))
+      assert.isTrue(props.mailSettings.hasPassword)
+      assert.isTrue(props.mailSettings.passwordUnreadable)
+
+      // The test message is refused with its own reason; nothing reaches the server.
+      const refused = await expectStatus(send(client), 502)
+      assert.equal(refused.body().error.code, 'E_MAIL_TEST_SEND')
+      assert.include(refused.body().error.message, 'تعذّر فتح كلمة مرور البريد المحفوظة')
+      assert.lengthOf(sink.messages, 0)
+      assert.deepEqual(sink.logins, [])
+      const activity = await knex()('activities')
+        .where({ resource: 'core.mail', action: 'test_send_failed', record_id: admin.id })
+        .orderBy('id', 'desc')
+        .first()
+      // Only the category is kept, never a value.
+      assert.equal(activity.changes.reason, 'password_unreadable')
+      const surfaces = JSON.stringify([refused.body(), props, activity])
+      assert.notInclude(surfaces, secret)
+
+      // Entering the password again restores sending with the sign-in.
+      await expectStatus(
+        asJson(client.put('/admin/settings/mail/password').loginAs(admin)).json({
+          password: secret,
+        }),
+        200
+      )
+      const restored = await propsOf(asPage(client.get('/admin/settings/mail').loginAs(admin)))
+      assert.isFalse(restored.mailSettings.passwordUnreadable)
+      await expectStatus(send(client), 200)
+      assert.deepEqual(sink.logins, ['mailer@example.test'])
+      assert.lengthOf(sink.messages, 1)
+    } finally {
+      await sink.close()
+    }
+  })
+
+  test('link-local addresses stay refused even with the private-network opt-in', async ({
+    client,
+    assert,
+  }) => {
+    // WEBHOOKS_ALLOW_PRIVATE is on for this group: loopback is allowed, the metadata range is not.
+    const values = { port: 25, security: 'none', fromAddress: 'a@b.co' }
+    for (const host of [
+      '169.254.169.254',
+      '169.254.0.1',
+      'fe80::1',
+      '::ffff:169.254.169.254',
+      '64:ff9b::a9fe:a9fe',
+    ]) {
+      const refused = await store(client, { ...values, host })
+      refused.assertStatus(422)
+      assert.equal(refused.body().error.code, 'E_MAIL_HOST', host)
+    }
+    assert.isUndefined(await knex()('settings').where('key', 'mail.smtp').first())
+    await expectStatus(store(client, { ...values, host: '127.0.0.1' }), 200)
+  })
+
+  test('saving the settings and the password is bounded like the API', async ({
+    client,
+    assert,
+  }) => {
+    // 300 requests a minute per administrator (apiThrottle); the next one is refused.
+    for (let attempt = 0; attempt < 300; attempt++)
+      await expectStatus(asJson(client.delete('/admin/settings/mail/password').loginAs(admin)), 200)
+    const limited = await asJson(client.delete('/admin/settings/mail/password').loginAs(admin))
+    limited.assertStatus(429)
+    const save = await store(client, { host: '127.0.0.1', port: 25, fromAddress: 'a@b.co' })
+    save.assertStatus(429)
+    const password = await asJson(client.put('/admin/settings/mail/password').loginAs(admin)).json({
+      password: secret,
+    })
+    password.assertStatus(429)
+    // The refused save stored nothing: the row holds only what the password removals wrote.
+    const row = await knex()('settings').where('key', 'mail.smtp').first()
+    assert.notProperty(row?.value ?? {}, 'host')
+    assert.notProperty(row?.value ?? {}, 'secret')
   })
 })

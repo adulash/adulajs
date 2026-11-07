@@ -187,7 +187,8 @@ export function MailSetupDialog({
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial) || password !== ''
   const hostChanged =
     mailSettings.hasPassword && draft.host.trim().toLowerCase() !== mailSettings.host
-  const showPassword = !mailSettings.hasPassword || changingPassword || hostChanged
+  const showPassword =
+    !mailSettings.hasPassword || changingPassword || hostChanged || mailSettings.passwordUnreadable
 
   const update = <K extends keyof Draft>(name: K, value: Draft[K]) =>
     setDraft((current) => ({ ...current, [name]: value }))
@@ -377,11 +378,13 @@ export function MailSetupDialog({
                     onChange={(event) => setPassword(event.target.value)}
                   />
                   <p className="text-xs text-muted-foreground">
-                    {hostChanged
-                      ? 'تغيير الخادم يحذف كلمة المرور المحفوظة؛ أدخل كلمة مرور الخادم الجديد.'
-                      : mailSettings.hasPassword
-                        ? 'أدخل كلمة المرور الجديدة، أو اتركها فارغة لإبقاء المحفوظة.'
-                        : 'تُحفظ مشفّرة ولا تُعرض مرة أخرى.'}
+                    {mailSettings.passwordUnreadable
+                      ? 'تعذّر فتح كلمة المرور المحفوظة؛ أدخلها من جديد.'
+                      : hostChanged
+                        ? 'تغيير الخادم يحذف كلمة المرور المحفوظة؛ أدخل كلمة مرور الخادم الجديد.'
+                        : mailSettings.hasPassword
+                          ? 'أدخل كلمة المرور الجديدة، أو اتركها فارغة لإبقاء المحفوظة.'
+                          : 'تُحفظ مشفّرة ولا تُعرض مرة أخرى.'}
                   </p>
                 </>
               ) : (

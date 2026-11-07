@@ -329,12 +329,19 @@ message in the web process and the worker, with no restart.
 
 * **Password.** Write-only. It is sealed with `APP_KEY`, shown only as «كلمة مرور محفوظة» with
   «تغيير» and «حذف», and never returned, flashed or logged. Changing the host clears it.
+  **Rotating `APP_KEY` makes it unreadable** unless the old key stays in `config/encryption.ts`:
+  the «البريد» tab then asks for the password again, and mail is refused (category
+  `password_unreadable`) rather than sent without signing in. Re-enter the password after a
+  rotation.
 * **Storage.** The system setting `mail.smtp`. The generic settings editor shows it read-only
   without the sealed value.
 * **Host.** A bare name or address (no scheme, port or path). Private, loopback and metadata
-  addresses are refused unless `WEBHOOKS_ALLOW_PRIVATE=true`, and the connection uses the
-  checked address with the certificate verified against the name. Every message checks the
-  address again, so a name that later resolves inside is refused before connecting.
+  addresses are refused unless `WEBHOOKS_ALLOW_PRIVATE=true` (the same opt-in as webhooks, so
+  it affects mail too), and the connection uses the checked address with the certificate
+  verified against the name. Link-local addresses (169.254.0.0/16, `fe80::/10` and their
+  IPv4-mapped forms, including the cloud metadata address) stay refused even with the opt-in.
+  Every message checks the address again, so a name that later resolves inside is refused
+  before connecting.
 * **Security.** TLS, STARTTLS or none. None is accepted only for an internal relay (a private
   address, which itself needs the opt-in), at saving and again at sending, so the password and
   the messages never cross the internet in clear text.
@@ -350,7 +357,8 @@ message in the web process and the worker, with no restart.
 
 The JSON endpoints are `PUT /admin/settings/mail` (everything except the password),
 `PUT /admin/settings/mail/password` and `DELETE /admin/settings/mail/password`. All three
-require the administration permission, like the tab itself.
+require the administration permission, like the tab itself, and share the API limit of 300
+requests a minute per administrator.
 
 ### Text-message provider
 

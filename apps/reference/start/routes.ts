@@ -439,9 +439,14 @@ router
     router.post('setup/notification', [SetupController, 'notification'])
     router.post('settings/mail/test', [AdminSettingsController, 'testMail']).use(mailTestThrottle)
     router.post('settings/mail/confirm', [AdminSettingsController, 'confirmMail'])
-    router.put('settings/mail', [AdminSettingsController, 'updateMail'])
-    router.put('settings/mail/password', [AdminSettingsController, 'setMailPassword'])
-    router.delete('settings/mail/password', [AdminSettingsController, 'clearMailPassword'])
+    // Each save resolves the host and writes an audited activity: bounded like the API.
+    router.put('settings/mail', [AdminSettingsController, 'updateMail']).use(apiThrottle)
+    router
+      .put('settings/mail/password', [AdminSettingsController, 'setMailPassword'])
+      .use(apiThrottle)
+    router
+      .delete('settings/mail/password', [AdminSettingsController, 'clearMailPassword'])
+      .use(apiThrottle)
     router.put('settings', [AdminSettingsController, 'upsert'])
     router.put('settings/authentication', [AdminAuthenticationSettingsController, 'update'])
     router.put('settings/channels', [AdminSettingsController, 'updateChannel'])

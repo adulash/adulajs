@@ -40,8 +40,9 @@ const env = await Env.create(new URL('../', import.meta.url), {
   // Reverse proxies whose X-Forwarded-For is believed (comma-separated loopback,
   // linklocal, uniquelocal, addresses or CIDRs). Unset trusts loopback only.
   TRUSTED_PROXIES: Env.schema.string.optional(),
-  // Lets outgoing webhooks and workflow HTTP steps reach http:// and private or loopback
-  // addresses. Never enable it where administrators must not reach the internal network.
+  // Lets outgoing webhooks, workflow HTTP steps and the in-app SMTP server reach http:// and
+  // private or loopback addresses (link-local stays refused for mail). Never enable it where
+  // administrators must not reach the internal network.
   WEBHOOKS_ALLOW_PRIVATE: Env.schema.boolean.optional(),
   REDIS_HOST: Env.schema.string(),
   REDIS_PORT: Env.schema.number(),

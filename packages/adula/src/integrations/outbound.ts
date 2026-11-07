@@ -122,7 +122,28 @@ export function isBlockedAddress(address: string): boolean {
   return ipv6Blocked.check(groups.map((group) => group.toString(16)).join(':'), 'ipv6')
 }
 
-const defaultResolve = async (host: string) => {
+/** True for a link-local address, including IPv4-mapped, IPv4-translated and NAT64 forms. */
+export function isLinkLocalAddress(address: string): boolean {
+  const value = address.replace(/^\[|\]$/g, '')
+  const version = isIP(value)
+  if (version === 4) {
+    const [first, second] = value.split('.').map(Number)
+    return first === 169 && second === 254
+  }
+  if (version !== 6) return false
+  const groups = ipv6Groups(value)
+  if (!groups) return false
+  const prefix96 = groups.slice(0, 6)
+  if (
+    prefix96.every((group, index) => group === (index === 5 ? 0xffff : 0)) ||
+    prefix96.every((group, index) => group === (index === 4 ? 0xffff : 0)) ||
+    (groups[0] === 0x64 && groups[1] === 0xff9b && prefix96.slice(2).every((group) => group === 0))
+  )
+    return isLinkLocalAddress(embeddedIPv4(groups))
+  return (groups[0] & 0xffc0) === 0xfe80
+}
+
+export const defaultResolve = async (host: string) => {
   const entries = await lookup(host, { all: true })
   return entries.map((entry) => entry.address)
 }

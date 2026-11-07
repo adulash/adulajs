@@ -1254,7 +1254,7 @@
     },
     "MailFailureReason": {
       "kind": "TypeAliasDeclaration",
-      "type": "\"tls\" | \"timeout\" | \"authentication\" | \"connection\" | \"host_not_found\" | \"sender_rejected\" | \"recipient_rejected\" | \"unknown\""
+      "type": "\"tls\" | \"timeout\" | \"authentication\" | \"connection\" | \"host_not_found\" | \"sender_rejected\" | \"recipient_rejected\" | \"password_unreadable\" | \"unknown\""
     },
     "MailRuntime": {
       "kind": "TypeAliasDeclaration",
@@ -1278,7 +1278,7 @@
     },
     "MailSettingsView": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ configured: boolean; preset: string; host: string; port: number; security: MailSecurity; username: string; hasPassword: boolean; fromName: string; fromAddress: string; updatedAt: string | null; }"
+      "type": "{ configured: boolean; preset: string; host: string; port: number; security: MailSecurity; username: string; hasPassword: boolean; passwordUnreadable: boolean; fromName: string; fromAddress: string; updatedAt: string | null; }"
     },
     "MailTestState": {
       "kind": "TypeAliasDeclaration",

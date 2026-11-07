@@ -1,5 +1,6 @@
 import { test } from '@japa/runner'
 import {
+  classifyMailFailure,
   MailSettings,
   MAIL_SETTINGS_KEY,
   SettingsAdmin,
@@ -157,6 +158,60 @@ test.group('Mail settings', (group) => {
     assert.equal(await code(moved.target('relay.internal', 'none')), 'E_MAIL_SECURITY')
     assert.equal(await address(moved.target('relay.internal', 'tls')), '93.184.215.14')
     assert.equal(await address(internal.target('relay.internal', 'none')), '10.0.0.5')
+  })
+
+  test('a password that cannot be opened is reported and never sent without sign-in', async ({
+    assert,
+  }) => {
+    await strict().save(admin, valid)
+    await strict().setPassword(admin, PASSWORD)
+    // Another key (APP_KEY rotated): the stored value no longer opens.
+    const rotated = new MailSettings(db, { seal: box.seal, open: () => null }, { resolve })
+    const view = await rotated.read()
+    assert.isTrue(view.hasPassword)
+    assert.isTrue(view.passwordUnreadable)
+    assert.isFalse(await field(strict(), 'passwordUnreadable'))
+    const error = await rotated.runtime().then(
+      () => assert.fail('a password that cannot be opened must not reach the transport'),
+      (caught: { code?: string; message?: string }) => caught
+    )
+    assert.equal(error.code, 'E_MAIL_PASSWORD_UNREADABLE')
+    assert.notInclude(String(error.message), PASSWORD)
+    assert.equal(classifyMailFailure(error).reason, 'password_unreadable')
+    // A throwing box is treated the same way.
+    const broken = new MailSettings(db, {
+      seal: box.seal,
+      open: () => {
+        throw new Error('bad key')
+      },
+    })
+    assert.isTrue(await field(broken, 'passwordUnreadable'))
+    // The flag is presented, never stored; a new password clears it.
+    await rotated.save(admin, { fromName: 'المبيعات' })
+    const stored = await db('settings').where('key', MAIL_SETTINGS_KEY).first()
+    assert.notProperty(stored.value, 'passwordUnreadable')
+    assert.notProperty(stored.value, 'hasPassword')
+    await rotated.clearPassword(admin)
+    assert.isFalse(await field(rotated, 'passwordUnreadable'))
+    assert.isNull(await rotated.runtime().then((runtime) => runtime?.password ?? null))
+  })
+
+  test('link-local addresses stay refused with the private-network opt-in', async ({ assert }) => {
+    const allowed = new MailSettings(db, box, {
+      resolve: async (host: string) =>
+        host === 'metadata.internal' ? ['169.254.169.254'] : ['10.0.0.5'],
+      allowPrivateTargets: true,
+    })
+    for (const host of [
+      '169.254.169.254',
+      'fe80::1',
+      '::ffff:169.254.169.254',
+      '64:ff9b::a9fe:a9fe',
+      'metadata.internal',
+    ])
+      assert.equal(await code(allowed.save(admin, { ...valid, host })), 'E_MAIL_HOST', host)
+    await assert.rejects(() => allowed.target('metadata.internal'))
+    assert.equal(await address(allowed.target('relay.internal')), '10.0.0.5')
   })
 
   test('headers cannot be injected through the account or the sender', async ({ assert }) => {
