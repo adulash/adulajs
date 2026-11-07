@@ -30,8 +30,11 @@ test('the company identity reaches every brand spot of the workspace and guest s
     assert.doesNotMatch(workspace, /عدولة/)
     // The mark lives in brand-mark.tsx (checked below); the workspace keeps no letter of its own.
     assert.doesNotMatch(workspace, /^\s*ع$/m)
-    // The sidebar, the collapsed rail's header and the top bar all show the company name.
-    assert.ok(workspace.split('>{brand.company}<').length - 1 >= 3)
+    // The brand lives in the full-width header that every layout and size shares (owner
+    // decision 20); each of its name anchors shows the company name.
+    const anchors = files['inertia/layouts/workspace.tsx'].split('>عدولة<').length - 1
+    assert.ok(anchors >= 1)
+    assert.equal(workspace.split('>{brand.company}<').length - 1, anchors)
     assert.match(workspace, /^import \{ brand \} from '~\/brand'/)
     // The guest shell (home and account pages) shows the company too, never the reference brand.
     const guest = await readFile(join(target, 'inertia/layouts/default.tsx'), 'utf8')

@@ -14,8 +14,10 @@ export function BackupBanner() {
     <div className="px-5 pt-4 lg:px-10">
       <Alert variant="destructive">
         <TriangleAlert />
-        <AlertTitle>لا توجد نسخة احتياطية خارجية سليمة خلال آخر 48 ساعة.</AlertTitle>
+        {/* A short title keeps the whole warning on a phone; the 48 hours sit in the description. */}
+        <AlertTitle>لا توجد نسخة احتياطية خارجية حديثة</AlertTitle>
         <AlertDescription>
+          <p>لم تُنشأ نسخة خارجية سليمة خلال آخر 48 ساعة.</p>
           <Link href="/admin/jobs" className="underline underline-offset-4">
             راجع صفحة تشغيل النظام
           </Link>

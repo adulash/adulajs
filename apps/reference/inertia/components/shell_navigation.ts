@@ -101,3 +101,10 @@ export function isActivePath(url: string, href: string) {
   if (href === '/') return path === '/'
   return path === href || path.startsWith(`${href}/`)
 }
+
+/**
+ * A sidebar entry: the shell's active pattern (`bg-accent font-semibold text-primary`, no
+ * border) and its focus ring on keyboard focus instead of the browser outline (ADR 049).
+ */
+export const navLinkClass = (active: boolean) =>
+  `flex items-center gap-3 rounded-lg px-4 py-2.5 text-sm transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 ${active ? 'bg-accent font-semibold text-primary' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}`

@@ -135,8 +135,10 @@ test.group('Record collaboration browser acceptance', (group) => {
       const page = await visit('/my-tasks?tab=assigned')
       await page.setViewportSize({ width: 1280, height: 700 })
       await page.getByText('مهمة العودة 12').waitFor()
-      await page.evaluate('window.scrollTo(0, document.documentElement.scrollHeight)')
-      const scroll = await page.evaluate<number>('window.scrollY')
+      // The page scrolls in the workspace's scroll region on large screens (owner decision 20).
+      const scroller = `(() => { const region = document.querySelector('[scroll-region]'); return region && ['auto', 'scroll'].includes(getComputedStyle(region).overflowY) ? region : document.scrollingElement })()`
+      await page.evaluate(`${scroller}.scrollTop = ${scroller}.scrollHeight`)
+      const scroll = await page.evaluate<number>(`${scroller}.scrollTop`)
       assert.isAbove(scroll, 200)
       await page.getByRole('link', { name: 'عينات الواجهة: عينة التعليقات' }).last().click()
       await page.getByRole('dialog', { name: 'تفاصيل · عينات الواجهة' }).waitFor()
@@ -145,7 +147,7 @@ test.group('Record collaboration browser acceptance', (group) => {
       await page.getByRole('heading', { name: 'مهامي' }).waitFor()
       // The page CSP refuses a polling string predicate in waitForFunction; poll through evaluate.
       for (const started = Date.now(); ;) {
-        if (await page.evaluate<boolean>(`Math.abs(window.scrollY - ${scroll}) <= 2`)) break
+        if (await page.evaluate<boolean>(`Math.abs(${scroller}.scrollTop - ${scroll}) <= 2`)) break
         if (Date.now() - started > 20_000) assert.fail(`scroll did not return to ${scroll}`)
         await new Promise((resolve) => setTimeout(resolve, 100))
       }

@@ -11,7 +11,7 @@ import { screenshotDir, seedActor, type UiActor } from '#tests/helpers/ui_fixtur
  */
 const MEASURE_BANNER = `(() => {
   const banner = [...document.querySelectorAll('[role="alert"]')].find((node) =>
-    node.textContent.includes('لا توجد نسخة احتياطية خارجية سليمة')
+    node.textContent.includes('لا توجد نسخة احتياطية خارجية حديثة')
   )
   const probe = (property, value) => {
     const node = document.createElement('div')
@@ -97,7 +97,7 @@ test.group('Backup surfaces', (group) => {
     const page = await visit('/')
     await page
       .getByRole('alert')
-      .filter({ hasText: 'لا توجد نسخة احتياطية خارجية سليمة' })
+      .filter({ hasText: 'لا توجد نسخة احتياطية خارجية حديثة' })
       .waitFor()
     const banner = await page.evaluate<{
       theme: string
@@ -131,6 +131,18 @@ test.group('Backup surfaces', (group) => {
     )
     await page.screenshot({
       path: join(await screenshotDir(), `backup-banner-${banner.theme}.png`),
+    })
+    // On a phone the short title is whole and the 48 hours stay readable in the description.
+    await page.setViewportSize({ width: 375, height: 812 })
+    const alert = page.getByRole('alert').filter({ hasText: 'لا توجد نسخة احتياطية خارجية حديثة' })
+    assert.isTrue(
+      await page.evaluate<boolean>(
+        `(() => { const title = document.querySelector('[data-slot=alert-title]'); return title.scrollHeight <= title.clientHeight + 1 })()`
+      )
+    )
+    await page.assertVisible(alert.getByText('لم تُنشأ نسخة خارجية سليمة خلال آخر 48 ساعة.'))
+    await page.screenshot({
+      path: join(await screenshotDir(), `backup-banner-375-${banner.theme}.png`),
     })
   })
 
