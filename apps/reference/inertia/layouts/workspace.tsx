@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { usePage } from '@inertiajs/react'
 import { Link } from '@adonisjs/inertia/react'
 import {
@@ -37,11 +37,14 @@ import { BrandMark } from '~/components/brand-mark'
 import {
   AdminNav,
   AdminSectionTabs,
+  AdminTabPanel,
   ImpersonationBar,
   adminLinks,
+  sectionHref,
   useAdminEntries,
   type AdminSection,
 } from '~/components/admin-nav'
+import { ALERTS_SECTION } from '~/components/admin_sections'
 import { FlashMessages } from '~/components/flash-messages'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
 import { useMessages } from '~/components/ui/messages'
@@ -92,13 +95,25 @@ function useCollapsedModules() {
 }
 
 /** A daily-work entry of the navigation; `id` is its stable menu-order id. */
-export type WorkEntry = { id: string; href: string; label: string; icon: LucideIcon; badge: number }
+export type WorkEntry = {
+  id: string
+  href: string
+  label: string
+  icon: LucideIcon
+  badge: number
+  /** The address prefix that marks the entry current, when it differs from `href`. */
+  match?: string
+}
 
 const SIDEBAR_WIDTH: Record<SidebarMode, string> = {
   expanded: '244px',
   icons: '4.5rem',
   hidden: '0px',
 }
+
+/** A phone navigation link; the current page is marked like the other navigation. */
+const phoneLinkClass = (active: boolean) =>
+  `inline-flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 ${active ? 'bg-accent font-semibold text-primary' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}`
 
 export default function Workspace({ children }: { children: ReactNode }) {
   const preferences = useUiPreferences()
@@ -131,12 +146,14 @@ export default function Workspace({ children }: { children: ReactNode }) {
   const work = applyOrder<WorkEntry>(
     [
       { id: 'work.overview', href: '/', label: t('نظرة عامة'), icon: LayoutDashboard, badge: 0 },
-      // /dashboards opens the first dashboard the viewer may see; it links to the others (ADR 046).
+      // The entry opens the first dashboard the viewer may see directly, and stays current on
+      // every dashboard, which link to each other (ADR 046).
       ...(page.props.dashboards?.length
         ? [
             {
               id: 'work.dashboards',
-              href: '/dashboards',
+              href: `/dashboards/${page.props.dashboards[0].name}`,
+              match: '/dashboards',
               label: t('لوحات المؤشرات'),
               icon: ChartColumn,
               badge: 0,
@@ -157,6 +174,13 @@ export default function Workspace({ children }: { children: ReactNode }) {
     ).map((entry) => entry.section)
   const admin = useAdminEntries(orderSections)
   const isActive = (href: string) => isActivePath(page.url, href)
+  // The phone navigation scrolls sideways; its current entry is brought into view.
+  const phoneNav = useRef<HTMLElement>(null)
+  useEffect(() => {
+    phoneNav.current
+      ?.querySelector<HTMLElement>('[aria-current="page"]')
+      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [page.url])
 
   // Server navigation labels arrive localized; the administration labels are interface text.
   const current =
@@ -173,7 +197,10 @@ export default function Workspace({ children }: { children: ReactNode }) {
     ]
       .filter((entry) => entry.href !== '/')
       .sort((a, b) => b.href.length - a.href.length)
-      .find((entry) => isActive(entry.href))?.label ??
+      .find((entry) =>
+        isActive('match' in entry && typeof entry.match === 'string' ? entry.match : entry.href)
+      )
+      ?.label ??
     (page.url.startsWith('/admin')
       ? t('الإدارة')
       : page.url.startsWith('/account')
@@ -341,12 +368,12 @@ export default function Workspace({ children }: { children: ReactNode }) {
                   </p>
                   <nav aria-label={t('التنقل الرئيسي')} className="space-y-5 px-4">
                     <div className="space-y-1">
-                      {work.map(({ href, label, icon: Icon, badge }) => (
+                      {work.map(({ href, match, label, icon: Icon, badge }) => (
                         <Link
                           key={href}
                           href={href}
-                          aria-current={isActive(href) ? 'page' : undefined}
-                          className={navLinkClass(isActive(href))}
+                          aria-current={isActive(match ?? href) ? 'page' : undefined}
+                          className={navLinkClass(isActive(match ?? href))}
                         >
                           <Icon size={19} strokeWidth={1.6} />
                           {label}
@@ -402,7 +429,8 @@ export default function Workspace({ children }: { children: ReactNode }) {
                   <div className="mx-5 mb-6 mt-auto border-t border-border pt-5">
                     {page.props.canInviteUsers && (
                       <Link
-                        href="/users/invite"
+                        // Administrators invite over the users list; the address opens that dialog directly.
+                        href={page.props.isAdmin ? "/admin/users?invite=1" : "/users/invite"}
                         className="mb-4 flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground"
                       >
                         <UserPlus size={14} />
@@ -426,8 +454,69 @@ export default function Workspace({ children }: { children: ReactNode }) {
             />
           </div>
         )}
-        <div className="min-w-0 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col print:block">
-          {/* The warnings head the page column: right under the header, beside the sidebar. */}
+        {/* Phones: the main navigation first, then the section tabs and the page. */}
+        <nav
+          ref={phoneNav}
+          aria-label={t('التنقل على الجوال')}
+          className="flex gap-1 overflow-auto border-b border-border bg-card px-3 py-2 text-xs whitespace-nowrap lg:hidden"
+        >
+          {work.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={isActive(item.match ?? item.href) ? 'page' : undefined}
+              className={phoneLinkClass(isActive(item.match ?? item.href))}
+            >
+              {item.label}
+              {item.badge > 0 && (
+                <Badge className="px-1.5" aria-label={t('{count} مفتوحة', { count: item.badge })}>
+                  {item.badge}
+                </Badge>
+              )}
+            </Link>
+          ))}
+          {modules.flatMap((group) =>
+            group.links.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={isActive(item.href) ? 'page' : undefined}
+                className={phoneLinkClass(isActive(item.href))}
+              >
+                {item.label}
+              </Link>
+            ))
+          )}
+          {/* The same two administration entries as the sidebar, each opening its first
+              page directly. */}
+          {admin.isAdmin &&
+            admin.sections.map((section) => {
+              const active = admin.current?.section.id === section.id
+              return (
+                <Link
+                  key={section.id}
+                  href={sectionHref(section)}
+                  aria-current={active ? 'page' : undefined}
+                  className={phoneLinkClass(active)}
+                >
+                  {t(section.title)}
+                  {section.id === ALERTS_SECTION && admin.alerts > 0 && (
+                    <Badge
+                      variant="destructive"
+                      className="px-1.5"
+                      aria-label={t('{count} تنبيه إداري', { count: admin.alerts })}
+                    >
+                      {admin.alerts}
+                    </Badge>
+                  )}
+                </Link>
+              )
+            })}
+        </nav>
+        {/* Administration pages put their section's tabs at the head of this column, right
+            under the header (owner decision 22). */}
+        <AdminSectionTabs className="min-w-0 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col print:block">
+          {/* The warnings head the page column, beside the sidebar. */}
           <div className="shrink-0 print:hidden">
             <BackupBanner />
             <ImpersonationBar />
@@ -439,29 +528,8 @@ export default function Workspace({ children }: { children: ReactNode }) {
             className="min-w-0 lg:min-h-0 lg:flex-1 lg:overflow-y-auto print:overflow-visible"
             data-page-scroll
           >
-            <nav
-              aria-label={t('التنقل على الجوال')}
-              className="flex gap-5 overflow-auto border-b border-border bg-card px-5 py-3 text-xs whitespace-nowrap lg:hidden"
-            >
-              {work.map((item) => (
-                <Link key={item.href} href={item.href}>
-                  {item.label}
-                  {item.badge > 0 ? ` (${item.badge})` : ''}
-                </Link>
-              ))}
-              {modules.flatMap((group) =>
-                group.links.map((item) => (
-                  <Link key={item.href} href={item.href}>
-                    {item.label}
-                  </Link>
-                ))
-              )}
-              {/* The administration area stays one entry on small screens too. */}
-              {page.props.isAdmin && <Link href="/admin">{t('الإدارة')}</Link>}
-            </nav>
             <main className="mx-auto max-w-[1440px] p-5 lg:px-10 lg:py-9">
-              {/* Administration pages show their section's pages as vertical tabs (ADR 049). */}
-              <AdminSectionTabs>
+              <AdminTabPanel>
                 <div
                   // A record dialog over a list keeps the list's key, so the list stays mounted.
                   key={(page.props.overlay?.list ?? page.url).split('?')[0]}
@@ -469,10 +537,10 @@ export default function Workspace({ children }: { children: ReactNode }) {
                 >
                   {children}
                 </div>
-              </AdminSectionTabs>
+              </AdminTabPanel>
             </main>
           </div>
-        </div>
+        </AdminSectionTabs>
       </div>
       {arrange && (
         <NavOrderDialog
@@ -515,7 +583,7 @@ function IconRail({
             href={entry.href}
             label={entry.label}
             icon={entry.icon}
-            active={isActive(entry.href)}
+            active={isActive(entry.match ?? entry.href)}
             badge={entry.badge}
             badgeLabel={t('{count} مفتوحة', { count: entry.badge })}
           />

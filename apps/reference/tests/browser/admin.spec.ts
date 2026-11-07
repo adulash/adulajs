@@ -544,6 +544,23 @@ test.group('Administration screens in the browser', (group) => {
         .getByRole('tablist', { name: 'صفحات القسم: الإعدادات' })
         .getByRole('tab', { name: /^تدفقات فاشلة/ })
       await page.assertVisible(failures.getByLabel(/تنبيه إداري/))
+      // A count badge, not a coloured frame around the tab (owner decision 22).
+      assert.equal(await failures.locator('[data-slot=badge]').count(), 1)
+      // At 1440 the wrapped tabs keep «تدفقات فاشلة» and its badge whole inside the window.
+      await page.setViewportSize({ width: 1440, height: 900 })
+      for (const part of [failures, failures.locator('[data-slot=badge]')]) {
+        const box = (await part.boundingBox())!
+        assert.isAtLeast(box.x, 0)
+        assert.isAtMost(box.x + box.width, 1440)
+        assert.isAtLeast(box.y, 0)
+        assert.isAtMost(box.y + box.height, 900)
+      }
+      assert.notEqual(
+        await failures.evaluate('(element) => getComputedStyle(element).borderTopColor'),
+        await page.evaluate<string>(
+          `(() => { const probe = document.createElement('span'); probe.className = 'border-destructive'; document.body.append(probe); const value = getComputedStyle(probe).borderTopColor; probe.remove(); return value })()`
+        )
+      )
       await failures.click()
       await page.waitForURL((url) => url.pathname === '/admin/workflows')
       assert.equal(await failures.getAttribute('aria-selected'), 'true')

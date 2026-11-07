@@ -15,7 +15,7 @@ import { useAdminEntries, sectionHref, type AdminSection } from '~/components/ad
 import { isActivePath, type ModuleGroup } from '~/components/shell_navigation'
 import { moduleIcons } from '~/components/module_icons'
 
-type Entry = { href: string; label: string; icon?: LucideIcon; badge?: number }
+type Entry = { href: string; match?: string; label: string; icon?: LucideIcon; badge?: number }
 
 // The shell's active navigation pattern (navLinkClass): a filled entry, no underline.
 const itemClass = (active: boolean) =>
@@ -52,12 +52,12 @@ export function TopNavigation({
         aria-label={t('التنقل الرئيسي')}
         className="flex items-center gap-1 overflow-x-auto px-10 py-2"
       >
-        {work.map(({ href, label, icon: Icon, badge = 0 }) => (
+        {work.map(({ href, match, label, icon: Icon, badge = 0 }) => (
           <Link
             key={href}
             href={href}
-            aria-current={isActive(href) ? 'page' : undefined}
-            className={itemClass(isActive(href))}
+            aria-current={isActive(match ?? href) ? 'page' : undefined}
+            className={itemClass(isActive(match ?? href))}
           >
             {Icon && <Icon size={16} strokeWidth={1.6} aria-hidden />}
             {label}
