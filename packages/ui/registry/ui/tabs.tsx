@@ -37,11 +37,11 @@ const tabsListVariants = cva(
   }
 )
 
-// AdulaJS: a list with more tabs than fit. From the large breakpoint it wraps onto further
+// AdulaJS: a list with more tabs than fit. From the medium breakpoint it wraps onto further
 // rows, so no tab is hidden; below it, one row that scrolls sideways, with a little more
 // inline padding so the focus ring of the first and last tab is not clipped at its ends.
 const tabsListWrap =
-  "max-w-full justify-start overflow-x-auto px-1 [scrollbar-width:none] lg:flex-wrap lg:px-[3px] lg:overflow-visible group-data-[orientation=horizontal]/tabs:data-[wrap=true]:lg:h-auto"
+  "max-w-full justify-start overflow-x-auto px-1 [scrollbar-width:none] md:flex-wrap md:px-[3px] md:overflow-visible group-data-[orientation=horizontal]/tabs:data-[wrap=true]:md:h-auto"
 
 function TabsList({
   className,
@@ -50,7 +50,7 @@ function TabsList({
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.List> &
   VariantProps<typeof tabsListVariants> & {
-    /** Wrap onto further rows from the large breakpoint; scroll sideways below it. */
+    /** Wrap onto further rows from the medium breakpoint; scroll sideways below it. */
     wrap?: boolean
   }) {
   return (
@@ -75,7 +75,7 @@ function TabsTrigger({
         "relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap text-foreground/60 transition-all group-data-[orientation=vertical]/tabs:w-full group-data-[orientation=vertical]/tabs:justify-start hover:text-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 group-data-[variant=default]/tabs-list:data-[state=active]:shadow-sm group-data-[variant=line]/tabs-list:data-[state=active]:shadow-none dark:text-muted-foreground dark:hover:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         "group-data-[variant=line]/tabs-list:bg-transparent group-data-[variant=line]/tabs-list:data-[state=active]:bg-transparent dark:group-data-[variant=line]/tabs-list:data-[state=active]:border-transparent dark:group-data-[variant=line]/tabs-list:data-[state=active]:bg-transparent",
         "data-[state=active]:bg-background data-[state=active]:text-foreground dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30 dark:data-[state=active]:text-foreground",
-        "group-data-[wrap=true]/tabs-list:flex-none group-data-[wrap=true]/tabs-list:lg:h-8",
+        "group-data-[wrap=true]/tabs-list:flex-none group-data-[wrap=true]/tabs-list:md:h-8",
         "after:absolute after:bg-foreground after:opacity-0 after:transition-opacity group-data-[orientation=horizontal]/tabs:after:inset-x-0 group-data-[orientation=horizontal]/tabs:after:bottom-[-5px] group-data-[orientation=horizontal]/tabs:after:h-0.5 group-data-[orientation=vertical]/tabs:after:inset-y-0 group-data-[orientation=vertical]/tabs:after:-end-1 group-data-[orientation=vertical]/tabs:after:w-0.5 group-data-[variant=line]/tabs-list:data-[state=active]:after:opacity-100",
         className
       )}

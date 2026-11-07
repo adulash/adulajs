@@ -150,9 +150,11 @@ export function AdminSectionTabs({
       <div
         // Under the main header: sticky on a phone, where the document scrolls; outside the
         // page's own scroll region from the large breakpoint, so it never scrolls away.
-        className="sticky top-[72px] z-20 shrink-0 border-b border-border bg-background px-5 py-2 lg:static lg:px-10 print:hidden"
+        className="sticky top-[72px] z-20 shrink-0 border-b border-border bg-background lg:static print:hidden"
         data-admin-tabs-row
       >
+        {/* The same centred column as the page below it. */}
+        <div className="mx-auto max-w-[1440px] px-5 py-2 lg:px-10" data-admin-tabs-column>
         <TabsList
           ref={list}
           aria-label={t('صفحات القسم: {section}', { section: t(section.title) })}
@@ -179,6 +181,7 @@ export function AdminSectionTabs({
             )
           })}
         </TabsList>
+        </div>
       </div>
       {children}
     </Tabs>

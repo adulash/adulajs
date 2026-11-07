@@ -820,10 +820,10 @@ test.group('Workspace shell in the browser', (group) => {
       'page'
     )
 
-    // On a large screen the eleven tabs wrap onto further rows instead of scrolling: every tab
+    // From a tablet up the eleven tabs wrap onto further rows instead of scrolling: every tab
     // and its badge is whole and inside the window (the registry's TabsList wrap option).
     assert.equal(await settings.getAttribute('data-wrap'), 'true')
-    for (const width of [1024, 1440, 1920]) {
+    for (const width of [768, 1024, 1440, 1920]) {
       await page.setViewportSize({ width, height: 900 })
       await page.goto('/admin/settings')
       await settings.waitFor()
@@ -840,6 +840,16 @@ test.group('Workspace shell in the browser', (group) => {
       })()`)
       assert.isAtMost(fit.overflow, 0, `${width}`)
       assert.deepEqual(fit.outside, [], `${width}`)
+      if (width === 1920) {
+        // The tabs, the backup warning and the page share one centred column.
+        const edges = await page.evaluate<number[][]>(
+          `['[data-admin-tabs-column]', '[data-backup-banner]', 'main'].map((selector) => { const element = document.querySelector(selector); const box = element.getBoundingClientRect(); const style = getComputedStyle(element); return [box.left + parseFloat(style.paddingLeft), box.right - parseFloat(style.paddingRight)] })`
+        )
+        for (const [left, right] of edges.slice(0, 2)) {
+          assert.isAtMost(Math.abs(left - edges[2][0]), 1, `left ${left} vs ${edges[2][0]}`)
+          assert.isAtMost(Math.abs(right - edges[2][1]), 1, `right ${right} vs ${edges[2][1]}`)
+        }
+      }
       await page.screenshot({
         path: join(await screenshotDir(), `admin-tabs-${width}-${theme}.png`),
       })
@@ -907,6 +917,15 @@ test.group('Workspace shell in the browser', (group) => {
     // Badge (as on the sidebar entry and the tab), and the current entry is filled.
     const phoneLinks = page.getByRole('navigation', { name: 'التنقل على الجوال' })
     const phoneSettings = phoneLinks.getByRole('link', { name: /^الإعدادات/ })
+    // The current entry (and its badge) is scrolled into view in the sideways phone navigation.
+    const phoneCurrentInView = () =>
+      page.evaluate<boolean>(
+        `(() => { const nav = document.querySelector('nav[aria-label="التنقل على الجوال"]').getBoundingClientRect(); const link = document.querySelector('nav[aria-label="التنقل على الجوال"] a[aria-current="page"]').getBoundingClientRect(); return link.left >= nav.left - 0.5 && link.right <= nav.right + 0.5 })()`
+      )
+    for (const started = Date.now(); !(await phoneCurrentInView());) {
+      if (Date.now() - started > 5_000) assert.isTrue(await phoneCurrentInView())
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
     assert.notMatch(await phoneSettings.innerText(), /\(/)
     const alertCount = await page
       .locator('nav[aria-label="التنقل الإداري"] [data-slot=badge]')

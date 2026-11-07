@@ -1,4 +1,4 @@
-import { useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { usePage } from '@inertiajs/react'
 import { Link } from '@adonisjs/inertia/react'
 import {
@@ -174,6 +174,13 @@ export default function Workspace({ children }: { children: ReactNode }) {
     ).map((entry) => entry.section)
   const admin = useAdminEntries(orderSections)
   const isActive = (href: string) => isActivePath(page.url, href)
+  // The phone navigation scrolls sideways; its current entry is brought into view.
+  const phoneNav = useRef<HTMLElement>(null)
+  useEffect(() => {
+    phoneNav.current
+      ?.querySelector<HTMLElement>('[aria-current="page"]')
+      ?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [page.url])
 
   // Server navigation labels arrive localized; the administration labels are interface text.
   const current =
@@ -449,6 +456,7 @@ export default function Workspace({ children }: { children: ReactNode }) {
         )}
         {/* Phones: the main navigation first, then the section tabs and the page. */}
         <nav
+          ref={phoneNav}
           aria-label={t('التنقل على الجوال')}
           className="flex gap-1 overflow-auto border-b border-border bg-card px-3 py-2 text-xs whitespace-nowrap lg:hidden"
         >
