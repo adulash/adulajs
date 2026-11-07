@@ -239,17 +239,26 @@ export default function Workspace({ children }: { children: ReactNode }) {
   } as CSSProperties
   // The brand belongs to the header (owner decision 20); the tagline shows beside a wide sidebar.
   // «المظهر والهوية» (ADR 053) may replace the name and the mark, today's occasion included.
+  // A company name is identity and is never cut at desktop widths: it takes two lines, and a
+  // saved name takes the tagline's place.
   const appearanceBrand = appearance?.brand
+  const savedCompany = appearanceBrand?.company ?? null
   const brand = (
     <Link href="/" className="flex min-w-0 items-center gap-3" data-brand>
       <BrandMark size="sm" logo={appearanceBrand?.logoUrl} />
       <span className="min-w-0">
-        <strong className="block truncate text-base leading-tight tracking-tight">
-          {appearanceBrand?.company ?? <>عدولة</>}
+        <strong
+          className="line-clamp-2 pb-0.5 text-base leading-tight tracking-tight break-words"
+          title={savedCompany ?? undefined}
+          data-brand-name
+        >
+          {savedCompany ?? <>عدولة</>}
         </strong>
-        <span className="hidden truncate text-[11px] text-muted-foreground sm:block">
-          {t('مساحة أعمالك، بوضوح')}
-        </span>
+        {!savedCompany && (
+          <span className="hidden truncate text-[11px] text-muted-foreground sm:block">
+            {t('مساحة أعمالك، بوضوح')}
+          </span>
+        )}
       </span>
     </Link>
   )

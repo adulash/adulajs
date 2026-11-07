@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { mkdir } from 'node:fs/promises'
 import { crc32, deflateSync } from 'node:zlib'
+import type { Locator, Page } from 'playwright'
 import { test } from '@japa/runner'
 import db from '@adonisjs/lucid/services/db'
 import User from '#models/user'
@@ -399,5 +400,47 @@ test.group('Appearance in the browser (ADR 053)', (group) => {
       expected('#1d4ed8')
     )
     assert.equal(await page.locator('[data-occasion-banner]').count(), 0)
+  })
+
+  test('a long saved company name shows in full in both headers at desktop widths', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    const company = 'شركة النخبة للتجارة والمقاولات'
+    assert.lengthOf(company, 30)
+    await appearance().saveIdentity({ id: admin.id }, { company })
+    // The whole name fits its box: no horizontal overflow and no clamped third line.
+    const fits = (name: Locator) =>
+      name.evaluate((element: unknown) => {
+        const box = element as {
+          scrollWidth: number
+          clientWidth: number
+          scrollHeight: number
+          clientHeight: number
+        }
+        return [box.scrollWidth, box.clientWidth, box.scrollHeight, box.clientHeight]
+      })
+    const check = async (page: Page, where: string) => {
+      const name = page.locator('[data-brand-name]').first()
+      await name.getByText(company, { exact: true }).waitFor()
+      assert.equal(await name.getAttribute('title'), company)
+      const [scrollWidth, clientWidth, scrollHeight, clientHeight] = await fits(name)
+      assert.isAtMost(scrollWidth, clientWidth, `${where}: the name overflows sideways`)
+      assert.isAtMost(scrollHeight, clientHeight, `${where}: the name is clamped`)
+    }
+    const guest = await visit('/login')
+    for (const width of [1024, 1440, 1920]) {
+      await guest.setViewportSize({ width, height: 900 })
+      await check(guest, `guest ${width}`)
+    }
+    await browserContext.loginAs(admin)
+    const page = await visit('/')
+    for (const width of [1024, 1440, 1920]) {
+      await page.setViewportSize({ width, height: 900 })
+      await check(page, `workspace ${width}`)
+      // A saved name takes the tagline's place.
+      assert.equal(await page.getByText('مساحة أعمالك، بوضوح').count(), 0)
+    }
   })
 })

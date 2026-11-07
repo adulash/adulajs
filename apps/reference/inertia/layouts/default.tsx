@@ -55,9 +55,16 @@ export default function Layout({ children }: { children: ReactElement<Data.Share
       <ImpersonationBar />
       <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur">
         <div className="flex h-[72px] items-center justify-between gap-3 px-5 lg:px-10">
-          <Link route="home" className="flex items-center gap-3">
+          <Link route="home" className="flex min-w-0 items-center gap-3">
             <BrandMark size="sm" logo={brand?.logoUrl} />
-            <strong className="text-base text-foreground">{brand?.company ?? <>عدولة</>}</strong>
+            {/* A company name is identity: it wraps to two lines rather than being cut. */}
+            <strong
+              className="line-clamp-2 pb-0.5 text-base leading-tight text-foreground break-words"
+              title={brand?.company ?? undefined}
+              data-brand-name
+            >
+              {brand?.company ?? <>عدولة</>}
+            </strong>
           </Link>
           <nav aria-label={t('الحساب')} className="flex items-center gap-2">
             {account ? (
