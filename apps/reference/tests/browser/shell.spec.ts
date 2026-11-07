@@ -147,6 +147,12 @@ test.group('Workspace shell in the browser', (group) => {
     const pageBox = await box(region)
     assert.isAtMost(Math.abs(pageBox.x), 0.5)
     assert.isAtMost(Math.abs(pageBox.x + pageBox.width - side.x), 1)
+    // The page overflows its region here, so the region's own bar is the page's scroll bar.
+    assert.isTrue(
+      await page.evaluate<boolean>(
+        `(() => { const element = document.querySelector('[data-page-scroll]'); return element.scrollHeight > element.clientHeight })()`
+      )
+    )
     await page.setViewportSize({ width: 1440, height: 900 })
 
     // Keyboard: Enter on the trigger collapses to icons, the default collapse mode.
@@ -170,6 +176,7 @@ test.group('Workspace shell in the browser', (group) => {
     await stored(member.user.id, 'shell.sidebar', 'icons')
     await page.reload()
     await page.locator('[data-workspace-shell][data-sidebar="icons"]').waitFor()
+    await page.screenshot({ path: join(await screenshotDir(), `frame-icons-${theme}.png`) })
 
     // The rail on the sidebar's edge toggles it too.
     await page.locator('[data-sidebar-rail]').click()

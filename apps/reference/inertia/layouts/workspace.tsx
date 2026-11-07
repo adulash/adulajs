@@ -282,7 +282,7 @@ export default function Workspace({ children }: { children: ReactNode }) {
             )}
           </div>
           <div className="flex min-w-0 flex-1 items-center justify-between gap-3 pe-5 lg:pe-10">
-            <div className="flex min-w-0 items-center gap-3" data-breadcrumb>
+            <div className="flex min-w-0 items-center gap-3 ps-4 lg:ps-6" data-breadcrumb>
               {sidebar && mode === 'icons' && <span className="hidden lg:block">{brand}</span>}
               <Separator
                 orientation="vertical"
@@ -441,7 +441,7 @@ export default function Workspace({ children }: { children: ReactNode }) {
           >
             <nav
               aria-label={t('التنقل على الجوال')}
-              className="flex gap-5 overflow-auto border-b border-border bg-card px-5 py-3 text-xs lg:hidden"
+              className="flex gap-5 overflow-auto border-b border-border bg-card px-5 py-3 text-xs whitespace-nowrap lg:hidden"
             >
               {work.map((item) => (
                 <Link key={item.href} href={item.href}>
