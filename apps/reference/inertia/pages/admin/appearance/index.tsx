@@ -611,7 +611,7 @@ function IdentityDialog({
       <LongDialogContent
         title="تعديل الهوية"
         description="ما تحفظه هنا يظهر لكل المستخدمين والزوار، ما لم تكن مناسبة نشطة تغيّره."
-        width="xl"
+        width="3xl"
         footer={
           <>
             <DialogClose asChild>
@@ -754,7 +754,7 @@ function OccasionDialog({
       <LongDialogContent
         title={initial.id ? `تعديل مناسبة «${initial.name}»` : 'إضافة مناسبة'}
         description="تُطبَّق من بداية يوم البداية حتى نهاية يوم النهاية بتوقيت النظام، ثم تعود الهوية الأساسية تلقائيًا."
-        width="xl"
+        width="3xl"
         footer={
           <>
             <DialogClose asChild>
