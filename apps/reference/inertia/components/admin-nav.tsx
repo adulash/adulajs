@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { router, usePage } from '@inertiajs/react'
 import { Link } from '@adonisjs/inertia/react'
 import { ShieldCheck, UserCog } from 'lucide-react'
@@ -31,7 +31,7 @@ export function sectionHref(section: AdminSection) {
 
 /**
  * The administration entries in the order the user chose (#157): the sidebar shows one
- * entry per section, and each section's pages are vertical tabs inside the page.
+ * entry per section, and each section's pages are horizontal tabs under the header (owner decision 22).
  */
 export function useAdminEntries(order: (sections: AdminSection[]) => AdminSection[] = (s) => s) {
   const page = usePage<AdminNavProps>()
@@ -104,80 +104,94 @@ export function AdminNav({
   )
 }
 
-const WIDE = '(min-width: 1024px)'
-
-/** True from the large breakpoint, where the section tabs stand vertically beside the page. */
-function useWide() {
-  const [wide, setWide] = useState(
-    () => typeof window === 'undefined' || window.matchMedia(WIDE).matches
-  )
-  useEffect(() => {
-    const query = window.matchMedia(WIDE)
-    const update = () => setWide(query.matches)
-    update()
-    query.addEventListener('change', update)
-    return () => query.removeEventListener('change', update)
-  }, [])
-  return wide
+/** The current section and page when the section has more than one page to show as tabs. */
+function useSectionTabs() {
+  const page = usePage<AdminNavProps>()
+  const current = sectionFor(page.url, page.props)
+  return current && current.section.pages.length > 1 ? { ...current, props: page.props } : null
 }
 
 /**
- * The pages of the current administration section as the registry Tabs (owner's review of
- * 2.3.0, ADR 049): vertical at the start side of the page body, sticky while the page
- * scrolls; one horizontal row that scrolls below the large breakpoint. Each tab is a link
- * to its page, so the address selects the tab (direct links, reloads, Back and Forward), and
- * the page is the tab panel. Arrow keys move between tabs; Enter opens one (manual
- * activation, since opening a tab loads a page).
+ * The pages of the current administration section as the registry Tabs in their default
+ * look (owner decision 22): one horizontal row right below the main header, across the page
+ * area. Each tab is a link to its page, so the address selects the tab (direct links,
+ * reloads, Back and Forward), and the page is the tab panel. Arrow keys move between tabs;
+ * Enter opens one (manual activation, since opening a tab loads a page). The row stays in
+ * view while the page scrolls; on a phone it scrolls sideways to its active tab.
+ *
+ * It wraps the page column, so the row and the panel inside the page share one Tabs root.
  */
-export function AdminSectionTabs({ children }: { children: ReactNode }) {
-  const page = usePage<AdminNavProps>()
+export function AdminSectionTabs({
+  children,
+  className,
+}: {
+  children: ReactNode
+  className?: string
+}) {
   const { t, dir } = useMessages()
-  const wide = useWide()
-  const current = sectionFor(page.url, page.props)
-  if (!current || current.section.pages.length < 2) return <>{children}</>
-  const { section } = current
+  const current = useSectionTabs()
+  const list = useRef<HTMLDivElement>(null)
+  const active = current?.page.id
+  useEffect(() => {
+    const trigger = list.current?.querySelector<HTMLElement>('[data-state="active"]')
+    trigger?.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [active])
+  if (!current) return <div className={className}>{children}</div>
+  const { section, props } = current
   return (
     <Tabs
       dir={dir}
-      orientation={wide ? 'vertical' : 'horizontal'}
       activationMode="manual"
       value={current.page.id}
-      className="gap-6 lg:items-start lg:gap-8"
+      className={`gap-0 ${className ?? ''}`}
       data-admin-tabs
     >
-      <TabsList
-        variant="nav"
-        // Radix keeps the arrow-key orientation of the list's first render: crossing the large
-        // breakpoint mounts a new list (the page beside it stays mounted).
-        key={wide ? 'vertical' : 'horizontal'}
-        aria-label={t('صفحات القسم: {section}', { section: t(section.title) })}
-        className="max-w-full shrink-0 justify-start overflow-x-auto lg:sticky lg:top-6 lg:w-56 lg:overflow-visible"
+      <div
+        // Under the main header: sticky on a phone, where the document scrolls; outside the
+        // page's own scroll region from the large breakpoint, so it never scrolls away.
+        className="sticky top-[72px] z-20 shrink-0 border-b border-border bg-background px-5 py-2 lg:static lg:px-10 print:hidden"
+        data-admin-tabs-row
       >
-        {section.pages.map((entry) => {
-          const count = entry.alerts?.(page.props) ?? 0
-          return (
-            <TabsTrigger key={entry.id} value={entry.id} asChild className="flex-none">
-              <Link href={entry.href}>
-                <entry.icon strokeWidth={1.6} />
-                {t(entry.label)}
-                {count > 0 && (
-                  <Badge
-                    variant="destructive"
-                    className="ms-auto px-1.5"
-                    aria-label={t('{count} تنبيه إداري', { count })}
-                  >
-                    {count}
-                  </Badge>
-                )}
-              </Link>
-            </TabsTrigger>
-          )
-        })}
-      </TabsList>
-      <TabsContent value={current.page.id} className="w-full min-w-0">
-        {children}
-      </TabsContent>
+        <TabsList
+          ref={list}
+          aria-label={t('صفحات القسم: {section}', { section: t(section.title) })}
+          className="max-w-full justify-start overflow-x-auto [scrollbar-width:none]"
+        >
+          {section.pages.map((entry) => {
+            const count = entry.alerts?.(props) ?? 0
+            return (
+              <TabsTrigger key={entry.id} value={entry.id} asChild className="flex-none">
+                <Link href={entry.href}>
+                  <entry.icon strokeWidth={1.6} />
+                  {t(entry.label)}
+                  {count > 0 && (
+                    <Badge
+                      variant="destructive"
+                      className="px-1.5"
+                      aria-label={t('{count} تنبيه إداري', { count })}
+                    >
+                      {count}
+                    </Badge>
+                  )}
+                </Link>
+              </TabsTrigger>
+            )
+          })}
+        </TabsList>
+      </div>
+      {children}
     </Tabs>
+  )
+}
+
+/** The page inside its section's tab panel; any other page passes through. */
+export function AdminTabPanel({ children }: { children: ReactNode }) {
+  const current = useSectionTabs()
+  if (!current) return <>{children}</>
+  return (
+    <TabsContent value={current.page.id} className="w-full min-w-0">
+      {children}
+    </TabsContent>
   )
 }
 

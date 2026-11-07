@@ -28,7 +28,7 @@ export type AdminShellProps = {
   [key: string]: unknown
 }
 
-/** One page of an administration section, shown as a vertical tab (ADR 049). */
+/** One page of an administration section, shown as a tab under the header (ADR 049, owner decision 22). */
 export type AdminPage = {
   /** Unique within its section: `users`. */
   id: string
@@ -46,7 +46,7 @@ export type AdminPage = {
 }
 
 /**
- * One administration section: one sidebar entry, its pages as vertical tabs. The id is stable
+ * One administration section: one sidebar entry, its pages as horizontal tabs. The id is stable
  * (it is stored in users' menu order as `admin.<id>`): never rename a released id.
  */
 export type AdminSection = { id: string; title: string; icon: LucideIcon; pages: AdminPage[] }

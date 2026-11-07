@@ -170,6 +170,32 @@ header bullet above and the two header buttons of #153.
   remember and restore the list's position in that container. Printing returns to the normal
   flow. On phones the document scrolls as before under the sticky full-width header.
 
+Amendment (2.3.0, owner's decision of 2026-11-07, horizontal administration tabs): this
+replaces the vertical tabs of the owner's-review amendment above and its `nav` variant.
+Owner: «لا اريد قائمة جانبية فرعية اضافية، اريدها ان تكون تبويبات اعلى الصفحة بشكل افقي اسفل
+الheader الاساسي بحيث يكون Tabs ولكل صفحة tab خاص بها».
+
+* A section's pages are one row of the registry `Tabs` in their default orientation and look
+  (`TabsList` and `TabsTrigger` as shadcn ships them), right below the main header across the
+  page area. There is no tab column beside the page, so the page uses the full content width.
+  The registry's `nav` variant is removed; `tabs.tsx` is the stored shadcn component again.
+* One tab per page, each a link (`TabsTrigger asChild`), with the page as the `tabpanel`:
+  the address selects the tab (direct links, reloads, Back and Forward), arrow keys move
+  between tabs and Enter opens one (manual activation).
+* The row heads the page column, above the backup warning and the impersonation bar. From the
+  large breakpoint it sits outside the page's scroll region, so it stays in view while the
+  page scrolls; on phones it sticks under the header and scrolls sideways, bringing the
+  active tab into view.
+* Alerts stay a count badge on the tab and on the «الإعدادات» sidebar entry. The sidebar keeps
+  its two administration entries without sub-items.
+* Every navigation link opens its target page at its own address (owner: «تأكد ان الازرار في
+  القائمة الجانبية تعمل وكذلك التبويبات توجه الى الصفحة الهدف»). «لوحات المؤشرات» links to the
+  first dashboard the viewer may see and stays current on every dashboard; «دعوة مستخدم» opens
+  the invitation over the users list for administrators; the phone navigation shows the same
+  two administration entries as the sidebar instead of one `/admin` link, and marks the
+  current page. A browser test clicks every link the sidebar renders (expanded, as icons and on
+  a phone) and every administration tab.
+
 ### Dark mode (#155)
 
 * `@custom-variant dark (&:where(.dark, .dark *))` and a `.dark` block that overrides every
