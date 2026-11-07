@@ -1,9 +1,10 @@
 import { type Data } from '@generated/data'
 import { toast, Toaster } from 'sonner'
 import { usePage } from '@inertiajs/react'
-import { type ReactElement, useEffect } from 'react'
+import { type ReactElement, useLayoutEffect } from 'react'
 import { Form, Link } from '@adonisjs/inertia/react'
 import { ImpersonationBar } from '~/components/admin-nav'
+import { FlashMessages } from '~/components/flash-messages'
 import { BrandMark } from '~/components/brand-mark'
 import { OccasionBanner } from '~/components/occasion-banner'
 import { useAppearance } from '~/components/appearance'
@@ -27,22 +28,15 @@ const AUTH_PAGES = new Set([
  * theme background, the same header pattern as the workspace shell.
  */
 export default function Layout({ children }: { children: ReactElement<Data.SharedProps> }) {
-  const { url, flash, component } = usePage()
+  const { url, component } = usePage()
   // «المظهر والهوية» (ADR 053) may replace the name and the mark, today's occasion included.
   const brand = useAppearance()?.brand
   const { t, dir } = useMessages()
-  useEffect(() => {
+  // A new page drops the previous page's toasts. A layout effect, so it runs before the
+  // passive effect in <FlashMessages /> below toasts this page's flash.
+  useLayoutEffect(() => {
     toast.dismiss()
   }, [url])
-
-  useEffect(() => {
-    if (typeof flash.error === 'string') {
-      toast.error(flash.error)
-    }
-    if (typeof flash.success === 'string') {
-      toast.success(flash.success)
-    }
-  })
 
   const { account, signupEnabled } = children.props
   const authPage = AUTH_PAGES.has(component)
@@ -102,6 +96,8 @@ export default function Layout({ children }: { children: ReactElement<Data.Share
       </header>
       <OccasionBanner className="px-5 pt-4 lg:px-10" />
       <main className="px-4 sm:px-6">{children}</main>
+      {/* Once per flash, as in the workspace shell: a re-render must not toast it again. */}
+      <FlashMessages />
       <Toaster position="top-center" richColors />
     </div>
   )

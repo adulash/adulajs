@@ -17,7 +17,12 @@ test.group('Browser authentication lifecycle', () => {
   test('a protected page asks a guest to sign in, in Arabic', async ({ visit, assert }) => {
     const page = await visit('/admin/print-templates')
     await page.waitForURL((url) => url.pathname === '/login')
-    await page.getByText('سجّل الدخول للمتابعة.', { exact: true }).waitFor()
+    const notice = page.getByText('سجّل الدخول للمتابعة.', { exact: true })
+    await notice.first().waitFor()
+    // Exactly one notice once the page has settled: the guest shell re-renders after its first
+    // paint, and an effect that toasted on every render showed the flash twice.
+    await page.waitForLoadState('networkidle')
+    assert.equal(await notice.count(), 1)
     assert.notInclude(await page.locator('body').innerText(), 'Unauthorized access')
   })
   test('login, profile, sessions, revoke the current session and land on login', async ({
