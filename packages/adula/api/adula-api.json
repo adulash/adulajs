@@ -1232,6 +1232,10 @@
       "kind": "VariableDeclaration",
       "type": "\"mail\""
     },
+    "MAIL_SETTINGS_KEY": {
+      "kind": "VariableDeclaration",
+      "type": "\"mail.smtp\""
+    },
     "MAIL_TEST_KEY": {
       "kind": "VariableDeclaration",
       "type": "\"mail.delivery_test\""
@@ -1250,11 +1254,31 @@
     },
     "MailFailureReason": {
       "kind": "TypeAliasDeclaration",
-      "type": "\"tls\" | \"timeout\" | \"authentication\" | \"connection\" | \"host_not_found\" | \"sender_rejected\" | \"recipient_rejected\" | \"unknown\""
+      "type": "\"tls\" | \"timeout\" | \"authentication\" | \"connection\" | \"host_not_found\" | \"sender_rejected\" | \"recipient_rejected\" | \"password_unreadable\" | \"unknown\""
+    },
+    "MailRuntime": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ host: string; port: number; security: MailSecurity; username: string; password: string | null; fromName: string; fromAddress: string; }"
+    },
+    "MailSecurity": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"tls\" | \"starttls\" | \"none\""
     },
     "MailSender": {
       "kind": "TypeAliasDeclaration",
       "type": "(message: { to: string; name: string | null; subject: string; text: string; target?: NotificationTarget | null | undefined; }) => Promise<void>"
+    },
+    "MailSettings": {
+      "kind": "ClassDeclaration",
+      "type": "typeof MailSettings"
+    },
+    "MailSettingsInput": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ preset?: string | undefined; host?: string | undefined; port?: number | undefined; security?: MailSecurity | undefined; username?: string | undefined; fromName?: string | undefined; fromAddress?: string | undefined; }"
+    },
+    "MailSettingsView": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ configured: boolean; preset: string; host: string; port: number; security: MailSecurity; username: string; hasPassword: boolean; passwordUnreadable: boolean; fromName: string; fromAddress: string; updatedAt: string | null; }"
     },
     "MailTestState": {
       "kind": "TypeAliasDeclaration",

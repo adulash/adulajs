@@ -24,6 +24,7 @@ export type MailFailureReason =
   | 'timeout'
   | 'sender_rejected'
   | 'recipient_rejected'
+  | 'password_unreadable'
   | 'unknown'
 
 /** A transport failure reduced to non-secret facts: never the raw message or credentials. */
@@ -90,8 +91,12 @@ export function classifyMailFailure(error: unknown): MailFailure {
       /wrong version number|ssl routines|tls|certificate/i.test(entry.message)
   )
   const has = (...names: string[]) => codes.some((value) => names.includes(value as string))
-  const reason: MailFailureReason =
-    has('EAUTH', 'ENOAUTH') || responseCode === 535 || responseCode === 534 || responseCode === 530
+  const reason: MailFailureReason = has('E_MAIL_PASSWORD_UNREADABLE')
+    ? 'password_unreadable'
+    : has('EAUTH', 'ENOAUTH') ||
+        responseCode === 535 ||
+        responseCode === 534 ||
+        responseCode === 530
       ? 'authentication'
       : has('EENVELOPE') || command === 'MAIL FROM' || command === 'RCPT TO'
         ? command === 'RCPT TO'
