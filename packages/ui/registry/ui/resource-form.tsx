@@ -15,6 +15,7 @@ import {
   type InlineRow,
 } from '~/components/ui/resource-field'
 import { Label } from '~/components/ui/label'
+import { useDialogValue } from '~/components/ui/dialog'
 import { useMessages } from '~/components/ui/messages'
 import { inputValue, isAttachment, parseValue } from '~/components/ui/resource-value'
 import { hiddenFields, listInput } from '~/components/ui/field_values'
@@ -116,11 +117,8 @@ export function ResourceForm({
   const [rowErrors, setRowErrors] = useState<RowErrors>({})
   const [sectionErrors, setSectionErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
-  // The state the form opened with; the dialog asks before closing only while they differ, and
-  // reverting every change makes the form clean again.
-  const state = snapshot(values, rows, unit)
-  const opened = useRef(state)
-  const dirty = state !== opened.current
+  // In a dialog, the dialog compares this with how the form opened (nothing on a page).
+  useDialogValue(snapshot(values, rows, unit))
   const form = useRef<HTMLFormElement>(null)
   // The save button sits in the dialog's fixed footer, outside the form's markup.
   const formId = useId()
@@ -319,7 +317,6 @@ export function ResourceForm({
       // The page keeps a reading width; a dialog body is already bounded.
       className="max-w-4xl space-y-6 in-data-[slot=dialog-content]:max-w-none"
       aria-busy={busy}
-      data-dirty={dirty ? 'true' : 'false'}
     >
       {failure && (
         <Alert variant="destructive" role="alert" tabIndex={-1}>

@@ -8,7 +8,7 @@ import { Button } from "~/components/ui/button";
 import { FileInput } from "~/components/ui/file-input";
 import { Label } from "~/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "~/components/ui/radio-group";
-import { Dialog, DialogClose } from "~/components/ui/dialog";
+import { Dialog, DialogClose, DialogValue } from "~/components/ui/dialog";
 import { LongDialogContent } from "~/components/ui/long-dialog";
 import {
   Select,
@@ -148,14 +148,6 @@ export function ResourceImport({
     return () => clearInterval(timer);
   }, [step, batch?.id]);
   const unique = batch?.targets.filter((target) => target.unique) ?? [];
-  // Closing asks first only when the reader changed something: a chosen file, or a mapping,
-  // mode or match field that differs from what the upload suggested. Undoing a change is clean.
-  const sameMapping = (a: Record<string, string>, b: Record<string, string>) =>
-    Object.keys(a).length === Object.keys(b).length &&
-    Object.entries(a).every(([column, target]) => b[column] === target);
-  const mappingChanged =
-    batch !== null &&
-    (!sameMapping(mapping, batch.mapping) || mode !== "create" || matchField !== "");
   const upload = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!file) return;
@@ -289,12 +281,17 @@ export function ResourceImport({
             </>
           }
         >
+          {/* Each step starts afresh: the uploaded file is saved, and the suggested mapping is
+              the new starting point. */}
+          <DialogValue
+            key={step === "upload" ? "upload" : `mapping-${batch?.id ?? ""}`}
+            value={step === "upload" ? file : { mapping, mode, matchField }}
+          />
           {step === "upload" && (
             <form
               id="import-upload"
               className="space-y-3"
               onSubmit={upload}
-              data-dirty={String(file !== null)}
             >
               <div className="space-y-2">
                 <Label id="import-file-label" htmlFor="import-file">
@@ -342,7 +339,6 @@ export function ResourceImport({
             <form
               id="import-mapping"
               className="space-y-4"
-              data-dirty={String(mappingChanged)}
               onSubmit={(event) => {
                 event.preventDefault();
                 void run(false);

@@ -158,8 +158,7 @@ export function MailSetupDialog({
   mailSettingsApply,
 }: MailSetupProps & { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { confirm, confirmation } = useConfirmAction()
-  const [initial, setInitial] = useState(() => draftOf(mailSettings, mailPresets))
-  const [draft, setDraft] = useState(initial)
+  const [draft, setDraft] = useState(() => draftOf(mailSettings, mailPresets))
   const [password, setPassword] = useState('')
   const [changingPassword, setChangingPassword] = useState(false)
   const [error, setError] = useState('')
@@ -171,9 +170,7 @@ export function MailSetupDialog({
   if (open !== wasOpen) {
     setWasOpen(open)
     if (open) {
-      const next = draftOf(mailSettings, mailPresets)
-      setInitial(next)
-      setDraft(next)
+      setDraft(draftOf(mailSettings, mailPresets))
       setPassword('')
       setChangingPassword(false)
       setError('')
@@ -183,8 +180,6 @@ export function MailSetupDialog({
     if (!busy) onOpenChange(next)
   }
 
-  // Typing and then restoring a value is clean; a typed password is a change.
-  const dirty = JSON.stringify(draft) !== JSON.stringify(initial) || password !== ''
   const hostChanged =
     mailSettings.hasPassword && draft.host.trim().toLowerCase() !== mailSettings.host
   const showPassword =
@@ -226,7 +221,6 @@ export function MailSetupDialog({
       reload()
     } catch (caught) {
       if (saved) {
-        setInitial(draft)
         setError(`حُفظ الإعداد، وتعذر حفظ كلمة المرور: ${failure(caught, 'خطأ غير متوقع.')}`)
         reload()
       } else setError(failure(caught, 'تعذر حفظ إعداد البريد.'))
@@ -255,7 +249,8 @@ export function MailSetupDialog({
 
   return (
     <>
-      <Dialog mode="edit" open={open} onOpenChange={change}>
+      {/* A typed password is a change; the dialog compares with the values as it opened. */}
+      <Dialog mode="edit" open={open} onOpenChange={change} value={{ draft, password }}>
         <LongDialogContent
           title="إعداد البريد"
           description="يرسل النظام البريد عبر خادم SMTP لدى مزودك. احفظ الإعداد هنا ليُطبَّق فورًا على الخادم والعامل دون إعادة تشغيل."
@@ -277,7 +272,6 @@ export function MailSetupDialog({
             onSubmit={save}
             className="space-y-5 text-sm"
             autoComplete="off"
-            data-dirty={dirty ? 'true' : 'false'}
           >
             {!mailSettingsApply && (
               <Alert>

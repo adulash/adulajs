@@ -74,7 +74,6 @@ export function RecordAssignments({
       .catch(() => setPeople([]))
   }, [open, base])
 
-  const dirty = assigneeId !== '' || title !== '' || note !== '' || dueOn !== ''
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     setBusy(true)
@@ -149,7 +148,12 @@ export function RecordAssignments({
           ))}
         </ul>
       )}
-      <Dialog mode="edit" open={open} onOpenChange={setOpen}>
+      <Dialog
+        mode="edit"
+        open={open}
+        onOpenChange={setOpen}
+        value={{ assigneeId, title, note, dueOn }}
+      >
         <LongDialogContent
           dir="rtl"
           width="lg"
@@ -177,7 +181,6 @@ export function RecordAssignments({
             className="space-y-4"
             onSubmit={submit}
             // Closing asks first only when a value differs from the empty draft it opened with.
-            data-dirty={String(dirty)}
           >
             <div className="space-y-2">
               <Label htmlFor="assignment-assignee">المكلف</Label>

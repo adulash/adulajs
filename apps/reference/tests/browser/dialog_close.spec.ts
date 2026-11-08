@@ -79,13 +79,13 @@ test.group('Dialog close: ask only for unsaved changes', (group) => {
     await closedWithoutAsking()
   })
 
-  test('a plain form dialog without data-dirty asks only while a value differs from the opening one', async ({
+  test('a plain form dialog that declares nothing asks only while a value differs from the opening one', async ({
     browserContext,
     visit,
     assert,
   }) => {
     await browserContext.loginAs(admin.user)
-    // The API token form is a plain form in a dialog: it reports no data-dirty of its own.
+    // The API token form is a plain form in a dialog: it declares no state of its own.
     const page = await visit('/account/tokens')
     await page.setViewportSize({ width: 1440, height: 900 })
     const dialog = page.getByRole('dialog', { name: 'إنشاء رمز API' })
@@ -95,8 +95,7 @@ test.group('Dialog close: ask only for unsaved changes', (group) => {
       await dialog.waitFor()
     }
     await open()
-    // This form reports nothing; an untouched dialog still closes without a question.
-    assert.equal(await dialog.locator('[data-dirty]').count(), 0)
+    // The dialog compares its controls; an untouched dialog closes without a question.
     await page.keyboard.press('Escape')
     await dialog.waitFor({ state: 'hidden' })
     assert.equal(await confirm.count(), 0)
@@ -117,54 +116,41 @@ test.group('Dialog close: ask only for unsaved changes', (group) => {
     await dialog.waitFor({ state: 'hidden' })
   })
 
-  test('a region that is not a form reports data-dirty for its own controls', async ({
+  test('a dialog that declares its state compares it, so moving an entry back is clean', async ({
     browserContext,
     visit,
     assert,
   }) => {
-    const runtime = adula()
-    const loaded = await runtime.actors.load(admin.user.id)
-    const saved = await runtime.resources.save('ui_samples', loaded, {
-      orgUnitId: admin.orgUnitId,
-      title: `عينة المنطقة ${randomUUID().slice(0, 8)}`,
-    })
     await browserContext.loginAs(admin.user)
-    const page = await visit(`/resources/ui_samples/${saved.id}/edit`)
+    const page = await visit('/')
     await page.setViewportSize({ width: 1440, height: 900 })
-    const dialog = page.getByRole('dialog', { name: 'تعديل عينة' })
+    const dialog = page.getByRole('dialog', { name: 'ترتيب القائمة' })
     const confirm = page.getByRole('dialog', { name: 'إغلاق النموذج؟' })
-    await dialog.waitFor()
-    // A settings panel outside the record form (as in the mail provider dialog) compares its
-    // own values and reports them on a plain element, not a form.
-    await page.evaluate(`(() => {
-      const body = document.querySelector('[role=dialog] [data-slot=long-dialog-body]')
-      const region = document.createElement('div')
-      region.setAttribute('data-dirty', 'false')
-      region.setAttribute('data-testid', 'region')
-      const input = document.createElement('input')
-      input.setAttribute('aria-label', 'إعداد المنطقة')
-      region.append(input)
-      body.append(region)
-    })()`)
-    const region = dialog.getByTestId('region')
-    // Typing inside the region is its own business: it still reports clean, so no question.
-    await dialog.getByLabel('إعداد المنطقة').fill('قيمة')
+    const open = async () => {
+      await page.getByRole('button', { name: 'قائمة الحساب' }).first().click()
+      await page.getByRole('menuitem', { name: 'ترتيب القائمة…' }).click()
+      await dialog.waitFor()
+    }
+    // The order is declared to the dialog (`value`): its buttons are no form controls.
+    await open()
     await page.keyboard.press('Escape')
     await dialog.waitFor({ state: 'hidden' })
     assert.equal(await confirm.count(), 0)
-    // A region that reports a change makes the dialog ask, like a dirty form.
-    await page.goto(`/resources/ui_samples/${saved.id}/edit`)
-    await dialog.waitFor()
-    await page.evaluate(`(() => {
-      const region = document.createElement('div')
-      region.setAttribute('data-dirty', 'true')
-      region.setAttribute('data-testid', 'region')
-      document.querySelector('[role=dialog] [data-slot=long-dialog-body]').append(region)
-    })()`)
-    await region.waitFor({ state: 'attached' })
+
+    await open()
+    const down = dialog.getByRole('button', { name: /^تحريك .+ لأسفل$/ }).first()
+    const entry = ((await down.getAttribute('aria-label')) ?? '')
+      .replace(/^تحريك /, '')
+      .replace(/ لأسفل$/, '')
+    await down.click()
     await page.keyboard.press('Escape')
     await confirm.waitFor()
-    await page.getByRole('button', { name: 'إغلاق دون حفظ', exact: true }).click()
+    await page.getByRole('button', { name: 'متابعة التحرير', exact: true }).click()
+    await confirm.waitFor({ state: 'hidden' })
+    // The same entry back where it was: the order equals the opening one again.
+    await dialog.getByRole('button', { name: `تحريك ${entry} لأعلى`, exact: true }).click()
+    await page.keyboard.press('Escape')
     await dialog.waitFor({ state: 'hidden' })
+    assert.equal(await confirm.count(), 0)
   })
 })

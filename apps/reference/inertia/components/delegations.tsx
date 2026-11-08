@@ -210,8 +210,6 @@ export function DelegationDialog({
   const [delegator, setDelegator] = useState<Candidate | null>(null)
   const [delegate, setDelegate] = useState<Candidate | null>(null)
   const [startsOn, setStartsOn] = useState(today)
-  // The start date the dialog opened with; a value equal to it is not a change.
-  const [openedOn, setOpenedOn] = useState(today)
   const [endsOn, setEndsOn] = useState('')
   const [note, setNote] = useState('')
   const [error, setError] = useState('')
@@ -220,19 +218,11 @@ export function DelegationDialog({
     if (!open) return
     setDelegator(null)
     setDelegate(null)
-    const start = systemToday(timeZone)
-    setStartsOn(start)
-    setOpenedOn(start)
+    setStartsOn(systemToday(timeZone))
     setEndsOn('')
     setNote('')
     setError('')
   }, [open, timeZone])
-  const dirty =
-    delegator !== null ||
-    delegate !== null ||
-    startsOn !== openedOn ||
-    endsOn !== '' ||
-    note !== ''
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     if (admin && !delegator) return setError('اختر صاحب الموافقات.')
@@ -261,7 +251,13 @@ export function DelegationDialog({
     }
   }
   return (
-    <Dialog mode="edit" open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      mode="edit"
+      open={open}
+      onOpenChange={onOpenChange}
+      // The dialog compares these with how it opened (after the reset above).
+      value={{ delegator: delegator?.id, delegate: delegate?.id, startsOn, endsOn, note }}
+    >
       <LongDialogContent
         dir="rtl"
         width="lg"
@@ -286,8 +282,6 @@ export function DelegationDialog({
           className="space-y-4"
           noValidate
           onSubmit={submit}
-          // Closing asks first only when a value differs from the one the dialog opened with.
-          data-dirty={String(dirty)}
         >
           {admin && (
             <div className="space-y-2">

@@ -26,9 +26,6 @@ export default function TemplatesIndex({ templates }: Props) {
   const [body, setBody] = useState('')
   const [mail, setMail] = useState(false)
   const [processing, setProcessing] = useState(false)
-  const dirty =
-    editing !== null &&
-    (subject !== editing.subject || body !== editing.body || mail !== editing.mail)
   const open = (template: MessageTemplate) => {
     setEditing(template)
     setSubject(template.subject)
@@ -138,7 +135,11 @@ export default function TemplatesIndex({ templates }: Props) {
           </tbody>
         </table>
       </div>
-      <Dialog open={editing !== null} onOpenChange={(value) => !value && setEditing(null)}>
+      <Dialog
+        open={editing !== null}
+        onOpenChange={(value) => !value && setEditing(null)}
+        value={{ subject, body, mail }}
+      >
         <LongDialogContent
           dir="rtl"
           width="2xl"
@@ -158,12 +159,7 @@ export default function TemplatesIndex({ templates }: Props) {
           }
         >
           {editing && (
-            <form
-              id="template-form"
-              className="space-y-4"
-              data-dirty={String(dirty)}
-              onSubmit={save}
-            >
+            <form id="template-form" className="space-y-4" onSubmit={save}>
               <div className="space-y-2">
                 <Label htmlFor="template-subject">العنوان</Label>
                 <Input

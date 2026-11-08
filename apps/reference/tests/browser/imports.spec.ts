@@ -194,8 +194,6 @@ ${headers.map(() => 'قيمة').join(',')}
     await page.getByRole('option', { name: other, exact: true }).click()
     // Escape goes to the dialog only once the option list has closed.
     await page.getByRole('listbox').waitFor({ state: 'hidden' })
-    const form = dialog.locator('form#import-mapping')
-    assert.equal(await form.getAttribute('data-dirty'), 'true')
     await page.keyboard.press('Escape')
     await confirm.waitFor()
     await confirm.getByRole('button', { name: 'متابعة التحرير' }).click()
@@ -203,7 +201,6 @@ ${headers.map(() => 'قيمة').join(',')}
     await column.click()
     await page.getByRole('option', { name: suggested, exact: true }).click()
     await page.getByRole('listbox').waitFor({ state: 'hidden' })
-    assert.equal(await form.getAttribute('data-dirty'), 'false')
     await page.keyboard.press('Escape')
     await closedClean('mapping restored')
   })
