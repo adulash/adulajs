@@ -152,5 +152,23 @@ test.group('Dialog close: ask only for unsaved changes', (group) => {
     await page.keyboard.press('Escape')
     await dialog.waitFor({ state: 'hidden' })
     assert.equal(await confirm.count(), 0)
+
+    // A control the declaration leaves out does not count, and the console says so: a dialog
+    // that declares a value declares its full state.
+    const warnings: string[] = []
+    page.on('console', (message) => {
+      if (message.type() === 'warning') warnings.push(message.text())
+    })
+    await open()
+    await page.evaluate(`(() => {
+      const input = document.createElement('input')
+      input.setAttribute('aria-label', 'حقل غير مصرح به')
+      document.querySelector('[role=dialog] [data-slot=long-dialog-body]').append(input)
+    })()`)
+    await dialog.getByLabel('حقل غير مصرح به').fill('قيمة')
+    await page.keyboard.press('Escape')
+    await dialog.waitFor({ state: 'hidden' })
+    assert.equal(await confirm.count(), 0)
+    assert.isTrue(warnings.some((text) => text.includes('[Dialog] A control changed')))
   })
 })

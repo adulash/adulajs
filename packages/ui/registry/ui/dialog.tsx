@@ -22,7 +22,8 @@ import { useUiPreferences } from '~/components/ui/ui-preferences'
  *   selects: the value each had before the user changed it against the value now.
  *
  * When a dialog declares state, the declarations are the whole truth for it and its controls
- * are not compared one by one.
+ * are not compared one by one, so a dialog that declares a value declares its full state. A
+ * control that changed while no declaration did is reported once on the console.
  */
 type Changes = { initial: Map<Element, string>; changed: Set<Element> }
 type Declared = { opened: string; current: string; settled: boolean }
@@ -86,7 +87,7 @@ function normalize(value: unknown): unknown {
 }
 
 /** Stable text of a declared value: equal data gives equal text whatever the key order. */
-function serializeDialogValue(value: unknown) {
+function serialize(value: unknown) {
   return JSON.stringify(normalize(value)) ?? ''
 }
 
@@ -96,7 +97,7 @@ const useIsomorphicLayoutEffect =
 /** Records one declaration in a dialog while `active`; removes it when inactive or unmounted. */
 function useDeclaration(state: DialogState | null, value: unknown, active: boolean) {
   const [key] = React.useState(() => Symbol('dialog-value'))
-  const text = active ? serializeDialogValue(value) : ''
+  const text = active ? serialize(value) : ''
   useIsomorphicLayoutEffect(() => {
     const declared = state?.declared.current
     if (!declared) return
@@ -169,14 +170,29 @@ function Dialog({
     // Ask only when there are unsaved changes; an untouched dialog closes at once.
     const declarations = [...declared.current.values()]
     const { initial, changed } = changes.current
+    const edited = [...changed].filter(
+      (element) =>
+        element.isConnected && isControl(element) && controlValue(element) !== initial.get(element)
+    )
     const unsaved = declarations.length
       ? declarations.some((entry) => entry.current !== entry.opened)
-      : [...changed].some(
-          (element) =>
-            element.isConnected &&
-            isControl(element) &&
-            controlValue(element) !== initial.get(element)
-        )
+      : edited.length > 0
+    // A visible control changed but no declaration did: the dialog declared only part of its
+    // state. (Hidden inputs mirror Radix switches, checkboxes and selects for form submission.)
+    const undeclared = edited.filter((element) => !element.closest('[aria-hidden="true"]'))
+    if (declarations.length && !unsaved && undeclared.length)
+      console.warn(
+        '[Dialog] A control changed while every declared value is unchanged; declare the full form state with `value` or useDialogValue (ADR 016):',
+        undeclared
+          .map(
+            (element) =>
+              element.id ||
+              element.getAttribute('name') ||
+              element.getAttribute('aria-label') ||
+              element.outerHTML.slice(0, 120)
+          )
+          .join(', ')
+      )
     const editing = mode !== 'view' && mode !== 'confirm' && unsaved
     if (!next && editing && preferences.confirmDialogClose) setConfirming(true)
     else commit(next)
@@ -401,6 +417,5 @@ export {
   DialogTitle,
   DialogTrigger,
   DialogValue,
-  serializeDialogValue,
   useDialogValue,
 }

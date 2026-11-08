@@ -445,6 +445,12 @@ test.group('Clean close sweep: every dialog closes at once while untouched', (gr
     await browserContext.loginAs(admin.user)
     const page = await visit('/')
     await page.setViewportSize({ width: 1440, height: 900 })
+    // A dialog that declares part of its state only is reported on the console (ADR 016).
+    const partial: string[] = []
+    page.on('console', (message) => {
+      if (message.type() === 'warning' && message.text().includes('[Dialog]'))
+        partial.push(message.text())
+    })
     const confirm = page.getByRole('dialog', { name: 'إغلاق النموذج؟' })
     /** Change asks; the original value back closes at once, by Escape. */
     const asksOnlyWhileChanged = async (
@@ -548,6 +554,7 @@ test.group('Clean close sweep: every dialog closes at once while untouched', (gr
       },
       () => field('تعديل القالب', 'العنوان').fill(subject)
     )
+    assert.deepEqual(partial, [], 'every declared dialog declares its full state')
   }).timeout(300_000)
 
   test('no dialog asked or stayed open', async ({ assert }) => {

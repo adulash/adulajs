@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from '~/components/ui/select'
 import { useConfirmAction } from '~/components/ui/confirm-action'
-import { Dialog, DialogClose } from '~/components/ui/dialog'
+import { Dialog, DialogClose, DialogValue } from '~/components/ui/dialog'
 import { LongDialogContent } from '~/components/ui/long-dialog'
 import { failure, json } from '~/components/account/request'
 
@@ -163,6 +163,8 @@ export function MailSetupDialog({
   const [changingPassword, setChangingPassword] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  // Counts saves that keep the dialog open: each one starts the settings' comparison afresh.
+  const [saves, setSaves] = useState(0)
   const preset = mailPresets.find((item) => item.id === draft.preset)
 
   // Each opening starts from the saved values, which change after a save.
@@ -221,6 +223,8 @@ export function MailSetupDialog({
       reload()
     } catch (caught) {
       if (saved) {
+        // The settings are stored; only the typed password is still unsaved.
+        setSaves((count) => count + 1)
         setError(`حُفظ الإعداد، وتعذر حفظ كلمة المرور: ${failure(caught, 'خطأ غير متوقع.')}`)
         reload()
       } else setError(failure(caught, 'تعذر حفظ إعداد البريد.'))
@@ -249,8 +253,7 @@ export function MailSetupDialog({
 
   return (
     <>
-      {/* A typed password is a change; the dialog compares with the values as it opened. */}
-      <Dialog mode="edit" open={open} onOpenChange={change} value={{ draft, password }}>
+      <Dialog mode="edit" open={open} onOpenChange={change}>
         <LongDialogContent
           title="إعداد البريد"
           description="يرسل النظام البريد عبر خادم SMTP لدى مزودك. احفظ الإعداد هنا ليُطبَّق فورًا على الخادم والعامل دون إعادة تشغيل."
@@ -267,6 +270,10 @@ export function MailSetupDialog({
             </>
           }
         >
+          {/* The dialog compares the settings with how they opened or were last saved, and a
+              typed password with none. */}
+          <DialogValue key={saves} value={draft} />
+          <DialogValue value={password} />
           <form
             id="mail-settings"
             onSubmit={save}

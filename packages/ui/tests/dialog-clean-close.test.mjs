@@ -71,6 +71,9 @@ test('the shared Dialog decides from declared state and controls, not from data-
   assert.match(dialog, /function useDialogValue\(value: unknown\)/)
   assert.match(dialog, /^ {2}useDialogValue,$/m)
   assert.match(dialog, /^ {2}DialogValue,$/m)
+  // The public surface is the value prop, useDialogValue and DialogValue; the rest is internal.
+  const exported = dialog.match(/^export \{([\s\S]*?)\}/m)?.[1] ?? ''
+  assert.doesNotMatch(exported, /serialize/)
   // Stable serialization: object keys are sorted before comparing.
   assert.match(dialog, /Object\.keys\(value\)\.sort\(\)/)
 })
