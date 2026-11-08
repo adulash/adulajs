@@ -1137,7 +1137,8 @@ test.group('Generic resource browser acceptance', (group) => {
       await knex()('settings')
         .where({ key: 'ui.preferences', scope: 'system', scope_id: '0' })
         .delete()
-      if (previous) await knex()('settings').insert(previous)
+      if (previous)
+        await knex()('settings').insert({ ...previous, value: JSON.stringify(previous.value) })
     }
   })
 })

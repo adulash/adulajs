@@ -81,7 +81,11 @@ test.group('Backup surfaces', (group) => {
     await knex()('settings').where('key', 'backup.lastOffsite').delete()
     return async () => {
       await knex()('settings').where('key', 'backup.lastOffsite').delete()
-      if (saved.length) await knex()('settings').insert(saved)
+      // pg returns the json value parsed; serialize it again so a string stays valid JSON.
+      if (saved.length)
+        await knex()('settings').insert(
+          saved.map((row) => ({ ...row, value: JSON.stringify(row.value) }))
+        )
     }
   })
 
