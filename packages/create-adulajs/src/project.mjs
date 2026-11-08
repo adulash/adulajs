@@ -216,37 +216,44 @@ export async function renderProject(target, template, { name, identity, packageF
   // show the reference company's letter, so a template that lacks it is refused.
   if (files['inertia/components/brand-mark.tsx'] === undefined)
     throw new Error('The template has no inertia/components/brand-mark.tsx (the company mark)')
+  // The shells declare names of their own (the saved appearance is a local `brand`), so the
+  // creator's identity enters under a name no template file uses.
+  const alias = 'companyBrand'
+  // Each rewrite must land: a template that lost an anchor would keep the reference brand.
+  const rewrite = (path, source, anchor, replacement) => {
+    const hit = typeof anchor === 'string' ? source.includes(anchor) : anchor.test(source)
+    if (!hit) throw new Error(`The template's ${path} has no brand anchor ${anchor}`)
+    return typeof anchor === 'string'
+      ? source.replaceAll(anchor, replacement)
+      : source.replace(anchor, replacement)
+  }
   for (const path of [
     'inertia/layouts/default.tsx',
     'inertia/layouts/workspace.tsx',
     'inertia/components/brand-mark.tsx',
   ]) {
-    files[path] = `import { brand } from '~/brand'\n` + files[path]
+    if (new RegExp(`\\b${alias}\\b`).test(files[path]))
+      throw new Error(`The template's ${path} already uses the name ${alias}`)
+    // The fallback name, shown while no appearance identity is saved; a saved one still wins.
+    files[path] =
+      `import { brand as ${alias} } from '~/brand'\n` +
+      (path === 'inertia/components/brand-mark.tsx'
+        ? // The company mark's letter, whatever its indentation (tests/brand-anchors.test.mjs).
+          rewrite(
+            path,
+            files[path],
+            /^([ \t]*)ع$/m,
+            `$1{${alias}.logo ? <img src={${alias}.logo} alt="" className="size-full object-contain" /> : ${alias}.company.charAt(0)}`
+          )
+        : rewrite(path, files[path], '>عدولة<', `>{${alias}.company}<`))
   }
-  // The company mark's letter, whatever its indentation (tests/brand-anchors.test.mjs).
-  const markLetter = (source) =>
-    source.replace(
-      /^([ \t]*)ع$/m,
-      '$1{brand.logo ? <img src={brand.logo} alt="" className="size-full object-contain" /> : brand.company.charAt(0)}'
-    )
-  // The guest shell shows the company name next to the shared BrandMark.
-  files['inertia/layouts/default.tsx'] = files['inertia/layouts/default.tsx'].replaceAll(
-    '>عدولة<',
-    '>{brand.company}<'
-  )
-  files['inertia/components/brand-mark.tsx'] = markLetter(
-    files['inertia/components/brand-mark.tsx']
-  )
-  files['inertia/layouts/workspace.tsx'] = markLetter(
-    files['inertia/layouts/workspace.tsx']
-      .replaceAll('>عدولة<', '>{brand.company}<')
-      .replace('التطبيق المرجعي', '{brand.company}')
-  ).replace('text-white', 'text-primary-foreground')
   files['inertia/app.tsx'] =
-    `import { brand } from './brand'\n` +
-    files['inertia/app.tsx'].replace(
+    `import { brand as ${alias} } from './brand'\n` +
+    rewrite(
+      'inertia/app.tsx',
+      files['inertia/app.tsx'],
       "import.meta.env.VITE_APP_NAME || 'AdulaJS'",
-      'brand.company'
+      `${alias}.company`
     )
   files['docs/design-identity.md'] =
     `# Company identity\n\nSource: project creator, supplied during installation.\n\n- Company: ${identity.company}\n- Logo: ${identity.logoPath ?? 'Pending; request it before further visual design.'}\n- Primary color: ${identity.primaryColor ?? 'Pending; existing AdulaJS colors are provisional.'}\n- Font: ${identity.fontFamily ?? 'Pending; IBM Plex Sans Arabic is provisional.'}\n- Guidelines: ${identity.guidelines ?? 'Pending; request the company brand guide.'}\n\nUse the bundled adula-frontend-design skill for business interfaces. Keep shadcn/ui and Dialog defaults. A specified font must be licensed and installed locally or added as a project-owned asset; do not fetch unprovided fonts or branding.\n`
