@@ -91,11 +91,6 @@ function RuleEditor({
   const { confirm, confirmation } = useConfirmAction()
   const [predicates, setPredicates] = useState<Predicate[]>(toPredicates(rule.conditions))
   const [fields, setFields] = useState<string[]>(rule.fields ?? [])
-  // Compared with the rule as opened: closing asks for confirmation only when it changed.
-  const snapshot = (rows: Predicate[], keys: string[]) =>
-    JSON.stringify({ rows, keys: [...keys].sort() })
-  const [opened] = useState(() => snapshot(toPredicates(rule.conditions), rule.fields ?? []))
-  const dirty = snapshot(predicates, fields) !== opened
   const editable = subject.conditionFields.length > 0
   const update = (index: number, patch: Partial<Predicate>) =>
     setPredicates((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)))
@@ -139,7 +134,13 @@ function RuleEditor({
   }
   return (
     <>
-      <Dialog mode={editable ? 'edit' : 'view'} open onOpenChange={(open) => !open && onClose()}>
+      <Dialog
+        mode={editable ? 'edit' : 'view'}
+        open
+        onOpenChange={(open) => !open && onClose()}
+        // The field list is a set: its order is no change.
+        value={{ predicates, fields: [...fields].sort() }}
+      >
         <LongDialogContent
           width="2xl"
           title={`${rule.inverted ? 'منع' : 'سماح'}: ${subject.label.ar} / ${ACTION_LABELS[rule.action]}`}
@@ -163,12 +164,7 @@ function RuleEditor({
             </>
           }
         >
-          <form
-            id="role-rule-form"
-            onSubmit={save}
-            className="space-y-6"
-            data-dirty={String(dirty)}
-          >
+          <form id="role-rule-form" onSubmit={save} className="space-y-6">
             {editable && (
               <>
                 <fieldset className="space-y-3">
@@ -224,7 +220,9 @@ function RuleEditor({
                                 aria-pressed={current}
                                 aria-label={`المستخدم الحالي للشرط ${index + 1}`}
                                 title="المستخدم الحالي: يُستبدل بمعرّف من يستخدم النظام"
-                                onClick={() => update(index, { value: current ? '' : CURRENT_USER })}
+                                onClick={() =>
+                                  update(index, { value: current ? '' : CURRENT_USER })
+                                }
                               >
                                 <UserRound size={15} />
                               </Button>

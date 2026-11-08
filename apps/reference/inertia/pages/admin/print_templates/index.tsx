@@ -99,10 +99,7 @@ function errorMessage(error: unknown) {
 
 export default function PrintTemplatesIndex({ templates, resources, helpers, timeZone }: Props) {
   const [draft, setDraft] = useState<Draft | null>(null)
-  // The values the dialog opened with: closing asks for confirmation only when they changed.
-  const [opened, setOpened] = useState('')
   const begin = (next: Draft) => {
-    setOpened(JSON.stringify(next))
     setDraft(next)
   }
   const [editing, setEditing] = useState(false)
@@ -326,7 +323,11 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
         </table>
       </div>
 
-      <Dialog open={draft !== null} onOpenChange={(value) => !value && setDraft(null)}>
+      <Dialog
+        open={draft !== null}
+        onOpenChange={(value) => !value && setDraft(null)}
+        value={draft}
+      >
         <LongDialogContent
           dir="rtl"
           width="5xl"
@@ -353,7 +354,6 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
             <form
               id="print-template-form"
               className="grid gap-6 lg:grid-cols-2"
-              data-dirty={String(JSON.stringify(draft) !== opened)}
               onSubmit={save}
             >
               <div className="space-y-4">

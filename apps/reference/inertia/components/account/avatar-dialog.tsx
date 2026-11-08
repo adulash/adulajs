@@ -205,7 +205,13 @@ export function AvatarDialog({
 
   const serverError = attempted && typeof flash.error === 'string' ? flash.error : null
   return (
-    <Dialog mode="edit" open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      mode="edit"
+      open={open}
+      onOpenChange={onOpenChange}
+      // A chosen picture is the only change; nothing is chosen when the dialog opens.
+      value={image?.src ?? null}
+    >
       <LongDialogContent
         dir="rtl"
         width="lg"
@@ -232,8 +238,6 @@ export function AvatarDialog({
             event.preventDefault()
             void save()
           }}
-          // A chosen picture is the only change; nothing is chosen when the dialog opens.
-          data-dirty={String(image !== null)}
         >
           <div className="space-y-2">
             <Label id="avatar-file-label" htmlFor="avatar-file">

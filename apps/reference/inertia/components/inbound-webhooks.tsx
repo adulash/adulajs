@@ -61,8 +61,6 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
   const { confirm, confirmation } = useConfirmAction()
   const [editing, setEditing] = useState<InboundSource | 'new' | null>(null)
   const [draft, setDraft] = useState<Draft>(blank)
-  // The values the form opened with: closing asks for confirmation only when they changed.
-  const [opened, setOpened] = useState(JSON.stringify(blank))
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [secret, setSecret] = useState<{ source: InboundSource; value: string } | null>(null)
@@ -75,7 +73,6 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
     setEditing(source)
     setError('')
     const next = source === 'new' ? blank : { ...source, key: source.key }
-    setOpened(JSON.stringify(next))
     setDraft(next)
   }
   const save = async (event: FormEvent) => {
@@ -198,7 +195,11 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
         )}
       </ul>
 
-      <Dialog open={editing !== null} onOpenChange={(value) => !value && setEditing(null)}>
+      <Dialog
+        open={editing !== null}
+        onOpenChange={(value) => !value && setEditing(null)}
+        value={draft}
+      >
         <LongDialogContent
           dir="rtl"
           width="2xl"
@@ -220,7 +221,6 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
           <form
             id="inbound-form"
             className="grid gap-4 sm:grid-cols-2"
-            data-dirty={String(JSON.stringify(draft) !== opened)}
             onSubmit={save}
           >
             <div className="space-y-2">

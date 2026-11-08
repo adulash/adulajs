@@ -598,7 +598,6 @@ function IdentityDialog({
 }) {
   const [draft, setDraft] = useState(initial)
   const { busy, error, run } = useSave(onClose)
-  const dirty = JSON.stringify(draft) !== JSON.stringify(initial)
   const set = <K extends keyof IdentityDraft>(key: K, value: IdentityDraft[K]) =>
     setDraft((current) => ({ ...current, [key]: value }))
   const check = draft.primaryColor ? checkColor(draft.primaryColor) : null
@@ -607,7 +606,12 @@ function IdentityDialog({
     void run(() => axios.put('/admin/appearance', body(draft), json), 'حُفظت الهوية.')
   }
   return (
-    <Dialog mode="edit" open onOpenChange={(open) => !open && !busy && onClose()}>
+    <Dialog
+      mode="edit"
+      open
+      onOpenChange={(open) => !open && !busy && onClose()}
+      value={draft}
+    >
       <LongDialogContent
         title="تعديل الهوية"
         description="ما تحفظه هنا يظهر لكل المستخدمين والزوار، ما لم تكن مناسبة نشطة تغيّره."
@@ -631,7 +635,6 @@ function IdentityDialog({
             onSubmit={save}
             className="space-y-5"
             autoComplete="off"
-            data-dirty={dirty ? 'true' : 'false'}
           >
             <div className="space-y-2">
               <Label htmlFor="appearance-company">اسم الشركة</Label>
@@ -734,7 +737,6 @@ function OccasionDialog({
 }) {
   const [draft, setDraft] = useState(initial)
   const { busy, error, run } = useSave(onClose)
-  const dirty = JSON.stringify(draft) !== JSON.stringify(initial)
   const set = <K extends keyof OccasionDraft>(key: K, value: OccasionDraft[K]) =>
     setDraft((current) => ({ ...current, [key]: value }))
   const color = draft.primaryColor || identity.primaryColor || ''
@@ -750,7 +752,12 @@ function OccasionDialog({
     )
   }
   return (
-    <Dialog mode="edit" open onOpenChange={(open) => !open && !busy && onClose()}>
+    <Dialog
+      mode="edit"
+      open
+      onOpenChange={(open) => !open && !busy && onClose()}
+      value={draft}
+    >
       <LongDialogContent
         title={initial.id ? `تعديل مناسبة «${initial.name}»` : 'إضافة مناسبة'}
         description="تُطبَّق من بداية يوم البداية حتى نهاية يوم النهاية بتوقيت النظام، ثم تعود الهوية الأساسية تلقائيًا."
@@ -774,7 +781,6 @@ function OccasionDialog({
             onSubmit={save}
             className="space-y-5"
             autoComplete="off"
-            data-dirty={dirty ? 'true' : 'false'}
           >
             <div className="space-y-2">
               <Label htmlFor="occasion-name">اسم المناسبة</Label>

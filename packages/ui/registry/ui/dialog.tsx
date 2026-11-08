@@ -8,14 +8,30 @@ import { useMessages } from '~/components/ui/messages'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
 
 /**
- * Controls outside every region that reports data-dirty: the value each had before the user
- * changed it, and the ones the user changed. Closing compares them, so a value changed and
- * restored is clean.
+ * Clean close (ADR 016, decision 23 for 2.3.0): a dialog asks before closing only while
+ * something differs from how it opened, and a value changed and restored is clean. The dialog
+ * decides this itself; a dialog never computes its own dirty state.
+ *
+ * Two sources, one rule:
+ * - Declared state. A dialog whose state is not plain controls (a draft object, a list order,
+ *   switches, an image) declares it with the `value` prop of `Dialog`, or with
+ *   `useDialogValue(value)` from a component inside the dialog. Each declaration is captured
+ *   as it renders until the user first interacts with the dialog (so values reset on opening
+ *   or loaded just after it are the starting point), then compared on closing.
+ * - Plain controls. A dialog that declares nothing compares its inputs, text areas and
+ *   selects: the value each had before the user changed it against the value now.
+ *
+ * When a dialog declares state, the declarations are the whole truth for it and its controls
+ * are not compared one by one, so a dialog that declares a value declares its full state. A
+ * control that changed while no declaration did is reported once on the console.
  */
 type Changes = { initial: Map<Element, string>; changed: Set<Element> }
+type Declared = { opened: string; current: string; settled: boolean }
 type DialogState = {
   content: React.RefObject<HTMLDivElement | null>
   changes: React.RefObject<Changes>
+  declared: React.RefObject<Map<symbol, Declared>>
+  mode: React.RefObject<'view' | 'edit' | 'confirm'>
 }
 const DialogContentContext = React.createContext<DialogState | null>(null)
 
@@ -35,9 +51,9 @@ function controlValue(element: Element) {
   return ''
 }
 
-/** True for a control the dialog compares itself: one outside every data-dirty region. */
-function unreported(element: Element) {
-  return Boolean(element.matches?.(CONTROLS)) && !element.closest('[data-dirty]')
+/** True for a form control the dialog compares when nothing is declared. */
+function isControl(element: Element) {
+  return Boolean(element.matches?.(CONTROLS))
 }
 
 /**
@@ -46,24 +62,102 @@ function unreported(element: Element) {
  * starting point.
  */
 function remember(changes: Changes, element: Element, focus = false) {
-  if (!unreported(element) || changes.changed.has(element)) return
+  if (!isControl(element) || changes.changed.has(element)) return
   if (focus || !changes.initial.has(element)) changes.initial.set(element, controlValue(element))
+}
+
+/** A plain, ordered copy of a value: object keys sorted, files and dates as comparable data. */
+function normalize(value: unknown): unknown {
+  if (typeof value === 'function' || typeof value === 'symbol') return undefined
+  if (value === null || typeof value !== 'object') return value
+  if (value instanceof Date) return value.toISOString()
+  if (typeof File !== 'undefined' && value instanceof File)
+    return { file: value.name, size: value.size, modified: value.lastModified }
+  if (typeof Blob !== 'undefined' && value instanceof Blob)
+    return { blob: value.type, size: value.size }
+  if (value instanceof Map) return [...value.entries()].map(([key, item]) => [key, normalize(item)])
+  if (value instanceof Set) return [...value].map((item) => normalize(item) ?? null)
+  if (Array.isArray(value)) return value.map((item) => normalize(item) ?? null)
+  const plain: Record<string, unknown> = {}
+  for (const key of Object.keys(value).sort()) {
+    const item = normalize((value as Record<string, unknown>)[key])
+    if (item !== undefined) plain[key] = item
+  }
+  return plain
+}
+
+/** Stable text of a declared value: equal data gives equal text whatever the key order. */
+function serialize(value: unknown) {
+  return JSON.stringify(normalize(value)) ?? ''
+}
+
+const useIsomorphicLayoutEffect =
+  typeof window === 'undefined' ? React.useEffect : React.useLayoutEffect
+
+/** Records one declaration in a dialog while `active`; removes it when inactive or unmounted. */
+function useDeclaration(state: DialogState | null, value: unknown, active: boolean) {
+  const [key] = React.useState(() => Symbol('dialog-value'))
+  const text = active ? serialize(value) : ''
+  useIsomorphicLayoutEffect(() => {
+    const declared = state?.declared.current
+    if (!declared) return
+    if (!active) {
+      declared.delete(key)
+      return
+    }
+    const entry = declared.get(key)
+    if (!entry) declared.set(key, { opened: text, current: text, settled: false })
+    else {
+      entry.current = text
+      if (!entry.settled) entry.opened = text
+    }
+  })
+  useIsomorphicLayoutEffect(() => () => void state?.declared.current.delete(key), [state, key])
+}
+
+/**
+ * Declares state of the surrounding dialog that is not a plain control: the dialog compares it
+ * on closing with how it was when the dialog opened. Outside a dialog it does nothing, so a
+ * form shown both as a page and in a dialog can always call it.
+ */
+function useDialogValue(value: unknown) {
+  useDeclaration(React.useContext(DialogContentContext), value, true)
+}
+
+/**
+ * `useDialogValue` as an element, for state that starts afresh within one opening: give it a
+ * `key` that changes when a step is saved (an uploaded file becomes a mapping to review), and
+ * the new step is compared with how it began. Place it inside the dialog's content.
+ */
+function DialogValue({ value }: { value: unknown }) {
+  useDialogValue(value)
+  return null
 }
 
 function Dialog({
   mode,
+  value,
   onOpenChange,
   children,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Root> & { mode?: 'view' | 'edit' | 'confirm' }) {
+}: React.ComponentProps<typeof DialogPrimitive.Root> & {
+  mode?: 'view' | 'edit' | 'confirm'
+  /** The dialog's editable state when it is not plain controls (see useDialogValue). */
+  value?: unknown
+}) {
   const content = React.useRef<HTMLDivElement>(null)
   const changes = React.useRef<Changes>({ initial: new Map(), changed: new Set() })
-  const state = React.useMemo(() => ({ content, changes }), [])
+  const declared = React.useRef(new Map<symbol, Declared>())
+  const modeRef = React.useRef<'view' | 'edit' | 'confirm'>(mode ?? 'edit')
+  modeRef.current = mode ?? 'edit'
+  const state = React.useMemo(() => ({ content, changes, declared, mode: modeRef }), [])
   const [confirming, setConfirming] = React.useState(false)
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(props.defaultOpen ?? false)
   const preferences = useUiPreferences()
   const { t, dir } = useMessages()
   const open = props.open ?? uncontrolledOpen
+  // The value prop is one more declaration, captured afresh at every opening.
+  useDeclaration(state, value, open && value !== undefined)
   // Each opening starts clean (cleared on closing: the content records its values on mount).
   React.useEffect(() => {
     if (!open) changes.current = { initial: new Map(), changed: new Set() }
@@ -73,19 +167,31 @@ function Dialog({
     onOpenChange?.(next)
   }
   const request = (next: boolean) => {
-    // Ask only when there are unsaved changes. Every element that reports data-dirty, a form
-    // or not, decides for its own controls ("false" is clean whatever changed inside it). Any
-    // other control counts when its value differs from the one it had before the user changed
-    // it; a value changed and restored is clean. An untouched dialog closes at once.
-    const regions = [...(content.current?.querySelectorAll<HTMLElement>('[data-dirty]') ?? [])]
+    // Ask only when there are unsaved changes; an untouched dialog closes at once.
+    const declarations = [...declared.current.values()]
     const { initial, changed } = changes.current
-    const unsaved =
-      regions.some((region) => region.dataset.dirty === 'true') ||
-      [...changed].some(
-        (element) =>
-          element.isConnected &&
-          unreported(element) &&
-          controlValue(element) !== initial.get(element)
+    const edited = [...changed].filter(
+      (element) =>
+        element.isConnected && isControl(element) && controlValue(element) !== initial.get(element)
+    )
+    const unsaved = declarations.length
+      ? declarations.some((entry) => entry.current !== entry.opened)
+      : edited.length > 0
+    // A visible control changed but no declaration did: the dialog declared only part of its
+    // state. (Hidden inputs mirror Radix switches, checkboxes and selects for form submission.)
+    const undeclared = edited.filter((element) => !element.closest('[aria-hidden="true"]'))
+    if (declarations.length && !unsaved && undeclared.length)
+      console.warn(
+        '[Dialog] A control changed while every declared value is unchanged; declare the full form state with `value` or useDialogValue (ADR 016):',
+        undeclared
+          .map(
+            (element) =>
+              element.id ||
+              element.getAttribute('name') ||
+              element.getAttribute('aria-label') ||
+              element.outerHTML.slice(0, 120)
+          )
+          .join(', ')
       )
     const editing = mode !== 'view' && mode !== 'confirm' && unsaved
     if (!next && editing && preferences.confirmDialogClose) setConfirming(true)
@@ -163,6 +269,8 @@ function DialogContent({
   onInputCapture,
   onChangeCapture,
   onFocusCapture,
+  onPointerDownCapture,
+  onKeyDownCapture,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
@@ -170,16 +278,21 @@ function DialogContent({
   const dialog = React.useContext(DialogContentContext)
   const content = dialog?.content
   const { t } = useMessages()
-  // Controls outside every data-dirty region: their values on mount, or when they take focus
-  // before a change, are the baseline; a change marks them for comparison on closing.
+  // Controls: their values on mount, or when they take focus before a change, are the
+  // baseline; a change marks them for comparison on closing.
   React.useEffect(() => {
     const node = content?.current
     if (!dialog || !node) return
     for (const element of node.querySelectorAll(CONTROLS)) remember(dialog.changes.current, element)
   }, [dialog, content])
+  // The user's first interaction ends the opening: declared values are compared from here on.
+  const settle = () => {
+    for (const entry of dialog?.declared.current.values() ?? []) entry.settled = true
+  }
   const touch = (target: EventTarget) => {
+    settle()
     const element = target as Element
-    if (dialog && unreported(element)) dialog.changes.current.changed.add(element)
+    if (dialog && isControl(element)) dialog.changes.current.changed.add(element)
   }
   return (
     <DialogPortal data-slot="dialog-portal">
@@ -202,7 +315,17 @@ function DialogContent({
           touch(event.target)
           onChangeCapture?.(event)
         }}
+        onPointerDownCapture={(event) => {
+          settle()
+          onPointerDownCapture?.(event)
+        }}
+        onKeyDownCapture={(event) => {
+          settle()
+          onKeyDownCapture?.(event)
+        }}
         data-slot="dialog-content"
+        // Tools and tests tell a confirmation from an editor or a details view by this.
+        data-dialog-mode={dialog?.mode.current ?? 'edit'}
         className={cn(
           'fixed top-[50%] start-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] ltr:translate-x-[-50%] rtl:-translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border bg-background p-6 shadow-lg duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg',
           className
@@ -293,4 +416,6 @@ export {
   DialogPortal,
   DialogTitle,
   DialogTrigger,
+  DialogValue,
+  useDialogValue,
 }

@@ -130,7 +130,12 @@ function ScheduleDialog({
   }, [destination])
   const kind = destination?.kind
   return (
-    <Dialog mode="edit" open={Boolean(destination)} onOpenChange={(open) => !open && onClose()}>
+    <Dialog
+      mode="edit"
+      open={Boolean(destination)}
+      onOpenChange={(open) => !open && onClose()}
+      value={value}
+    >
       <DialogContent className="sm:max-w-md">
         <form
           onSubmit={(event) => {
@@ -143,9 +148,6 @@ function ScheduleDialog({
               { preserveScroll: true, onFinish: () => setSaving(false), onSuccess: onClose }
             )
           }}
-          data-dirty={
-            destination?.connection ? String(value !== destination.connection.schedule) : undefined
-          }
         >
           <DialogHeader>
             <DialogTitle>جدولة النسخ إلى {kind ? NAMES[kind] : ''}</DialogTitle>

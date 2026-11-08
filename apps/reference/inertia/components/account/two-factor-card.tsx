@@ -370,6 +370,9 @@ export function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorProps }) {
         mode={codes || (!enrolment && !reauth) ? 'view' : 'edit'}
         open={panel === 'enrol'}
         onOpenChange={(open) => !open && close()}
+        // What is typed now: the password to confirm identity, then the code (the secret is
+        // the server's).
+        value={enrolment ? code : password}
       >
         <LongDialogContent
           dir="rtl"
@@ -415,8 +418,6 @@ export function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorProps }) {
               id="two-factor-enrol"
               onSubmit={confirm}
               className="space-y-5"
-              // The code is the only value typed here; the secret is the server's.
-              data-dirty={String(code !== '')}
             >
               <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
                 <dt className="text-muted-foreground">الجهة</dt>
@@ -482,7 +483,6 @@ export function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorProps }) {
             <form
               id="two-factor-reauth"
               className="space-y-4"
-              data-dirty={String(password !== '')}
               onSubmit={(event) => {
                 event.preventDefault()
                 void begin(password)
@@ -526,6 +526,7 @@ export function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorProps }) {
         mode={codes ? 'view' : 'edit'}
         open={panel === 'regenerate'}
         onOpenChange={(open) => !open && close()}
+        value={code}
       >
         <LongDialogContent
           dir="rtl"
@@ -558,7 +559,6 @@ export function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorProps }) {
               id="two-factor-regenerate"
               onSubmit={regenerate}
               className="space-y-4"
-              data-dirty={String(code !== '')}
             >
               <CodeField
                 id="two-factor-regenerate-code"
@@ -572,7 +572,12 @@ export function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorProps }) {
         </LongDialogContent>
       </Dialog>
 
-      <Dialog mode="edit" open={panel === 'disable'} onOpenChange={(open) => !open && close()}>
+      <Dialog
+        mode="edit"
+        open={panel === 'disable'}
+        onOpenChange={(open) => !open && close()}
+        value={{ password, code }}
+      >
         <DialogContent dir="rtl" className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>إيقاف التحقق بخطوتين؟</DialogTitle>
@@ -585,7 +590,6 @@ export function TwoFactorCard({ twoFactor }: { twoFactor: TwoFactorProps }) {
             id="two-factor-disable"
             onSubmit={disable}
             className="space-y-4"
-            data-dirty={String(password !== '' || code !== '')}
           >
             <div className="space-y-2">
               <Label htmlFor="two-factor-disable-password">كلمة المرور الحالية</Label>

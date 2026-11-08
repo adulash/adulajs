@@ -38,8 +38,6 @@ const reload = () => router.reload({ only: ['messagingChannel'] })
 export function MessagingChannelSettings({ channel }: { channel: MessagingChannelProps }) {
   const { confirm, confirmation } = useConfirmAction()
   const [draft, setDraft] = useState<Draft | null>(null)
-  // The values the form opened with: closing asks for confirmation only when they changed.
-  const [opened, setOpened] = useState('')
   const [secret, setSecret] = useState<string | null>(null)
   const [testing, setTesting] = useState<string | null>(null)
   const [error, setError] = useState('')
@@ -129,7 +127,6 @@ export function MessagingChannelSettings({ channel }: { channel: MessagingChanne
               const next: Draft = channel
                 ? { enabled: channel.enabled, kind: channel.kind, url: channel.url }
                 : { enabled: true, kind: 'sms', url: '' }
-              setOpened(JSON.stringify(next))
               setDraft(next)
             }}
           >
@@ -170,7 +167,11 @@ export function MessagingChannelSettings({ channel }: { channel: MessagingChanne
         </div>
       </CardContent>
 
-      <Dialog open={draft !== null} onOpenChange={(open) => !open && !busy && setDraft(null)}>
+      <Dialog
+        open={draft !== null}
+        onOpenChange={(open) => !open && !busy && setDraft(null)}
+        value={draft}
+      >
         <LongDialogContent
           title="قناة الرسائل النصية"
           description="يستقبل المزوّد طلب POST موقّعًا بصيغة JSON لكل رسالة؛ يظهر سر التوقيع مرة واحدة عند الحفظ الأول."
@@ -191,7 +192,6 @@ export function MessagingChannelSettings({ channel }: { channel: MessagingChanne
             id="messaging-channel-form"
             onSubmit={save}
             className="space-y-5"
-            data-dirty={String(draft !== null && JSON.stringify(draft) !== opened)}
           >
             <fieldset className="space-y-2">
               <legend className="mb-1 text-sm font-medium">نوع القناة</legend>

@@ -24,7 +24,7 @@ type LongDialogContentProps = {
   /**
    * Actions shown in the fixed footer: secondary actions first (pushed to the start side with
    * `sm:me-auto`), then «إلغاء» or «إغلاق» as outline inside `DialogClose`, then the primary.
-   * A form reports `data-dirty` so closing asks for confirmation only when values changed.
+   * Closing asks first only while something differs from how the dialog opened (Dialog).
    */
   footer?: React.ReactNode
   /** Dialog width from the small screen breakpoint up; phones always use the full width. */

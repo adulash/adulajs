@@ -9,15 +9,15 @@ import { LongDialogContent } from '~/components/ui/long-dialog'
  * The invitation form as a long dialog. It posts to `/users/invite`, which returns to the page
  * it came from, so the dialog stays open over the users list with its errors; the workspace
  * shows the result as a flash message.
- * Closing asks first only while a field holds text.
+ * Closing asks first only while a field differs from the empty form it opened with.
  */
 export function InviteUserDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const form = useForm({ fullName: '', email: '', form: '' })
-  const dirty = form.data.fullName !== '' || form.data.email !== ''
   return (
     <Dialog
       mode="edit"
       open={open}
+      value={{ fullName: form.data.fullName, email: form.data.email }}
       onOpenChange={(next) => {
         if (next || form.processing) return
         form.reset()
@@ -45,7 +45,6 @@ export function InviteUserDialog({ open, onClose }: { open: boolean; onClose: ()
         <form
           id="invite-user"
           className="space-y-5"
-          data-dirty={dirty ? 'true' : 'false'}
           onSubmit={(event) => {
             event.preventDefault()
             form.post('/users/invite', {

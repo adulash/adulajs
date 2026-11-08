@@ -784,7 +784,6 @@ test.group('Generic resource browser acceptance', (group) => {
     const edit = page.getByRole('link', { name: `تعديل السجل ${saved.id}`, exact: true })
     const dialog = page.getByRole('dialog', { name: 'تعديل عينة' })
     const confirm = page.getByRole('dialog', { name: 'إغلاق النموذج؟' })
-    const dirty = () => dialog.locator('form').first().getAttribute('data-dirty')
     const closesWithoutAsking = async () => {
       await page.keyboard.press('Escape')
       await page.waitForURL(listUrl)
@@ -794,21 +793,18 @@ test.group('Generic resource browser acceptance', (group) => {
 
     await edit.click()
     await dialog.waitFor()
-    assert.equal(await dirty(), 'false')
     await closesWithoutAsking()
 
     await edit.click()
     await dialog.waitFor()
     const field = dialog.getByLabel('العنوان', { exact: true })
     await field.fill(`${title} معدل`)
-    assert.equal(await dirty(), 'true')
     await page.keyboard.press('Escape')
     await confirm.waitFor()
     await page.getByRole('button', { name: 'متابعة التحرير', exact: true }).click()
     await confirm.waitFor({ state: 'hidden' })
     // Reverting the change makes the form clean again.
     await field.fill(title)
-    assert.equal(await dirty(), 'false')
     await closesWithoutAsking()
 
     // A change through a list control, not a text input, asks as well.
@@ -816,7 +812,8 @@ test.group('Generic resource browser acceptance', (group) => {
     await dialog.waitFor()
     await dialog.getByRole('combobox', { name: 'الحالة', exact: true }).click()
     await page.getByRole('option', { name: 'مفتوح', exact: true }).click()
-    assert.equal(await dirty(), 'true')
+    // Escape goes to the dialog only once the option list has closed.
+    await page.getByRole('listbox').waitFor({ state: 'hidden' })
     await page.keyboard.press('Escape')
     await confirm.waitFor()
     await page.getByRole('button', { name: 'إغلاق دون حفظ', exact: true }).click()

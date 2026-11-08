@@ -363,7 +363,12 @@ test.group('Administration screens in the browser', (group) => {
       assert.equal(stored.value.preset, 'sendgrid')
       assert.isString(stored.value.secret)
       assert.notInclude(JSON.stringify(stored.value), secret)
-      // The tab now shows the saved settings in force, the password only as a state.
+      // The tab now shows the saved settings in force, the password only as a state. The page
+      // reloads its props after the success message, so wait for the new summary first.
+      await page
+        .locator('main')
+        .getByText('يرسل النظام بالإعداد المحفوظ هنا.', { exact: false })
+        .waitFor()
       const summary = await page.locator('main').innerText()
       assert.include(summary, 'يرسل النظام بالإعداد المحفوظ هنا.')
       assert.include(summary, '127.0.0.1:2525')
@@ -1147,5 +1152,52 @@ test.group('Administration screens in the browser', (group) => {
       await closesAtOnce()
       await page.close()
     }
+  })
+
+  test('a dialog that saves and stays open compares with what it saved', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(admin)
+    const page = await visit('/admin/settings/mail')
+    await page.setViewportSize({ width: 1440, height: 900 })
+    // The settings are stored and the password is refused: the dialog stays open, the error
+    // names what was kept. (Answered here so the test needs no reachable mail server.)
+    await page.route('**/admin/settings/mail', (route) =>
+      route.request().method() === 'PUT'
+        ? route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+        : route.fallback()
+    )
+    await page.route('**/admin/settings/mail/password', (route) =>
+      route.fulfill({
+        status: 422,
+        contentType: 'application/json',
+        body: JSON.stringify({ errors: [{ message: 'كلمة مرور مرفوضة في الاختبار.' }] }),
+      })
+    )
+    const dialog = page.getByRole('dialog', { name: 'إعداد البريد' })
+    const confirmClose = page.getByRole('dialog', { name: 'إغلاق النموذج؟' })
+    await page.getByRole('button', { name: 'إعداد البريد', exact: true }).click()
+    await dialog.waitFor()
+    const host = dialog.getByLabel('خادم SMTP', { exact: true })
+    const password = dialog.getByLabel('كلمة المرور', { exact: true })
+    await host.fill('smtp.saved-in-dialog.test')
+    await dialog.getByLabel('اسم المرسل', { exact: true }).fill('نظام الاختبار')
+    await dialog.getByLabel('عنوان المرسل', { exact: true }).fill('no-reply@example.test')
+    await password.fill('refused-password')
+    await dialog.getByRole('button', { name: 'حفظ', exact: true }).click()
+    await dialog.getByText('حُفظ الإعداد، وتعذر حفظ كلمة المرور', { exact: false }).waitFor()
+    // The typed password is still unsaved, so closing asks.
+    await page.keyboard.press('Escape')
+    await confirmClose.waitFor()
+    await confirmClose.getByRole('button', { name: 'متابعة التحرير' }).click()
+    await confirmClose.waitFor({ state: 'hidden' })
+    // Without the password, what remains is the host just saved: closing does not ask.
+    await password.fill('')
+    assert.equal(await host.inputValue(), 'smtp.saved-in-dialog.test')
+    await page.keyboard.press('Escape')
+    await dialog.waitFor({ state: 'hidden' })
+    assert.equal(await confirmClose.count(), 0)
   })
 })

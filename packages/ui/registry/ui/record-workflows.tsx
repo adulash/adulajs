@@ -184,6 +184,8 @@ export function WorkflowDecision({
         mode="edit"
         open={choice !== null}
         onOpenChange={(next) => !next && !busy && setChoice(null)}
+        // The note is the only value typed here, and it opens empty.
+        value={comment}
       >
         <LongDialogContent
           dir="rtl"
@@ -222,8 +224,6 @@ export function WorkflowDecision({
               event.preventDefault()
               void submit()
             }}
-            // The note is the only value typed here, and it opens empty.
-            data-dirty={String(comment !== '')}
           >
             <Label htmlFor={`decision-comment-${run.id}`} className="flex items-center gap-1">
               {choice?.comment === 'required' ? (

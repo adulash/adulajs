@@ -74,11 +74,6 @@ export default function WebhooksIndex({ webhooks, events, inbound }: Props) {
   const [busy, setBusy] = useState(false)
   const [secret, setSecret] = useState<string | null>(null)
   const [log, setLog] = useState<{ webhook: Webhook; rows: WebhookDelivery[] } | null>(null)
-  // The values the form opened with: closing asks for confirmation only when they changed.
-  const values = (next: { name: string; url: string; events: string[]; active: boolean }) =>
-    JSON.stringify({ ...next, events: [...next.events].sort() })
-  const [opened, setOpened] = useState('')
-  const dirty = values({ name, url, events: selected, active }) !== opened
 
   const open = (webhook: Webhook | 'new') => {
     const next =
@@ -91,7 +86,6 @@ export default function WebhooksIndex({ webhooks, events, inbound }: Props) {
     setUrl(next.url)
     setSelected(next.events)
     setActive(next.active)
-    setOpened(values(next))
   }
   const save = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -99,11 +93,7 @@ export default function WebhooksIndex({ webhooks, events, inbound }: Props) {
     setError('')
     try {
       if (editing === 'new') {
-        const response = await axios.post(
-          '/admin/webhooks',
-          { name, url, events: selected },
-          json
-        )
+        const response = await axios.post('/admin/webhooks', { name, url, events: selected }, json)
         setSecret(response.data.data.secret)
       } else if (editing) {
         await axios.put(
@@ -198,7 +188,12 @@ export default function WebhooksIndex({ webhooks, events, inbound }: Props) {
       </ul>
       <InboundWebhooks sources={inbound} />
 
-      <Dialog open={editing !== null} onOpenChange={(value) => !value && setEditing(null)}>
+      <Dialog
+        open={editing !== null}
+        onOpenChange={(value) => !value && setEditing(null)}
+        // The events are a set: their order is no change.
+        value={{ name, url, events: [...selected].sort(), active }}
+      >
         <LongDialogContent
           dir="rtl"
           width="2xl"
@@ -217,12 +212,7 @@ export default function WebhooksIndex({ webhooks, events, inbound }: Props) {
             </>
           }
         >
-          <form
-            id="webhook-form"
-            className="space-y-4"
-            data-dirty={String(dirty)}
-            onSubmit={save}
-          >
+          <form id="webhook-form" className="space-y-4" onSubmit={save}>
             <div className="space-y-2">
               <Label htmlFor="webhook-name">الاسم</Label>
               <Input
@@ -268,7 +258,10 @@ export default function WebhooksIndex({ webhooks, events, inbound }: Props) {
               </div>
             )}
             {error && (
-              <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              <p
+                role="alert"
+                className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive"
+              >
                 {error}
               </p>
             )}

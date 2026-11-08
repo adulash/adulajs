@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { ArrowDown, ArrowUp, RotateCcw } from 'lucide-react'
 import { Button } from '~/components/ui/button'
-import { Dialog } from '~/components/ui/dialog'
+import { Dialog, DialogClose } from '~/components/ui/dialog'
 import { LongDialogContent } from '~/components/ui/long-dialog'
 import { useMessages } from '~/components/ui/messages'
 import { applyOrder, move, replaceGroupOrder } from '~/components/shell_navigation'
@@ -49,7 +49,8 @@ export function NavOrderDialog({
     focus.current = null
   }, [lists])
 
-  const dirty = lists.some((list, index) =>
+  // Saving needs a change; closing is decided by the dialog from the declared order below.
+  const changed = lists.some((list, index) =>
     list.some((entry, position) => entry.id !== initial()[index][position]?.id)
   )
 
@@ -94,7 +95,12 @@ export function NavOrderDialog({
   }
 
   return (
-    <Dialog mode="edit" open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      mode="edit"
+      open={open}
+      onOpenChange={onOpenChange}
+      value={lists.map((list) => list.map((entry) => entry.id))}
+    >
       {/* The long dialog pattern: fixed header and footer, only the lists scroll. */}
       <LongDialogContent
         width="lg"
@@ -114,10 +120,12 @@ export function NavOrderDialog({
               <RotateCcw size={16} aria-hidden />
               {t('استعادة الترتيب الافتراضي')}
             </Button>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              {t('إلغاء')}
-            </Button>
-            <Button type="submit" form={formId} disabled={busy || !dirty}>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                {t('إلغاء')}
+              </Button>
+            </DialogClose>
+            <Button type="submit" form={formId} disabled={busy || !changed}>
               {t('حفظ الترتيب')}
             </Button>
           </>
@@ -125,7 +133,6 @@ export function NavOrderDialog({
       >
         <form
           id={formId}
-          data-dirty={dirty ? 'true' : 'false'}
           onSubmit={(event) => {
             event.preventDefault()
             void save()

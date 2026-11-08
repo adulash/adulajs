@@ -22,20 +22,20 @@ const MODAL =
   '[data-slot="dialog-content"]:visible, [data-slot="alert-dialog-content"]:visible, [data-slot="sheet-content"]:visible'
 
 /**
- * Controls that act at once instead of opening a dialog, or that would end the session or
- * change the data the rest of the sweep needs. Deleting and revoking open confirmations, which
- * never ask about unsaved changes by construction (mode="confirm").
+ * The only controls skipped by name: one click ends the sweep's own session for good, with no
+ * dialog first (signing out, ending this session or the impersonation, ending a session from
+ * the administrators' list, which may be this one). Everything else is clicked, and skipped
+ * only by what it did: no dialog opened, a confirmation opened (mode="confirm", which never
+ * asks about unsaved changes by construction) or the click went to another page. Every skip
+ * is logged with its reason, and a sign-out the list missed is logged and the user signed in
+ * again.
  */
-const SKIP =
-  /تسجيل الخروج|خروج|انتحال|حذف|إزالة|إنهاء|إلغاء|تشغيل|إعادة المحاولة|إعادة الإرسال|استعادة|مزامنة|نسخ|حفظ|تطبيق|إرسال|تحديث|تحميل|تنزيل|تصدير|تحديد|التالي|السابق|الصفحة|فرز|المظهر|الوضع|طي|توسيع|إظهار|إخفاء|قبول|رفض|موافقة|اعتماد|تأكيد|تفعيل|تعطيل|إيقاف|نقل|مسح|اختيار ملف/
-
-/** Openers whose names read like actions above but only open a dialog (2FA enrolment). */
-const OPENS = /^تفعيل التحقق بخطوتين$/
+const ENDS_SESSION = /^(تسجيل الخروج|إنهاء الانتحال|إنهاء هذه الجلسة)$|^إنهاء جلسة /
 
 /** The question a dirty dialog asks, under every name it has had. */
 const ASKED = /إغلاق النموذج؟|تجاهل التغييرات/
 
-type Candidate = { id: string; name: string; kind: 'button' | 'link' | 'menu' }
+type Candidate = { id: string; name: string; kind: 'button' | 'link' | 'menu'; ends?: boolean }
 
 /** Watches for the question from the first script on, so a flash of it is caught too. */
 const WATCH = `(() => {
@@ -56,8 +56,7 @@ const WATCH = `(() => {
  * one per key, so the same control is found again after a reload.
  */
 const tag = (scope = 'main') => `(() => {
-  const skip = ${SKIP}
-  const opens = ${OPENS}
+  const ends = ${ENDS_SESSION}
   const visible = (el) => el.getClientRects().length > 0 && getComputedStyle(el).visibility !== 'hidden'
   const nameOf = (el) => (el.getAttribute('aria-label') || el.textContent || el.getAttribute('title') || '').replace(/\\s+/g, ' ').trim()
   const here = location.pathname
@@ -85,14 +84,13 @@ const tag = (scope = 'main') => `(() => {
         if (!same || el.target === '_blank' || el.hasAttribute('download')) continue
         if (/\\/(print|export|imports\\/template)/.test(url.pathname)) continue
       }
-      if (kind !== 'menu' && skip.test(name) && !opens.test(name)) continue
       const key = kind + ':' + (kind === 'link' ? new URL(el.href, location.href).pathname.replace(/\\d+/g, 'N') + new URL(el.href, location.href).search.replace(/\\d+/g, 'N') : name)
       if (!name && kind !== 'menu') continue
       if (seen.has(key)) continue
       seen.add(key)
       // The key, not the position: opening a sidebar group adds controls before later ones.
       el.setAttribute('data-sweep', key)
-      out.push({ id: key, name: name || '(بلا اسم)', kind })
+      out.push({ id: key, name: name || '(بلا اسم)', kind, ends: kind !== 'menu' && ends.test(name) })
     }
   }
   return out
@@ -100,16 +98,36 @@ const tag = (scope = 'main') => `(() => {
 
 type Way = 'Escape' | 'X' | 'footer'
 type Outcome = { page: string; control: string; dialog: string; way: Way; problem: string }
+/** Why a control was not swept as a dialog; every control ends in a dialog or one of these. */
+type SkipReason =
+  | 'ends the session (named)'
+  | 'signed out'
+  | 'no dialog'
+  | 'confirmation'
+  | 'went to another page'
+  | 'not found again'
+type Skip = { page: string; control: string; reason: SkipReason }
 
 class Sweep {
   problems: Outcome[] = []
   covered = new Map<string, Set<Way>>()
+  skips: Skip[] = []
+  /** Controls and menu items considered, and how many ended in a dialog or a logged skip. */
+  considered = 0
+  settled = 0
+  private before = ''
   constructor(
     private page: Page,
     private label: string,
     private prepare: () => Promise<void>,
+    private relogin: () => Promise<void>,
     private scope = 'main'
   ) {}
+
+  private skip(control: string, reason: SkipReason) {
+    this.skips.push({ page: this.label, control, reason })
+    this.settled++
+  }
 
   private async modal() {
     return this.page.locator(MODAL).last()
@@ -143,6 +161,7 @@ class Sweep {
   private async trigger(candidate: Candidate, item?: string): Promise<number | false> {
     await this.prepare()
     const already = await this.page.locator(MODAL).count()
+    this.before = this.page.url()
     // A page may render once more after loading and replace the tagged control: tag again.
     let clicked = false
     for (let attempt = 0; attempt < 3 && !clicked; attempt++) {
@@ -200,14 +219,25 @@ class Sweep {
   async check(candidate: Candidate, item?: string) {
     const control = item ? `${candidate.name} ← ${item}` : candidate.name
     const already = await this.trigger(candidate, item)
-    if (already === false) return
+    if (already === false) return this.skip(control, 'not found again')
     const first = await this.openModal(already)
     if (!first) {
+      const now = new URL(this.page.url())
+      if (now.pathname === '/login' || now.pathname.startsWith('/login/')) {
+        this.skip(control, 'signed out')
+        return this.relogin()
+      }
+      if (this.page.url() !== this.before) return this.skip(control, 'went to another page')
       // A popover or menu left open would hide the next control.
       await this.page.keyboard.press('Escape')
-      return
+      return this.skip(control, 'no dialog')
+    }
+    if ((await first.getAttribute('data-dialog-mode')) === 'confirm') {
+      await this.page.keyboard.press('Escape')
+      return this.skip(control, 'confirmation')
     }
     const dialog = await this.titleOf()
+    this.settled++
     // The same dialog behind many controls (one confirmation per permission) is checked once.
     if (this.covered.has(`${this.label} · ${dialog}`)) {
       await this.page.keyboard.press('Escape')
@@ -259,7 +289,9 @@ class Sweep {
     const candidates = (await this.page.evaluate(tag(this.scope))) as Candidate[]
     for (const candidate of candidates) {
       if (candidate.kind !== 'menu') {
-        await this.check(candidate)
+        this.considered++
+        if (candidate.ends) this.skip(candidate.name, 'ends the session (named)')
+        else await this.check(candidate)
         continue
       }
       // A menu: every item it offers may open a dialog.
@@ -274,7 +306,12 @@ class Sweep {
       )) as string[]
       const items = texts.map((text) => text.replace(/\s+/g, ' ').trim())
       await this.page.keyboard.press('Escape')
-      for (const item of items) if (item && !SKIP.test(item)) await this.check(candidate, item)
+      for (const item of items.filter(Boolean)) {
+        this.considered++
+        if (ENDS_SESSION.test(item))
+          this.skip(`${candidate.name} ← ${item}`, 'ends the session (named)')
+        else await this.check(candidate, item)
+      }
     }
     return candidates
   }
@@ -289,6 +326,7 @@ test.group('Clean close sweep: every dialog closes at once while untouched', (gr
   let recordId: number
   const report: Outcome[] = []
   const covered: string[] = []
+  const skipped: Skip[] = []
 
   group.setup(async () => {
     admin = await seedActor([{ subject: 'all', action: 'manage' }], { fullName: 'مدير المسح' })
@@ -353,7 +391,7 @@ test.group('Clean close sweep: every dialog closes at once while untouched', (gr
   ]
 
   for (const target of targets) {
-    test(`sweep: ${target.label}`, async ({ browserContext, visit }) => {
+    test(`sweep: ${target.label}`, async ({ browserContext, visit, assert }) => {
       await browserContext.addInitScript(WATCH)
       await browserContext.loginAs(admin.user)
       const page = await visit(target.url())
@@ -383,9 +421,13 @@ test.group('Clean close sweep: every dialog closes at once while untouched', (gr
             if (tab)
               await page.locator('main [role=tab]:not(a)').filter({ hasText: tab }).first().click()
           },
+          () => browserContext.loginAs(admin.user),
           target.scope
         )
         const candidates = await sweep.run()
+        // Every control ended in a dialog or a logged skip: none was dropped silently.
+        assert.equal(sweep.settled, sweep.considered, `${label}: every control is accounted for`)
+        skipped.push(...sweep.skips)
         console.log(`[sweep] ${label}: ${candidates.map((c) => `${c.kind}:${c.name}`).join(' | ')}`)
         for (const [dialog, ways] of sweep.covered)
           covered.push(`${dialog} [${[...ways].join(', ')}]`)
@@ -403,6 +445,12 @@ test.group('Clean close sweep: every dialog closes at once while untouched', (gr
     await browserContext.loginAs(admin.user)
     const page = await visit('/')
     await page.setViewportSize({ width: 1440, height: 900 })
+    // A dialog that declares part of its state only is reported on the console (ADR 016).
+    const partial: string[] = []
+    page.on('console', (message) => {
+      if (message.type() === 'warning' && message.text().includes('[Dialog]'))
+        partial.push(message.text())
+    })
     const confirm = page.getByRole('dialog', { name: 'إغلاق النموذج؟' })
     /** Change asks; the original value back closes at once, by Escape. */
     const asksOnlyWhileChanged = async (
@@ -429,7 +477,7 @@ test.group('Clean close sweep: every dialog closes at once while untouched', (gr
     const field = (title: string, label: string) =>
       page.getByRole('dialog', { name: title }).getByLabel(label, { exact: true })
 
-    // A record form (the resource form reports its own state).
+    // A record form (the resource form declares its state with useDialogValue).
     await asksOnlyWhileChanged(
       '/resources/ui_samples',
       () => page.getByRole('link', { name: 'إضافة عينة', exact: true }).click(),
@@ -437,7 +485,7 @@ test.group('Clean close sweep: every dialog closes at once while untouched', (gr
       () => field('إضافة عينة', 'العنوان').fill('عنوان مؤقت'),
       () => field('إضافة عينة', 'العنوان').fill('')
     )
-    // A form that reports data-dirty itself (the invitation).
+    // A form whose state is declared on the Dialog (`value`, the invitation).
     await asksOnlyWhileChanged(
       '/admin/users',
       () => page.getByRole('link', { name: 'دعوة مستخدم', exact: true }).first().click(),
@@ -445,16 +493,12 @@ test.group('Clean close sweep: every dialog closes at once while untouched', (gr
       () => field('دعوة مستخدم', 'الاسم الكامل').fill('اسم مؤقت'),
       () => field('دعوة مستخدم', 'الاسم الكامل').fill('')
     )
-    // A plain form the shared Dialog compares by itself (no data-dirty anywhere).
+    // A plain form that declares nothing: the shared Dialog compares its controls.
     await asksOnlyWhileChanged(
       '/admin/settings',
       () => page.getByRole('button', { name: 'إضافة إعداد', exact: true }).click(),
       'إعداد جديد',
-      async () => {
-        const dialog = page.getByRole('dialog', { name: 'إعداد جديد' })
-        assert.equal(await dialog.locator('[data-dirty]').count(), 0)
-        await field('إعداد جديد', 'المفتاح').fill('sweep.temporary')
-      },
+      () => field('إعداد جديد', 'المفتاح').fill('sweep.temporary'),
       () => field('إعداد جديد', 'المفتاح').fill('')
     )
     // Switches instead of text (the overview layout).
@@ -467,10 +511,62 @@ test.group('Clean close sweep: every dialog closes at once while untouched', (gr
       toggle,
       toggle
     )
-  }).timeout(180_000)
+    // A declared draft object with a set inside (the webhook's events): text and a checkbox.
+    const event = () =>
+      page.getByRole('dialog', { name: 'إضافة ربط خارجي' }).getByRole('checkbox').first().click()
+    await asksOnlyWhileChanged(
+      '/admin/webhooks',
+      () => page.getByRole('button', { name: 'إضافة ربط', exact: true }).click(),
+      'إضافة ربط خارجي',
+      async () => {
+        await field('إضافة ربط خارجي', 'الاسم').fill('ربط مؤقت')
+        await event()
+      },
+      async () => {
+        await field('إضافة ربط خارجي', 'الاسم').fill('')
+        await event()
+      }
+    )
+    // Declared drafts loaded from saved values: the identity and a message template.
+    let company = ''
+    await asksOnlyWhileChanged(
+      '/admin/appearance',
+      () => page.getByRole('button', { name: 'تعديل الهوية', exact: true }).click(),
+      'تعديل الهوية',
+      async () => {
+        company = await field('تعديل الهوية', 'اسم الشركة').inputValue()
+        await field('تعديل الهوية', 'اسم الشركة').fill(`${company} مؤقت`)
+      },
+      () => field('تعديل الهوية', 'اسم الشركة').fill(company)
+    )
+    let subject = ''
+    await asksOnlyWhileChanged(
+      '/admin/templates',
+      () =>
+        page
+          .getByRole('button', { name: /^تعديل / })
+          .first()
+          .click(),
+      'تعديل القالب',
+      async () => {
+        subject = await field('تعديل القالب', 'العنوان').inputValue()
+        await field('تعديل القالب', 'العنوان').fill(`${subject} مؤقت`)
+      },
+      () => field('تعديل القالب', 'العنوان').fill(subject)
+    )
+    assert.deepEqual(partial, [], 'every declared dialog declares its full state')
+  }).timeout(300_000)
 
   test('no dialog asked or stayed open', async ({ assert }) => {
     console.log(`[sweep] covered ${covered.length} dialogs:\n${covered.join('\n')}`)
+    const reasons = Object.entries(
+      Object.groupBy(skipped, (skip) => skip.reason) as Record<string, Skip[]>
+    ).map(([reason, list]) => `${reason}: ${list.length}`)
+    console.log(`[sweep] skipped ${skipped.length} controls (${reasons.join(', ')}):`)
+    console.log(skipped.map((skip) => `${skip.page} · ${skip.control}: ${skip.reason}`).join('\n'))
+    // Only the named session-ending controls are skipped without clicking them.
+    for (const skip of skipped.filter((item) => item.reason === 'ends the session (named)'))
+      assert.match(skip.control.split(' ← ').pop() ?? '', ENDS_SESSION)
     if (report.length)
       console.log(
         `[sweep] problems:\n${report.map((p) => `${p.page} · ${p.control} · ${p.dialog} · ${p.way}: ${p.problem}`).join('\n')}`

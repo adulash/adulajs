@@ -40,8 +40,6 @@ function draftOf(settings: AssistantSettingsView): Draft {
 export default function AdminAssistant({ settings }: Props) {
   const { confirm, confirmation } = useConfirmAction()
   const [draft, setDraft] = useState<Draft | null>(null)
-  // The values the dialog opened with: closing asks first only when they changed.
-  const [initial, setInitial] = useState<Draft | null>(null)
   // The new key, write-only: typed here, sent once, never read back.
   const [key, setKey] = useState('')
   const [changingKey, setChangingKey] = useState(false)
@@ -53,12 +51,8 @@ export default function AdminAssistant({ settings }: Props) {
     setKey('')
     setChangingKey(false)
     setDraft(draftOf(settings))
-    setInitial(draftOf(settings))
   }
 
-  // Typing and then restoring a value counts as clean; a typed key is a change.
-  const dirty =
-    draft !== null && (JSON.stringify(draft) !== JSON.stringify(initial) || key.trim() !== '')
 
   const closeSettings = () => {
     setDraft(null)
@@ -223,6 +217,8 @@ export default function AdminAssistant({ settings }: Props) {
         mode="edit"
         open={draft !== null}
         onOpenChange={(open) => !open && !busy && closeSettings()}
+        // A typed key is a change; the dialog compares it with the draft as it opened.
+        value={{ draft, key: key.trim() }}
       >
         <LongDialogContent
           title="إعداد المساعد"
@@ -247,7 +243,6 @@ export default function AdminAssistant({ settings }: Props) {
             onSubmit={save}
             className="space-y-5"
             autoComplete="off"
-            data-dirty={dirty ? 'true' : 'false'}
           >
             {draft && (
               <>

@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from '~/components/ui/select'
 import { useConfirmAction } from '~/components/ui/confirm-action'
-import { Dialog, DialogClose } from '~/components/ui/dialog'
+import { Dialog, DialogClose, DialogValue } from '~/components/ui/dialog'
 import { LongDialogContent } from '~/components/ui/long-dialog'
 import { failure, json } from '~/components/account/request'
 
@@ -158,12 +158,13 @@ export function MailSetupDialog({
   mailSettingsApply,
 }: MailSetupProps & { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { confirm, confirmation } = useConfirmAction()
-  const [initial, setInitial] = useState(() => draftOf(mailSettings, mailPresets))
-  const [draft, setDraft] = useState(initial)
+  const [draft, setDraft] = useState(() => draftOf(mailSettings, mailPresets))
   const [password, setPassword] = useState('')
   const [changingPassword, setChangingPassword] = useState(false)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  // Counts saves that keep the dialog open: each one starts the settings' comparison afresh.
+  const [saves, setSaves] = useState(0)
   const preset = mailPresets.find((item) => item.id === draft.preset)
 
   // Each opening starts from the saved values, which change after a save.
@@ -171,9 +172,7 @@ export function MailSetupDialog({
   if (open !== wasOpen) {
     setWasOpen(open)
     if (open) {
-      const next = draftOf(mailSettings, mailPresets)
-      setInitial(next)
-      setDraft(next)
+      setDraft(draftOf(mailSettings, mailPresets))
       setPassword('')
       setChangingPassword(false)
       setError('')
@@ -183,8 +182,6 @@ export function MailSetupDialog({
     if (!busy) onOpenChange(next)
   }
 
-  // Typing and then restoring a value is clean; a typed password is a change.
-  const dirty = JSON.stringify(draft) !== JSON.stringify(initial) || password !== ''
   const hostChanged =
     mailSettings.hasPassword && draft.host.trim().toLowerCase() !== mailSettings.host
   const showPassword =
@@ -226,7 +223,8 @@ export function MailSetupDialog({
       reload()
     } catch (caught) {
       if (saved) {
-        setInitial(draft)
+        // The settings are stored; only the typed password is still unsaved.
+        setSaves((count) => count + 1)
         setError(`حُفظ الإعداد، وتعذر حفظ كلمة المرور: ${failure(caught, 'خطأ غير متوقع.')}`)
         reload()
       } else setError(failure(caught, 'تعذر حفظ إعداد البريد.'))
@@ -272,12 +270,15 @@ export function MailSetupDialog({
             </>
           }
         >
+          {/* The dialog compares the settings with how they opened or were last saved, and a
+              typed password with none. */}
+          <DialogValue key={saves} value={draft} />
+          <DialogValue value={password} />
           <form
             id="mail-settings"
             onSubmit={save}
             className="space-y-5 text-sm"
             autoComplete="off"
-            data-dirty={dirty ? 'true' : 'false'}
           >
             {!mailSettingsApply && (
               <Alert>

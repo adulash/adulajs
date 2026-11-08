@@ -64,10 +64,6 @@ export function CustomizeOverviewDialog({
       setSaving(false)
     }
   }
-  // Clean when every row is where and as it opened, even after moving one away and back.
-  const arrangement = (list: { id: string; hidden: boolean }[]) =>
-    JSON.stringify(list.map((row) => [row.id, row.hidden]))
-  const dirty = open && rows.length > 0 && arrangement(rows) !== arrangement(overview.widgets)
   const restore = () =>
     confirm({
       title: t('استعادة الترتيب الافتراضي؟'),
@@ -81,7 +77,13 @@ export function CustomizeOverviewDialog({
     })
 
   return (
-    <Dialog mode="edit" open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      mode="edit"
+      open={open}
+      onOpenChange={onOpenChange}
+      // Where and whether each row shows; moving one away and back is no change.
+      value={rows.map((row) => [row.id, row.hidden])}
+    >
       <LongDialogContent
         dir={dir}
         width="lg"
@@ -118,7 +120,6 @@ export function CustomizeOverviewDialog({
             event.preventDefault()
             void submit()
           }}
-          data-dirty={String(dirty)}
         >
           <SortableList
           label={t('عناصر النظرة العامة')}
