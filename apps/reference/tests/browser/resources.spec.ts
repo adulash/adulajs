@@ -12,6 +12,19 @@ import {
   type UiActor,
 } from '#tests/helpers/ui_fixtures'
 
+/**
+ * Saving a new record returns to the list with the new row first and highlighted (owner,
+ * 2.3.0); the record's own page opens from that row.
+ */
+async function openCreatedRecord(page: Page, resource: string) {
+  await page.waitForURL(new RegExp(`/resources/${resource}$`))
+  const row = page.locator('main tr[data-created]')
+  await row.waitFor({ state: 'attached' })
+  const id = await row.getAttribute('data-row-id')
+  await page.goto(`/resources/${resource}/${id}`)
+  return id
+}
+
 // The server tsconfig omits the DOM lib; these run inside the page through evaluate().
 type Scrollable = {
   scrollTop: number
@@ -105,7 +118,7 @@ test.group('Generic resource browser acceptance', (group) => {
     await page.getByLabel('اسم العميل', { exact: true }).fill(name)
     await page.getByLabel('البريد الإلكتروني', { exact: true }).fill('generic@example.test')
     await page.getByRole('button', { name: 'حفظ السجل', exact: true }).click()
-    await page.waitForURL(/\/resources\/customers\/\d+$/)
+    await openCreatedRecord(page, 'customers')
     await page.getByRole('heading', { name: 'تفاصيل · العملاء' }).waitFor()
     await page.getByRole('dialog', { name: 'تفاصيل · العملاء' }).waitFor()
     await page.assertVisible(page.getByText(name, { exact: true }))
@@ -154,7 +167,7 @@ test.group('Generic resource browser acceptance', (group) => {
     await page.screenshot({ path: join(shots, 'form-mobile.png'), fullPage: true })
     await page.setViewportSize({ width: 1280, height: 900 })
     await page.getByRole('button', { name: 'حفظ السجل', exact: true }).click()
-    await page.waitForURL(/\/resources\/tasks\/\d+$/)
+    await openCreatedRecord(page, 'tasks')
     await page.assertVisible(page.getByText(title, { exact: true }))
     await page.assertVisible(page.getByText(orderNumber, { exact: true }))
     await page.assertVisible(page.getByText('نعم', { exact: true }))
@@ -206,7 +219,7 @@ test.group('Generic resource browser acceptance', (group) => {
     await page.getByRole('heading', { name: 'إضافة عينة', exact: true }).waitFor()
     await page.getByRole('button', { name: 'حفظ السجل', exact: true }).click()
     await page.getByText('تمت إضافة عينة', { exact: true }).waitFor()
-    await page.waitForURL(/\/resources\/ui_samples\/\d+$/)
+    await openCreatedRecord(page, 'ui_samples')
     await page.getByRole('heading', { name: 'تفاصيل · عينات الواجهة' }).waitFor()
     await page.assertVisible(page.getByText('1,234.50'))
     await page.assertVisible(page.getByText('مفتوح', { exact: true }))
@@ -341,7 +354,17 @@ test.group('Generic resource browser acceptance', (group) => {
       body.props.presentation = 'page'
       await route.fulfill({ response, json: body })
     })
+    // «إضافة» reads the form as JSON for a dialog over the list; a page presentation there
+    // makes it visit the page instead.
+    await page.route('**/resources/customers/create/view', async (route) => {
+      const response = await route.fetch()
+      const body = await response.json()
+      body.presentation = 'page'
+      await route.fulfill({ response, json: body })
+    })
     await page.getByRole('link', { name: 'إضافة سجل', exact: true }).click()
+    // The page's own way back: the dialog shell shown on the click has given way to the page.
+    await page.getByRole('link', { name: 'العودة إلى القائمة', exact: true }).waitFor()
     await page.getByRole('heading', { name: 'إضافة · العملاء' }).waitFor()
     assert.equal(await page.getByRole('dialog').count(), 0)
     await page.assertVisible(page.getByLabel('اسم العميل', { exact: true }))
@@ -1118,7 +1141,7 @@ test.group('Generic resource browser acceptance', (group) => {
       await page.keyboard.press('Escape')
       assert.equal(await page.getByRole('dialog', { name: 'إغلاق النموذج؟' }).count(), 0)
       await page.getByRole('button', { name: 'حفظ السجل', exact: true }).click()
-      await page.waitForURL(/\/resources\/ui_samples\/\d+$/)
+      await openCreatedRecord(page, 'ui_samples')
       const stored = await knex()('ui_samples').where({ title }).first()
       assert.equal(new Date(stored.day).toISOString().slice(0, 10), '2017-10-14')
       await page

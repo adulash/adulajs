@@ -1,9 +1,44 @@
+import type { MouseEvent } from 'react'
 import { useForm } from '@inertiajs/react'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Dialog, DialogClose } from '~/components/ui/dialog'
 import { LongDialogContent } from '~/components/ui/long-dialog'
+import { clientVisit, plainClick } from '~/components/ui/resource-surface'
+
+/**
+ * Opens the invitation over the users list when that list is on screen: the address gains
+ * `?invite=1` with no request, so the list is not rendered again and the dialog's opening
+ * animation starts at once. Elsewhere, and for modified clicks, the link visits the list.
+ */
+export function openInvite(event: MouseEvent<HTMLAnchorElement>) {
+  if (!plainClick(event) || window.location.pathname !== '/admin/users') return
+  event.preventDefault()
+  const query = new URLSearchParams(window.location.search)
+  query.set('invite', '1')
+  clientVisit(
+    'push',
+    { url: `/admin/users?${query}`, preserveState: true, preserveScroll: true },
+    true
+  )
+}
+
+/** Closes the invitation over the users list, again with no request. */
+export function closeInvite() {
+  const query = new URLSearchParams(window.location.search)
+  query.delete('invite')
+  const rest = query.toString()
+  clientVisit(
+    'replace',
+    {
+      url: `/admin/users${rest ? `?${rest}` : ''}`,
+      preserveState: true,
+      preserveScroll: true,
+    },
+    true
+  )
+}
 
 /**
  * The invitation form as a long dialog. It posts to `/users/invite`, which returns to the page

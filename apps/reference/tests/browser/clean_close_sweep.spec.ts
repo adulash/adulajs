@@ -96,7 +96,17 @@ const tag = (scope = 'main') => `(() => {
   return out
 })()`
 
-type Way = 'Escape' | 'X' | 'footer'
+/** How a dialog was closed; `open` is a fault found while it opened. */
+type Way = 'open' | 'Escape' | 'X' | 'footer'
+
+/**
+ * Remembers the page behind the dialog (its heading, else its first block), to check that
+ * opening a dialog never replaces the page's main content (owner's defect, 2.3.0).
+ */
+const MARK_PAGE = `(() => {
+  window.__sweepPage = document.querySelector('main h1') || document.querySelector('main > *')
+})()`
+const PAGE_KEPT = `(() => !!window.__sweepPage && window.__sweepPage.isConnected)()`
 type Outcome = { page: string; control: string; dialog: string; way: Way; problem: string }
 /** Why a control was not swept as a dialog; every control ends in a dialog or one of these. */
 type SkipReason =
@@ -162,6 +172,7 @@ class Sweep {
     await this.prepare()
     const already = await this.page.locator(MODAL).count()
     this.before = this.page.url()
+    await this.page.evaluate(MARK_PAGE)
     // A page may render once more after loading and replace the tagged control: tag again.
     let clicked = false
     for (let attempt = 0; attempt < 3 && !clicked; attempt++) {
@@ -238,6 +249,15 @@ class Sweep {
     }
     const dialog = await this.titleOf()
     this.settled++
+    // The dialog opened over the page: the page behind it was not rendered again.
+    if (!(await this.page.evaluate(PAGE_KEPT)))
+      this.problems.push({
+        page: this.label,
+        control,
+        dialog,
+        way: 'open',
+        problem: 'replaced the page',
+      })
     // The same dialog behind many controls (one confirmation per permission) is checked once.
     if (this.covered.has(`${this.label} · ${dialog}`)) {
       await this.page.keyboard.press('Escape')

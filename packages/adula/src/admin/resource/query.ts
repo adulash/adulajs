@@ -73,6 +73,11 @@ export type ListOptions = {
    * row's permissions carry `restore` (ADR 046).
    */
   trashed?: boolean
+  /**
+   * Only these records, under the same authorization as the whole list: the row a dialog just
+   * created, pinned at the top of the list it was created from.
+   */
+  ids?: number[]
 }
 
 /**
@@ -352,6 +357,11 @@ function listQuery(ctx: ResourceContext, name: string, actor: Actor, options: Li
     const viewable = authorizationSql(ability, 'view', resource)
     base.whereRaw(viewable.text, viewable.bindings)
   } else base.whereNull('r.deleted_at')
+  if (options.ids) {
+    const ids = options.ids.filter((id) => Number.isSafeInteger(id) && id > 0)
+    if (ids.length === 0) base.whereRaw('false')
+    else base.whereIn('r.id', ids)
+  }
   const query = accessibleBy(base, ability, actor, trashed ? 'delete' : 'view', resource)
   query.select(columns(resource, ability, false, [sort]))
   if (resource.scoped) query.select('ou.path as org_path')

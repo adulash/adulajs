@@ -7,6 +7,8 @@ import type { WorkflowRun } from 'adula'
 import Workspace from '~/layouts/workspace'
 import { useDateTimeFormatter } from '~/components/admin-nav'
 import { Button } from '~/components/ui/button'
+import { openRecord, plainClick } from '~/components/ui/resource-surface'
+import { RecordOverlayDialog } from '~/components/ui/resource-page'
 
 type Props = { runs: WorkflowRun[] }
 
@@ -52,6 +54,14 @@ export default function FailedWorkflows({ runs }: Props) {
                 <td className="px-5 py-3">
                   <Link
                     href={`/resources/${run.resource}/${run.recordId}`}
+                    // The record opens in a dialog over this list, which stays mounted.
+                    onClick={(event) => {
+                      if (!plainClick(event)) return
+                      event.preventDefault()
+                      void openRecord(run.resource, run.recordId, 'show', {
+                        label: run.resourceLabel,
+                      })
+                    }}
                     className="text-primary"
                   >
                     {run.resourceLabel} #{run.recordId}
@@ -100,6 +110,7 @@ export default function FailedWorkflows({ runs }: Props) {
           </tbody>
         </table>
       </div>
+      <RecordOverlayDialog />
     </>
   )
 }

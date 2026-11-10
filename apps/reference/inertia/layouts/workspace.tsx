@@ -60,6 +60,7 @@ import { RailLink, railItemClass, useRailSide } from '~/components/rail-link'
 import { moduleIcons } from '~/components/module_icons'
 import { usePreference } from '~/components/preferences'
 import { resolvedTheme, type Theme } from '~/components/theme'
+import { openInvite } from '~/components/invite-user-dialog'
 import {
   applyOrder,
   effectiveLayout,
@@ -447,6 +448,8 @@ export default function Workspace({ children }: { children: ReactNode }) {
                       <Link
                         // Administrators invite over the users list; the address opens that dialog directly.
                         href={page.props.isAdmin ? "/admin/users?invite=1" : "/users/invite"}
+                        // Over the users list it opens there at once, with no request.
+                        onClick={page.props.isAdmin ? openInvite : undefined}
                         className="mb-4 flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground"
                       >
                         <UserPlus size={14} />

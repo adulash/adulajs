@@ -344,6 +344,59 @@ test.group('Generic pages for scoped and versioned resources', (group) => {
     hidden.assertStatus(404)
   })
 
+  test('the create form is served as JSON for the dialog over the list, authorized', async ({
+    client,
+    assert,
+  }) => {
+    const json = { Accept: 'application/json' }
+    const created = await client
+      .get('/resources/ui_samples/create/view')
+      .qs({ defaults: { title: 'عنوان مقترح' } })
+      .loginAs(admin.user)
+      .headers(json)
+    created.assertStatus(200)
+    assert.equal(created.body().view.mode, 'form')
+    assert.equal(created.body().view.editor.mode, 'create')
+    assert.equal(created.body().view.editor.name, 'ui_samples')
+    assert.equal(created.body().view.editor.defaults.title, 'عنوان مقترح')
+    // Orders have their own form page; «إضافة» navigates there instead.
+    const override = await client
+      .get('/resources/orders/create/view')
+      .loginAs(admin.user)
+      .headers(json)
+    override.assertStatus(409)
+    // Reading a resource does not open its create form.
+    const reader = await seedActor([{ subject: 'ui_samples', action: 'view' }])
+    const refused = await client
+      .get('/resources/ui_samples/create/view')
+      .loginAs(reader.user)
+      .headers(json)
+    refused.assertStatus(403)
+  })
+
+  test('a created record is read as one row of its list, under the list authorization', async ({
+    client,
+    assert,
+  }) => {
+    const json = { Accept: 'application/json' }
+    const row = await client
+      .get(`/resources/ui_samples/${sampleId}/row`)
+      .loginAs(admin.user)
+      .headers(json)
+    row.assertStatus(200)
+    assert.lengthOf(row.body().data, 1)
+    assert.equal(row.body().data[0].id, sampleId)
+    assert.isString(row.body().data[0]._title)
+    assert.isTrue(row.body().permissions[String(sampleId)].update)
+    // A record outside the actor's organization scope is not a row of their list.
+    const outsider = await seedActor([{ subject: 'all', action: 'manage' }])
+    const hidden = await client
+      .get(`/resources/orders/${orderId}/row`)
+      .loginAs(outsider.user)
+      .headers(json)
+    hidden.assertStatus(404)
+  })
+
   test('the deferred activity route re-authorizes the record', async ({ client }) => {
     const outsider = await seedActor([{ subject: 'all', action: 'manage' }])
     const response = await client
