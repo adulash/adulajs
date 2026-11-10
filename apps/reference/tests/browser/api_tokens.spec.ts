@@ -93,7 +93,18 @@ test.group('API tokens in the settings (administrators only)', (group) => {
     const stored = await knex()('auth_access_tokens').where('tokenable_id', admin.id)
     assert.lengthOf(stored, 1)
 
+    // Revoking stops the integrations at once, so it asks first; «تراجع» keeps the token.
+    const revoke = page.getByRole('dialog', { name: 'إلغاء الرمز «تكامل المحاسبة»' })
     await row.getByRole('button', { name: 'إلغاء تكامل المحاسبة' }).click()
+    await revoke.getByText('تتوقف فورًا كل التكاملات التي تستخدم هذا الرمز').waitFor()
+    await snapshot(page, 'revoke')
+    await revoke.getByRole('button', { name: 'تراجع', exact: true }).click()
+    await revoke.waitFor({ state: 'hidden' })
+    await row.waitFor()
+    assert.lengthOf(await knex()('auth_access_tokens').where('tokenable_id', admin.id), 1)
+
+    await row.getByRole('button', { name: 'إلغاء تكامل المحاسبة' }).click()
+    await revoke.getByRole('button', { name: 'إلغاء الرمز', exact: true }).click()
     await page.getByText('لا رموز بعد.').waitFor()
     assert.lengthOf(await knex()('auth_access_tokens').where('tokenable_id', admin.id), 0)
   })

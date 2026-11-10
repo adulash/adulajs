@@ -5,6 +5,7 @@ import { Copy, KeySquare, Plus, Trash2 } from 'lucide-react'
 import Workspace from '~/layouts/workspace'
 import { AdminHeader, useDateTimeFormatter } from '~/components/admin-nav'
 import { Badge } from '~/components/ui/badge'
+import { useConfirmAction } from '~/components/ui/confirm-action'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
@@ -31,6 +32,7 @@ const json = { headers: { Accept: 'application/json' }, withXSRFToken: true }
 
 export default function ApiTokens({ tokens }: Props) {
   const formatDateTime = useDateTimeFormatter()
+  const { confirm, confirmation } = useConfirmAction()
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
   const [access, setAccess] = useState<'read' | 'write'>('read')
@@ -65,8 +67,8 @@ export default function ApiTokens({ tokens }: Props) {
         title="رموز API"
         description={
           <>
-            يعمل الرمز بصلاحياتك الحالية نفسها عبر <code dir="ltr">/api/v1</code>. وصف الواجهة
-            متاح في <code dir="ltr">/api/v1/openapi.json</code>.
+            يعمل الرمز بصلاحياتك الحالية نفسها عبر <code dir="ltr">/api/v1</code>. وصف الواجهة متاح
+            في <code dir="ltr">/api/v1/openapi.json</code>.
           </>
         }
       >
@@ -98,10 +100,20 @@ export default function ApiTokens({ tokens }: Props) {
               size="sm"
               variant="ghost"
               aria-label={`إلغاء ${token.name ?? token.id}`}
-              onClick={async () => {
-                await axios.delete(`/admin/tokens/${token.id}`, json)
-                router.reload({ only: ['tokens'] })
-              }}
+              onClick={() =>
+                // A revoked token stops its integrations at once and cannot be restored.
+                confirm({
+                  title: `إلغاء الرمز «${token.name ?? `رمز #${token.id}`}»`,
+                  description:
+                    'تتوقف فورًا كل التكاملات التي تستخدم هذا الرمز، ولا يمكن التراجع عن الإلغاء.',
+                  label: 'إلغاء الرمز',
+                  destructive: true,
+                  action: async () => {
+                    await axios.delete(`/admin/tokens/${token.id}`, json)
+                    router.reload({ only: ['tokens'] })
+                  },
+                })
+              }
             >
               <Trash2 size={14} />
               إلغاء الرمز
@@ -155,7 +167,10 @@ export default function ApiTokens({ tokens }: Props) {
               />
             </div>
             {error && (
-              <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
+              <p
+                role="alert"
+                className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive"
+              >
                 {error}
               </p>
             )}
@@ -174,7 +189,9 @@ export default function ApiTokens({ tokens }: Props) {
         <DialogContent dir="rtl">
           <DialogHeader>
             <DialogTitle>انسخ الرمز الآن</DialogTitle>
-            <DialogDescription>لن يظهر الرمز مرة أخرى. أرسله في ترويسة Authorization.</DialogDescription>
+            <DialogDescription>
+              لن يظهر الرمز مرة أخرى. أرسله في ترويسة Authorization.
+            </DialogDescription>
           </DialogHeader>
           <code dir="ltr" className="block break-all rounded-lg bg-muted px-3 py-2 text-xs">
             Bearer {secret}
@@ -194,6 +211,7 @@ export default function ApiTokens({ tokens }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {confirmation}
     </>
   )
 }
