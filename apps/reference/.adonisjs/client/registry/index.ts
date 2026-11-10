@@ -552,24 +552,6 @@ const routes = {
     tokens: [{"old":"/account/two-factor","type":0,"val":"account","end":""},{"old":"/account/two-factor","type":0,"val":"two-factor","end":""}],
     types: placeholder as Registry['two_factor.destroy']['types'],
   },
-  'api_tokens.index': {
-    methods: ["GET","HEAD"],
-    pattern: '/admin/tokens',
-    tokens: [{"old":"/admin/tokens","type":0,"val":"admin","end":""},{"old":"/admin/tokens","type":0,"val":"tokens","end":""}],
-    types: placeholder as Registry['api_tokens.index']['types'],
-  },
-  'api_tokens.store': {
-    methods: ["POST"],
-    pattern: '/admin/tokens',
-    tokens: [{"old":"/admin/tokens","type":0,"val":"admin","end":""},{"old":"/admin/tokens","type":0,"val":"tokens","end":""}],
-    types: placeholder as Registry['api_tokens.store']['types'],
-  },
-  'api_tokens.destroy': {
-    methods: ["DELETE"],
-    pattern: '/admin/tokens/:id',
-    tokens: [{"old":"/admin/tokens/:id","type":0,"val":"admin","end":""},{"old":"/admin/tokens/:id","type":0,"val":"tokens","end":""},{"old":"/admin/tokens/:id","type":1,"val":"id","end":""}],
-    types: placeholder as Registry['api_tokens.destroy']['types'],
-  },
   'account_sessions.index': {
     methods: ["GET","HEAD"],
     pattern: '/account/sessions',
@@ -965,6 +947,24 @@ const routes = {
     pattern: '/admin/settings/:id',
     tokens: [{"old":"/admin/settings/:id","type":0,"val":"admin","end":""},{"old":"/admin/settings/:id","type":0,"val":"settings","end":""},{"old":"/admin/settings/:id","type":1,"val":"id","end":""}],
     types: placeholder as Registry['admin_settings.destroy']['types'],
+  },
+  'api_tokens.index': {
+    methods: ["GET","HEAD"],
+    pattern: '/admin/tokens',
+    tokens: [{"old":"/admin/tokens","type":0,"val":"admin","end":""},{"old":"/admin/tokens","type":0,"val":"tokens","end":""}],
+    types: placeholder as Registry['api_tokens.index']['types'],
+  },
+  'api_tokens.store': {
+    methods: ["POST"],
+    pattern: '/admin/tokens',
+    tokens: [{"old":"/admin/tokens","type":0,"val":"admin","end":""},{"old":"/admin/tokens","type":0,"val":"tokens","end":""}],
+    types: placeholder as Registry['api_tokens.store']['types'],
+  },
+  'api_tokens.destroy': {
+    methods: ["DELETE"],
+    pattern: '/admin/tokens/:id',
+    tokens: [{"old":"/admin/tokens/:id","type":0,"val":"admin","end":""},{"old":"/admin/tokens/:id","type":0,"val":"tokens","end":""},{"old":"/admin/tokens/:id","type":1,"val":"id","end":""}],
+    types: placeholder as Registry['api_tokens.destroy']['types'],
   },
   'admin_lookups.index': {
     methods: ["GET","HEAD"],

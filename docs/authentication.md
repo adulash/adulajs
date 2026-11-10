@@ -229,8 +229,10 @@ On `/api/v1`, a token works only while its owner is an administrator. A token of
 user, for example one minted before 2.3.0 or before its owner lost `manage all`, is refused
 with `403 E_TOKEN_ADMIN_ONLY` when it is used; its row is not deleted. The user's
 administration page lists that user's tokens and revokes them. An administrator acting as
-another user cannot mint a token (`403 E_IMPERSONATING`), and the second-factor
-requirement above still applies.
+another user cannot mint a token: only non-administrators can be impersonated, so the
+administration check answers `403 E_FORBIDDEN` first, and the token controller's own
+`403 E_IMPERSONATING` check stays behind it. The second-factor requirement above still
+applies.
 
 ## Impersonation
 

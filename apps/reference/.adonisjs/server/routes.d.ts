@@ -95,9 +95,6 @@ export type ScannedRoutes = {
     'two_factor.confirm': { paramsTuple?: []; params?: {} }
     'two_factor.regenerate': { paramsTuple?: []; params?: {} }
     'two_factor.destroy': { paramsTuple?: []; params?: {} }
-    'api_tokens.index': { paramsTuple?: []; params?: {} }
-    'api_tokens.store': { paramsTuple?: []; params?: {} }
-    'api_tokens.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'account_sessions.index': { paramsTuple?: []; params?: {} }
     'account_sessions.purge': { paramsTuple?: []; params?: {} }
     'account_sessions.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -164,6 +161,9 @@ export type ScannedRoutes = {
     'admin_settings.upsert': { paramsTuple?: []; params?: {} }
     'admin_authentication_settings.update': { paramsTuple?: []; params?: {} }
     'admin_settings.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'api_tokens.index': { paramsTuple?: []; params?: {} }
+    'api_tokens.store': { paramsTuple?: []; params?: {} }
+    'api_tokens.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin_lookups.index': { paramsTuple?: []; params?: {} }
     'admin_lookups.store': { paramsTuple?: []; params?: {} }
     'admin_lookups.reorder': { paramsTuple: [ParamValue]; params: {'group': ParamValue} }
@@ -217,7 +217,6 @@ export type ScannedRoutes = {
     'oauth.callback': { paramsTuple: [ParamValue]; params: {'provider': ParamValue} }
     'user_invitations.create': { paramsTuple?: []; params?: {} }
     'profile.show': { paramsTuple?: []; params?: {} }
-    'api_tokens.index': { paramsTuple?: []; params?: {} }
     'account_sessions.index': { paramsTuple?: []; params?: {} }
     'admin_sessions.index': { paramsTuple?: []; params?: {} }
     'notifications.index': { paramsTuple?: []; params?: {} }
@@ -236,6 +235,7 @@ export type ScannedRoutes = {
     'admin_webhooks.deliveries': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin_webhooks.inbound_deliveries': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'setup.index': { paramsTuple?: []; params?: {} }
+    'api_tokens.index': { paramsTuple?: []; params?: {} }
     'admin_lookups.index': { paramsTuple?: []; params?: {} }
     'admin_sequences.index': { paramsTuple?: []; params?: {} }
   }
@@ -282,7 +282,6 @@ export type ScannedRoutes = {
     'oauth.callback': { paramsTuple: [ParamValue]; params: {'provider': ParamValue} }
     'user_invitations.create': { paramsTuple?: []; params?: {} }
     'profile.show': { paramsTuple?: []; params?: {} }
-    'api_tokens.index': { paramsTuple?: []; params?: {} }
     'account_sessions.index': { paramsTuple?: []; params?: {} }
     'admin_sessions.index': { paramsTuple?: []; params?: {} }
     'notifications.index': { paramsTuple?: []; params?: {} }
@@ -301,6 +300,7 @@ export type ScannedRoutes = {
     'admin_webhooks.deliveries': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin_webhooks.inbound_deliveries': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'setup.index': { paramsTuple?: []; params?: {} }
+    'api_tokens.index': { paramsTuple?: []; params?: {} }
     'admin_lookups.index': { paramsTuple?: []; params?: {} }
     'admin_sequences.index': { paramsTuple?: []; params?: {} }
   }
@@ -342,7 +342,6 @@ export type ScannedRoutes = {
     'two_factor.begin': { paramsTuple?: []; params?: {} }
     'two_factor.confirm': { paramsTuple?: []; params?: {} }
     'two_factor.regenerate': { paramsTuple?: []; params?: {} }
-    'api_tokens.store': { paramsTuple?: []; params?: {} }
     'oauth.link': { paramsTuple: [ParamValue]; params: {'provider': ParamValue} }
     'notifications.read_all': { paramsTuple?: []; params?: {} }
     'notifications.read': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -370,6 +369,7 @@ export type ScannedRoutes = {
     'setup.notification': { paramsTuple?: []; params?: {} }
     'admin_settings.test_mail': { paramsTuple?: []; params?: {} }
     'admin_settings.confirm_mail': { paramsTuple?: []; params?: {} }
+    'api_tokens.store': { paramsTuple?: []; params?: {} }
     'admin_lookups.store': { paramsTuple?: []; params?: {} }
     'admin_lookups.disable': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin_lookups.enable': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
@@ -390,7 +390,6 @@ export type ScannedRoutes = {
     'saved_views.destroy': { paramsTuple: [ParamValue,ParamValue]; params: {'resource': ParamValue,'id': ParamValue} }
     'api.resources.destroy': { paramsTuple: [ParamValue,ParamValue]; params: {'resource': ParamValue,'id': ParamValue} }
     'two_factor.destroy': { paramsTuple?: []; params?: {} }
-    'api_tokens.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'account_sessions.purge': { paramsTuple?: []; params?: {} }
     'account_sessions.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'oauth.unlink': { paramsTuple: [ParamValue]; params: {'provider': ParamValue} }
@@ -404,6 +403,7 @@ export type ScannedRoutes = {
     'admin_webhooks.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin_webhooks.destroy_inbound': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin_settings.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'api_tokens.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'admin_lookups.destroy': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
   }
   PUT: {
