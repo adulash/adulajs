@@ -86,7 +86,7 @@ test.group('Dialog close: ask only for unsaved changes', (group) => {
   }) => {
     await browserContext.loginAs(admin.user)
     // The API token form is a plain form in a dialog: it declares no state of its own.
-    const page = await visit('/account/tokens')
+    const page = await visit('/admin/tokens')
     await page.setViewportSize({ width: 1440, height: 900 })
     const dialog = page.getByRole('dialog', { name: 'إنشاء رمز API' })
     const confirm = page.getByRole('dialog', { name: 'إغلاق النموذج؟' })

@@ -320,9 +320,6 @@ router
     router.get('account/delegations/candidates', [DelegationsController, 'candidates'])
     router.post('account/delegations', [DelegationsController, 'store'])
     router.delete('account/delegations/:id', [DelegationsController, 'destroy'])
-    router.get('account/tokens', [ApiTokensController, 'index'])
-    router.post('account/tokens', [ApiTokensController, 'store']).use(apiThrottle)
-    router.delete('account/tokens/:id', [ApiTokensController, 'destroy'])
     router.get('account/sessions', [AccountSessionsController, 'index'])
     router.delete('account/sessions', [AccountSessionsController, 'purge'])
     router.delete('account/sessions/:id', [AccountSessionsController, 'destroy'])
@@ -336,6 +333,21 @@ router
     router.delete('admin/sessions/:id', [AdminSessionsController, 'destroy'])
   })
   .use(middleware.auth())
+
+// The former account address of the API tokens: the administration check answers 403 to
+// everyone else; an administrator's old bookmark opens the settings tab, and a script's old
+// request keeps its method (308) on the new address.
+router
+  .get('account/tokens', ({ response }) => response.redirect('/admin/tokens'))
+  .use([middleware.auth(), middleware.admin()])
+router
+  .post('account/tokens', ({ response }) => response.redirect('/admin/tokens', false, 308))
+  .use([middleware.auth(), middleware.admin()])
+router
+  .delete('account/tokens/:id', ({ params, response }) =>
+    response.redirect(`/admin/tokens/${encodeURIComponent(params.id)}`, false, 308)
+  )
+  .use([middleware.auth(), middleware.admin()])
 
 router
   .group(() => {
@@ -455,6 +467,10 @@ router
       .post('settings/channels/test', [AdminSettingsController, 'testChannel'])
       .use(channelTestThrottle)
     router.delete('settings/:id', [AdminSettingsController, 'destroy'])
+    // API tokens belong to administrators (owner decision, 2.3.0): a settings tab.
+    router.get('tokens', [ApiTokensController, 'index'])
+    router.post('tokens', [ApiTokensController, 'store']).use(apiThrottle)
+    router.delete('tokens/:id', [ApiTokensController, 'destroy'])
     router.get('appearance', [AdminAppearanceController, 'index'])
     router.put('appearance', [AdminAppearanceController, 'updateIdentity'])
     router.delete('appearance', [AdminAppearanceController, 'resetIdentity'])

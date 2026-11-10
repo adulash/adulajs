@@ -84,6 +84,12 @@ Behaviour that changes on upgrade, so read it first:
   offers Excel; the export audit records `format`.
 * In tests, the cache and queue prefix is `<name>-test:<DB_DATABASE>`, so test runs on
   different databases no longer clear or take each other's Redis keys.
+* API tokens belong to administrators (owner decision): «رموز API» moves from the account
+  menu to a tab under «الإعدادات» at `/admin/tokens`. The `/api/v1` bearer API refuses a
+  token whose owner is not an administrator with 403 `E_TOKEN_ADMIN_ONLY`, so integrations
+  that use a non-administrator's token stop working; their rows stay and are revoked from
+  the user's administration page. `/account/tokens` answers 403 to non-administrators and
+  redirects administrators to the new address (308 for `POST` and `DELETE`).
 
 ### Added
 
@@ -302,6 +308,11 @@ Projects own the starter's files; upgrades do not rewrite them. Merge them from 
   `target`), `inertia/pages/users/invite.tsx`, `inertia/pages/admin/roles/{index,show}.tsx`,
   `app/controllers/admin/activity_controller.ts` with the new
   `app/services/activity_presentation.ts` and `inertia/pages/admin/activity/index.tsx`.
+* API tokens: `start/routes.ts`, `app/middleware/api_auth_middleware.ts`,
+  `app/controllers/api_tokens_controller.ts`, the page moved from
+  `inertia/pages/account/tokens.tsx` to `inertia/pages/admin/tokens/index.tsx`,
+  `inertia/components/{account-menu,admin-nav}.tsx`, `inertia/components/admin_sections.ts`
+  and `inertia/layouts/workspace.tsx`. An integration user needs `manage all` for its token.
 * Impersonation: `app/services/impersonation.ts`,
   `app/controllers/admin/users_controller.ts`, `app/controllers/session_controller.ts`,
   `app/controllers/account_sessions_controller.ts`. API clients that start impersonation

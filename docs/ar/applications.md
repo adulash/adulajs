@@ -53,7 +53,7 @@ node ace adula:app leave_requests --label-ar="طلبات الإجازة" --label
 
 يتواصل النظام مع الخارج عبر قنوات مشتركة ومدقَّقة، لا عبر الوصول المباشر إلى قاعدة البيانات:
 
-- **واجهة برمجة التطبيقات (API):** المسار `/api/v1` يتيح عمليات الموارد بصلاحيات صاحب الرمز الحالية. ينشئ كل شخص رموز API من قائمة حسابه، ويصف `/api/v1/openapi.json` ما يحق للمستدعي استخدامه. راجع [API tokens and OpenAPI](../business-features.md#api-tokens-and-openapi).
+- **واجهة برمجة التطبيقات (API):** المسار `/api/v1` يتيح عمليات الموارد بصلاحيات صاحب الرمز الحالية. ينشئ مدير النظام رموز API من «الإعدادات ← رموز API»، ويصف `/api/v1/openapi.json` ما يحق للمستدعي استخدامه. راجع [API tokens and OpenAPI](../business-features.md#api-tokens-and-openapi).
 - **الإشعارات الآلية الصادرة (outgoing webhooks):** إرسال موقَّع لأحداث العمل إلى عناوين HTTPS مشتركة. راجع [Outgoing webhooks](../business-features.md#outgoing-webhooks).
 - **الإشعارات الآلية الواردة (inbound webhooks):** أحداث موقَّعة من برامج أخرى، تُطلق باسم `inbound.<key>.<event>` وتعالجها مستمعات التطبيق التي لا يضرها التكرار. راجع [Inbound webhooks](../business-features.md#inbound-webhooks).
 - **الاستيراد:** استيراد ملفات CSV إلى أي مورد، مع التحقق نفسه الذي يطبّقه النموذج. راجع [CSV import](../business-features.md#csv-import).

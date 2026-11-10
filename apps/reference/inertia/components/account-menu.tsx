@@ -3,7 +3,6 @@ import { Form, Link } from '@adonisjs/inertia/react'
 import {
   ArrowDownUp,
   ChevronsUpDown,
-  KeySquare,
   LogOut,
   MonitorSmartphone,
   UserRound,
@@ -115,12 +114,6 @@ export function AccountMenu({
           <Link route="account_sessions.index">
             <MonitorSmartphone />
             {t('الجلسات')}
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link route="api_tokens.index">
-            <KeySquare />
-            {t('رموز API')}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>

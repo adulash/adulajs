@@ -195,7 +195,6 @@ export default function Workspace({ children }: { children: ReactNode }) {
       // The account pages, named as in the account menu.
       { href: '/account/profile', label: t('الملف الشخصي') },
       { href: '/account/sessions', label: t('الجلسات') },
-      { href: '/account/tokens', label: t('رموز API') },
       { href: '/account/delegations', label: t('التفويض أثناء الغياب') },
     ]
       .filter((entry) => entry.href !== '/')

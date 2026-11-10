@@ -11,7 +11,7 @@ import { UserAvatars, createResourceTable, defineResource, prepareAvatarImage } 
 import type { Module, RecordData } from 'adula'
 import { modules, registry } from '#start/modules'
 
-export type Rule = { subject: string; action: string }
+export type Rule = { subject: string; action: string; inverted?: boolean }
 export type UiActor = { user: User; orgUnitId: number; roleId: number }
 
 /** A user with one role and one organizational unit; rules are stored role rules, never mocks. */
@@ -44,6 +44,31 @@ export async function seedActor(
   }
   await knex('user_org_units').insert({ user_id: user.id, org_unit_id: orgUnitId })
   return { user, orgUnitId: Number(orgUnitId), roleId: Number(role.id) }
+}
+
+/**
+ * API tokens belong to administrators (owner decision, 2.3.0), and a token keeps its owner's
+ * rules. A bearer test that needs a narrow caller seeds an administrator (`manage all`) who
+ * is denied every registered resource outside `resources`.
+ */
+export async function seedApiAdministrator(
+  resources: string[],
+  options: Parameters<typeof seedActor>[1] = {},
+  denials: Rule[] = []
+) {
+  const { adula } = await import('#services/adula')
+  const denied = adula()
+    .registry.all()
+    .map((resource) => resource.name)
+    .filter((name) => !resources.includes(name))
+  return seedActor(
+    [
+      { subject: 'all', action: 'manage' },
+      ...denied.map((subject) => ({ subject, action: 'manage', inverted: true })),
+      ...denials.map((rule) => ({ ...rule, inverted: true })),
+    ],
+    options
+  )
 }
 
 const passthrough = { validate: async (data: unknown) => data as RecordData }

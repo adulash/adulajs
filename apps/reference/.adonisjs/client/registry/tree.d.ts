@@ -139,11 +139,6 @@ export interface ApiDefinition {
   language: {
     update: typeof routes['language.update']
   }
-  apiTokens: {
-    index: typeof routes['api_tokens.index']
-    store: typeof routes['api_tokens.store']
-    destroy: typeof routes['api_tokens.destroy']
-  }
   accountSessions: {
     index: typeof routes['account_sessions.index']
     purge: typeof routes['account_sessions.purge']
@@ -231,6 +226,11 @@ export interface ApiDefinition {
   }
   adminAuthenticationSettings: {
     update: typeof routes['admin_authentication_settings.update']
+  }
+  apiTokens: {
+    index: typeof routes['api_tokens.index']
+    store: typeof routes['api_tokens.store']
+    destroy: typeof routes['api_tokens.destroy']
   }
   adminLookups: {
     index: typeof routes['admin_lookups.index']
