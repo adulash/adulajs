@@ -100,7 +100,8 @@ The delivery log shows every stored delivery and can raise it again.
 
 ## API tokens and OpenAPI
 
-Users create read or read-write tokens under their account menu. `/api/v1`
+Administrators create read or read-write tokens under «الإعدادات ← رموز API»; a token
+whose owner is not an administrator is refused. `/api/v1`
 accepts `Authorization: Bearer <token>` only (no cookies, no CSRF) and exposes the
 same resource operations with the token owner's current permissions.
 `GET /api/v1/openapi.json` describes the resources and actions the caller may use, and

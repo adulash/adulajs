@@ -1101,7 +1101,7 @@ export interface Registry {
   }
   'api_tokens.index': {
     methods: ["GET","HEAD"]
-    pattern: '/account/tokens'
+    pattern: '/admin/tokens'
     types: {
       body: {}
       paramsTuple: []
@@ -1113,7 +1113,7 @@ export interface Registry {
   }
   'api_tokens.store': {
     methods: ["POST"]
-    pattern: '/account/tokens'
+    pattern: '/admin/tokens'
     types: {
       body: {}
       paramsTuple: []
@@ -1125,7 +1125,7 @@ export interface Registry {
   }
   'api_tokens.destroy': {
     methods: ["DELETE"]
-    pattern: '/account/tokens/:id'
+    pattern: '/admin/tokens/:id'
     types: {
       body: {}
       paramsTuple: [ParamValue]

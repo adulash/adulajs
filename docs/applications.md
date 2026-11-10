@@ -65,7 +65,7 @@ A system talks to the outside through shared, audited channels, never through di
 access:
 
 - **API.** `/api/v1` exposes the resource operations with the token owner's current
-  permissions; people create API tokens under their account menu and
+  permissions; administrators create API tokens under «الإعدادات ← رموز API» and
   `/api/v1/openapi.json` describes what the caller may use. See
   [API tokens and OpenAPI](business-features.md#api-tokens-and-openapi).
 - **Outgoing webhooks.** Signed deliveries of domain events to subscribed HTTPS endpoints. See

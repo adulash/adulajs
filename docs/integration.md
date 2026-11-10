@@ -21,15 +21,17 @@ they do in the user interface. The design is recorded in
 
 ### Authentication
 
-Each user creates **personal API tokens** under the account menu (`/account/tokens`).
+Administrators create **personal API tokens** under **Administration → Settings → رموز API**
+(`/admin/tokens`); a token whose owner is not an administrator is refused with
+`403 E_TOKEN_ADMIN_ONLY` ([Authentication](authentication.md#api-tokens)).
 A token has an access level (read, or read-write) and an expiry date. Send it as
 `Authorization: Bearer adula_…` to `/api/v1`. That API takes no cookies and needs no CSRF.
 
 * Every call is authorized with the token owner's **current** roles, field rules, row
   conditions and organisation units. Revoking a role takes effect immediately.
 * Read tokens are limited to `GET`.
-* For a machine integration, create a dedicated user (for example «تكامل المحاسبة»).
-  Give it only the roles it needs, and create its token while signed in as that user.
+* For a machine integration, create a dedicated administrator (for example «تكامل المحاسبة»)
+  and create its token while signed in as that user.
 * Administrators can revoke all of a user's tokens from the user's admin page.
 
 ### Getting the client

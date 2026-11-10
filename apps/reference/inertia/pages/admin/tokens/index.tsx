@@ -3,7 +3,7 @@ import { Head, router } from '@inertiajs/react'
 import axios from 'axios'
 import { Copy, KeySquare, Plus, Trash2 } from 'lucide-react'
 import Workspace from '~/layouts/workspace'
-import { useDateTimeFormatter } from '~/components/admin-nav'
+import { AdminHeader, useDateTimeFormatter } from '~/components/admin-nav'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
@@ -42,7 +42,7 @@ export default function ApiTokens({ tokens }: Props) {
     setError('')
     try {
       const response = await axios.post(
-        '/account/tokens',
+        '/admin/tokens',
         { name, access, expiresInDays: Number(days) },
         json
       )
@@ -61,19 +61,20 @@ export default function ApiTokens({ tokens }: Props) {
   return (
     <>
       <Head title="رموز API" />
-      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">رموز API</h1>
-          <p className="mt-3 text-sm text-muted-foreground">
+      <AdminHeader
+        title="رموز API"
+        description={
+          <>
             يعمل الرمز بصلاحياتك الحالية نفسها عبر <code dir="ltr">/api/v1</code>. وصف الواجهة
             متاح في <code dir="ltr">/api/v1/openapi.json</code>.
-          </p>
-        </div>
+          </>
+        }
+      >
         <Button onClick={() => setCreating(true)}>
           <Plus size={16} />
           إنشاء رمز
         </Button>
-      </div>
+      </AdminHeader>
       <ul className="space-y-3">
         {tokens.map((token) => (
           <li
@@ -98,7 +99,7 @@ export default function ApiTokens({ tokens }: Props) {
               variant="ghost"
               aria-label={`إلغاء ${token.name ?? token.id}`}
               onClick={async () => {
-                await axios.delete(`/account/tokens/${token.id}`, json)
+                await axios.delete(`/admin/tokens/${token.id}`, json)
                 router.reload({ only: ['tokens'] })
               }}
             >

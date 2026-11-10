@@ -395,12 +395,16 @@ test.group('Impersonation security', (group) => {
     assert.include(browser.values[IMPERSONATOR_KEY], { adminId: admin.id, targetId: target.id })
     assert.isNumber((browser.values[IMPERSONATOR_KEY] as { startedAt?: unknown }).startedAt)
 
-    // A personal API token would outlive the session, so none can be minted as the target.
-    const mint = await browser.send('post', '/account/tokens', {
-      body: { name: 'leftover', access: 'write', expiresInDays: 365 },
-    })
-    mint.assertStatus(403)
-    assert.equal(mint.body().error.code, 'E_IMPERSONATING')
+    // A personal API token would outlive the session, so none can be minted as the target:
+    // tokens belong to administrators and the target is not one (the controller's own
+    // impersonation check stays behind it), at the new address and the old one.
+    for (const url of ['/admin/tokens', '/account/tokens']) {
+      const mint = await browser.send('post', url, {
+        body: { name: 'leftover', access: 'write', expiresInDays: 365 },
+      })
+      mint.assertStatus(403)
+      assert.equal(mint.body().error.code, 'E_FORBIDDEN')
+    }
     assert.lengthOf(await knex()('auth_access_tokens').where('tokenable_id', target.id), 0)
 
     // The password cannot be changed without the target's current password.

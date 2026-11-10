@@ -299,7 +299,8 @@ test.group('Security: API tokens end with the credential and access decisions', 
   }) => {
     const admin = await makeAdmin()
     const member = await makeUser('token-member')
-    const user = await makeUser('token-owner')
+    // API tokens belong to administrators, so the owner is one whose token works until revoked.
+    const user = await makeAdmin()
     const minted = await mintToken(user, 'تقارير')
     await mintToken(user, 'مزامنة')
 

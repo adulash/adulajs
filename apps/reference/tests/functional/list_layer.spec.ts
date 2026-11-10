@@ -19,7 +19,12 @@ const arabic = /[؀-ۿ]/
 const EXPORT_LIMIT_MESSAGE =
   'عدد السجلات المطابقة يتجاوز حد التصدير (5000 سجل). ضيّق التصفية ثم أعد المحاولة.'
 
-type Rule = { subject: string; action: string; conditions?: Record<string, unknown> }
+type Rule = {
+  subject: string
+  action: string
+  conditions?: Record<string, unknown>
+  inverted?: boolean
+}
 
 /** A user with one role (rules may carry conditions) and membership of one unit. */
 async function actorWith(rules: Rule[], options: { level?: number; orgUnitId?: number } = {}) {
@@ -31,9 +36,30 @@ async function actorWith(rules: Rule[], options: { level?: number; orgUnitId?: n
       subject: rule.subject,
       action: rule.action,
       ...(rule.conditions ? { conditions: JSON.stringify(rule.conditions) } : {}),
+      ...(rule.inverted ? { inverted: true } : {}),
     }))
   )
   return actor
+}
+
+/**
+ * API tokens belong to administrators (owner decision, 2.3.0), and a token keeps its owner's
+ * rules. The bearer twin of a narrow actor is an administrator denied every other resource
+ * and each probe action the actor lacks, so the bearer route still meets the same limits.
+ */
+async function bearerTwin(denials: Rule[], options: { level?: number; orgUnitId?: number }) {
+  const others = adula()
+    .registry.all()
+    .map((resource) => resource.name)
+    .filter((name) => name !== 'list_probes')
+  return actorWith(
+    [
+      { subject: 'all', action: 'manage' },
+      ...others.map((subject) => ({ subject, action: 'manage', inverted: true })),
+      ...denials.map((rule) => ({ ...rule, inverted: true })),
+    ],
+    options
+  )
 }
 
 async function bearer(user: User, abilities = ['read']) {
@@ -93,7 +119,15 @@ test.group('List layer: filter operators', (group) => {
     )
     outsider = await seedActor([{ subject: 'all', action: 'manage' }], { level: 1 })
     managerToken = await bearer(manager.user)
-    clerkToken = await bearer(clerk.user)
+    // The clerk's bearer twin: view and update the probes only, at the same level and unit.
+    const clerkTwin = await bearerTwin(
+      [
+        { subject: 'list_probes', action: 'create' },
+        { subject: 'list_probes', action: 'delete' },
+      ],
+      { level: 0, orgUnitId: manager.orgUnitId }
+    )
+    clerkToken = await bearer(clerkTwin.user)
     await seedBase(manager.user.id, manager.orgUnitId, outsider.orgUnitId)
     return remove
   })
@@ -740,6 +774,8 @@ test.group('List layer: restore and «المحذوفات»', (group) => {
   let outsider: UiActor
   let ids: Awaited<ReturnType<typeof seedBase>>
   let clerkToken: string
+  let clerkReadToken: string
+  let viewerToken: string
   group.setup(async () => {
     const remove = await installProbes()
     manager = await seedActor([{ subject: 'all', action: 'manage' }], { level: 1 })
@@ -755,7 +791,24 @@ test.group('List layer: restore and «المحذوفات»', (group) => {
       orgUnitId: manager.orgUnitId,
     })
     outsider = await seedActor([{ subject: 'all', action: 'manage' }], { level: 1 })
-    clerkToken = await bearer(clerk.user, ['read', 'write'])
+    // The bearer twins: the clerk deletes (and so restores) open probes only; the viewer
+    // neither creates, updates nor deletes.
+    const unit = { level: 0, orgUnitId: manager.orgUnitId }
+    const clerkTwin = await bearerTwin(
+      [
+        { subject: 'list_probes', action: 'create' },
+        { subject: 'list_probes', action: 'update' },
+        { subject: 'list_probes', action: 'delete', conditions: { status: { $ne: 'open' } } },
+      ],
+      unit
+    )
+    clerkToken = await bearer(clerkTwin.user, ['read', 'write'])
+    clerkReadToken = await bearer(clerkTwin.user)
+    const viewerTwin = await bearerTwin(
+      ['create', 'update', 'delete'].map((action) => ({ subject: 'list_probes', action })),
+      unit
+    )
+    viewerToken = await bearer(viewerTwin.user)
     return remove
   })
   group.each.setup(async () => {
@@ -773,11 +826,11 @@ test.group('List layer: restore and «المحذوفات»', (group) => {
       .headers(json)
     session.assertStatus(403)
     assert.equal(session.body().error.code, 'E_FORBIDDEN')
-    const token = await bearer(viewer.user)
     const api = await client
       .get('/api/v1/resources/list_probes/trash')
-      .header('Authorization', `Bearer ${token}`)
+      .header('Authorization', `Bearer ${viewerToken}`)
     api.assertStatus(403)
+    assert.equal(api.body().error.code, 'E_FORBIDDEN')
     const page = await client
       .get('/resources/list_probes/trash')
       .loginAs(viewer.user)
@@ -902,10 +955,9 @@ test.group('List layer: restore and «المحذوفات»', (group) => {
   })
 
   test('restore over the bearer API needs a write token', async ({ client, assert }) => {
-    const readOnly = await bearer(clerk.user)
     const refused = await client
       .post(`/api/v1/resources/list_probes/${ids.alpha}/restore`)
-      .header('Authorization', `Bearer ${readOnly}`)
+      .header('Authorization', `Bearer ${clerkReadToken}`)
     refused.assertStatus(403)
     assert.equal(refused.body().error.code, 'E_TOKEN_SCOPE')
     const restored = await client

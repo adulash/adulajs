@@ -230,7 +230,7 @@ export function AdminHeader({
   children,
 }: {
   title: string
-  description?: string
+  description?: ReactNode
   children?: ReactNode
 }) {
   const { t } = useMessages()

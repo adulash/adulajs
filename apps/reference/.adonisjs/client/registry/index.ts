@@ -554,20 +554,20 @@ const routes = {
   },
   'api_tokens.index': {
     methods: ["GET","HEAD"],
-    pattern: '/account/tokens',
-    tokens: [{"old":"/account/tokens","type":0,"val":"account","end":""},{"old":"/account/tokens","type":0,"val":"tokens","end":""}],
+    pattern: '/admin/tokens',
+    tokens: [{"old":"/admin/tokens","type":0,"val":"admin","end":""},{"old":"/admin/tokens","type":0,"val":"tokens","end":""}],
     types: placeholder as Registry['api_tokens.index']['types'],
   },
   'api_tokens.store': {
     methods: ["POST"],
-    pattern: '/account/tokens',
-    tokens: [{"old":"/account/tokens","type":0,"val":"account","end":""},{"old":"/account/tokens","type":0,"val":"tokens","end":""}],
+    pattern: '/admin/tokens',
+    tokens: [{"old":"/admin/tokens","type":0,"val":"admin","end":""},{"old":"/admin/tokens","type":0,"val":"tokens","end":""}],
     types: placeholder as Registry['api_tokens.store']['types'],
   },
   'api_tokens.destroy': {
     methods: ["DELETE"],
-    pattern: '/account/tokens/:id',
-    tokens: [{"old":"/account/tokens/:id","type":0,"val":"account","end":""},{"old":"/account/tokens/:id","type":0,"val":"tokens","end":""},{"old":"/account/tokens/:id","type":1,"val":"id","end":""}],
+    pattern: '/admin/tokens/:id',
+    tokens: [{"old":"/admin/tokens/:id","type":0,"val":"admin","end":""},{"old":"/admin/tokens/:id","type":0,"val":"tokens","end":""},{"old":"/admin/tokens/:id","type":1,"val":"id","end":""}],
     types: placeholder as Registry['api_tokens.destroy']['types'],
   },
   'account_sessions.index': {

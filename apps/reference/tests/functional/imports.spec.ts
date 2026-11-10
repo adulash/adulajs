@@ -1,7 +1,7 @@
 import { test } from '@japa/runner'
 import db from '@adonisjs/lucid/services/db'
 import { adula } from '#services/adula'
-import { seedActor, type UiActor } from '#tests/helpers/ui_fixtures'
+import { seedActor, seedApiAdministrator, type UiActor } from '#tests/helpers/ui_fixtures'
 import { readXlsxTable } from 'adula'
 import {
   bufferXlsxResponses,
@@ -126,24 +126,17 @@ test.group('Import templates, dry runs and upserts over the API', (group) => {
   let creator: UiActor
   group.setup(() => bufferXlsxResponses())
   group.setup(async () => {
-    partner = await seedActor([{ subject: 'customers', action: 'manage' }], {
-      fullName: 'مسؤول العملاء',
-      level: 0,
-    })
-    creator = await seedActor(
-      [
-        { subject: 'customers', action: 'view' },
-        { subject: 'customers', action: 'create' },
-      ],
-      {
-        level: 0,
-      }
-    )
+    // API tokens belong to administrators: each actor is one limited to customers, and the
+    // creator is also denied updating them (upsert needs update as well as create).
+    partner = await seedApiAdministrator(['customers'], { fullName: 'مسؤول العملاء', level: 0 })
+    creator = await seedApiAdministrator(['customers'], { level: 0 }, [
+      { subject: 'customers', action: 'update' },
+    ])
   })
 
   async function token(client: any, user: UiActor['user'], access: 'read' | 'write') {
     const response = await client
-      .post('/account/tokens')
+      .post('/admin/tokens')
       .loginAs(user)
       .withCsrfToken()
       .headers(json)
