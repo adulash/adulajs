@@ -1,6 +1,6 @@
 # AdulaJS gaps
 
-Open capability gaps for people building systems with AdulaJS, as of 2.2.1. What exists is
+Open capability gaps for people building systems with AdulaJS, as of 2.3.0. What exists is
 in [docs/implementation-status.md](docs/implementation-status.md); what changed is in
 [CHANGELOG.md](CHANGELOG.md). Report a new gap with the issue form in `.github/ISSUE_TEMPLATE`.
 
@@ -55,7 +55,7 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
 * SLA deadlines count wall-clock hours: there is no business calendar (working days,
   holidays), and an overdue step escalates once (no escalation chain).
 * Delegation covers workflow approvals only (not manual tasks), one hop. A user's own
-  delegation stays on their organization path; delegations created before 2.2.1 to
+  delegation stays on their organization path; delegations created before 2.3.0 to
   someone outside it are kept until they end or are revoked.
 * My tasks counts cover the newest 1000 records with open items.
 * Due dates and delegation days use one time zone per system (`timeZone`), not each

@@ -434,7 +434,7 @@ test.group('Record collaboration', (group) => {
   test('notifications written before they named their comment are withdrawn too', async ({
     assert,
   }) => {
-    // Before 2.2.1 a comment and its notifications were written in one transaction
+    // Before 2.3.0 a comment and its notifications were written in one transaction
     // without a link: the same created_at and the quoted text identify them.
     const legacy = async (body: string, deleted: boolean) =>
       db.transaction(async (trx) => {

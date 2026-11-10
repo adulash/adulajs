@@ -58,7 +58,7 @@ e-mail, phone, URL, decimal, percent, choice and many-to-many fields (GAPS.md). 
   they are not field writes by the actor. A manyToMany write syncs by difference inside
   the record's transaction; every newly linked record must be live and viewable, checked
   with one query per field (scope and role rules as SQL, 404 when any is not); links kept
-  unchanged are not re-checked. Since 2.2.1 a belongsTo value follows the same rule: it is
+  unchanged are not re-checked. Since 2.3.0 a belongsTo value follows the same rule: it is
   checked on create and when it changes (after the hooks ran), so an unchanged link to a
   record later deleted or moved out of the writer's scope never blocks an edit, and a
   changed one is still 404 when its target is missing, deleted or unviewable. The parent

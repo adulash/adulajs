@@ -248,7 +248,7 @@ administrator (`impersonatedBy`).
 
 | Item                                 | How                                                                                          |
 | ------------------------------------ | -------------------------------------------------------------------------------------------- |
-| 2.2.1                                | Lockout per (account, address), plus an account-wide ceiling for second-factor attempts      |
+| 2.3.0                                | Lockout per (account, address), plus an account-wide ceiling for second-factor attempts      |
 | 2.5.x                                | An administrator reset ends sessions and API tokens; disabling needs the password and a code |
 | 2.6.1–2.6.3                          | Recovery codes: single use, more than 80 bits each, salted SHA-256                           |
 | 2.8.1 and 2.8.3                      | RFC 6238 with a defined lifetime and a 160-bit secret                                        |

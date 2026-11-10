@@ -298,7 +298,7 @@ export class RecordCollaboration {
     if (!text || text.length > BODY_LIMIT)
       throw new AdulaError(422, 'E_COMMENT_BODY', 'نص التعليق مطلوب ولا يتجاوز 5000 حرف')
     await this.db.transaction(async (trx) => {
-      // Read before the body changes: notifications written before 2.2.1 match by text.
+      // Read before the body changes: notifications written before 2.3.0 match by text.
       const notifications = await this.ownComment(trx, name, id, commentId, actor)
       await trx('comments').where('id', commentId).update({ body: text, edited_at: trx.fn.now() })
       // The earlier excerpt is replaced by a neutral note rather than the new text, which

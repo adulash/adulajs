@@ -28,7 +28,7 @@ ids, or had to pick a parent record again that the page already knew.
    added with its title. Invalid or unauthorized values are dropped silently: the page is
    a GET, and dropping reveals nothing about records the actor cannot see. Defaults are
    initial values only, and saving validates them as usual.
-   Since 2.2.1 (#115) a required `belongsTo` whose options hold exactly one record the
+   Since 2.3.0 (#115) a required `belongsTo` whose options hold exactly one record the
    actor may view (the whole option list, not its first page) starts on that record when
    neither a requested nor a declared default applies. It is an initial value like the others:
    the record is one the actor can already see, and saving authorizes the reference.

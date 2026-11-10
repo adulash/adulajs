@@ -1201,7 +1201,7 @@ export const DELETED_COMMENT_BODY = 'حُذف هذا التعليق.'
 
 /**
  * Ids and template keys of the notifications that quote a comment: those naming it
- * (comment_id, 2.2.1) and those written before notifications named their comment. A
+ * (comment_id, 2.3.0) and those written before notifications named their comment. A
  * comment's notifications were inserted in its own transaction, so their created_at equals
  * the comment's (both now()), and they quote its text from the start: the first 100
  * characters are matched, which the 200-unit excerpt always contains. Read before a
@@ -1243,7 +1243,7 @@ export async function withdrawNotificationDelivery(db: Knex, ids: number[]) {
 }
 
 /**
- * Comment notifications name their comment (2.2.1), so deleting or editing the comment
+ * Comment notifications name their comment (2.3.0), so deleting or editing the comment
  * withdraws the quoted text. Notifications of comments deleted before this migration are
  * found by their transaction time and quoted text, and withdrawn here.
  */

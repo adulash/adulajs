@@ -2,12 +2,22 @@
 
 ## Unreleased
 
-## 2.2.1 — 2026-11-04
+## 2.3.0 — 2026-11-10
 
-Patch release: security hardening of scoped data, collaboration, tasks, saved views and the
-starter's administration, with the list and record dialog fixes filed on 2026-11-04. No new
-`adula` export (`pnpm check:api` reports no change). It adds the additive migration
-`1770000000051`. Changes that need a new option moved to milestone 2.3.0.
+Minor release by the owner's decision: the requests of milestone 2.3.0 (#150 to #162), the
+owner's review of the workspace shell, appearance and occasion themes, mail settings in the
+interface and one clean-close rule for every dialog. It also carries the security hardening
+and fixes prepared on 2026-11-04 as 2.2.1, which was never published. The workspace gets
+one full-width header, a collapsible sidebar, a top layout, dark mode, «مهامي» beside the
+bell and administration sections with tabs; users get profile pictures and a personal
+overview; administrators get guided storage and mail setup, mail settings, appearance and
+occasions, encrypted downloadable and cloud backups, Excel import and export and an
+optional AI assistant. All public API changes are additions (`pnpm check:api`: 114 new
+exports, none removed; existing types gain fields only, such as the avatar URLs and
+`UiPreferences.layout`). It adds the additive migrations `1770000000051`,
+`1770000000054_cloud_backups`, `1770000000055_ai_assistant` and
+`1770000000056_appearance`, and the dependencies `sharp` 0.35.5, `read-excel-file` 9.3.12,
+`write-excel-file` 4.1.1 and `fflate` 0.8.3, approved by the owner.
 
 Behaviour that changes on upgrade, so read it first:
 
@@ -26,12 +36,142 @@ Behaviour that changes on upgrade, so read it first:
   needs a live target before the record can be saved.
 * A custom actor loader passed to `RecordCollaboration` should accept `load(id, db)` and
   read on that connection, as `ActorStore` does.
+* The workspace has one header across the full width, with the sidebar and the page below
+  it (ADR 049, owner decision 20). The brand and the only sidebar trigger sit in the
+  header's start segment above the sidebar; a rail on the sidebar's edge also toggles it,
+  and the hide button is gone. Each user chooses in the account menu whether collapsing
+  leaves icons (the default) or hides the sidebar («عند طي القائمة: أيقونات / إخفاء كامل»,
+  preference `shell.sidebarCollapse`). From the large breakpoint the page area, not the
+  document, scrolls, so its scrollbar is on the left in Arabic.
+* The home page is a personal overview; users may hide and reorder its widgets. Dashboard
+  widgets appear on it only with `overview: true`.
+* «مهامي» is no longer a sidebar entry: it is an icon with the open count beside the
+  notification bell.
+* The administration's sections, such as «الإعدادات» and «الأشخاص والصلاحيات», are sidebar
+  entries, and each
+  section's pages are a row of tabs under the header, one tab and one URL per page (owner
+  decision 22). «دعوة مستخدم» opens a dialog over the users list; `/users/invite` opens the
+  same dialog there.
+* The default theme stays light. Each user may choose dark or the device setting from the
+  account menu, and the choice is stored per user (`settings` scope `user`, key
+  `preference.<key>`, no migration). `PUT`/`DELETE /account/preferences/:key` are refused
+  while impersonating.
+* A dialog asks before closing only when something changed: an untouched dialog, or one
+  whose values were changed back, closes at once on Escape, the close button, «إلغاء» or a
+  click outside (ADR 016, owner decision 23). The shared `Dialog` compares its inputs, text
+  areas and selects; any other state must be declared with the `value` prop or
+  `useDialogValue`, and the `data-dirty` attribute is no longer read.
+* A request that needs a signed-in user now flashes «سجّل الدخول للمتابعة.» instead of the
+  English unauthorized message.
+* create-adulajs no longer asks for a company identity; `--identity` stays optional and the
+  identity is recorded as pending. Scripts that run it without `--yes` and with piped input
+  now answer the remaining questions from stdin instead of failing at once.
+* Mail settings saved in «الإعدادات ← البريد» win over `SMTP_*` and `MAIL_FROM_*`, and apply
+  to the web, worker and scheduler without a restart; `MAIL_SETTINGS_SOURCE=environment`
+  makes the variables win again. The SMTP password is sealed with `APP_KEY`, so rotating
+  `APP_KEY` requires entering it again; until then sending fails with
+  `password_unreadable`.
+* A test e-mail send is refused with 422 `E_MAIL_NOT_CONFIGURED` when the mail
+  configuration is incomplete; a failed send answers 502 `E_MAIL_TEST_SEND` with one fixed
+  sentence per reason. In production `SMTP_HOST` and `MAIL_FROM_ADDRESS` are required and
+  the SMTP user name and password must be set together, unless the settings are stored in
+  the interface.
+* The assistant's administration takes an OpenRouter API key, write-only, with change and
+  delete; the provider address is no longer a form field. `PUT /admin/assistant` refuses
+  `baseUrl` with 422 `E_AI_INPUT`; tests and proxies set the address on the server through
+  `assistantSettings.save(actor, { baseUrl })`, which still clears the stored key.
+* Import accepts Excel workbooks (`.xlsx`, first sheet) as well as CSV, and the list export
+  offers Excel; the export audit records `format`.
+* In tests, the cache and queue prefix is `<name>-test:<DB_DATABASE>`, so test runs on
+  different databases no longer clear or take each other's Redis keys.
+
+### Added
+
+* Workspace layouts (#153, #154, ADR 049): the sidebar collapses to an icon rail (module
+  groups keep an icon from the project-owned `components/module_icons.ts` and a tooltip with
+  their name) or hides, and the choice survives a reload. Administrators may switch the
+  system to a top layout with one drop-down menu per module and may let each user choose
+  their own layout. «ترتيب القائمة…» in the account menu reorders entries per user, with
+  «استعادة الترتيب الافتراضي». The header shows the registry `Breadcrumb` of the current
+  page.
+* Dark mode (#155, ADR 049): every color is a token with a dark value, including the new
+  `success`, `warning`, `info`, `popover` and `destructive-foreground` tokens; a unit test
+  checks the contrast of every text and surface pair in both themes and refuses hard-coded
+  colors. Printed documents stay light. `pnpm test:browser:dark` runs the browser suites in
+  the dark theme.
+* «مهامي» beside the bell (#156) counts through `Assignments.openCounts()`, the same code as
+  the list, so the badge and the list agree.
+* Administration sections (#157): `components/admin_sections.ts` declares the sections and
+  their pages; the sidebar shows the sections and the page shows their tabs, which wrap onto
+  further rows (`TabsList wrap`) instead of hiding a tab.
+* Per-user preferences (ADR 049): `definePreference`, `UserPreferences`,
+  `PreferenceDefinition`, `isPreferenceSetting`, `PREFERENCE_PREFIX`,
+  `PREFERENCE_MAX_BYTES`, `NavigationLayout`, and the optional `UiPreferences.layout` and
+  `layoutUserChoice`.
+* Profile pictures (#158, ADR 050): users set a picture on the account page and
+  administrators on the user page. It appears wherever a person does: the account menu,
+  comments, mentions, assignments, activity, workflow history, delegations, user pickers and
+  the users table. Pictures are PNG or WebP, at most 1 MB and 512 pixels, framed in the
+  browser and re-encoded without metadata on the server; every signed-in user may see them.
+  A replaced or removed picture loses its row and file (the owner's exception to ADR 047).
+  New `@adula/ui` items `user-avatar`, `slider` and `sortable-list`.
+* Personal overview (#159, ADR 050): each user shows, hides and orders the home widgets by
+  dragging, with the keyboard or with buttons, and can restore the default; widgets the user
+  may not see never appear. Dashboard widgets join with `overview: true`.
+* Appearance and occasions (ADR 053, owner decision 19): «الإعدادات ← المظهر والهوية» sets
+  the company name, a logo, the sign-in and guest home texts and the primary colour, and
+  schedules occasion themes with their own colour, logo and banner for a date range, such as
+  the national day. A colour is saved only when it reaches 4.5:1 in both themes. The
+  workspace and guest headers show the saved identity and today's occasion. New `Appearance`
+  service and settings under `appearance.*`.
+* Mail settings in the interface (ADR 020 amended): the «البريد» tab of «الإعدادات» saves the
+  SMTP server, port, security, user name and sender in the setting `mail.smtp`, with a
+  write-only password (`PUT`/`DELETE /admin/settings/mail/password`), a readiness summary and
+  a test send. Every change is an activity in `core.mail` that names the changed fields,
+  never a value.
+* Long dialogs (ADR 016 amended): the `@adula/ui` item `long-dialog` keeps the title and the
+  actions fixed while only the body scrolls with a visible scrollbar, in widths named as
+  Tailwind's (`lg` to `5xl`, default `xl`). Record, account, administration, import, overview
+  and picture dialogs use it, and record forms keep their actions in its fixed footer.
+* One clean-close rule (ADR 016, owner decision 23): the registry `Dialog` takes a `value`
+  prop, and `useDialogValue(value)` and `<DialogValue key value />` declare state that is not a
+  plain control. A test refuses hand-made dirty tracking, and a browser sweep opens and closes
+  every reachable dialog untouched.
+* Encrypted backups to download, Google Drive and OneDrive (#160, ADR 051): «النسخ
+  الاحتياطي» in the administration creates an `.adulabackup` archive (AES-256-GCM frames
+  keyed from `BACKUP_ENCRYPTION_KEY`), offers it for download for 24 hours or uploads it
+  through OAuth (PKCE, `drive.file` or the OneDrive app folder), on demand or on a daily or
+  weekly schedule. Refresh tokens are sealed and never reach the browser; every action
+  needs `manage all`, is refused while impersonating and is audited under `core.backups`.
+  `backup:seal` and `backup:open` convert between a snapshot and an archive. These copies
+  never count as the offsite snapshot of ADR 023. **Real Google Drive and OneDrive delivery
+  is unverified:** the tests use local fakes of both APIs, and the owner's OAuth clients
+  have not yet completed a real connection and upload.
+* Excel import and export (#161, ADR 043 and 046 amended): `xlsxImportAdapter` and
+  `guardXlsx` (zip consistency, real inflated sizes, UTF-8 XML without DOCTYPE, row, cell
+  and shared-string limits before parsing), an Excel template next to the CSV one, and
+  `?format=xlsx` on the export with the same rows, limit and audit. Workbooks are
+  right-to-left with a bold header; formula-looking text is neutralised as in CSV.
+* AI assistant (#162, ADR 052): optional, through an administrator-supplied OpenRouter key
+  sealed with `APP_KEY`. It reads with the signed-in user's permissions through the tool
+  runner shared with MCP and proposes changes that run only after the user confirms them;
+  write proposals are off by default. New `core.ai`/`use` permission, sealed `ai.*`
+  settings, per-user rate and daily token limits, usage records and the daily
+  `adula:assistant:prune`. `createOutboundRequester` guards outbound requests with a capped
+  response body.
+* Guided setup (#150): the storage, identity, background services, backup and external
+  sign-in guides of «الإعداد الأولي» are numbered steps with copyable variable names and
+  commands. New `@adula/ui` item `copy-button`.
+* Guided mail setup (#152, ADR 020 amended): provider presets (Gmail and Google Workspace,
+  Zoho, Amazon SES, Mailgun, SendGrid, other), environment lines to copy, readiness by
+  variable name and readable reasons for failed test sends. New exports
+  `classifyMailFailure`, `MailFailure` and `MailFailureReason`.
 
 ### Security
 
 * Comments, follower notifications, closing tasks, deciding approvals, opening the next
-  approval step, delegating and escalating check access on their own transaction, so many concurrent requests can no longer exhaust the connection
-  pool and stall the application.
+  approval step, delegating and escalating check access on their own transaction, so many
+  concurrent requests can no longer exhaust the connection pool and stall the application.
 * Deleting a comment replaces its text in the notifications it produced and stops their
   pending deliveries; editing one replaces the earlier excerpt. Migration `1770000000051`
   adds `notifications.comment_id` and withdraws the text of comments deleted before the
@@ -56,6 +196,21 @@ Behaviour that changes on upgrade, so read it first:
   user agent, and its end with how it ended and its duration. The user page no longer
   preselects a role, asks a dedicated confirmation before granting a role with full
   administration and groups access-ending actions apart.
+* Mail settings: the SMTP host must resolve outside private networks unless
+  `WEBHOOKS_ALLOW_PRIVATE=true`, link-local and metadata addresses are always refused, the
+  connection is pinned to the checked address with the certificate verified against the
+  name, and an unencrypted connection is allowed only to an internal relay. The password
+  is cleared when the host changes, and control characters and header delimiters are
+  refused in every field. Test sends are limited to five per 15 minutes per administrator.
+* Appearance logos are PNG, JPEG or still WebP recognised by their bytes, re-encoded within
+  a pixel budget so nothing of the original survives, and served with their stored type,
+  `nosniff` and a sandbox CSP; SVG is refused. Only an administrator can open a logo that is
+  not yet saved or belongs to an upcoming or ended occasion.
+* The cloud-backup OAuth callback no longer forwards the provider's `code` and `state` in
+  the redirect after a connection.
+* `guardXlsx` reads cell references with a strict XML reader, so character references,
+  prefixed attributes, comments, CDATA and processing instructions cannot hide rows or
+  columns from the size limits.
 
 ### Fixed
 
@@ -77,9 +232,8 @@ Behaviour that changes on upgrade, so read it first:
 * Record dialogs keep the list mounted under them and refresh its rows after a save
   (#100, #105), keep the sidebar in place in RTL (#101), let the form fill the dialog
   (#102), open anchored to the top (#103), keep their header in view and focus the first
-  invalid field (#118), ask about unsaved changes only when something changed (#117) and
-  return to the page that opened them (#119). The list under a dialog reads its filters
-  from the list URL.
+  invalid field (#118) and return to the page that opened them (#119), restoring the list's
+  tab and scroll position. The list under a dialog reads its filters from the list URL.
 * Lists render the selection column with their first rows (#108), scroll with the workspace
   (#109), use Arabic counts that agree with their number and name row actions by the record
   title (#110), report exact counts below 1000 rows (#111), keep Latin codes in order and
@@ -91,30 +245,89 @@ Behaviour that changes on upgrade, so read it first:
   development guide says to open 127.0.0.1 (#107).
 * A notification sent while a closing tab handed its stream to another tab no longer stays
   out of the bell counts of the open tabs (ADR 034).
+* The overview shows a loading state until a deferred count arrives, and a failed task count
+  shows a recoverable error instead of loading forever (#159).
+* The guest pages show a flash message once instead of twice, and use the workspace's brand
+  and header pattern.
+* File pickers in the import and profile-picture dialogs no longer show the browser's
+  native English control: the new `@adula/ui` item `file-input` shows «اختيار ملف», the
+  chosen file name and «تغيير الملف», keeps the native input labelled for keyboard and
+  tests, and a test refuses visible native file inputs.
+* The users table of the starter's administration wraps long names, e-mails, roles and
+  units and scrolls inside its own frame, so it no longer overflows the page at desktop
+  widths.
+* A sent invitation shows its confirmation once.
+* `pnpm check:release --artifacts` no longer fails with `spawnSync tar ENOBUFS` now that
+  the creator template exceeds 1 MiB.
+* `backup:restore-test` picks its sample record among registered resources, so attachments
+  of other owners (profile pictures) no longer fail the drill.
+* create-adulajs (#151): ADR 018 amended; the creator's questions are the directory, the
+  company name and the administrator e-mail. It refuses a template whose shell lacks the
+  company mark, and every rewrite of the template is required, so a changed template fails
+  the creation instead of producing a system that does not compile.
 
-### Files projects must update
+### Upgrade
 
-Projects own these files; upgrades do not rewrite them. Merge them from a new
+Projects own the starter's files; upgrades do not rewrite them. Merge them from a new
 `npm create adulajs` application:
 
-* `node ace adula:ui add dialog resource-form resource-surface data-table resource-bulk
-  resource-actions resource-dashboard resource-field resource-page resource-value
-  resource-show messages` (with the shared `field_values.ts` and `list_query.ts`).
-* `app/controllers/resources_controller.ts` (bulk actions in the list props, #108).
-* `inertia/layouts/workspace.tsx`, `inertia/layouts/default.tsx`,
-  `inertia/pages/work/my_tasks.tsx`, `inertia/components/notification-bell.tsx`,
-  `inertia/components/account-menu.tsx`, `inertia/components/admin-nav.tsx`,
-  `inertia/components/account/two-factor-card.tsx`, `inertia/pages/home.tsx`,
-  `inertia/pages/account/profile.tsx`, `app/middleware/inertia_middleware.ts`: custom pages
-  that read `usePage().props.user` for the signed-in user should read `account`.
-* Impersonation and users: `app/services/impersonation.ts`,
+* Run the migrations (`1770000000051`, `1770000000054_cloud_backups`,
+  `1770000000055_ai_assistant`, `1770000000056_appearance`).
+* Merge the `.dark` block and the new tokens into `inertia/css/adula.css` by hand:
+  `adula:ui` writes it only once.
+* `node ace adula:ui add dialog long-dialog tabs breadcrumb copy-button file-input
+  user-avatar slider sortable-list attachment-preview data-table list-filters
+  record-collaboration record-assignments record-workflows resource-form resource-surface
+  resource-bulk resource-actions resource-dashboard resource-field resource-import
+  resource-page resource-value resource-show messages` (with the shared `field_values.ts`
+  and `list_query.ts`).
+* Custom dialogs: remove hand-made unsaved-change tracking and any `data-dirty` attribute;
+  declare state that is not a plain input, text area or select with `useDialogValue` or the
+  `Dialog` `value` prop.
+* Shell and pages: `inertia/layouts/workspace.tsx`, `inertia/layouts/default.tsx`, the new
+  `inertia/components/brand-mark.tsx`, `inertia/components/{admin-nav,account-menu,
+  notification-bell,ui-settings,invite-user-dialog}.tsx`, the new
+  `inertia/components/{preferences,shell_navigation,admin_sections,module_icons}.ts`,
+  `inertia/app.tsx`, `inertia/pages/home.tsx`, `resources/views/inertia_layout.edge`,
+  `app/middleware/{inertia,admin}_middleware.ts`, `start/{routes,limiter,kernel,scheduler,
+  preferences,env}.ts`, `app/services/adula.ts`, `app/controllers/resources_controller.ts`
+  (bulk actions in the list props, #108), `inertia/pages/work/my_tasks.tsx`,
+  `inertia/pages/account/profile.tsx` and `inertia/components/account/two-factor-card.tsx`.
+  Custom pages that read `usePage().props.user` for the signed-in user should read
+  `account`.
+* Administration: the setup and settings pages with
+  `components/{setup-guides,mail-setup,mail-test}.tsx`, `app/services/mail_setup.ts`,
+  `config/mail.ts`, the mail settings tab and controller, the appearance page and
+  controller, `inertia/pages/admin/users/{index,show}.tsx` (the show page's prop is now
+  `target`), `inertia/pages/users/invite.tsx`, `inertia/pages/admin/roles/{index,show}.tsx`,
+  `app/controllers/admin/activity_controller.ts` with the new
+  `app/services/activity_presentation.ts` and `inertia/pages/admin/activity/index.tsx`.
+* Impersonation: `app/services/impersonation.ts`,
   `app/controllers/admin/users_controller.ts`, `app/controllers/session_controller.ts`,
-  `app/controllers/account_sessions_controller.ts`, `inertia/pages/admin/users/show.tsx`
-  (its page prop is now `target`), `inertia/pages/admin/users/index.tsx`. API clients that
-  start impersonation must send `reason`.
-* Activity log: `app/controllers/admin/activity_controller.ts`, the new
-  `app/services/activity_presentation.ts`, `inertia/pages/admin/activity/index.tsx`.
-* Roles: `inertia/pages/admin/roles/index.tsx`, `inertia/pages/admin/roles/show.tsx`.
+  `app/controllers/account_sessions_controller.ts`. API clients that start impersonation
+  must send `reason`.
+* Avatars and overview: `app/controllers/{avatars,home}_controller.ts`,
+  `app/services/{overview,overview_layout}.ts`, `inertia/components/account/avatar-*.tsx`,
+  `inertia/components/overview/customize-dialog.tsx`.
+* Backups: `app/controllers/admin/backups_controller.ts`,
+  `inertia/pages/admin/backups/index.tsx`. Assistant: `app/controllers/assistant_controller.ts`,
+  `app/controllers/admin/assistant_controller.ts`, `app/middleware/assistant_middleware.ts`,
+  `inertia/components/assistant/*`, `inertia/pages/admin/assistant/index.tsx`.
+* Tests and deployment: `config/{cache,queue}.ts` (the per-database test prefix),
+  `tests/bootstrap.ts`, and in `docker-compose.prod.yml` the optional
+  `MAIL_SETTINGS_SOURCE` for the application services.
+* Backups need `BACKUP_ENCRYPTION_KEY` (base64 of 32 random bytes, kept offline: losing it
+  makes every archive unreadable) and a private `backup_files` volume shared by the web and
+  worker processes. Google Drive and OneDrive also need dedicated OAuth clients,
+  `BACKUP_GOOGLE_CLIENT_ID/SECRET` and `BACKUP_MICROSOFT_CLIENT_ID/SECRET` with optional
+  `BACKUP_MICROSOFT_TENANT` (default `common`), registered with the redirect URIs
+  `<APP_URL>/admin/backups/oauth/google/callback` and
+  `<APP_URL>/admin/backups/oauth/onedrive/callback`. A Google consent screen left in
+  testing mode expires refresh tokens after 7 days.
+* The assistant needs `core.ai`/`use` in a role assigned across the deployment (an
+  organization-scoped assignment does not carry it), the OpenRouter key entered in
+  «الإدارة ← المساعد الذكي», and the daily `adula:assistant:prune` in the scheduler.
+* Existing dashboard widgets join the overview with `overview: true`.
 
 ## 2.2.0 — 2026-10-30
 

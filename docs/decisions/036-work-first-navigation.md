@@ -47,7 +47,7 @@ grouping and without checking permissions, and they crowded out the business mod
   redirect, deciding from My tasks (approval and decision steps), the closing-note dialog
   and the sidebar for administrators and ordinary users.
 
-## Addendum (2.2.1): resources read only for titles
+## Addendum (2.3.0): resources read only for titles
 
 A role often reads another application's resource only to name its records: relation
 titles, pickers and the parent check of `scope.from` (ADR 029). `navigation()` leaves out a
