@@ -1,17 +1,19 @@
 import { useState, type ReactElement } from 'react'
 import { Head, router } from '@inertiajs/react'
 import axios from 'axios'
-import { Copy, KeySquare, Plus, Trash2 } from 'lucide-react'
+import { KeySquare, Plus, Trash2 } from 'lucide-react'
 import Workspace from '~/layouts/workspace'
 import { AdminHeader, useDateTimeFormatter } from '~/components/admin-nav'
 import { Badge } from '~/components/ui/badge'
 import { useConfirmAction } from '~/components/ui/confirm-action'
 import { Button } from '~/components/ui/button'
+import { CopyButton } from '~/components/ui/copy-button'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '~/components/ui/radio-group'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -73,7 +75,7 @@ export default function ApiTokens({ tokens }: Props) {
         }
       >
         <Button onClick={() => setCreating(true)}>
-          <Plus size={16} />
+          <Plus />
           إنشاء رمز
         </Button>
       </AdminHeader>
@@ -115,7 +117,7 @@ export default function ApiTokens({ tokens }: Props) {
                 })
               }
             >
-              <Trash2 size={14} />
+              <Trash2 />
               إلغاء الرمز
             </Button>
           </li>
@@ -176,9 +178,11 @@ export default function ApiTokens({ tokens }: Props) {
             )}
           </form>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setCreating(false)}>
-              إلغاء
-            </Button>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                إلغاء
+              </Button>
+            </DialogClose>
             <Button type="submit" form="token-form">
               إنشاء
             </Button>
@@ -197,14 +201,7 @@ export default function ApiTokens({ tokens }: Props) {
             Bearer {secret}
           </code>
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => secret && navigator.clipboard?.writeText(secret)}
-            >
-              <Copy size={14} />
-              نسخ
-            </Button>
+            {secret && <CopyButton value={secret} className="sm:me-auto" />}
             <Button type="button" onClick={() => setSecret(null)}>
               تم
             </Button>

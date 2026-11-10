@@ -10,7 +10,15 @@ import User from '#models/user'
 
 const THEME = process.env.ADULA_TEST_THEME === 'dark' ? 'dark' : 'light'
 /** Saves a screenshot for the design review under .work/screenshots, one per theme. */
-async function snapshot(page: { screenshot(options: object): Promise<unknown> }, name: string) {
+async function snapshot(
+  page: {
+    screenshot(options: object): Promise<unknown>
+    waitForTimeout(ms: number): Promise<void>
+  },
+  name: string
+) {
+  // Lets a dialog's opening animation finish, so the review sees it as people do.
+  await page.waitForTimeout(400)
   await mkdir(app.makePath('../../.work/screenshots'), { recursive: true })
   await page.screenshot({
     path: app.makePath(`../../.work/screenshots/api-tokens-${name}-${THEME}.png`),
@@ -56,6 +64,18 @@ test.group('API tokens in the settings (administrators only)', (group) => {
   }) => {
     await browserContext.loginAs(admin)
     const page = await visit('/admin/tokens')
+    // At phone width: the tab and the create dialog, which «إلغاء» closes at once while
+    // untouched (the shared clean-close path).
+    await page.setViewportSize({ width: 375, height: 812 })
+    await page.getByRole('tab', { name: 'رموز API' }).waitFor()
+    await snapshot(page, 'tab-375')
+    await page.getByRole('button', { name: 'إنشاء رمز', exact: true }).click()
+    const narrow = page.getByRole('dialog', { name: 'إنشاء رمز API' })
+    await narrow.waitFor()
+    await snapshot(page, 'create-375')
+    await narrow.getByRole('button', { name: 'إلغاء', exact: true }).click()
+    await narrow.waitFor({ state: 'hidden' })
+    assert.equal(await page.getByRole('dialog', { name: 'إغلاق النموذج؟' }).count(), 0)
     await page.setViewportSize({ width: 1440, height: 900 })
     // The page is one of the «الإعدادات» tabs, and that tab is the selected one.
     const tab = page.getByRole('tab', { name: 'رموز API' })
@@ -80,6 +100,8 @@ test.group('API tokens in the settings (administrators only)', (group) => {
     const secret = page.getByRole('dialog', { name: 'انسخ الرمز الآن' })
     await secret.waitFor()
     assert.match((await secret.locator('code').textContent()) ?? '', /^Bearer adula_/)
+    // The shared copy button sits at the footer's start and confirms the copy.
+    await secret.getByRole('button', { name: 'نسخ', exact: true }).waitFor()
     await snapshot(page, 'secret')
     await secret.getByRole('button', { name: 'تم', exact: true }).click()
     await secret.waitFor({ state: 'hidden' })
