@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
@@ -185,13 +186,28 @@ type OverlayPage = Record<string, unknown> & { overlay?: RecordOverlay }
 
 /** Deferred props being loaded for the page on screen (Inertia's async partial reloads). */
 let deferredLoads = 0
+/** Inertia writes in flight (a form submit, a POST, PUT or DELETE): never cancelled. */
+let pendingWrites = 0
 if (typeof window !== 'undefined') {
   router.on('start', (event) => {
     if (event.detail.visit.async) deferredLoads++
+    if (event.detail.visit.method !== 'get') pendingWrites++
   })
   router.on('finish', (event) => {
     if (event.detail.visit.async) deferredLoads = Math.max(0, deferredLoads - 1)
+    if (event.detail.visit.method !== 'get') pendingWrites = Math.max(0, pendingWrites - 1)
   })
+}
+
+/**
+ * Cancels the page's reads still in flight (a GET visit, deferred props), so a late answer
+ * cannot replace the page. A write in flight is never cancelled: its reply and message must
+ * arrive, as the change may already be saved; while one is pending nothing is cancelled.
+ */
+function cancelReads(options: { sync: boolean; async: boolean }) {
+  if (pendingWrites > 0) return false
+  router.cancelAll({ async: options.async, prefetch: false, sync: options.sync })
+  return true
 }
 
 /**
@@ -209,8 +225,7 @@ export function clientVisit<TProps = OverlayPage>(
   options: Parameters<typeof router.push<TProps>>[0],
   ownPage = false
 ) {
-  const cancelled = ownPage && deferredLoads > 0
-  if (cancelled) router.cancelAll({ async: true, prefetch: false, sync: false })
+  const cancelled = ownPage && deferredLoads > 0 && cancelReads({ async: true, sync: false })
   const visit = kind === 'push' ? router.push.bind(router) : router.replace.bind(router)
   visit<TProps>({
     ...options,
@@ -247,6 +262,9 @@ export function plainClick(event: {
 
 /** The view being loaded for the open dialog; a newer opening or a close discards it. */
 let loading: { href: string; abort: AbortController } | null = null
+
+/** The address whose loaded view is being put on the page (loadOverlay's replace). */
+let delivering: string | null = null
 
 function cancelLoading() {
   loading?.abort.abort()
@@ -292,6 +310,9 @@ async function loadOverlay(
   loading = null
   // A page the user asked to see as a page, not a dialog: visit it.
   if (data.presentation === 'page') return options.fallback()
+  // The view may arrive before the page shows the pushed opening (the shell made the click
+  // faster than the page update); it is on its way, so the opening must not load it again.
+  delivering = href
   clientVisit('replace', {
     url: href,
     props: (page: OverlayPage) => ({
@@ -308,6 +329,9 @@ async function loadOverlay(
     }),
     preserveState: true,
     preserveScroll: true,
+    onFinish: () => {
+      if (delivering === href) delivering = null
+    },
   })
 }
 
@@ -350,26 +374,57 @@ export async function openCreate(resource: string, search = '') {
 }
 
 /** Pushes the dialog's address and its shell, with no request: the list stays as it is. */
+/**
+ * The dialog being opened, shown before Inertia's page update: the click renders only the
+ * dialog, at once, and the page update that follows (a re-render of the whole page) finds the
+ * same dialog already on screen and keeps it.
+ */
+let shell: RecordOverlay | null = null
+const shellListeners = new Set<() => void>()
+function setShell(next: RecordOverlay | null) {
+  if (shell === next) return
+  shell = next
+  for (const listener of shellListeners) listener()
+}
+
+/** The dialog opening on this page before its address is pushed, or null. */
+export function useOverlayShell() {
+  return useSyncExternalStore(
+    (listener) => {
+      shellListeners.add(listener)
+      return () => shellListeners.delete(listener)
+    },
+    () => shell,
+    () => null
+  )
+}
+
 function showOverlay(
   href: string,
   resource: string,
   opening: NonNullable<RecordOverlay['opening']>
 ) {
   cancelLoading()
-  // Opening a dialog is the user's latest navigation, as a link click is: a visit or deferred
+  // Opening a dialog is the user's latest navigation, as a link click is: a read or deferred
   // props still in flight for the page would otherwise answer later and replace its props,
   // dialog and all. Deferred props cancelled here load again when the dialog closes back to
-  // the page (clientVisit with ownPage).
-  router.cancelAll({ async: true, prefetch: false, sync: true })
+  // the page (clientVisit with ownPage). A pending write is left to finish.
+  cancelReads({ async: true, sync: true })
   const list = here()
+  const overlay: RecordOverlay = { resource, opening, list, record: href }
+  setShell(overlay)
   clientVisit('push', {
     url: href,
     props: (page: OverlayPage) => {
       const { childrenData: _children, activity: _activity, ...rest } = page
-      return { ...rest, overlay: { resource, opening, list, record: href } }
+      return { ...rest, overlay }
     },
     preserveState: true,
     preserveScroll: true,
+    // The page now carries the dialog itself.
+    onSuccess: () => {
+      if (shell === overlay) setShell(null)
+    },
   })
 }
 
@@ -385,7 +440,7 @@ export function useOverlayView(overlay: RecordOverlay | undefined) {
   const href = overlay?.record
   useEffect(() => {
     if (!opening || !resource || !href) return
-    if (loading?.href === href) return
+    if (loading?.href === href || delivering === href) return
     if (opening.mode === 'create')
       void loadOverlay(
         href,
@@ -494,6 +549,7 @@ export async function pinCreated(resource: string, id: string | number) {
 export function closeRecord(overlay: RecordOverlay) {
   // A view still loading for this dialog is not wanted any more.
   cancelLoading()
+  setShell(null)
   // The list is mounted; a later direct visit of a record must not return to this view.
   forgetListView()
   if (overlay.changed) {

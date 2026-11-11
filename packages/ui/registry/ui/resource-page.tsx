@@ -28,6 +28,7 @@ import {
   openCreate,
   openRecord,
   plainClick,
+  useOverlayShell,
   useOverlayView,
   type RecordOverlay,
   type ResourcePresentation,
@@ -102,7 +103,12 @@ function openingTitle(
 function RecordLoading() {
   const { t } = useMessages()
   return (
-    <div role="status" aria-label={t('جارٍ التحميل...')} className="space-y-5">
+    <div
+      role="status"
+      aria-label={t('جارٍ التحميل...')}
+      data-slot="record-loading"
+      className="space-y-5"
+    >
       {[0, 1, 2].map((row) => (
         <div key={row} className="space-y-2">
           <Skeleton className="h-4 w-32" />
@@ -163,12 +169,16 @@ function RecordBody({
 export function RecordOverlayDialog({ resource }: { resource?: ResourceDescription }) {
   const { t } = useMessages()
   // A client-only prop set by openRecord()/openCreate(), never sent by the server.
-  const { overlay, childrenData, activity } = usePage<{
+  const props = usePage<{
     overlay?: RecordOverlay
     childrenData?: ResourceChildren
     activity?: ResourceActivity
   }>().props
-  useOverlayView(overlay)
+  // The click shows the dialog from the shell before the page carries it (useOverlayShell).
+  const shell = useOverlayShell()
+  const overlay = props.overlay ?? shell ?? undefined
+  const { childrenData, activity } = props
+  useOverlayView(props.overlay)
   // What closing does next: after a create, the list with the new row pinned first.
   const next = useRef<(() => void) | null>(null)
   const dismiss = useRef<(() => void) | null>(null)

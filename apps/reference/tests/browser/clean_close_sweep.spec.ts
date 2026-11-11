@@ -143,15 +143,22 @@ class Sweep {
     return this.page.locator(MODAL).last()
   }
 
-  /** The modal the click opened: the first one beyond those already open before it. */
+  /**
+   * The modal the click opened: the first one beyond those already open before it, once its
+   * body has loaded. A record or create dialog opens at once with a loading body; its title
+   * and its clean close are checked on the real body, never on the placeholder.
+   */
   private async openModal(already: number, timeout = 1500) {
     const modal = this.page.locator(MODAL).nth(already)
     try {
       await modal.waitFor({ state: 'visible', timeout })
-      return modal
     } catch {
       return null
     }
+    await modal
+      .locator('[data-slot="record-loading"]')
+      .waitFor({ state: 'detached', timeout: 15_000 })
+    return modal
   }
 
   private async titleOf() {

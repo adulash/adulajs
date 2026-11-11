@@ -822,7 +822,7 @@
     },
     "ExportOptions": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ search?: string | undefined; sort?: string | undefined; direction?: \"asc\" | \"desc\" | undefined; filters?: Record<string, unknown> | undefined; tag?: string | undefined; trashed?: boolean | undefined; }"
+      "type": "{ search?: string | undefined; sort?: string | undefined; direction?: \"asc\" | \"desc\" | undefined; filters?: Record<string, unknown> | undefined; tag?: string | undefined; trashed?: boolean | undefined; ids?: number[] | undefined; }"
     },
     "FailedJob": {
       "kind": "TypeAliasDeclaration",
@@ -1174,7 +1174,7 @@
     },
     "ListOptions": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ limit?: number | undefined; cursor?: string | undefined; search?: string | undefined; sort?: string | undefined; direction?: \"asc\" | \"desc\" | undefined; filters?: Record<string, unknown> | undefined; tag?: string | undefined; estimate?: boolean | undefined; trashed?: boolean | undefined; }"
+      "type": "{ limit?: number | undefined; cursor?: string | undefined; search?: string | undefined; sort?: string | undefined; direction?: \"asc\" | \"desc\" | undefined; filters?: Record<string, unknown> | undefined; tag?: string | undefined; estimate?: boolean | undefined; trashed?: boolean | undefined; ids?: number[] | undefined; }"
     },
     "loadAttachments": {
       "kind": "FunctionDeclaration",

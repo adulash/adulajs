@@ -42,7 +42,9 @@ animation: «إضافة» visited `/resources/:resource/create`, which replaced 
 table with a standalone form, and a record dialog appeared only after its view arrived.
 
 1. `openRecord` pushes the record's address with the dialog's shell first, with no request: the
-   dialog's enter animation starts on the click, over the mounted page, and its body shows a
+   dialog's enter animation starts on the click, over the mounted page. The click renders the
+   dialog alone from a small store (`useOverlayShell`) before Inertia's page update re-renders
+   the page, so it is on screen at the first frame after the click, and its body shows a
    loading state (shadcn Skeleton) until `GET /resources/:resource/:id/view` answers. A close, a
    newer opening or Back discards a view that arrives late; a view missing after Forward is
    fetched again.
@@ -69,8 +71,9 @@ table with a standalone form, and a record dialog appeared only after its view a
 7. Inertia renders a history entry afresh on Back and Forward (`preserveState: false`); those
    visits read the history and send no request.
 8. Every address change of a dialog goes through `clientVisit` (exported by `resource-surface`).
-   Opening a dialog cancels a visit still in flight, as a link click does, so a late answer
-   cannot replace the page and the dialog with it. Deferred props (the «مهامي» badge) loading
+   Opening a dialog cancels a read still in flight (a GET visit, deferred props), as a link
+   click does, so a late answer cannot replace the page and the dialog with it; a write in
+   flight (a submit, POST, PUT or DELETE) is never cancelled, so its reply and message arrive. Deferred props (the «مهامي» badge) loading
    for the old address are cancelled when the dialog returns to the page's own address and
    loaded again for it: Inertia would otherwise apply their late answer when only the query
    changed (reopening the invitation) and drop it when the path changed. The bell's refresh on

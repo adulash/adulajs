@@ -1,4 +1,5 @@
 import { test } from '@japa/runner'
+import db from '@adonisjs/lucid/services/db'
 import type { Page, Request, Route } from 'playwright'
 import { adula } from '#services/adula'
 import {
@@ -16,6 +17,33 @@ import {
  */
 
 /** Remembers the page's heading and table, to check later that they were never replaced. */
+/**
+ * Times the next click until an open dialog is in the page, measured in the page itself: in
+ * milliseconds, and whether it was there at the first animation frame after the click.
+ */
+async function startStopwatch(page: Page) {
+  await page.evaluate(`(() => {
+    window.__opening = null
+    document.addEventListener('click', () => {
+      const clicked = performance.now()
+      const opening = (window.__opening = { firstFrame: null, ms: null })
+      requestAnimationFrame(() => {
+        opening.firstFrame = !!document.querySelector('[role=dialog][data-state=open]')
+      })
+      const observer = new MutationObserver(() => {
+        if (opening.ms !== null || !document.querySelector('[role=dialog][data-state=open]')) return
+        opening.ms = performance.now() - clicked
+        observer.disconnect()
+      })
+      observer.observe(document.body, { childList: true, subtree: true, attributes: true })
+    }, { capture: true, once: true })
+  })()`)
+}
+
+async function readStopwatch(page: Page) {
+  return page.evaluate<{ firstFrame: boolean | null; ms: number | null }>('window.__opening')
+}
+
 async function markPage(page: Page) {
   await page.evaluate(`(() => {
     window.__heading = document.querySelector('main h1')
@@ -212,6 +240,34 @@ test.group('Dialogs open over the mounted page', (group) => {
     assert.isTrue(first.created)
   }).timeout(60_000)
 
+  test('the dialog is on screen at the first frame after the click', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(admin.user)
+    const page = await visit('/resources/ui_samples')
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.locator('main table tbody tr[data-row-id]').first().waitFor()
+    await page.waitForLoadState('networkidle')
+    // «إضافة» and a record row: the shell needs no request, so the page update that follows
+    // the click (a re-render of the whole list) never delays it.
+    for (const opener of [
+      page.getByRole('link', { name: 'إضافة عينة' }),
+      page.locator('main tbody a[href^="/resources/ui_samples/"]').first(),
+    ]) {
+      await startStopwatch(page)
+      await opener.click()
+      await page.locator('[role=dialog][data-state=open]').waitFor()
+      await page.waitForTimeout(100)
+      const opening = await readStopwatch(page)
+      assert.isTrue(opening.firstFrame, `on screen at the first frame: ${JSON.stringify(opening)}`)
+      assert.isBelow(opening.ms!, 150, 'within 150 ms of the click')
+      await page.keyboard.press('Escape')
+      await page.locator('[role=dialog]').waitFor({ state: 'detached' })
+    }
+  }).timeout(60_000)
+
   test('closing an untouched create dialog returns to the list without a request', async ({
     browserContext,
     visit,
@@ -289,6 +345,93 @@ test.group('Dialogs open over the mounted page', (group) => {
     await page.keyboard.press('Escape')
     await dialog.waitFor({ state: 'hidden' })
     assert.equal(new URL(page.url()).pathname, '/resources/ui_samples')
+  }).timeout(60_000)
+
+  test('opening a record never cancels a write in flight: its reply and message arrive', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    const knex = db.connection().getWriteClient()
+    const [record] = await knex('ui_samples').select('id').orderBy('id').limit(1)
+    await knex('notifications').where({ user_id: admin.user.id }).delete()
+    await knex('notifications').insert([
+      {
+        user_id: admin.user.id,
+        title: 'سجل للمراجعة',
+        body: 'نص',
+        resource: 'ui_samples',
+        record_id: record.id,
+      },
+      { user_id: admin.user.id, title: 'تنبيه ثانٍ', body: 'نص' },
+    ])
+    await browserContext.loginAs(admin.user)
+    const page = await visit('/notifications')
+    await page.getByRole('link', { name: 'سجل للمراجعة' }).waitFor()
+    await page.waitForLoadState('networkidle')
+    // What the page sent and received, printed when the test fails.
+    const log: string[] = []
+    const path = (url: string) => new URL(url).pathname
+    page.on('request', (request) => log.push(`→ ${request.method()} ${path(request.url())}`))
+    page.on('response', (response) => log.push(`← ${response.status()} ${path(response.url())}`))
+    page.on('requestfailed', (request) =>
+      log.push(`✗ ${request.method()} ${path(request.url())} ${request.failure()?.errorText}`)
+    )
+    // «تعيين الكل كمقروء» is an Inertia POST: hold it while a record opens over the page. It is
+    // always released, also when the test fails, and the release never waits long.
+    const hold = await holdRequests(page, /\/notifications\/read-all$/)
+    let released = false
+    const release = async () => {
+      if (released) return
+      released = true
+      await Promise.race([
+        hold.release().catch(() => {}),
+        new Promise((resolve) => setTimeout(resolve, 3000)),
+      ])
+    }
+    // Every toast the page shows, whenever it shows and however briefly.
+    await page.evaluate(`(() => {
+      window.__toasts = []
+      new MutationObserver(() => {
+        for (const toast of document.querySelectorAll('[data-sonner-toast]'))
+          if (!window.__toasts.includes(toast.textContent)) window.__toasts.push(toast.textContent)
+      }).observe(document.body, { childList: true, subtree: true, characterData: true })
+    })()`)
+    try {
+      await page.getByRole('button', { name: 'تعيين الكل كمقروء', exact: true }).click()
+      for (const started = Date.now(); hold.held.length === 0;) {
+        if (Date.now() - started > 10_000) assert.fail('the write was not sent')
+        await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+      await page.getByRole('link', { name: 'سجل للمراجعة' }).click()
+      await page.getByRole('dialog', { name: /^تفاصيل/ }).waitFor({ timeout: 10_000 })
+      await release()
+      // The write's reply arrives: its message shows and the inbox reads as read.
+      await page.getByText('لا إشعارات غير مقروءة', { exact: true }).waitFor({ timeout: 10_000 })
+      const toasts = (await page.evaluate('window.__toasts')) as string[]
+      assert.isTrue(
+        toasts.some((text) => text.includes('تم تعيين كل الإشعارات كمقروءة')),
+        `the write's message: ${JSON.stringify(toasts)}`
+      )
+      const unread = await knex('notifications')
+        .where({ user_id: admin.user.id })
+        .whereNull('read_at')
+      assert.lengthOf(unread, 0)
+    } catch (error) {
+      console.log(`[write in flight] ${page.url()}\n${log.join('\n')}`)
+      const inbox = await page.locator('main').innerText()
+      console.log(
+        '[write in flight] state',
+        JSON.stringify({
+          toasts: await page.evaluate('window.__toasts'),
+          dialogs: await page.locator('[role=dialog]').count(),
+          inbox: inbox.replace(/\s+/g, ' ').slice(0, 200),
+        })
+      )
+      throw error
+    } finally {
+      await release()
+    }
   }).timeout(60_000)
 
   test('«دعوة مستخدم» opens over the users list at once, without a request', async ({
