@@ -569,6 +569,52 @@ test.group('Dialogs open over the mounted page', (group) => {
             `${name}: full-width header`
           )
       }
+
+      // Which side the lock pads is measured, not taken from the direction. Chromium keeps the
+      // page's scrollbar on the right in RTL (the case above); Firefox puts it on the left,
+      // where the page's box starts after it. That geometry is reported here over a real
+      // scrollbar's gap, so the left branch and its CSS run in this engine too.
+      await page.setViewportSize({ width: 640, height: 800 })
+      await page.goto(origin + '/resources/ui_samples')
+      await page.locator('main h1').waitFor()
+      await page.waitForLoadState('networkidle')
+      const side = () =>
+        page.evaluate<string | undefined>('document.documentElement.dataset.rootScrollbar')
+      assert.equal(await side(), 'right', 'Chromium: the page scrollbar is on the right')
+      const gap = await page.evaluate<number>(
+        'window.innerWidth - document.documentElement.clientWidth'
+      )
+      assert.isAbove(gap, 0)
+      await page.evaluate(`(() => {
+        const root = document.documentElement
+        const real = root.getBoundingClientRect.bind(root)
+        root.getBoundingClientRect = () => {
+          const box = real()
+          const gap = window.innerWidth - root.clientWidth
+          return new DOMRect(box.left + gap, box.top, box.width, box.height)
+        }
+      })()`)
+      // A change of the page's width measures again (here, the window narrowed by a pixel).
+      await page.setViewportSize({ width: 639, height: 800 })
+      await page.waitForFunction('document.documentElement.dataset.rootScrollbar === "left"')
+      await page.getByRole('link', { name: 'إضافة عينة' }).click()
+      await page.locator('[role=dialog][data-state=open]').waitFor()
+      const margins = await page.evaluate<{ left: string; right: string; gap: number }>(`(() => {
+        const style = getComputedStyle(document.body)
+        return {
+          left: style.marginLeft,
+          right: style.marginRight,
+          gap: parseFloat(style.getPropertyValue('--removed-body-scroll-bar-size')),
+        }
+      })()`)
+      assert.equal(margins.gap, gap, 'the lock removed the scrollbar it measured')
+      assert.deepEqual(
+        { left: margins.left, right: margins.right },
+        { left: `${gap}px`, right: '0px' },
+        'a left scrollbar: the room it took moves to the left'
+      )
+      await page.keyboard.press('Escape')
+      await page.locator('[role=dialog]').waitFor({ state: 'detached' })
     } finally {
       await browser.close()
     }

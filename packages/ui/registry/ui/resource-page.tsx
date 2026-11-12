@@ -15,6 +15,7 @@ import type {
 } from 'adula'
 import { Button } from '~/components/ui/button'
 import { DialogClose } from '~/components/ui/dialog'
+import { Card, CardContent, CardHeader } from '~/components/ui/card'
 import { Skeleton } from '~/components/ui/skeleton'
 import { DataTable } from '~/components/ui/data-table'
 import type { BulkAction } from '~/components/ui/resource-bulk'
@@ -139,25 +140,25 @@ function RecordLoading({ form }: { form: boolean }) {
 function RecordSkeleton() {
   const { t } = useMessages()
   return (
-    <section
+    <Card
       role="status"
       aria-label={t('جارٍ التحميل...')}
       data-slot="record-loading"
-      className="rounded-xl border bg-card"
+      className="gap-0 py-0 shadow-none"
     >
-      <div className="space-y-2 border-b px-7 py-5">
+      <CardHeader className="border-b px-7 py-5 [.border-b]:pb-5">
         <Skeleton className="h-4 w-28" />
         <Skeleton className="h-3 w-48" />
-      </div>
-      <div className="grid gap-6 p-7 md:grid-cols-2">
+      </CardHeader>
+      <CardContent className="grid gap-6 p-7 md:grid-cols-2">
         {[0, 1, 2, 3].map((field) => (
           <div key={field} className="min-w-0 space-y-2">
             <Skeleton className="h-4 w-32" />
             <Skeleton className="h-9 w-full" />
           </div>
         ))}
-      </div>
-    </section>
+      </CardContent>
+    </Card>
   )
 }
 
