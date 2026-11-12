@@ -362,6 +362,11 @@ test.group('Generic resource browser acceptance', (group) => {
       body.presentation = 'page'
       await route.fulfill({ response, json: body })
     })
+    // The list fetches its create form ahead once idle: load it again, so that prefetch goes
+    // through the presentation above too.
+    await page.reload()
+    await page.getByRole('link', { name: 'إضافة سجل', exact: true }).waitFor()
+    await page.waitForLoadState('networkidle')
     await page.getByRole('link', { name: 'إضافة سجل', exact: true }).click()
     // The page's own way back: the dialog shell shown on the click has given way to the page.
     await page.getByRole('link', { name: 'العودة إلى القائمة', exact: true }).waitFor()

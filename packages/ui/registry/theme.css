@@ -111,6 +111,13 @@
 body {
   font-family: var(--font-sans);
 }
+/* A dialog locks page scrolling (react-remove-scroll), which hides the page's scrollbar and
+   pads the body by its width so nothing moves. The library pads on the right; a right-to-left
+   page has its scrollbar on the left, so the room moves there and the page stays in place. */
+html[dir='rtl'] body[data-scroll-locked] {
+  margin-right: 0 !important;
+  margin-left: var(--removed-body-scroll-bar-size, 0px) !important;
+}
 
 @media (prefers-reduced-motion: reduce) {
   *,

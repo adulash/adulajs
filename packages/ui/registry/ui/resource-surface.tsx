@@ -3,6 +3,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -34,7 +35,8 @@ const footerClass = 'flex w-full flex-wrap items-center gap-2'
 export function RecordFooter({ children }: { children: ReactNode }) {
   const surface = useContext(RecordFooterContext)
   const register = surface?.register
-  useEffect(() => register?.(), [register])
+  // Registered before paint, so the dialog's fixed footer is there in the body's first frame.
+  useLayoutEffect(() => register?.(), [register])
   if (!surface) return <div className={footerClass}>{children}</div>
   return surface.slot ? createPortal(children, surface.slot) : null
 }
@@ -272,9 +274,94 @@ function cancelLoading() {
 }
 
 // Back and Forward leave the dialog that was loading; history brings its own page.
-if (typeof window !== 'undefined') window.addEventListener('popstate', cancelLoading)
+if (typeof window !== 'undefined')
+  window.addEventListener('popstate', () => {
+    cancelLoading()
+    // Back before the opening push applied: the page in history has no dialog.
+    setShell(null)
+  })
 
 const here = () => window.location.pathname + window.location.search
+
+type ViewData = {
+  view: unknown
+  childrenData?: unknown
+  activity?: unknown
+  presentation?: ResourcePresentation
+}
+
+/** `keep`: used for every opening while fresh (the create form), not only the next one. */
+type Prefetch = { at: number; promise: Promise<ViewData>; data?: ViewData; keep: boolean }
+
+/**
+ * Views fetched ahead of the click (a record on hover or focus, the create form when its list
+ * mounts), so most dialogs open complete instead of with a loading body. A record's view is
+ * used once, the create form for every opening, both only while fresh; a save clears them all,
+ * since any view may show what it changed.
+ */
+const prefetched = new Map<string, Prefetch>()
+const PREFETCH_FRESH_MS = 20_000
+
+const viewKey = (endpoint: string, params: Record<string, unknown>) =>
+  `${endpoint}?${new URLSearchParams(params as Record<string, string>).toString()}`
+
+function prefetchView(endpoint: string, params: Record<string, unknown>, keep = false) {
+  const key = viewKey(endpoint, params)
+  const entry = prefetched.get(key)
+  if (entry && Date.now() - entry.at < PREFETCH_FRESH_MS) return
+  const next: Prefetch = {
+    at: Date.now(),
+    keep,
+    promise: axios
+      .get<ViewData>(endpoint, { params, headers: { Accept: 'application/json' } })
+      .then((response) => (next.data = response.data)),
+  }
+  // A failed prefetch is forgotten; the click loads the view itself and handles the failure.
+  next.promise.catch(() => {
+    if (prefetched.get(key) === next) prefetched.delete(key)
+  })
+  prefetched.set(key, next)
+}
+
+/** The fresh prefetched view for this request (taken out of the cache unless kept). */
+function takePrefetched(endpoint: string, params: Record<string, unknown>) {
+  const key = viewKey(endpoint, params)
+  const entry = prefetched.get(key)
+  if (!entry) return undefined
+  const fresh = Date.now() - entry.at < PREFETCH_FRESH_MS
+  if (!fresh || !entry.keep) prefetched.delete(key)
+  return fresh ? entry : undefined
+}
+
+/** Forgets every prefetched view: called after a save. */
+export function clearPrefetched() {
+  prefetched.clear()
+}
+
+const recordView = (resource: string, id: string | number, mode: 'show' | 'edit') => ({
+  endpoint: `/resources/${resource}/${id}/view`,
+  params: (mode === 'edit' ? { mode } : {}) as Record<string, unknown>,
+})
+const createView = (resource: string, search = '') => ({
+  endpoint: `/resources/${resource}/create/view`,
+  params: Object.fromEntries(new URLSearchParams(search)) as Record<string, unknown>,
+})
+
+/** Fetches a record's view ahead of the click (row hover or focus). */
+export function prefetchRecord(
+  resource: string,
+  id: string | number,
+  mode: 'show' | 'edit' = 'show'
+) {
+  const { endpoint, params } = recordView(resource, id, mode)
+  prefetchView(endpoint, params)
+}
+
+/** Fetches the create form ahead of the click (its list mounted, or «إضافة» hovered). */
+export function prefetchCreate(resource: string, search = '') {
+  const { endpoint, params } = createView(resource, search)
+  prefetchView(endpoint, params, true)
+}
 
 /** Fetches a dialog's view and puts it in the dialog, if the dialog is still the one open. */
 async function loadOverlay(
@@ -286,19 +373,19 @@ async function loadOverlay(
   cancelLoading()
   const abort = new AbortController()
   const current = (loading = { href, abort })
-  let data: {
-    view: unknown
-    childrenData?: unknown
-    activity?: unknown
-    presentation?: ResourcePresentation
-  }
+  let data: ViewData
   try {
-    const response = await axios.get(endpoint, {
-      params,
-      headers: { Accept: 'application/json' },
-      signal: abort.signal,
-    })
-    data = response.data
+    // A prefetch on its way answers this opening too: no second request.
+    const ahead = takePrefetched(endpoint, params)
+    if (ahead) data = await ahead.promise
+    else {
+      const response = await axios.get<ViewData>(endpoint, {
+        params,
+        headers: { Accept: 'application/json' },
+        signal: abort.signal,
+      })
+      data = response.data
+    }
   } catch (error) {
     if (loading !== current) return
     loading = null
@@ -350,13 +437,17 @@ export async function openRecord(
   options: { replace?: boolean; changed?: boolean; label?: string } = {}
 ) {
   const href = `/resources/${resource}/${id}${mode === 'edit' ? '/edit' : ''}`
+  const { endpoint, params } = recordView(resource, id, mode)
+  const fallback = () => router.visit(href, { replace: true })
+  if (options.changed) clearPrefetched()
   // Within the open dialog the current body and address stay until the next view arrives.
-  if (!options.replace)
-    showOverlay(href, resource, { mode, id: String(id), label: options.label })
-  await loadOverlay(href, `/resources/${resource}/${id}/view`, mode === 'edit' ? { mode } : {}, {
-    changed: options.changed,
-    fallback: () => router.visit(href, { replace: true }),
-  })
+  if (!options.replace) {
+    const opening = { mode, id: String(id), label: options.label }
+    // Prefetched: the dialog opens complete, with nothing left to load.
+    if (openPrefetched(href, resource, opening, endpoint, params, fallback)) return
+    showOverlay(href, resource, opening)
+  }
+  await loadOverlay(href, endpoint, params, { changed: options.changed, fallback })
 }
 
 /**
@@ -366,11 +457,31 @@ export async function openRecord(
  */
 export async function openCreate(resource: string, search = '') {
   const href = `/resources/${resource}/create${search}`
+  const { endpoint, params } = createView(resource, search)
+  const fallback = () => router.visit(href, { replace: true })
+  if (openPrefetched(href, resource, { mode: 'create' }, endpoint, params, fallback)) return
   showOverlay(href, resource, { mode: 'create' })
-  const params = Object.fromEntries(new URLSearchParams(search))
-  await loadOverlay(href, `/resources/${resource}/create/view`, params, {
-    fallback: () => router.visit(href, { replace: true }),
-  })
+  await loadOverlay(href, endpoint, params, { fallback })
+}
+
+/**
+ * Opens the dialog with a view that already arrived ahead of the click, so its first frame is
+ * its final one. False when no such view is at hand (the caller shows the loading dialog).
+ */
+function openPrefetched(
+  href: string,
+  resource: string,
+  opening: NonNullable<RecordOverlay['opening']>,
+  endpoint: string,
+  params: Record<string, unknown>,
+  fallback: () => void
+) {
+  const entry = prefetched.get(viewKey(endpoint, params))
+  if (!entry?.data || Date.now() - entry.at >= PREFETCH_FRESH_MS) return false
+  const data = takePrefetched(endpoint, params)!.data!
+  if (data.presentation === 'page') fallback()
+  else showOverlay(href, resource, opening, data)
+  return true
 }
 
 /** Pushes the dialog's address and its shell, with no request: the list stays as it is. */
@@ -402,7 +513,9 @@ export function useOverlayShell() {
 function showOverlay(
   href: string,
   resource: string,
-  opening: NonNullable<RecordOverlay['opening']>
+  opening: NonNullable<RecordOverlay['opening']>,
+  // A view already at hand (prefetched): the dialog opens complete.
+  data?: ViewData
 ) {
   cancelLoading()
   // Opening a dialog is the user's latest navigation, as a link click is: a read or deferred
@@ -411,13 +524,15 @@ function showOverlay(
   // the page (clientVisit with ownPage). A pending write is left to finish.
   cancelReads({ async: true, sync: true })
   const list = here()
-  const overlay: RecordOverlay = { resource, opening, list, record: href }
+  const overlay: RecordOverlay = { resource, opening, list, record: href, view: data?.view }
   setShell(overlay)
   clientVisit('push', {
     url: href,
     props: (page: OverlayPage) => {
       const { childrenData: _children, activity: _activity, ...rest } = page
-      return { ...rest, overlay }
+      return data
+        ? { ...rest, overlay, childrenData: data.childrenData, activity: data.activity }
+        : { ...rest, overlay }
     },
     preserveState: true,
     preserveScroll: true,
@@ -509,6 +624,7 @@ export async function closeCreated(
   id: string | number,
   row: Promise<ListRows | null>
 ) {
+  clearPrefetched()
   cancelLoading()
   forgetListView()
   const loaded = await row
@@ -553,6 +669,7 @@ export function closeRecord(overlay: RecordOverlay) {
   // The list is mounted; a later direct visit of a record must not return to this view.
   forgetListView()
   if (overlay.changed) {
+    clearPrefetched()
     // Replace the record's history entry, so Back does not reopen a record that changed.
     // The list stays mounted and its rows refresh in place; the reset header restarts the
     // list's loaded pages from the first page, as the refreshed rows do.
@@ -620,7 +737,8 @@ export function ResourceSurface({
   const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   useEffect(() => () => clearTimeout(closeTimer.current), [])
   // The footer appears once the record body registers actions for it; other bodies keep
-  // their own buttons and the dialog shows no empty footer.
+  // their own buttons and the dialog shows no empty footer. Bodies register before paint, so
+  // the bar stays in place while the loading body gives way to the loaded one.
   const [slot, setSlot] = useState<HTMLElement | null>(null)
   const [footers, setFooters] = useState(0)
   const register = useCallback(() => {
@@ -674,6 +792,9 @@ export function ResourceSurface({
       <LongDialogContent
         dir={dir}
         width="5xl"
+        // Its body loads after opening (and its related lists after that): the full height
+        // from the first frame keeps the dialog still while they arrive.
+        height="fill"
         title={title}
         description={description}
         footer={

@@ -29,6 +29,12 @@ type LongDialogContentProps = {
   footer?: React.ReactNode
   /** Dialog width from the small screen breakpoint up; phones always use the full width. */
   width?: keyof typeof widths
+  /**
+   * `content` (default) grows with the body up to the maximum height. `fill` takes the maximum
+   * height from the first frame, for a body that loads after opening: the dialog's size never
+   * changes when its data arrives, so the opening animation is never disturbed.
+   */
+  height?: 'content' | 'fill'
   children: React.ReactNode
 } & Omit<React.ComponentProps<typeof DialogContent>, 'title' | 'className' | 'children'>
 
@@ -42,6 +48,7 @@ export function LongDialogContent({
   description,
   footer,
   width = 'xl',
+  height = 'content',
   children,
   ...props
 }: LongDialogContentProps) {
@@ -51,6 +58,7 @@ export function LongDialogContent({
       // Clipped, not hidden: focus cannot scroll the header away; the body is the only scroller.
       className={cn(
         'top-4 flex max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] translate-y-0 flex-col gap-0 overflow-clip p-0 sm:top-[5dvh] sm:max-h-[90dvh]',
+        height === 'fill' && 'h-[calc(100dvh-2rem)] sm:h-[90dvh]',
         widths[width]
       )}
       data-long-dialog=""

@@ -1,7 +1,7 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { Head, usePage } from '@inertiajs/react'
 import { Link } from '@adonisjs/inertia/react'
-import { Plus } from 'lucide-react'
+import { Plus, Save } from 'lucide-react'
 import type {
   RecordPermissions,
   ResourceActivity,
@@ -14,6 +14,7 @@ import type {
   ResourceShow as Show,
 } from 'adula'
 import { Button } from '~/components/ui/button'
+import { DialogClose } from '~/components/ui/dialog'
 import { Skeleton } from '~/components/ui/skeleton'
 import { DataTable } from '~/components/ui/data-table'
 import type { BulkAction } from '~/components/ui/resource-bulk'
@@ -21,6 +22,8 @@ import { ResourceForm } from '~/components/ui/resource-form'
 import { ResourceShow } from '~/components/ui/resource-show'
 import { ResourceImport } from '~/components/ui/resource-import'
 import {
+  RecordFooter,
+  RecordFooterClose,
   ResourceSurface,
   closeCreated,
   closeRecord,
@@ -28,6 +31,7 @@ import {
   openCreate,
   openRecord,
   plainClick,
+  prefetchCreate,
   useOverlayShell,
   useOverlayView,
   type RecordOverlay,
@@ -99,8 +103,39 @@ function openingTitle(
   return noun ? t('تعديل {record}', { record: noun }) : t('تعديل · {resource}', { resource: label })
 }
 
-/** The body of a dialog whose view is still loading: the dialog is already open. */
-function RecordLoading() {
+/**
+ * The body of a dialog whose view is still loading: the dialog is already open, with its fixed
+ * footer and the close control it will keep, so nothing moves when the view arrives.
+ */
+function RecordLoading({ form }: { form: boolean }) {
+  const { t } = useMessages()
+  return (
+    <>
+      <RecordFooter>
+        {/* Where the record's own actions will sit, as in the loaded footer. */}
+        <div className="me-auto" />
+        {form ? (
+          <>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                {t('إلغاء')}
+              </Button>
+            </DialogClose>
+            <Button type="button" disabled>
+              <Save size={16} />
+              {t('حفظ السجل')}
+            </Button>
+          </>
+        ) : (
+          <RecordFooterClose />
+        )}
+      </RecordFooter>
+      <RecordSkeleton />
+    </>
+  )
+}
+
+function RecordSkeleton() {
   const { t } = useMessages()
   return (
     <div
@@ -240,7 +275,7 @@ export function RecordOverlayDialog({ resource }: { resource?: ResourceDescripti
           }
         />
       ) : (
-        <RecordLoading />
+        <RecordLoading form={mode === 'edit'} />
       )}
     </ResourceSurface>
   )
@@ -269,6 +304,16 @@ export function ResourcePage({
       ? (view.resource.createLabel ??
         (noun ? t('إضافة {record}', { record: noun }) : t('إضافة سجل')))
       : ''
+  const canCreate = view.mode === 'index' && view.resource.canCreate && !trashed
+  // The create form is the same for every opening: fetched once the list is idle, so «إضافة»
+  // opens it complete.
+  useEffect(() => {
+    if (!canCreate) return
+    const idle = window.requestIdleCallback ?? ((run: () => void) => window.setTimeout(run, 200))
+    const cancel = window.cancelIdleCallback ?? window.clearTimeout
+    const handle = idle(() => prefetchCreate(name))
+    return () => cancel(handle)
+  }, [canCreate, name])
   return (
     <>
       <Head title={title} />
@@ -282,7 +327,7 @@ export function ResourcePage({
                 : t('سجلاتك ومتابعتك اليومية في مكان واحد.')}
             </p>
           </div>
-          {view.mode === 'index' && view.resource.canCreate && !trashed && (
+          {canCreate && (
             <div className="flex flex-wrap gap-2">
               <ResourceImport resource={name} label={label} />
               <Button asChild>
@@ -290,6 +335,8 @@ export function ResourcePage({
                   href={`/resources/${name}/create`}
                   // The form opens in a dialog over this list, which stays mounted; modified
                   // clicks (new tab, new window) keep the link's own behavior.
+                  onPointerEnter={() => prefetchCreate(name)}
+                  onFocus={() => prefetchCreate(name)}
                   onClick={(event) => {
                     if (!plainClick(event)) return
                     event.preventDefault()

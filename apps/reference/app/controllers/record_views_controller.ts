@@ -25,15 +25,17 @@ export default class RecordViewsController {
       } catch {
         throw new AdulaError(404, 'E_NOT_FOUND', 'الكيان غير موجود')
       }
-      if (pageFor(resource.name, 'form') !== 'resources/page')
-        throw new AdulaError(409, 'E_PAGE_OVERRIDE', 'لهذا الكيان صفحة مخصصة')
       const defaults = ctx.request.qs().defaults
+      // Authorized first (the editor checks the create permission): who may not create learns
+      // nothing about the resource's pages.
       const editor = await runtime.resources.editor(resource.name, actor, undefined, {
         defaults:
           defaults && typeof defaults === 'object' && !Array.isArray(defaults)
             ? (defaults as Record<string, unknown>)
             : undefined,
       })
+      if (pageFor(resource.name, 'form') !== 'resources/page')
+        throw new AdulaError(409, 'E_PAGE_OVERRIDE', 'لهذا الكيان صفحة مخصصة')
       return {
         view: {
           mode: 'form' as const,

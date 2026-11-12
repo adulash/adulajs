@@ -60,7 +60,12 @@ import { recordCount, useMessages } from '~/components/ui/messages'
 import { Can } from '~/components/ui/can'
 import { Input } from '~/components/ui/input'
 import { ResourceActions } from '~/components/ui/resource-actions'
-import { openRecord, plainClick, rememberListView } from '~/components/ui/resource-surface'
+import {
+  openRecord,
+  plainClick,
+  prefetchRecord,
+  rememberListView,
+} from '~/components/ui/resource-surface'
 import {
   displayValue,
   relatedUser,
@@ -904,6 +909,9 @@ export function DataTable({
                               <Link
                                 href={`/resources/${resource.name}/${id}`}
                                 aria-label={t('عرض السجل {id}', { id })}
+                                // Fetched on hover or focus, so the details open complete.
+                                onPointerEnter={() => prefetchRecord(resource.name, id, 'show')}
+                                onFocus={() => prefetchRecord(resource.name, id, 'show')}
                                 onClick={(event) => overlay(event, id, 'show')}
                               >
                                 {t('عرض')}
@@ -914,6 +922,8 @@ export function DataTable({
                                 <Link
                                   href={`/resources/${resource.name}/${id}/edit`}
                                   aria-label={t('تعديل السجل {id}', { id })}
+                                  onPointerEnter={() => prefetchRecord(resource.name, id, 'edit')}
+                                  onFocus={() => prefetchRecord(resource.name, id, 'edit')}
                                   onClick={(event) => overlay(event, id, 'edit')}
                                 >
                                   {t('تعديل')}
