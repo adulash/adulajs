@@ -1,6 +1,7 @@
+import { useEffect, useRef } from 'react'
 import { Head, usePage } from '@inertiajs/react'
 import { Link } from '@adonisjs/inertia/react'
-import { Plus } from 'lucide-react'
+import { Plus, Save } from 'lucide-react'
 import type {
   RecordPermissions,
   ResourceActivity,
@@ -13,15 +14,27 @@ import type {
   ResourceShow as Show,
 } from 'adula'
 import { Button } from '~/components/ui/button'
+import { DialogClose } from '~/components/ui/dialog'
+import { Card, CardContent, CardHeader } from '~/components/ui/card'
+import { Skeleton } from '~/components/ui/skeleton'
 import { DataTable } from '~/components/ui/data-table'
 import type { BulkAction } from '~/components/ui/resource-bulk'
 import { ResourceForm } from '~/components/ui/resource-form'
 import { ResourceShow } from '~/components/ui/resource-show'
 import { ResourceImport } from '~/components/ui/resource-import'
 import {
+  RecordFooter,
+  RecordFooterClose,
   ResourceSurface,
+  closeCreated,
   closeRecord,
+  fetchListRow,
+  openCreate,
   openRecord,
+  plainClick,
+  prefetchCreate,
+  useOverlayShell,
+  useOverlayView,
   type RecordOverlay,
   type ResourcePresentation,
 } from '~/components/ui/resource-surface'
@@ -72,6 +85,83 @@ function recordTitle(view: RecordView, t: Translate) {
     : t('تعديل · {resource}', { resource: view.editor.label })
 }
 
+/**
+ * The title of a dialog whose view is still loading: from the list's own description, else
+ * from the label the opener gave.
+ */
+function openingTitle(
+  opening: NonNullable<RecordOverlay['opening']>,
+  resource: ResourceDescription | undefined,
+  t: Translate
+) {
+  const label = resource?.label ?? opening.label ?? ''
+  if (opening.mode === 'show') return t('تفاصيل · {resource}', { resource: label })
+  const noun = resource?.recordLabel
+  if (opening.mode === 'create')
+    return noun
+      ? t('إضافة {record}', { record: noun })
+      : t('إضافة · {resource}', { resource: label })
+  return noun ? t('تعديل {record}', { record: noun }) : t('تعديل · {resource}', { resource: label })
+}
+
+/**
+ * The body of a dialog whose view is still loading: the dialog is already open, with its fixed
+ * footer and the close control it will keep, so nothing moves when the view arrives.
+ */
+function RecordLoading({ form }: { form: boolean }) {
+  const { t } = useMessages()
+  return (
+    <>
+      <RecordFooter>
+        {/* Where the record's own actions will sit, as in the loaded footer. */}
+        <div className="me-auto" />
+        {form ? (
+          <>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                {t('إلغاء')}
+              </Button>
+            </DialogClose>
+            <Button type="button" disabled>
+              <Save size={16} />
+              {t('حفظ السجل')}
+            </Button>
+          </>
+        ) : (
+          <RecordFooterClose />
+        )}
+      </RecordFooter>
+      <RecordSkeleton />
+    </>
+  )
+}
+
+/** The record's card as the form and the details draw it: a header, then two columns of fields. */
+function RecordSkeleton() {
+  const { t } = useMessages()
+  return (
+    <Card
+      role="status"
+      aria-label={t('جارٍ التحميل...')}
+      data-slot="record-loading"
+      className="gap-0 py-0 shadow-none"
+    >
+      <CardHeader className="border-b px-7 py-5 [.border-b]:pb-5">
+        <Skeleton className="h-4 w-28" />
+        <Skeleton className="h-3 w-48" />
+      </CardHeader>
+      <CardContent className="grid gap-6 p-7 md:grid-cols-2">
+        {[0, 1, 2, 3].map((field) => (
+          <div key={field} className="min-w-0 space-y-2">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-9 w-full" />
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  )
+}
+
 function RecordBody({
   view,
   childrenData,
@@ -113,6 +203,92 @@ function RecordBody({
   )
 }
 
+/**
+ * A record or create form opened over the current page by openRecord() or openCreate(); the
+ * page stays mounted behind it. ResourcePage renders it over the generic list; another page
+ * that opens records with openRecord() (for example «مهامي») renders it too. `resource`, the
+ * list's description, titles the dialog while its body loads.
+ */
+export function RecordOverlayDialog({ resource }: { resource?: ResourceDescription }) {
+  const { t } = useMessages()
+  // A client-only prop set by openRecord()/openCreate(), never sent by the server.
+  const props = usePage<{
+    overlay?: RecordOverlay
+    childrenData?: ResourceChildren
+    activity?: ResourceActivity
+  }>().props
+  // The click shows the dialog from the shell before the page carries it (useOverlayShell).
+  const shell = useOverlayShell()
+  const overlay = props.overlay ?? shell ?? undefined
+  const { childrenData, activity } = props
+  useOverlayView(props.overlay)
+  // What closing does next: after a create, the list with the new row pinned first.
+  const next = useRef<(() => void) | null>(null)
+  const dismiss = useRef<(() => void) | null>(null)
+  const name = overlay?.resource
+  if (!overlay || !name || !(overlay.view || overlay.opening)) return null
+  const view = overlay.view as RecordView | undefined
+  const record = view?.mode === 'form' ? view.editor.record?.id : view?.result.data.id
+  const id = record === undefined || record === null ? overlay.opening?.id : String(record)
+  const mode = view
+    ? view.mode === 'form'
+      ? 'edit'
+      : 'view'
+    : overlay.opening?.mode === 'show'
+      ? 'view'
+      : 'edit'
+  return (
+    // Keyed by the opening, so the dialog that opened stays on screen while its body loads,
+    // and saving switches the same dialog from the form to the details.
+    <ResourceSurface
+      key={`overlay:${name}:${overlay.record}`}
+      mode={mode}
+      title={view ? recordTitle(view, t) : openingTitle(overlay.opening!, resource, t)}
+      description={
+        mode === 'edit'
+          ? t('أكمل الحقول المطلوبة ثم احفظ السجل.')
+          : t('راجع التفاصيل المتاحة لك وأكمل عملك.')
+      }
+      backHref={overlay.list}
+      onClose={() => (next.current ? next.current() : closeRecord(overlay))}
+      dismissRef={dismiss}
+    >
+      {view ? (
+        <RecordBody
+          view={view}
+          childrenData={childrenData}
+          activity={activity}
+          onSaved={(saved) => {
+            if (view.mode === 'form' && view.editor.mode === 'create') {
+              // A new record returns to the list, pinned first and highlighted there (owner,
+              // 2.3.0); the toast's «عرض» opens it.
+              const row = fetchListRow(name, saved)
+              next.current = () => void closeCreated(overlay, saved, row)
+              dismiss.current?.()
+              return
+            }
+            // A saved edit shows the record's details in the same dialog.
+            void openRecord(name, saved, 'show', { replace: true, changed: true })
+          }}
+          onCancel={() =>
+            id === undefined
+              ? closeRecord(overlay)
+              : void openRecord(name, id, 'show', { replace: true })
+          }
+          onEdit={() => id !== undefined && void openRecord(name, id, 'edit', { replace: true })}
+          onAction={(action) =>
+            action === 'delete' || id === undefined
+              ? closeRecord({ ...overlay, changed: true })
+              : void openRecord(name, id, 'show', { replace: true, changed: true })
+          }
+        />
+      ) : (
+        <RecordLoading form={mode === 'edit'} />
+      )}
+    </ResourceSurface>
+  )
+}
+
 export function ResourcePage({
   view,
   result,
@@ -120,8 +296,6 @@ export function ResourcePage({
   activity,
   presentation,
 }: ResourcePageProps) {
-  // A record opened over this list by openRecord(); a client-only prop, never sent by the server.
-  const overlay = usePage<{ overlay?: RecordOverlay }>().props.overlay
   const { t } = useMessages()
   const name = view.mode === 'form' ? view.editor.name : view.resource.name
   const label = view.mode === 'form' ? view.editor.label : view.resource.label
@@ -138,11 +312,16 @@ export function ResourcePage({
       ? (view.resource.createLabel ??
         (noun ? t('إضافة {record}', { record: noun }) : t('إضافة سجل')))
       : ''
-  const overlayView = view.mode === 'index' ? (overlay?.view as RecordView | undefined) : undefined
-  const overlayRecord =
-    overlayView?.mode === 'form' ? overlayView.editor.record?.id : overlayView?.result.data.id
-  const overlayId =
-    overlayRecord === undefined || overlayRecord === null ? undefined : String(overlayRecord)
+  const canCreate = view.mode === 'index' && view.resource.canCreate && !trashed
+  // The create form is the same for every opening: fetched once the list is idle, so «إضافة»
+  // opens it complete.
+  useEffect(() => {
+    if (!canCreate) return
+    const idle = window.requestIdleCallback ?? ((run: () => void) => window.setTimeout(run, 200))
+    const cancel = window.cancelIdleCallback ?? window.clearTimeout
+    const handle = idle(() => prefetchCreate(name))
+    return () => cancel(handle)
+  }, [canCreate, name])
   return (
     <>
       <Head title={title} />
@@ -156,11 +335,22 @@ export function ResourcePage({
                 : t('سجلاتك ومتابعتك اليومية في مكان واحد.')}
             </p>
           </div>
-          {view.mode === 'index' && view.resource.canCreate && !trashed && (
+          {canCreate && (
             <div className="flex flex-wrap gap-2">
               <ResourceImport resource={name} label={label} />
               <Button asChild>
-                <Link href={`/resources/${name}/create`}>
+                <Link
+                  href={`/resources/${name}/create`}
+                  // The form opens in a dialog over this list, which stays mounted; modified
+                  // clicks (new tab, new window) keep the link's own behavior.
+                  onPointerEnter={() => prefetchCreate(name)}
+                  onFocus={() => prefetchCreate(name)}
+                  onClick={(event) => {
+                    if (!plainClick(event)) return
+                    event.preventDefault()
+                    void openCreate(name)
+                  }}
+                >
                   <Plus size={16} />
                   {createText}
                 </Link>
@@ -182,43 +372,7 @@ export function ResourcePage({
               bulkActions={view.bulkActions}
             />
           ) : null}
-          {overlay && overlayView && overlayId !== undefined && (
-            // Keyed by record, so saving an edit switches the same dialog to the details.
-            <ResourceSurface
-              key={`overlay:${name}:${overlayId}`}
-              mode={overlayView.mode === 'form' ? 'edit' : 'view'}
-              title={recordTitle(overlayView, t)}
-              description={
-                overlayView.mode === 'form'
-                  ? t('أكمل الحقول المطلوبة ثم احفظ السجل.')
-                  : t('راجع التفاصيل المتاحة لك وأكمل عملك.')
-              }
-              backHref={overlay.list}
-              onClose={() => closeRecord(overlay)}
-            >
-              <RecordBody
-                view={overlayView}
-                childrenData={childrenData}
-                activity={activity}
-                onSaved={(id) =>
-                  void openRecord(name, id, 'show', {
-                    replace: true,
-                    changed: true,
-                  })
-                }
-                onCancel={() => void openRecord(name, overlayId, 'show', { replace: true })}
-                onEdit={() => void openRecord(name, overlayId, 'edit', { replace: true })}
-                onAction={(action) =>
-                  action === 'delete'
-                    ? closeRecord({ ...overlay, changed: true })
-                    : void openRecord(name, overlayId, 'show', {
-                        replace: true,
-                        changed: true,
-                      })
-                }
-              />
-            </ResourceSurface>
-          )}
+          <RecordOverlayDialog resource={view.resource} />
         </>
       ) : (
         <ResourceSurface

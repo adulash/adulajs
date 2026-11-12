@@ -21,7 +21,8 @@ import { Label } from '~/components/ui/label'
 import { Textarea } from '~/components/ui/textarea'
 import { Tabs, TabsList, TabsTrigger } from '~/components/ui/tabs'
 import { formatDate } from '~/components/ui/resource-value'
-import { rememberListView } from '~/components/ui/resource-surface'
+import { openRecord, plainClick, rememberListView } from '~/components/ui/resource-surface'
+import { RecordOverlayDialog } from '~/components/ui/resource-page'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
 import { OnBehalfOf, SlaBadge, WorkflowDecision } from '~/components/ui/record-workflows'
 
@@ -43,6 +44,23 @@ const statusLabel: Record<Assignment['status'], string> = {
 }
 
 /** Everything waiting for the user: assigned tasks and approval decisions, acted on in place (#35). */
+/**
+ * A task's record opens in a dialog over this list, which stays mounted (the same as a
+ * generic list's rows); a modified click opens the record page, and closing it returns here
+ * with this tab and scroll.
+ */
+function openTaskRecord(
+  event: React.MouseEvent,
+  item: { resource: string; recordId: number | string; resourceLabel?: string | null }
+) {
+  rememberListView(`/resources/${item.resource}/${item.recordId}`)
+  if (!plainClick(event)) return
+  event.preventDefault()
+  void openRecord(item.resource, item.recordId, 'show', {
+    label: item.resourceLabel ?? undefined,
+  })
+}
+
 export default function MyTasks({ assignments, tab, decisions }: Props) {
   const formatDateTime = useDateTimeFormatter()
   const { calendar } = useUiPreferences()
@@ -161,8 +179,7 @@ export default function MyTasks({ assignments, tab, decisions }: Props) {
               </p>
               <Link
                 href={`/resources/${item.resource}/${item.recordId}`}
-                // Closing the record returns here, with this tab and scroll.
-                onClick={() => rememberListView(`/resources/${item.resource}/${item.recordId}`)}
+                onClick={(event) => openTaskRecord(event, item)}
                 className="text-sm text-primary underline-offset-4 hover:underline"
               >
                 {item.resourceLabel}: {item.recordTitle ?? `#${item.recordId}`}
@@ -233,7 +250,7 @@ export default function MyTasks({ assignments, tab, decisions }: Props) {
                 <Button size="sm" asChild>
                   <Link
                     href={`/resources/${item.resource}/${item.recordId}`}
-                    onClick={() => rememberListView(`/resources/${item.resource}/${item.recordId}`)}
+                    onClick={(event) => openTaskRecord(event, item)}
                   >
                     فتح السجل
                   </Link>
@@ -304,6 +321,7 @@ export default function MyTasks({ assignments, tab, decisions }: Props) {
           </form>
         </DialogContent>
       </Dialog>
+      <RecordOverlayDialog />
     </>
   )
 }

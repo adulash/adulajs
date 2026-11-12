@@ -7,6 +7,8 @@ import type { NotificationPage } from 'adula'
 import Workspace from '~/layouts/workspace'
 import { useDateTimeFormatter } from '~/components/admin-nav'
 import { Button } from '~/components/ui/button'
+import { openRecord, plainClick } from '~/components/ui/resource-surface'
+import { RecordOverlayDialog } from '~/components/ui/resource-page'
 
 type Props = { notifications: NotificationPage }
 
@@ -19,6 +21,30 @@ export default function NotificationsIndex({ notifications }: Props) {
     setRows(notifications.data)
     setCursor(notifications.nextCursor)
   }, [notifications])
+  // A notification about a record opens it in a dialog over this list, which stays mounted;
+  // it is marked read meanwhile. A modified click follows the link, which marks it read and
+  // opens the record page.
+  const open = (event: React.MouseEvent, item: NotificationPage['data'][number]) => {
+    const target = item.target
+    if (!target || !plainClick(event)) return
+    if (target.href !== `/resources/${target.resource}/${target.recordId}`) return
+    event.preventDefault()
+    if (!item.readAt) {
+      const readAt = new Date().toISOString()
+      setRows((current) => current.map((row) => (row.id === item.id ? { ...row, readAt } : row)))
+      void axios
+        .post(
+          `/notifications/${item.id}/read`,
+          {},
+          {
+            headers: { Accept: 'application/json' },
+            withXSRFToken: true,
+          }
+        )
+        .catch(() => {})
+    }
+    void openRecord(target.resource, target.recordId, 'show')
+  }
   const more = async () => {
     if (!cursor) return
     setLoading(true)
@@ -67,6 +93,7 @@ export default function NotificationsIndex({ notifications }: Props) {
                   // Opening marks it read; the record page decides whether the reader may see it.
                   <Link
                     href={`/notifications/${item.id}/open`}
+                    onClick={(event) => open(event, item)}
                     className="underline-offset-4 hover:text-primary hover:underline"
                   >
                     {item.title}
@@ -105,6 +132,7 @@ export default function NotificationsIndex({ notifications }: Props) {
           </Button>
         </div>
       )}
+      <RecordOverlayDialog />
     </>
   )
 }

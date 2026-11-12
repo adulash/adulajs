@@ -19,7 +19,7 @@ import { useDialogValue } from '~/components/ui/dialog'
 import { useMessages } from '~/components/ui/messages'
 import { inputValue, isAttachment, parseValue } from '~/components/ui/resource-value'
 import { hiddenFields, listInput } from '~/components/ui/field_values'
-import { RecordFooter } from '~/components/ui/resource-surface'
+import { RecordFooter, openRecord, pinCreated } from '~/components/ui/resource-surface'
 
 type Failure = { message: string; conflict: boolean }
 type RowErrors = Record<string, Record<string, Record<string, string>>>
@@ -64,6 +64,7 @@ export function ResourceForm({
   editor,
   permissions = {},
   onSaved,
+  createdAction,
   onCancel,
   onAction,
 }: {
@@ -71,6 +72,8 @@ export function ResourceForm({
   permissions?: RecordPermissions
   /** Called with the saved record id instead of visiting its page (record dialogs). */
   onSaved?: (id: number) => void
+  /** An action offered in the toast after a create, for example «عرض» the new record. */
+  createdAction?: { label: string; onClick: (id: number) => void }
   /** Replaces the cancel link (record dialogs return to the details). */
   onCancel?: () => void
   /** Called after a record action (submit, delete...) instead of visiting a page. */
@@ -78,6 +81,11 @@ export function ResourceForm({
 }) {
   const { t, label } = useMessages()
   const base = `/resources/${editor.name}`
+  // «عرض» in the toast after a create opens the new record over the list.
+  const created = createdAction ?? {
+    label: t('عرض'),
+    onClick: (id: number) => void openRecord(editor.name, id, 'show'),
+  }
   const scalar = editor.fields.filter((field) => field.type !== 'hasMany')
   const inlineFields = editor.fields.filter(
     (field) => field.type === 'hasMany' && field.inline && editor.inline[field.key]
@@ -273,16 +281,28 @@ export function ResourceForm({
         headers: { Accept: 'application/json' },
         withXSRFToken: true,
       })
+      const savedId = response.data.data.id
       toast.success(
         editor.mode === 'create'
           ? editor.recordLabel
             ? t('تمت إضافة {record}', { record: editor.recordLabel })
             : t('تمت إضافة السجل')
-          : t('تم حفظ التعديلات')
+          : t('تم حفظ التعديلات'),
+        editor.mode === 'create'
+          ? {
+              action: {
+                label: created.label,
+                onClick: () => created.onClick(savedId),
+              },
+            }
+          : undefined
       )
-      if (onSaved) onSaved(response.data.data.id)
+      if (onSaved) onSaved(savedId)
+      // A new record returns to the list, pinned first and highlighted (owner, 2.3.0).
+      else if (editor.mode === 'create')
+        router.visit(base, { onSuccess: () => void pinCreated(editor.name, savedId) })
       // The details replace the form in the same dialog instead of closing and reopening.
-      else router.visit(`${base}/${response.data.data.id}`, { preserveState: true })
+      else router.visit(`${base}/${savedId}`, { preserveState: true })
     } catch (error) {
       const unknown =
         axios.isAxiosError(error) && Array.isArray(error.response?.data?.errors)
@@ -442,7 +462,13 @@ export function ResourceForm({
           </Button>
         ) : (
           <Button type="button" variant="outline" asChild>
-            <Link href={editor.record ? `${base}/${editor.record.id}` : base}>{t('إلغاء')}</Link>
+            <Link
+              href={editor.record ? `${base}/${editor.record.id}` : base}
+              // Back to the details in the same dialog; a new record returns to the list.
+              preserveState={Boolean(editor.record)}
+            >
+              {t('إلغاء')}
+            </Link>
           </Button>
         )}
         <Button type="submit" form={formId} disabled={busy}>

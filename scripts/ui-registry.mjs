@@ -197,7 +197,7 @@ async function register() {
       npm: ['lucide-react'],
     },
     'resource-surface': { registry: ['button', 'dialog'], npm: [] },
-    'resource-page': { registry: ['button', 'data-table', 'resource-form', 'resource-show', 'resource-surface'], npm: ['lucide-react'] },
+    'resource-page': { registry: ['button', 'card', 'data-table', 'resource-form', 'resource-show', 'resource-surface'], npm: ['lucide-react'] },
   }
   for (const [name, { registry: registryDependencies, npm }] of Object.entries(components)) {
     const entry = { name, type: 'registry:ui', registryDependencies, dependencies: npm.map(pin),

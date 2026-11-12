@@ -114,7 +114,8 @@ export function ResourceShow({
             </Button>
           ) : (
             <Button asChild>
-              <Link href={`${base}/edit`}>
+              {/* The same dialog switches to the form: the record page stays mounted. */}
+              <Link href={`${base}/edit`} preserveState preserveScroll>
                 <Pencil size={15} />
                 {t('تعديل السجل')}
               </Link>

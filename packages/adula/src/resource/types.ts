@@ -294,6 +294,12 @@ export type Resource = {
   fields: Record<string, Field>
   /** Field keys shown as list columns, in order. */
   list: readonly string[]
+  /**
+   * The list's order when the user has chosen none: a sortable field (or `id`) and its
+   * direction (ascending unless given). Ties are broken by id in the same direction.
+   * @default newest first: created_at descending, then id descending
+   */
+  defaultSort?: { field: string; direction?: 'asc' | 'desc' }
   /** Field keys of the create and edit form, in order. */
   form: readonly string[]
   /** Field keys of the record details view, in order. */

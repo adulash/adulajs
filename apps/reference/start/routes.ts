@@ -155,6 +155,8 @@ router
   .group(() => {
     router.get('/resources/:resource', [ResourcesController, 'index'])
     router.get('/resources/:resource/create', [ResourcesController, 'create'])
+    // The create form as JSON for the dialog opened over the list; before the :id patterns.
+    router.get('/resources/:resource/create/view', [RecordViewsController, 'create'])
     router.get('/resources/:resource/options/:field', [ResourcesController, 'options'])
     router.get('/resources/:resource/aggregate', [ResourcesController, 'aggregate'])
     // List layer (ADR 046): declared before the /resources/:resource/:id patterns.
@@ -195,6 +197,7 @@ router
     router.post('/my-tasks/:assignment/complete', [AssignmentsController, 'complete'])
     router.post('/my-tasks/:assignment/cancel', [AssignmentsController, 'cancel'])
     router.get('/resources/:resource/:id/view', [RecordViewsController, 'show'])
+    router.get('/resources/:resource/:id/row', [RecordViewsController, 'row'])
     router.get('/resources/:resource/:id/edit', [ResourcesController, 'edit'])
     router.get('/resources/:resource/:id', [ResourcesController, 'show'])
     router.post('/resources/:resource', [ResourcesController, 'store'])

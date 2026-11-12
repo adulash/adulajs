@@ -10,7 +10,7 @@ import { Input } from '~/components/ui/input'
 import { Badge } from '~/components/ui/badge'
 import { UserAvatar } from '~/components/ui/user-avatar'
 import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
-import { InviteUserDialog } from '~/components/invite-user-dialog'
+import { InviteUserDialog, closeInvite, openInvite } from '~/components/invite-user-dialog'
 import {
   Table,
   TableBody,
@@ -35,10 +35,6 @@ export default function UsersIndex({ users, search }: Props) {
   const withInvite = new URLSearchParams(query)
   withInvite.set('invite', '1')
   const inviteHref = listHref(withInvite)
-  const closeInvite = () => {
-    query.delete('invite')
-    router.visit(listHref(query), { preserveState: true, preserveScroll: true, replace: true })
-  }
   const [term, setTerm] = useState(search)
   const submit = (event: FormEvent) => {
     event.preventDefault()
@@ -53,7 +49,7 @@ export default function UsersIndex({ users, search }: Props) {
       <AdminHeader title="المستخدمون" description="الأدوار والوحدات وحالة الحساب لكل مستخدم.">
         {canInviteUsers && (
           <Button asChild>
-            <Link href={inviteHref} preserveState preserveScroll>
+            <Link href={inviteHref} onClick={openInvite}>
               دعوة مستخدم
             </Link>
           </Button>

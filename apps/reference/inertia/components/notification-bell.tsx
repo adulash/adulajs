@@ -124,7 +124,9 @@ export function NotificationBell() {
     let leaveRealtime: (() => void) | undefined
     const onMessage = () => {
       // New work arrives with a notification, so «مهامي» refreshes with the bell (#156).
-      router.reload({ only: ['unreadNotifications', 'openTasks'] })
+      // Asynchronous like the catch-up: a background refresh never replaces the page, or a
+      // dialog the user opened over it meanwhile.
+      router.reload({ only: ['unreadNotifications', 'openTasks'], async: true })
       toast(text.current('وصلك إشعار جديد'), {
         action: { label: text.current('عرض'), onClick: () => router.visit('/notifications') },
       })

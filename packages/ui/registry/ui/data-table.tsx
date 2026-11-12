@@ -60,7 +60,12 @@ import { recordCount, useMessages } from '~/components/ui/messages'
 import { Can } from '~/components/ui/can'
 import { Input } from '~/components/ui/input'
 import { ResourceActions } from '~/components/ui/resource-actions'
-import { openRecord, rememberListView } from '~/components/ui/resource-surface'
+import {
+  openRecord,
+  plainClick,
+  prefetchRecord,
+  rememberListView,
+} from '~/components/ui/resource-surface'
 import {
   displayValue,
   relatedUser,
@@ -270,7 +275,7 @@ export function DataTable({
 }) {
   const { calendar } = useUiPreferences()
   const { t, label, locale } = useMessages()
-  const page = usePage<{ overlay?: { list?: unknown } }>()
+  const page = usePage<{ overlay?: { list?: unknown }; created?: string }>()
   const url = listUrl(page.url, page.props.overlay)
   const description = resource as ListDescription
   const query = new URL(url, 'http://localhost').searchParams
@@ -340,6 +345,16 @@ export function DataTable({
     getRowId: (row) => String(row.id),
   })
   const rows = table.getRowModel().rows
+  // A record created from this list is pinned first (closeCreated, pinCreated): highlighted
+  // for a moment and scrolled into view, whatever the sort and however far the list scrolled.
+  const created = page.props.created
+  const [highlighted, setHighlighted] = useState<string | null>(null)
+  useEffect(() => {
+    if (!created) return
+    setHighlighted(created)
+    const timer = setTimeout(() => setHighlighted(null), 2400)
+    return () => clearTimeout(timer)
+  }, [created])
   const loadedIds = rows.map((row) => row.id)
   const selectable = bulkActions.length > 0
   const columns = fields.length + 1 + (selectable ? 1 : 0)
@@ -367,6 +382,14 @@ export function DataTable({
     enabled: virtualized && scrollParent !== undefined,
     getItemKey: (index) => rows[index].id,
   })
+  const scrollToCreated = useRef(virtual)
+  scrollToCreated.current = virtual
+  useEffect(() => {
+    if (!created) return
+    const row = body.current?.querySelector(`[data-row-id="${CSS.escape(created)}"]`)
+    if (row) row.scrollIntoView({ block: 'nearest' })
+    else scrollToCreated.current.scrollToIndex(0)
+  }, [created])
   const items =
     virtualized && scrollParent !== undefined
       ? virtual.getVirtualItems()
@@ -483,8 +506,7 @@ export function DataTable({
   // Records open in a dialog over this list, which stays mounted (#31); modified clicks
   // (new tab, new window) keep the link's own behavior.
   const overlay = (event: MouseEvent, id: string, mode: 'show' | 'edit') => {
-    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
-      return
+    if (!plainClick(event)) return
     event.preventDefault()
     void openRecord(resource.name, id, mode)
   }
@@ -837,9 +859,11 @@ export function DataTable({
                     key={id}
                     ref={virtualized ? virtual.measureElement : undefined}
                     data-index={index}
+                    data-row-id={id}
+                    data-created={highlighted === id ? '' : undefined}
                     aria-rowindex={index + 2}
                     aria-selected={selectable ? checked : undefined}
-                    className={`group border-b last:border-0 hover:bg-background ${checked ? 'bg-accent/40' : ''}`}
+                    className={`group border-b transition-colors duration-700 last:border-0 hover:bg-background ${checked ? 'bg-accent/40' : ''} ${highlighted === id ? 'bg-primary/10' : ''}`}
                     style={{ height: ROW_HEIGHT }}
                   >
                     {selectable && (
@@ -885,6 +909,9 @@ export function DataTable({
                               <Link
                                 href={`/resources/${resource.name}/${id}`}
                                 aria-label={t('عرض السجل {id}', { id })}
+                                // Fetched on hover or focus, so the details open complete.
+                                onPointerEnter={() => prefetchRecord(resource.name, id, 'show')}
+                                onFocus={() => prefetchRecord(resource.name, id, 'show')}
                                 onClick={(event) => overlay(event, id, 'show')}
                               >
                                 {t('عرض')}
@@ -895,6 +922,8 @@ export function DataTable({
                                 <Link
                                   href={`/resources/${resource.name}/${id}/edit`}
                                   aria-label={t('تعديل السجل {id}', { id })}
+                                  onPointerEnter={() => prefetchRecord(resource.name, id, 'edit')}
+                                  onFocus={() => prefetchRecord(resource.name, id, 'edit')}
                                   onClick={(event) => overlay(event, id, 'edit')}
                                 >
                                   {t('تعديل')}

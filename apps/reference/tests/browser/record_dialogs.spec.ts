@@ -11,6 +11,19 @@ import {
   type UiActor,
 } from '#tests/helpers/ui_fixtures'
 
+/**
+ * Saving a new record returns to the list with the new row first and highlighted (owner,
+ * 2.3.0); the record's own page opens from that row.
+ */
+async function openCreatedRecord(page: Page, resource: string) {
+  await page.waitForURL(new RegExp(`/resources/${resource}$`))
+  const row = page.locator('main tr[data-created]')
+  await row.waitFor({ state: 'attached' })
+  const id = await row.getAttribute('data-row-id')
+  await page.goto(`/resources/${resource}/${id}`)
+  return id
+}
+
 const sizes = [
   { name: 'desktop', width: 1440, height: 900 },
   { name: 'phone', width: 375, height: 812 },
@@ -220,7 +233,7 @@ test.group('Record dialogs: fixed footer', (group) => {
       // Enter in a field submits the form through the footer's save button too.
       await field.fill(`عينة التذييل ${randomUUID().slice(0, 8)}`)
       await field.press('Enter')
-      await page.waitForURL(/\/resources\/ui_samples\/\d+$/)
+      await openCreatedRecord(page, 'ui_samples')
       await page.getByRole('link', { name: 'تعديل السجل', exact: true }).waitFor()
       await page.screenshot({
         path: join(

@@ -36,6 +36,12 @@ Behaviour that changes on upgrade, so read it first:
   needs a live target before the record can be saved.
 * A custom actor loader passed to `RecordCollaboration` should accept `load(id, db)` and
   read on that connection, as `ActorStore` does.
+* Resource lists, their exports and `GET /api/v1/resources/:resource` show the newest records
+  first when no sort is chosen (`created_at` descending, then `id`; owner decision 27); they
+  were in ascending id order. A sort the user picks still wins, and a resource keeps another
+  order with the new `defaultSort` option. API clients that page without `sort` see the new
+  order; a cursor from the old order is refused (422 `E_CURSOR`), so restart from the first
+  page.
 * The workspace has one header across the full width, with the sidebar and the page below
   it (ADR 049, owner decision 20). The brand and the only sidebar trigger sit in the
   header's start segment above the sidebar; a rail on the sidebar's edge also toggles it,
@@ -220,6 +226,10 @@ Behaviour that changes on upgrade, so read it first:
 
 ### Fixed
 
+* A write's success message is no longer lost when a background JSON read (a dialog's
+  related lists, a view fetched ahead of a click) reaches the server between the write and
+  its redirect: the starter's session middleware leaves flash messages for the page they
+  belong to.
 * Editing a record no longer fails with 404 because an unchanged belongsTo points at a
   deleted or out-of-scope record (#130, #132).
 * `adula:resource:snapshot` and `adula:resource:migration` keep the group of lookup fields
@@ -313,6 +323,8 @@ Projects own the starter's files; upgrades do not rewrite them. Merge them from 
   `inertia/pages/account/tokens.tsx` to `inertia/pages/admin/tokens/index.tsx`,
   `inertia/components/{account-menu,admin-nav}.tsx`, `inertia/components/admin_sections.ts`
   and `inertia/layouts/workspace.tsx`. An integration user needs `manage all` for its token.
+* Flash messages: the new `app/middleware/session_middleware.ts`, registered in the router
+  middleware of `start/kernel.ts` in place of `@adonisjs/session/session_middleware`.
 * Impersonation: `app/services/impersonation.ts`,
   `app/controllers/admin/users_controller.ts`, `app/controllers/session_controller.ts`,
   `app/controllers/account_sessions_controller.ts`. API clients that start impersonation

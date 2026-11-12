@@ -96,7 +96,17 @@ const tag = (scope = 'main') => `(() => {
   return out
 })()`
 
-type Way = 'Escape' | 'X' | 'footer'
+/** How a dialog was closed; `open` is a fault found while it opened. */
+type Way = 'open' | 'Escape' | 'X' | 'footer'
+
+/**
+ * Remembers the page behind the dialog (its heading, else its first block), to check that
+ * opening a dialog never replaces the page's main content (owner's defect, 2.3.0).
+ */
+const MARK_PAGE = `(() => {
+  window.__sweepPage = document.querySelector('main h1') || document.querySelector('main > *')
+})()`
+const PAGE_KEPT = `(() => !!window.__sweepPage && window.__sweepPage.isConnected)()`
 type Outcome = { page: string; control: string; dialog: string; way: Way; problem: string }
 /** Why a control was not swept as a dialog; every control ends in a dialog or one of these. */
 type SkipReason =
@@ -121,7 +131,8 @@ class Sweep {
     private label: string,
     private prepare: () => Promise<void>,
     private relogin: () => Promise<void>,
-    private scope = 'main'
+    private scope = 'main',
+    private kind: (title: string) => string = (title) => title
   ) {}
 
   private skip(control: string, reason: SkipReason) {
@@ -133,15 +144,22 @@ class Sweep {
     return this.page.locator(MODAL).last()
   }
 
-  /** The modal the click opened: the first one beyond those already open before it. */
+  /**
+   * The modal the click opened: the first one beyond those already open before it, once its
+   * body has loaded. A record or create dialog opens at once with a loading body; its title
+   * and its clean close are checked on the real body, never on the placeholder.
+   */
   private async openModal(already: number, timeout = 1500) {
     const modal = this.page.locator(MODAL).nth(already)
     try {
       await modal.waitFor({ state: 'visible', timeout })
-      return modal
     } catch {
       return null
     }
+    await modal
+      .locator('[data-slot="record-loading"]')
+      .waitFor({ state: 'detached', timeout: 15_000 })
+    return modal
   }
 
   private async titleOf() {
@@ -162,6 +180,7 @@ class Sweep {
     await this.prepare()
     const already = await this.page.locator(MODAL).count()
     this.before = this.page.url()
+    await this.page.evaluate(MARK_PAGE)
     // A page may render once more after loading and replace the tagged control: tag again.
     let clicked = false
     for (let attempt = 0; attempt < 3 && !clicked; attempt++) {
@@ -238,13 +257,24 @@ class Sweep {
     }
     const dialog = await this.titleOf()
     this.settled++
-    // The same dialog behind many controls (one confirmation per permission) is checked once.
-    if (this.covered.has(`${this.label} · ${dialog}`)) {
+    // The dialog opened over the page: the page behind it was not rendered again.
+    if (!(await this.page.evaluate(PAGE_KEPT)))
+      this.problems.push({
+        page: this.label,
+        control,
+        dialog,
+        way: 'open',
+        problem: 'replaced the page',
+      })
+    // The same dialog behind many controls (one confirmation per permission, one rename per
+    // unit) is checked once, keyed by its kind.
+    const key = `${this.label} · ${this.kind(dialog)}`
+    if (this.covered.has(key)) {
       await this.page.keyboard.press('Escape')
       return
     }
-    const ways = this.covered.get(`${this.label} · ${dialog}`) ?? new Set<Way>()
-    this.covered.set(`${this.label} · ${dialog}`, ways)
+    const ways = this.covered.get(key) ?? new Set<Way>()
+    this.covered.set(key, ways)
     for (const way of ['Escape', 'X', 'footer'] as Way[]) {
       if (way !== 'Escape') {
         const again = await this.trigger(candidate, item)
@@ -318,7 +348,14 @@ class Sweep {
 }
 
 /** The pages that open dialogs; tabs inside a page are swept one by one. */
-type Target = { label: string; url: () => string; tabs?: boolean; scope?: string }
+type Target = {
+  label: string
+  url: () => string
+  tabs?: boolean
+  scope?: string
+  /** A dialog's kind, when its title names the record (so leftover rows add no dialogs). */
+  kind?: (title: string) => string
+}
 
 test.group('Clean close sweep: every dialog closes at once while untouched', (group) => {
   let admin: UiActor
@@ -356,7 +393,12 @@ test.group('Clean close sweep: every dialog closes at once while untouched', (gr
     { label: 'مستخدم', url: () => `/admin/users/${memberId}` },
     { label: 'الأدوار', url: () => '/admin/roles' },
     { label: 'دور', url: () => `/admin/roles/${admin.roleId}` },
-    { label: 'الهيكل التنظيمي', url: () => '/admin/org-units' },
+    {
+      label: 'الهيكل التنظيمي',
+      url: () => '/admin/org-units',
+      // «إعادة تسمية <unit>» and «حذف <unit>؟»: one of each, however many units the database holds.
+      kind: (title) => title.replace(/^(إعادة تسمية|حذف) .*$/u, '$1 وحدة'),
+    },
     { label: 'الجلسات', url: () => '/admin/sessions' },
     { label: 'تفويضات الموافقات', url: () => '/admin/delegations' },
     { label: 'الإعدادات العامة', url: () => '/admin/settings', tabs: true },
@@ -422,7 +464,8 @@ test.group('Clean close sweep: every dialog closes at once while untouched', (gr
               await page.locator('main [role=tab]:not(a)').filter({ hasText: tab }).first().click()
           },
           () => browserContext.loginAs(admin.user),
-          target.scope
+          target.scope,
+          target.kind
         )
         const candidates = await sweep.run()
         // Every control ended in a dialog or a logged skip: none was dropped silently.
