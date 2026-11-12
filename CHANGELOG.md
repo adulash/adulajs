@@ -220,6 +220,10 @@ Behaviour that changes on upgrade, so read it first:
 
 ### Fixed
 
+* A write's success message is no longer lost when a background JSON read (a dialog's
+  related lists, a view fetched ahead of a click) reaches the server between the write and
+  its redirect: the starter's session middleware leaves flash messages for the page they
+  belong to.
 * Editing a record no longer fails with 404 because an unchanged belongsTo points at a
   deleted or out-of-scope record (#130, #132).
 * `adula:resource:snapshot` and `adula:resource:migration` keep the group of lookup fields
@@ -308,6 +312,8 @@ Projects own the starter's files; upgrades do not rewrite them. Merge them from 
   `target`), `inertia/pages/users/invite.tsx`, `inertia/pages/admin/roles/{index,show}.tsx`,
   `app/controllers/admin/activity_controller.ts` with the new
   `app/services/activity_presentation.ts` and `inertia/pages/admin/activity/index.tsx`.
+* Flash messages: the new `app/middleware/session_middleware.ts`, registered in the router
+  middleware of `start/kernel.ts` in place of `@adonisjs/session/session_middleware`.
 * Impersonation: `app/services/impersonation.ts`,
   `app/controllers/admin/users_controller.ts`, `app/controllers/session_controller.ts`,
   `app/controllers/account_sessions_controller.ts`. API clients that start impersonation
