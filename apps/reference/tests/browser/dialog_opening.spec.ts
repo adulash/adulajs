@@ -1,6 +1,6 @@
 import { test } from '@japa/runner'
 import db from '@adonisjs/lucid/services/db'
-import type { BrowserContext, Page, Request, Route } from 'playwright'
+import { chromium, type BrowserContext, type Page, type Request, type Route } from 'playwright'
 import { adula } from '#services/adula'
 import {
   installSampleResources,
@@ -229,6 +229,7 @@ test.group('Dialogs open over the mounted page', (group) => {
       await new Promise((resolve) => setTimeout(resolve, 50))
     }
     await markPage(page)
+    const beforeClick = watch.sent.length
     await page.getByRole('link', { name: 'إضافة عينة' }).click()
     // The dialog's shell is on screen while the server has not answered.
     const dialog = page.getByRole('dialog', { name: 'إضافة عينة' })
@@ -245,9 +246,14 @@ test.group('Dialogs open over the mounted page', (group) => {
     assert.deepEqual(await samePage(page), { heading: true, table: true })
     watch.stop()
     assert.deepEqual(
-      watch.sent.filter((request) => request.includes('/resources/ui_samples/')),
+      watch.sent.filter((request) => request.includes('/create/view')),
       ['GET /resources/ui_samples/create/view'],
-      'one request, the prefetch, opens the form: the click sends none'
+      'one request, the prefetch, brings the form'
+    )
+    assert.deepEqual(
+      watch.sent.slice(beforeClick).filter((request) => request.includes('/resources/ui_samples')),
+      [],
+      'the click sends none: no second view and no reload of the list'
     )
 
     // Back closes it and Forward opens it again, both from history with no request. Inertia
@@ -378,6 +384,7 @@ test.group('Dialogs open over the mounted page', (group) => {
       const opening = await readStopwatch(page)
       console.log(`[opening] complete: ${JSON.stringify(opening)}`)
       assert.isTrue(opening.firstFrame, `on screen at the first frame: ${JSON.stringify(opening)}`)
+      assert.isBelow(opening.ms!, 150, `within 150 ms of the click: ${JSON.stringify(opening)}`)
       await page.keyboard.press('Escape')
       await page.locator('[role=dialog]').waitFor({ state: 'detached' })
     }
@@ -446,101 +453,124 @@ test.group('Dialogs open over the mounted page', (group) => {
     assert,
   }) => {
     await browserContext.loginAs(admin.user)
-    const page = await visit('/resources/ui_samples')
-    // Every frame from the click until the dialog has closed: the page's content, the header
-    // and the content region's width inside its scrollbar.
-    const watch = () =>
-      page.evaluate(`(() => {
-        const read = () => {
-          const main = document.querySelector('main').getBoundingClientRect()
-          const header = document.querySelector('[data-shell-header]').getBoundingClientRect()
+    const signedIn = await visit('/resources/ui_samples')
+    const origin = new URL(signedIn.url()).origin
+    // Classic scrollbars that take room, as on Windows. Playwright starts Chromium with
+    // --hide-scrollbars, where no page loses width to a scrollbar and the shift this test is
+    // about cannot happen; this test signs in to a browser of its own without it.
+    const browser = await chromium.launch({ ignoreDefaultArgs: ['--hide-scrollbars'] })
+    const context = await browser.newContext()
+    await context.addCookies(await browserContext.cookies())
+    const page = await context.newPage()
+    try {
+      // Every frame from the click until the dialog has closed: the page's content, the header
+      // and the content region's width inside its scrollbar.
+      const watch = () =>
+        page.evaluate(`(() => {
+          const read = () => {
+            const main = document.querySelector('main').getBoundingClientRect()
+            const header = document.querySelector('[data-shell-header]').getBoundingClientRect()
+            const region = document.querySelector('[scroll-region]')
+            return {
+              main: [main.left, main.right],
+              header: [header.left, header.right],
+              region: region ? region.clientWidth : null,
+              locked: document.body.hasAttribute('data-scroll-locked'),
+            }
+          }
+          window.__sideways = { before: read(), frames: [] }
+          window.__sidewaysStop = false
+          const frame = () => {
+            window.__sideways.frames.push(read())
+            if (!window.__sidewaysStop) requestAnimationFrame(frame)
+          }
+          requestAnimationFrame(frame)
+        })()`)
+      type Box = { main: number[]; header: number[]; region: number | null; locked: boolean }
+      const stop = () =>
+        page.evaluate<{ before: Box; frames: Box[] }>(
+          '(() => { window.__sidewaysStop = true; return window.__sideways })()'
+        )
+      const cases = [
+        // Below lg the page itself scrolls, with its scrollbar on the left.
+        {
+          name: '640 px, scrolling page',
+          width: 640,
+          height: 800,
+          url: '/resources/ui_samples',
+          scrolls: true,
+        },
+        // A page shorter than the window has no scrollbar: nothing to make room for.
+        {
+          name: '640 px, page without a scrollbar',
+          width: 640,
+          height: 1400,
+          url: '/resources/ui_samples?search=لا-توجد-نتيجة',
+          scrolls: false,
+        },
+        // From lg up the content region scrolls, and keeps its scrollbar while the dialog is open.
+        {
+          name: 'lg, content region scrolls',
+          width: 1280,
+          height: 800,
+          url: '/resources/ui_samples',
+          scrolls: false,
+        },
+      ]
+      for (const { name, width, height, url, scrolls } of cases) {
+        await page.setViewportSize({ width, height })
+        await page.goto(origin + url)
+        await page.locator('main h1').waitFor()
+        await page.waitForLoadState('networkidle')
+        assert.equal(
+          await page.evaluate<boolean>(
+            'document.documentElement.scrollHeight > document.documentElement.clientHeight'
+          ),
+          scrolls,
+          `${name}: the page scrolls`
+        )
+        const gutters = await page.evaluate<{ page: number; region: number }>(`(() => {
           const region = document.querySelector('[scroll-region]')
           return {
-            main: [main.left, main.right],
-            header: [header.left, header.right],
-            region: region ? region.clientWidth : null,
-            locked: document.body.hasAttribute('data-scroll-locked'),
+            page: window.innerWidth - document.documentElement.clientWidth,
+            region: region && region.scrollHeight > region.clientHeight ? region.offsetWidth - region.clientWidth : 0,
           }
-        }
-        window.__sideways = { before: read(), frames: [] }
-        window.__sidewaysStop = false
-        const frame = () => {
-          window.__sideways.frames.push(read())
-          if (!window.__sidewaysStop) requestAnimationFrame(frame)
-        }
-        requestAnimationFrame(frame)
-      })()`)
-    type Box = { main: number[]; header: number[]; region: number | null; locked: boolean }
-    const stop = () =>
-      page.evaluate<{ before: Box; frames: Box[] }>(
-        '(() => { window.__sidewaysStop = true; return window.__sideways })()'
-      )
-    const cases = [
-      // Below lg the page itself scrolls, with its scrollbar on the left.
-      {
-        name: '640 px, scrolling page',
-        width: 640,
-        height: 800,
-        url: '/resources/ui_samples',
-        scrolls: true,
-      },
-      // A page shorter than the window has no scrollbar: nothing to make room for.
-      {
-        name: '640 px, page without a scrollbar',
-        width: 640,
-        height: 1400,
-        url: '/resources/ui_samples?search=لا-توجد-نتيجة',
-        scrolls: false,
-      },
-      // From lg up the content region scrolls, and keeps its scrollbar while the dialog is open.
-      {
-        name: 'lg, content region scrolls',
-        width: 1280,
-        height: 800,
-        url: '/resources/ui_samples',
-        scrolls: false,
-      },
-    ]
-    for (const { name, width, height, url, scrolls } of cases) {
-      await page.setViewportSize({ width, height })
-      await page.goto(url)
-      await page.locator('main h1').waitFor()
-      await page.waitForLoadState('networkidle')
-      assert.equal(
-        await page.evaluate<boolean>(
-          'document.documentElement.scrollHeight > document.documentElement.clientHeight'
-        ),
-        scrolls,
-        `${name}: the page scrolls`
-      )
-      await watch()
-      await page.getByRole('link', { name: 'إضافة عينة' }).click()
-      await page.locator('[role=dialog][data-state=open]').waitFor()
-      await page.waitForLoadState('networkidle')
-      await page.waitForTimeout(300)
-      await page.keyboard.press('Escape')
-      await page.locator('[role=dialog]').waitFor({ state: 'detached' })
-      await page.waitForTimeout(100)
-      const { before, frames } = await stop()
-      assert.isTrue(
-        frames.some((frame) => frame.locked),
-        `${name}: the dialog locked scrolling`
-      )
-      for (const frame of frames) {
-        const at = `${name}: ${JSON.stringify(frame)} vs ${JSON.stringify(before)}`
-        assert.approximately(frame.main[0], before.main[0], 0.5, `content left, ${at}`)
-        assert.approximately(frame.main[1], before.main[1], 0.5, `content right, ${at}`)
-        assert.approximately(frame.header[0], before.header[0], 0.5, `header left, ${at}`)
-        assert.approximately(frame.header[1], before.header[1], 0.5, `header right, ${at}`)
-        assert.equal(frame.region, before.region, `content region keeps its scrollbar, ${at}`)
-      }
-      if (!scrolls && width < 1024)
-        assert.approximately(
-          before.header[1] - before.header[0],
-          width,
-          0.5,
-          `${name}: full-width header`
+        })()`)
+        if (scrolls) assert.isAbove(gutters.page, 0, `${name}: the page's scrollbar takes room`)
+        else assert.equal(gutters.page, 0, `${name}: the page has no scrollbar`)
+        if (width >= 1024)
+          assert.isAbove(gutters.region, 0, `${name}: the region's scrollbar takes room`)
+        await watch()
+        await page.getByRole('link', { name: 'إضافة عينة' }).click()
+        await page.locator('[role=dialog][data-state=open]').waitFor()
+        await page.waitForLoadState('networkidle')
+        await page.waitForTimeout(300)
+        await page.keyboard.press('Escape')
+        await page.locator('[role=dialog]').waitFor({ state: 'detached' })
+        await page.waitForTimeout(100)
+        const { before, frames } = await stop()
+        assert.isTrue(
+          frames.some((frame) => frame.locked),
+          `${name}: the dialog locked scrolling`
         )
+        for (const frame of frames) {
+          const at = `${name}: ${JSON.stringify(frame)} vs ${JSON.stringify(before)}`
+          assert.approximately(frame.main[0], before.main[0], 0.5, `content left, ${at}`)
+          assert.approximately(frame.main[1], before.main[1], 0.5, `content right, ${at}`)
+          assert.approximately(frame.header[0], before.header[0], 0.5, `header left, ${at}`)
+          assert.approximately(frame.header[1], before.header[1], 0.5, `header right, ${at}`)
+          assert.equal(frame.region, before.region, `content region keeps its scrollbar, ${at}`)
+        }
+        if (!scrolls && width < 1024)
+          assert.approximately(
+            before.header[1] - before.header[0],
+            width,
+            0.5,
+            `${name}: full-width header`
+          )
+      }
+    } finally {
+      await browser.close()
     }
   }).timeout(90_000)
 

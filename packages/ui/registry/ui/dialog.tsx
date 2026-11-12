@@ -35,6 +35,27 @@ type DialogState = {
 }
 const DialogContentContext = React.createContext<DialogState | null>(null)
 
+/**
+ * Which side the page's own scrollbar is on, as `data-root-scrollbar` on <html>. Locking page
+ * scrolling hides that scrollbar and pads the body by its width (theme.css pads the measured
+ * side). The direction does not decide it: Chromium keeps the page's scrollbar on the right in
+ * a right-to-left page while an element's moves left, and Firefox moves both. Measured while
+ * the scrollbar shows, again whenever the page's width changes (a scrollbar appearing).
+ */
+function watchPageScrollbar() {
+  if (typeof window === 'undefined' || typeof ResizeObserver === 'undefined') return
+  const root = document.documentElement
+  const measure = () => {
+    const gap = window.innerWidth - root.clientWidth
+    if (gap <= 0) return
+    const side = root.getBoundingClientRect().left >= gap - 0.5 ? 'left' : 'right'
+    if (root.dataset.rootScrollbar !== side) root.dataset.rootScrollbar = side
+  }
+  new ResizeObserver(measure).observe(root)
+  measure()
+}
+watchPageScrollbar()
+
 const CONTROLS = 'input, textarea, select'
 
 /** A comparable value of a form control (checked state, selected options, files or text). */

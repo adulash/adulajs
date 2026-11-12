@@ -82,13 +82,16 @@ table with a standalone form, and a record dialog appeared only after its view a
    opening a dialog no longer makes a server visit, so it no longer follows the click.
 10. Opening never visibly disturbs the page (owner, decision 25). A record dialog takes its full
     height from its first frame (`LongDialogContent height="fill"`), so its size and place never
-    change when its body, or a record's related lists after it, arrive. The loading body
-    carries the fixed footer with the close control it keeps (and a disabled «حفظ السجل» for a
-    form). Views are fetched ahead of the click (`prefetchRecord` on a row link's hover or
+    change when its body, or a record's related lists after it, arrive. Every record dialog is
+    therefore 90dvh tall (the window less 2rem below sm) by design, however short its content.
+    The loading body carries the fixed footer with the close control it keeps (and a disabled
+    «حفظ السجل» for a form) and a skeleton of the record's card, header and two columns. Views are fetched ahead of the click (`prefetchRecord` on a row link's hover or
     focus, `prefetchCreate` once the list is idle and on «إضافة»'s hover or focus), so most
     dialogs open complete; an opening finds a prefetch still on its way and waits for it
     instead of sending a second request. A record's prefetch serves one opening, the create
     form every opening, both for 20 seconds; a save clears them. Below lg the page itself
-    scrolls: its scrollbar keeps its room while a dialog locks scrolling, and the lock's
-    compensating right margin (which assumes a scrollbar on the right) is dropped, so the page
-    never moves sideways in RTL.
+    scrolls, and locking it hides its scrollbar; the lock pads the body by the scrollbar's
+    width on the side the scrollbar was. That side is the browser's, not the direction's
+    (Chromium keeps the page's scrollbar on the right in RTL, Firefox moves it left), so
+    `dialog.tsx` measures it into `data-root-scrollbar` and the theme pads that side. From lg
+    the content region scrolls and keeps its scrollbar. The page never moves sideways.

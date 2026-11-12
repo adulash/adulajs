@@ -135,22 +135,29 @@ function RecordLoading({ form }: { form: boolean }) {
   )
 }
 
+/** The record's card as the form and the details draw it: a header, then two columns of fields. */
 function RecordSkeleton() {
   const { t } = useMessages()
   return (
-    <div
+    <section
       role="status"
       aria-label={t('جارٍ التحميل...')}
       data-slot="record-loading"
-      className="space-y-5"
+      className="rounded-xl border bg-card"
     >
-      {[0, 1, 2].map((row) => (
-        <div key={row} className="space-y-2">
-          <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-9 w-full" />
-        </div>
-      ))}
-    </div>
+      <div className="space-y-2 border-b px-7 py-5">
+        <Skeleton className="h-4 w-28" />
+        <Skeleton className="h-3 w-48" />
+      </div>
+      <div className="grid gap-6 p-7 md:grid-cols-2">
+        {[0, 1, 2, 3].map((field) => (
+          <div key={field} className="min-w-0 space-y-2">
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="h-9 w-full" />
+          </div>
+        ))}
+      </div>
+    </section>
   )
 }
 

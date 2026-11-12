@@ -13,7 +13,7 @@ import SessionMiddleware from '@adonisjs/session/session_middleware'
  * كمقروءة». Such a read cannot show a message, so when taking the messages was its only change
  * to the session, the session is not written back and the messages stay for the next page; when
  * it changed something else, the session is written as usual, with the messages kept
- * (reflashed).
+ * (reflashed) unless the read regenerated or emptied the session.
  *
  * What it never does, by construction (the session is written whenever anything but the taken
  * messages differs):
@@ -31,6 +31,8 @@ export default class FlashKeepingSessionMiddleware {
 
   handle(ctx: HttpContext, next: NextFn) {
     return this.session.handle(ctx, async () => {
+      // Sessions turned off (`enabled: false`): AdonisJS's middleware calls next() without one.
+      if (!ctx.session) return next()
       const session = ctx.session
       const background = isBackgroundRead(ctx) && !session.flashMessages.isEmpty
       const before = background ? JSON.stringify(session.all()) : ''
@@ -42,9 +44,16 @@ export default class FlashKeepingSessionMiddleware {
         JSON.stringify(session.all()) === before
       if (unchanged) {
         // Nothing of this request's own to keep: the stored session, messages included, stays
-        // as it is (AdonisJS's middleware commits through this method once next() returns).
+        // as it is. Checked against @adonisjs/session 8.1.0, whose middleware calls
+        // session.initiate(), then next(), then session.commit() on this same instance, so
+        // replacing commit here skips that one write; flash_messages.spec fails if it changes.
         session.commit = async () => {}
-      } else session.reflash()
+      } else if (!session.hasRegeneratedSession && !session.isEmpty) {
+        // Written as usual, with the messages kept. Not into a regenerated session (a sign-in
+        // or sign-out starts without the old page's messages and flashed input), nor into one
+        // the read emptied, which AdonisJS then destroys.
+        session.reflash()
+      }
       return response
     })
   }
