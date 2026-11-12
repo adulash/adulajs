@@ -265,6 +265,13 @@ export function defineResource<const F extends Record<string, Field>>(
     if (parent?.type !== 'belongsTo' || !parent.required)
       throw new Error(`${input.name}: scope.from must name a required belongsTo field`)
   }
+  if (input.defaultSort !== undefined) {
+    const { field, direction } = input.defaultSort
+    if (field !== 'id' && !(input.fields as Record<string, Field>)[field]?.sortable)
+      throw new Error(`${input.name}: defaultSort must name id or a sortable field`)
+    if (direction !== undefined && direction !== 'asc' && direction !== 'desc')
+      throw new Error(`${input.name}: defaultSort direction must be asc or desc`)
+  }
   assertTitle(input)
   assertPrintTemplates(input)
   if (!input.submittable && input.actions.some((a) => ['submit', 'cancel', 'amend'].includes(a)))

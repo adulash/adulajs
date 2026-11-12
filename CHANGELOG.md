@@ -36,6 +36,12 @@ Behaviour that changes on upgrade, so read it first:
   needs a live target before the record can be saved.
 * A custom actor loader passed to `RecordCollaboration` should accept `load(id, db)` and
   read on that connection, as `ActorStore` does.
+* Resource lists, their exports and `GET /api/v1/resources/:resource` show the newest records
+  first when no sort is chosen (`created_at` descending, then `id`; owner decision 27); they
+  were in ascending id order. A sort the user picks still wins, and a resource keeps another
+  order with the new `defaultSort` option. API clients that page without `sort` see the new
+  order; a cursor from the old order is refused (422 `E_CURSOR`), so restart from the first
+  page.
 * The workspace has one header across the full width, with the sidebar and the page below
   it (ADR 049, owner decision 20). The brand and the only sidebar trigger sit in the
   header's start segment above the sidebar; a rail on the sidebar's edge also toggles it,

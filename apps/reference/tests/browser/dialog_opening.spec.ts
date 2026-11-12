@@ -218,7 +218,9 @@ test.group('Dialogs open over the mounted page', (group) => {
     // so the click finds it still on its way and the dialog opens with its loading body.
     const watch = watchRequests(browserContext)
     const hold = await holdRequests(browserContext, /\/resources\/ui_samples\/create\/view/)
-    const page = await visit('/resources/ui_samples')
+    // Sorted by id ascending (newest first is the default, decision 27): the new record lands
+    // on a page that is not loaded, so the list must pin it first itself.
+    const page = await visit('/resources/ui_samples?sort=id')
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.locator('main h1').waitFor()
     await page.locator('main table').waitFor()
@@ -300,10 +302,14 @@ test.group('Dialogs open over the mounted page', (group) => {
     assert.deepEqual(await samePage(page), { heading: true, table: true })
     assert.include(await firstText(page), title)
 
-    // A changed query lists the rows in their own order again.
-    await page.goto('/resources/ui_samples')
+    // A changed query lists the rows in their own order again: by id, the new record is far
+    // down; by default (newest first) it leads on its own.
+    await page.goto('/resources/ui_samples?sort=id')
     await page.locator('main table tbody tr[data-row-id]').first().waitFor()
     assert.notInclude(await firstText(page), title)
+    await page.goto('/resources/ui_samples')
+    await page.locator('main table tbody tr[data-row-id]').first().waitFor()
+    assert.include(await firstText(page), title)
 
     // The address still works on its own, reloaded.
     await page.goto('/resources/ui_samples/create')

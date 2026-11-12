@@ -57,6 +57,14 @@ export type AggregateRow = {
 }
 const AGGREGATE_GROUP_LIMIT = 1000
 
+/**
+ * The default order's key: the creation time, newest first. Not a field, so a request cannot
+ * name it; a cursor carries it.
+ */
+const NEWEST = '_created'
+/** The column alias of the creation time's exact text in a list query. */
+const NEWEST_VALUE = '_created_at'
+
 export type ListOptions = {
   limit?: number
   cursor?: string
@@ -343,13 +351,26 @@ function listQuery(ctx: ResourceContext, name: string, actor: Actor, options: Li
   if (trashed) authorizeAction(ctx, resource, actor, 'delete')
   const queryable = (key: string) => canQueryField(resource, actor, ability, key)
   const limit = Math.max(1, Math.min(100, Math.floor(Number(options.limit) || 25)))
-  const sort = options.sort ?? 'id'
-  const direction = options.direction === 'desc' ? 'desc' : 'asc'
-  if (sort !== 'id' && !resource.fields[sort]?.sortable)
+  // The user's sort, else the resource's declared one, else newest first (owner, 2.3.0).
+  const chosen = options.sort ?? resource.defaultSort?.field
+  const sort = chosen ?? NEWEST
+  const direction =
+    options.direction === 'desc' || options.direction === 'asc'
+      ? options.direction
+      : options.sort
+        ? 'asc'
+        : chosen
+          ? (resource.defaultSort?.direction ?? 'asc')
+          : 'desc'
+  if (sort !== 'id' && sort !== NEWEST && !resource.fields[sort]?.sortable)
     throw new AdulaError(422, 'E_SORT', 'Unsupported sort field')
+  // The creation time orders the list only by default; it is not a field a request names.
+  if (options.sort === NEWEST) throw new AdulaError(422, 'E_SORT', 'Unsupported sort field')
   // Sorting/filtering private fields would otherwise reveal their values indirectly.
-  if (sort !== 'id' && !queryable(sort)) throw forbiddenField('Forbidden sort field')
-  const sortColumn = `r.${resource.fields[sort]?.column ?? columnName(sort)}`
+  if (sort !== 'id' && sort !== NEWEST && !queryable(sort))
+    throw forbiddenField('Forbidden sort field')
+  const sortColumn =
+    sort === NEWEST ? 'r.created_at' : `r.${resource.fields[sort]?.column ?? columnName(sort)}`
   const base = ctx.db(`${name} as r`)
   if (trashed) {
     base.whereNotNull('r.deleted_at')
@@ -363,7 +384,10 @@ function listQuery(ctx: ResourceContext, name: string, actor: Actor, options: Li
     else base.whereIn('r.id', ids)
   }
   const query = accessibleBy(base, ability, actor, trashed ? 'delete' : 'view', resource)
-  query.select(columns(resource, ability, false, [sort]))
+  query.select(columns(resource, ability, false, sort === NEWEST ? [] : [sort]))
+  // The creation time as PostgreSQL prints it, microseconds included: a page's cursor must
+  // compare exactly, which a JavaScript Date (milliseconds) would not.
+  if (sort === NEWEST) query.select(ctx.db.raw('r.created_at::text as ??', [NEWEST_VALUE]))
   if (resource.scoped) query.select('ou.path as org_path')
   if (options.search) applySearch(query, resource, options.search, queryable)
   applyFilters(query, resource, options.filters ?? {}, queryable)
@@ -470,6 +494,7 @@ export async function list(
     .map((row: RecordData) => fromRow(row, resource))
   await withLinks(ctx.db, resource, records)
   const last = records.at(-1)
+  const lastRow = rows[Math.min(rows.length, limit) - 1] as Record<string, unknown> | undefined
   if (estimatedTotal !== undefined) {
     estimatedTotal =
       !options.cursor && rows.length <= limit
@@ -500,7 +525,12 @@ export async function list(
       nextCursor:
         rows.length > limit && last
           ? Buffer.from(
-              JSON.stringify({ id: last.id, value: last[sort] ?? null, sort, direction })
+              JSON.stringify({
+                id: last.id,
+                value: sort === NEWEST ? lastRow?.[NEWEST_VALUE] : (last[sort] ?? null),
+                sort,
+                direction,
+              })
             ).toString('base64url')
           : null,
     },
@@ -579,7 +609,14 @@ function decodeCursor(resource: Resource, encoded: unknown, sort: string, direct
     throw invalidCursor()
   // The sort key must have the sort field's type, or PostgreSQL rejects the comparison.
   try {
-    if (sort === 'id') {
+    if (sort === NEWEST) {
+      // PostgreSQL's own text form of a timestamp with time zone, as the list printed it.
+      if (
+        typeof cursor.value !== 'string' ||
+        !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d{1,6})?[+-]\d{2}(:\d{2})?$/.test(cursor.value)
+      )
+        throw new Error('Cursor time mismatch')
+    } else if (sort === 'id') {
       if (cursor.value !== cursor.id) throw new Error('Cursor id mismatch')
     } else cursor.value = fieldValue(resource.fields[sort], cursor.value)
   } catch {

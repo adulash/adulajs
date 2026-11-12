@@ -1014,11 +1014,12 @@ test.group('Generic resource browser acceptance', (group) => {
     await page.assertVisible(page.getByText(/^ضمن نطاقك: \d+ (سجلًا|سجلات|سجل)$/))
     const rendered = await page.locator('tbody tr[aria-rowindex]').count()
     assert.isBelow(rendered, 80)
-    await page.assertVisible(page.getByText(`مهمة افتراضية 1 ${stamp}`, { exact: true }))
+    // Newest first by default (decision 27): the last task created leads the list.
+    await page.assertVisible(page.getByText(`مهمة افتراضية 250 ${stamp}`, { exact: true }))
     // The rows scroll with the page; the virtualizer follows the page scroller (#109).
     assert.equal(await page.evaluate<number>(innerScrollers), 0)
     await page.evaluate(scrollListToEnd)
-    await page.getByText(`مهمة افتراضية 250 ${stamp}`, { exact: true }).waitFor()
+    await page.getByText(`مهمة افتراضية 1 ${stamp}`, { exact: true }).waitFor()
     assert.isBelow(await page.locator('tbody tr[aria-rowindex]').count(), 80)
     await page.setViewportSize({ width: 390, height: 844 })
     await page.assertVisible(page.getByRole('navigation', { name: 'التنقل على الجوال' }))
