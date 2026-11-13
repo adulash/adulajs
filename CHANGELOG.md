@@ -90,7 +90,7 @@ Behaviour that changes on upgrade, so read it first:
   offers Excel; the export audit records `format`.
 * In tests, the cache and queue prefix is `<name>-test:<DB_DATABASE>`, so test runs on
   different databases no longer clear or take each other's Redis keys.
-* API tokens belong to administrators (owner decision): «رموز API» moves from the account
+* API tokens belong to administrators (owner decision 26): «رموز API» moves from the account
   menu to a tab under «الإعدادات» at `/admin/tokens`. The `/api/v1` bearer API refuses a
   token whose owner is not an administrator with 403 `E_TOKEN_ADMIN_ONLY`, so integrations
   that use a non-administrator's token stop working; their rows stay and are revoked from
