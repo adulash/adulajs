@@ -2,10 +2,25 @@ import { inject } from '@adonisjs/core'
 import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
 import SessionMiddleware from '@adonisjs/session/session_middleware'
+import ReplacedSessionException from '#exceptions/replaced_session_exception'
+import { recentlyRotated, recordRotation } from '#services/sessions'
 
 /**
- * AdonisJS's session middleware, keeping flash messages for the page they belong to.
+ * AdonisJS's session middleware, keeping flash messages for the page they belong to and a
+ * rotated session from coming back.
  *
+ * Rotation. Signing in and starting or ending impersonation replace the session id. A request
+ * the browser sent with the old id and the server answers after the rotation (a deferred prop,
+ * the bell, a dialog's view) used to be written back under the old id and hand the browser the
+ * old cookie: the next page found the old session ended and signed the user out. The replaced
+ * id is recorded before the rotating request's own write; a request carrying it is refused
+ * (ReplacedSessionException, 409) with nothing written and no cookie set, whether it arrives
+ * after the rotation or was already in flight (checked again once its handler is done). Only a
+ * rotation is recorded: a session an administrator revokes or a sign-out ends is refused as
+ * before, and a replaced id is refused for a minute only (recentlyRotated), after which it is
+ * an ended session like any other.
+ *
+ * Flash messages.
  * Every request takes the flash messages out of the session when it starts and writes the
  * session back when it ends. A background JSON read (a dialog's related lists, a view fetched
  * ahead of a click) that the server answers between a write and its redirect took the write's
@@ -34,9 +49,20 @@ export default class FlashKeepingSessionMiddleware {
       // Sessions turned off (`enabled: false`): AdonisJS's middleware calls next() without one.
       if (!ctx.session) return next()
       const session = ctx.session
+      // The id the browser sent, if any (a first visit has none).
+      const presented = session.fresh ? undefined : session.sessionId
+      if (presented && (await recentlyRotated(presented))) throw new ReplacedSessionException()
       const background = isBackgroundRead(ctx) && !session.flashMessages.isEmpty
       const before = background ? JSON.stringify(session.all()) : ''
       const response = await next()
+      if (presented && session.hasRegeneratedSession) {
+        // This request rotated the session: record the old id before its write and its answer.
+        await recordRotation(presented)
+      } else if (presented && (await recentlyRotated(presented))) {
+        // Another request rotated it while this one was in flight. Throwing here, inside
+        // AdonisJS's next(), skips its commit: nothing written, no cookie.
+        throw new ReplacedSessionException()
+      }
       if (!background) return response
       const unchanged =
         !session.hasRegeneratedSession &&

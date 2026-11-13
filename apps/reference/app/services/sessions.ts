@@ -67,6 +67,37 @@ export async function endSession(sessionId: string) {
     .update({ revoked_at: knex().fn.now() })
 }
 
+/**
+ * How long after a rotation a request with the replaced id is refused rather than served. Late
+ * answers arrive within seconds; past this, a browser that somehow kept the old cookie is
+ * treated as before (the old session is gone, so it is signed out) instead of refused forever.
+ */
+const ROTATION_GRACE_SECONDS = 60
+
+/** Records that a rotation replaced this session id (see session_rotations). */
+export async function recordRotation(sessionId: string) {
+  await knex()('session_rotations')
+    .insert({ id: sessionId, rotated_at: knex().fn.now() })
+    .onConflict('id')
+    .merge()
+  await knex()('session_rotations')
+    .where('rotated_at', '<', knex().raw(`now() - interval '1 day'`))
+    .delete()
+}
+
+/** True when a rotation replaced this session id within the grace period. */
+export async function recentlyRotated(sessionId: string) {
+  const row = await knex()('session_rotations')
+    .where({ id: sessionId })
+    .where(
+      'rotated_at',
+      '>',
+      knex().raw(`now() - make_interval(secs => ?)`, [ROTATION_GRACE_SECONDS])
+    )
+    .first('id')
+  return Boolean(row)
+}
+
 export type SessionState = { active: true } | { active: false; reason: 'disabled' | 'revoked' }
 
 /** The silent and strict auth middleware both check; one query per request is enough. */

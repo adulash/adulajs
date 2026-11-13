@@ -456,6 +456,17 @@ test.group('Security: login lockout, health throttle and session fixation', (gro
       assert.lengthOf(await knex()('sessions').where({ id: planted }), 0)
 
     // The planted id is not signed in; the new one is.
+    // Within a minute of the rotation the planted id is refused outright, with no session and
+    // no cookie (a late request of the victim's own browser must not bring it back).
+    const early = client.get('/account/profile').redirects(0)
+    early.sessionClient.sessionId = planted
+    const refused = await early
+    refused.assertStatus(409)
+    assert.isUndefined(refused.cookie('adonis-session'))
+    // After that it is an ended session like any other: signed out.
+    await knex()('session_rotations')
+      .where({ id: planted })
+      .update({ rotated_at: knex().raw(`now() - interval '2 minutes'`) })
     const attacker = client.get('/account/profile').redirects(0)
     attacker.sessionClient.sessionId = planted
     const denied = await attacker
