@@ -2,7 +2,7 @@
 
 <div dir="rtl" lang="ar">
 
-**create-adulajs** هو الأمر الذي يُنشئ **نظامًا** جديدًا لشركتك بإطار عدولة (AdulaJS) من مجلد فارغ، بأمر واحد:
+**create-adulajs** هو الأمر الذي يُنشئ **نظامًا** جديدًا لشركتك بإطار أدولا (AdulaJS) من مجلد فارغ، بأمر واحد:
 
 `npm create adulajs my-system`
 

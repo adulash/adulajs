@@ -119,8 +119,8 @@ test.group('Workspace shell in the browser', (group) => {
     const side = await box(sidebar)
     assert.isAtMost(Math.abs(side.y - (top.y + top.height)), 1)
     // The brand is part of the header, not of the sidebar.
-    await page.assertVisible(header.getByRole('link', { name: /عدولة/ }))
-    assert.equal(await sidebar.getByText('عدولة').count(), 0)
+    await page.assertVisible(header.getByRole('link', { name: /أدولا/ }))
+    assert.equal(await sidebar.getByText('أدولا').count(), 0)
     // The one trigger sits in the header segment above the sidebar; no other sidebar button.
     const control = await box(trigger)
     assert.isAtLeast(control.x, side.x - 0.5)
@@ -167,7 +167,7 @@ test.group('Workspace shell in the browser', (group) => {
     const narrow = await box(trigger)
     assert.isAtLeast(narrow.x, rail.x - 0.5)
     assert.equal(await sidebar.getByText('ع', { exact: true }).count(), 0)
-    await page.assertVisible(header.getByRole('link', { name: /عدولة/ }))
+    await page.assertVisible(header.getByRole('link', { name: /أدولا/ }))
     assert.equal(await trigger.getAttribute('aria-expanded'), 'false')
     // Icons keep their names: an accessible name and a tooltip.
     const overview = sidebar.getByRole('link', { name: 'نظرة عامة' }).last()

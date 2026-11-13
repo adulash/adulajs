@@ -245,7 +245,7 @@ export async function renderProject(target, template, { name, identity, packageF
             /^([ \t]*)ع$/m,
             `$1{${alias}.logo ? <img src={${alias}.logo} alt="" className="size-full object-contain" /> : ${alias}.company.charAt(0)}`
           )
-        : rewrite(path, files[path], '>عدولة<', `>{${alias}.company}<`))
+        : rewrite(path, files[path], '>أدولا<', `>{${alias}.company}<`))
   }
   files['inertia/app.tsx'] =
     `import { brand as ${alias} } from './brand'\n` +

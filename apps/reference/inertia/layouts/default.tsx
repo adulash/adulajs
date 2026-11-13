@@ -57,7 +57,7 @@ export default function Layout({ children }: { children: ReactElement<Data.Share
               title={brand?.company ?? undefined}
               data-brand-name
             >
-              {brand?.company ?? <>عدولة</>}
+              {brand?.company ?? <>أدولا</>}
             </strong>
           </Link>
           <nav aria-label={t('الحساب')} className="flex items-center gap-2">

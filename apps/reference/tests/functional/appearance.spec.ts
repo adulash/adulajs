@@ -146,7 +146,7 @@ test.group('Appearance and occasions', (group) => {
     form.assertStatus(415)
 
     const saved = await json(client.put('/admin/appearance').loginAs(admin)).json({
-      company: 'شركة عدولة',
+      company: 'شركة أدولا',
       loginTitle: '<script>alert(1)</script>',
       primaryColor: '#006C35',
       guestTitle: '',
@@ -155,7 +155,7 @@ test.group('Appearance and occasions', (group) => {
     const login = await asPage(client.get('/login'))
     login.assertStatus(200)
     const shared = login.body().props.appearance
-    assert.equal(shared.company, 'شركة عدولة')
+    assert.equal(shared.company, 'شركة أدولا')
     // Stored and sent as plain text; the page renders it as text, never as markup.
     assert.equal(shared.login.title, '<script>alert(1)</script>')
     assert.isNull(shared.guestHome.title)
@@ -178,7 +178,7 @@ test.group('Appearance and occasions', (group) => {
     const reset = await json(client.delete('/admin/appearance').loginAs(admin))
     reset.assertStatus(200)
     const after = await asPage(client.get('/login'))
-    assert.notEqual(after.body().props.appearance.company, 'شركة عدولة')
+    assert.notEqual(after.body().props.appearance.company, 'شركة أدولا')
     assert.isNull(after.body().props.appearance.theme)
   })
 

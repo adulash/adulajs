@@ -42,19 +42,19 @@ test('the company identity reaches every brand spot of the workspace and guest s
     }
     const read = (path) => readFile(join(target, path), 'utf8')
     const workspace = await read('inertia/layouts/workspace.tsx')
-    assert.doesNotMatch(workspace, /عدولة/)
+    assert.doesNotMatch(workspace, /أدولا/)
     // The mark lives in brand-mark.tsx (checked below); the workspace keeps no letter of its own.
     assert.doesNotMatch(workspace, /^\s*ع$/m)
     // The brand lives in the full-width header that every layout and size shares (owner
     // decision 20); each of its name anchors shows the company name, unless a saved
     // appearance identity wins.
     const company = imported('inertia/layouts/workspace.tsx', workspace)
-    const anchors = files['inertia/layouts/workspace.tsx'].split('>عدولة<').length - 1
+    const anchors = files['inertia/layouts/workspace.tsx'].split('>أدولا<').length - 1
     assert.ok(anchors >= 1)
     assert.equal(workspace.split(`>{${company}.company}<`).length - 1, anchors)
     // The guest shell (home and account pages) shows the company too, never the reference brand.
     const guest = await read('inertia/layouts/default.tsx')
-    assert.doesNotMatch(guest, /AdulaJS|عدولة/)
+    assert.doesNotMatch(guest, /AdulaJS|أدولا/)
     const guestCompany = imported('inertia/layouts/default.tsx', guest)
     assert.ok(guest.includes(`>{${guestCompany}.company}<`))
     // Home takes its title suffix from app.tsx, so it needs no brand import of its own.
@@ -101,7 +101,7 @@ test('a template whose shell lost a brand anchor is refused, not rendered with t
     const files = {
       'package.json': JSON.stringify({ name: 'reference', dependencies: {} }),
       'inertia/layouts/default.tsx': (await source('inertia/layouts/default.tsx')).replaceAll(
-        'عدولة',
+        'أدولا',
         'Adula'
       ),
       'inertia/layouts/workspace.tsx': await source('inertia/layouts/workspace.tsx'),

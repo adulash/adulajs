@@ -80,7 +80,7 @@ test.group('Guest shell', (group) => {
         else assert.isAtMost(box?.width ?? 0, viewport.width, `${label}: card fits`)
       }
       // The mark is decorative: the brand link is named by the company alone.
-      await page.locator('header').getByRole('link', { name: 'عدولة', exact: true }).waitFor()
+      await page.locator('header').getByRole('link', { name: 'أدولا', exact: true }).waitFor()
       // One way to sign in: the page's own action, not a duplicate header link.
       const signIn = page.getByRole('link', { name: /^(الدخول|تسجيل الدخول)$/ })
       if (path === '/') {

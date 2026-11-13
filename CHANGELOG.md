@@ -226,6 +226,10 @@ Behaviour that changes on upgrade, so read it first:
 
 ### Fixed
 
+* The product's Arabic name is «أدولا», not «عدولة» (owner decision 28): the reference
+  shells' brand fallback, the default `MAIL_FROM_NAME` and the npm READMEs («أدولا
+  (AdulaJS)»). The creator now rewrites the `>أدولا<` anchor; applications it generates
+  already show their company name there, so they see no change.
 * A write's success message is no longer lost when a background JSON read (a dialog's
   related lists, a view fetched ahead of a click) reaches the server between the write and
   its redirect: the starter's session middleware leaves flash messages for the page they
