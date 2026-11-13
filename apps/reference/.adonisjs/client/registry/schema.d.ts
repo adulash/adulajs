@@ -15,8 +15,8 @@ export interface Registry {
       paramsTuple: []
       params: {}
       query: {}
-      response: unknown
-      errorResponse: unknown
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/home_controller').default['show']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/home_controller').default['show']>>>
     }
   }
   'event_stream': {
@@ -67,6 +67,66 @@ export interface Registry {
       errorResponse: unknown
     }
   }
+  'assistant.accept_notice': {
+    methods: ["POST"]
+    pattern: '/assistant/notice'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/assistant_controller').default['acceptNotice']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/assistant_controller').default['acceptNotice']>>>
+    }
+  }
+  'assistant.start_conversation': {
+    methods: ["POST"]
+    pattern: '/assistant/conversations'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/assistant_controller').default['startConversation']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/assistant_controller').default['startConversation']>>>
+    }
+  }
+  'assistant.turn': {
+    methods: ["POST"]
+    pattern: '/assistant/conversations/:conversation/turns'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { conversation: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/assistant_controller').default['turn']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/assistant_controller').default['turn']>>>
+    }
+  }
+  'assistant.confirm': {
+    methods: ["POST"]
+    pattern: '/assistant/conversations/:conversation/actions/:id/confirm'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue, ParamValue]
+      params: { conversation: ParamValue; id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/assistant_controller').default['confirm']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/assistant_controller').default['confirm']>>>
+    }
+  }
+  'assistant.reject': {
+    methods: ["POST"]
+    pattern: '/assistant/conversations/:conversation/actions/:id/reject'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue, ParamValue]
+      params: { conversation: ParamValue; id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/assistant_controller').default['reject']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/assistant_controller').default['reject']>>>
+    }
+  }
   'inbound_webhooks.receive': {
     methods: ["POST"]
     pattern: '/webhooks/in/:source'
@@ -101,6 +161,18 @@ export interface Registry {
       query: {}
       response: ExtractResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['create']>>>
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['create']>>>
+    }
+  }
+  'record_views.create': {
+    methods: ["GET","HEAD"]
+    pattern: '/resources/:resource/create/view'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { resource: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/record_views_controller').default['create']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/record_views_controller').default['create']>>>
     }
   }
   'resources.options': {
@@ -221,6 +293,18 @@ export interface Registry {
       query: {}
       response: ExtractResponse<Awaited<ReturnType<import('#controllers/imports_controller').default['store']>>>
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/imports_controller').default['store']>>>
+    }
+  }
+  'imports.template': {
+    methods: ["GET","HEAD"]
+    pattern: '/resources/:resource/imports/template'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { resource: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/imports_controller').default['template']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/imports_controller').default['template']>>>
     }
   }
   'imports.index': {
@@ -355,6 +439,18 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/record_collaboration_controller').default['tags']>>>
     }
   }
+  'print.templates': {
+    methods: ["GET","HEAD"]
+    pattern: '/resources/:resource/print-templates'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { resource: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/print_controller').default['templates']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/print_controller').default['templates']>>>
+    }
+  }
   'print': {
     methods: ["GET","HEAD"]
     pattern: '/resources/:resource/:id/print'
@@ -473,6 +569,18 @@ export interface Registry {
       query: {}
       response: ExtractResponse<Awaited<ReturnType<import('#controllers/record_views_controller').default['show']>>>
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/record_views_controller').default['show']>>>
+    }
+  }
+  'record_views.row': {
+    methods: ["GET","HEAD"]
+    pattern: '/resources/:resource/:id/row'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue, ParamValue]
+      params: { resource: ParamValue; id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/record_views_controller').default['row']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/record_views_controller').default['row']>>>
     }
   }
   'resources.edit': {
@@ -631,6 +739,30 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/openapi_controller').default['handle']>>>
     }
   }
+  'api.open_api.client': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/client.ts'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/openapi_controller').default['client']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/openapi_controller').default['client']>>>
+    }
+  }
+  'api.open_api.declarations': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/client.d.ts'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/openapi_controller').default['declarations']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/openapi_controller').default['declarations']>>>
+    }
+  }
   'api.resources.index': {
     methods: ["GET","HEAD"]
     pattern: '/api/v1/resources/:resource'
@@ -653,6 +785,66 @@ export interface Registry {
       query: {}
       response: ExtractResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['aggregate']>>>
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['aggregate']>>>
+    }
+  }
+  'api.imports.index': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/imports'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/imports_controller').default['index']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/imports_controller').default['index']>>>
+    }
+  }
+  'api.imports.show': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/imports/:id'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/imports_controller').default['show']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/imports_controller').default['show']>>>
+    }
+  }
+  'api.imports.start': {
+    methods: ["POST"]
+    pattern: '/api/v1/imports/:id/start'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/imports_controller').default['start']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/imports_controller').default['start']>>>
+    }
+  }
+  'api.imports.store': {
+    methods: ["POST"]
+    pattern: '/api/v1/resources/:resource/imports'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { resource: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/imports_controller').default['store']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/imports_controller').default['store']>>>
+    }
+  }
+  'api.imports.template': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/resources/:resource/imports/template'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { resource: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/imports_controller').default['template']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/imports_controller').default['template']>>>
     }
   }
   'api.resources.export': {
@@ -797,6 +989,18 @@ export interface Registry {
       query: {}
       response: ExtractResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['amend']>>>
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/resources_controller').default['amend']>>>
+    }
+  }
+  'appearance_logos.show': {
+    methods: ["GET","HEAD"]
+    pattern: '/appearance/logos/:id'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/appearance_logos_controller').default['show']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/appearance_logos_controller').default['show']>>>
     }
   }
   'new_account.create': {
@@ -1003,6 +1207,42 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/user_invitations_controller').default['store']>>> | { status: 422; response: { errors: SimpleError[] } }
     }
   }
+  'avatars.show': {
+    methods: ["GET","HEAD"]
+    pattern: '/users/:id/avatar'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/avatars_controller').default['show']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/avatars_controller').default['show']>>>
+    }
+  }
+  'avatars.store_own': {
+    methods: ["POST"]
+    pattern: '/account/avatar'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/avatars_controller').default['storeOwn']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/avatars_controller').default['storeOwn']>>>
+    }
+  }
+  'avatars.destroy_own': {
+    methods: ["DELETE"]
+    pattern: '/account/avatar'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/avatars_controller').default['destroyOwn']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/avatars_controller').default['destroyOwn']>>>
+    }
+  }
   'profile.show': {
     methods: ["GET","HEAD"]
     pattern: '/account/profile'
@@ -1051,6 +1291,66 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/language_controller').default['update']>>>
     }
   }
+  'preferences.update': {
+    methods: ["PUT"]
+    pattern: '/account/preferences/:key'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { key: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/preferences_controller').default['update']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/preferences_controller').default['update']>>>
+    }
+  }
+  'preferences.destroy': {
+    methods: ["DELETE"]
+    pattern: '/account/preferences/:key'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { key: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/preferences_controller').default['destroy']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/preferences_controller').default['destroy']>>>
+    }
+  }
+  'profile.channels': {
+    methods: ["PUT"]
+    pattern: '/account/notification-channels'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/profile_controller').default['channels']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/profile_controller').default['channels']>>>
+    }
+  }
+  'profile.channel_code': {
+    methods: ["POST"]
+    pattern: '/account/notification-channels/:key/code'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { key: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/profile_controller').default['channelCode']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/profile_controller').default['channelCode']>>>
+    }
+  }
+  'profile.channel_confirm': {
+    methods: ["POST"]
+    pattern: '/account/notification-channels/:key/confirm'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { key: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/profile_controller').default['channelConfirm']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/profile_controller').default['channelConfirm']>>>
+    }
+  }
   'two_factor.begin': {
     methods: ["POST"]
     pattern: '/account/two-factor/begin'
@@ -1097,6 +1397,54 @@ export interface Registry {
       query: {}
       response: ExtractResponse<Awaited<ReturnType<import('#controllers/two_factor_controller').default['destroy']>>>
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/two_factor_controller').default['destroy']>>>
+    }
+  }
+  'delegations.index': {
+    methods: ["GET","HEAD"]
+    pattern: '/account/delegations'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/delegations_controller').default['index']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/delegations_controller').default['index']>>>
+    }
+  }
+  'delegations.candidates': {
+    methods: ["GET","HEAD"]
+    pattern: '/account/delegations/candidates'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/delegations_controller').default['candidates']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/delegations_controller').default['candidates']>>>
+    }
+  }
+  'delegations.store': {
+    methods: ["POST"]
+    pattern: '/account/delegations'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/delegations_controller').default['store']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/delegations_controller').default['store']>>>
+    }
+  }
+  'delegations.destroy': {
+    methods: ["DELETE"]
+    pattern: '/account/delegations/:id'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/delegations_controller').default['destroy']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/delegations_controller').default['destroy']>>>
     }
   }
   'account_sessions.index': {
@@ -1387,6 +1735,30 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/users_controller').default['impersonate']>>>
     }
   }
+  'avatars.store_for': {
+    methods: ["POST"]
+    pattern: '/admin/users/:id/avatar'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/avatars_controller').default['storeFor']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/avatars_controller').default['storeFor']>>>
+    }
+  }
+  'avatars.destroy_for': {
+    methods: ["DELETE"]
+    pattern: '/admin/users/:id/avatar'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/avatars_controller').default['destroyFor']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/avatars_controller').default['destroyFor']>>>
+    }
+  }
   'admin_roles.index': {
     methods: ["GET","HEAD"]
     pattern: '/admin/roles'
@@ -1555,6 +1927,90 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/jobs_controller').default['index']>>>
     }
   }
+  'admin_backups.index': {
+    methods: ["GET","HEAD"]
+    pattern: '/admin/backups'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/backups_controller').default['index']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/backups_controller').default['index']>>>
+    }
+  }
+  'admin_backups.connect': {
+    methods: ["POST"]
+    pattern: '/admin/backups/connect/:provider'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { provider: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/backups_controller').default['connect']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/backups_controller').default['connect']>>>
+    }
+  }
+  'admin_backups.callback': {
+    methods: ["GET","HEAD"]
+    pattern: '/admin/backups/oauth/:provider/callback'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { provider: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/backups_controller').default['callback']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/backups_controller').default['callback']>>>
+    }
+  }
+  'admin_backups.disconnect': {
+    methods: ["DELETE"]
+    pattern: '/admin/backups/connections/:provider'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { provider: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/backups_controller').default['disconnect']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/backups_controller').default['disconnect']>>>
+    }
+  }
+  'admin_backups.schedule': {
+    methods: ["PUT"]
+    pattern: '/admin/backups/connections/:provider/schedule'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { provider: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/backups_controller').default['schedule']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/backups_controller').default['schedule']>>>
+    }
+  }
+  'admin_backups.run': {
+    methods: ["POST"]
+    pattern: '/admin/backups/runs'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/backups_controller').default['run']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/backups_controller').default['run']>>>
+    }
+  }
+  'admin_backups.download': {
+    methods: ["GET","HEAD"]
+    pattern: '/admin/backups/runs/:id/download'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/backups_controller').default['download']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/backups_controller').default['download']>>>
+    }
+  }
   'admin_jobs.retry': {
     methods: ["POST"]
     pattern: '/admin/jobs/:id/retry'
@@ -1567,6 +2023,30 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/jobs_controller').default['retry']>>>
     }
   }
+  'admin_jobs.run_sync': {
+    methods: ["POST"]
+    pattern: '/admin/jobs/sync/:name/run'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { name: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/jobs_controller').default['runSync']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/jobs_controller').default['runSync']>>>
+    }
+  }
+  'admin_jobs.sync_runs': {
+    methods: ["GET","HEAD"]
+    pattern: '/admin/jobs/sync/:name/runs'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { name: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/jobs_controller').default['syncRuns']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/jobs_controller').default['syncRuns']>>>
+    }
+  }
   'admin_settings.index': {
     methods: ["GET","HEAD"]
     pattern: '/admin/settings'
@@ -1577,6 +2057,18 @@ export interface Registry {
       query: {}
       response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/settings_controller').default['index']>>>
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/settings_controller').default['index']>>>
+    }
+  }
+  'admin_settings.mail': {
+    methods: ["GET","HEAD"]
+    pattern: '/admin/settings/mail'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/settings_controller').default['mail']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/settings_controller').default['mail']>>>
     }
   }
   'admin_templates.index': {
@@ -1615,6 +2107,78 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/templates_controller').default['reset']>>>
     }
   }
+  'admin_print_templates.index': {
+    methods: ["GET","HEAD"]
+    pattern: '/admin/print-templates'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/print_templates_controller').default['index']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/print_templates_controller').default['index']>>>
+    }
+  }
+  'admin_print_templates.store': {
+    methods: ["POST"]
+    pattern: '/admin/print-templates'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/print_templates_controller').default['store']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/print_templates_controller').default['store']>>>
+    }
+  }
+  'admin_print_templates.preview': {
+    methods: ["POST"]
+    pattern: '/admin/print-templates/preview'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/print_templates_controller').default['preview']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/print_templates_controller').default['preview']>>>
+    }
+  }
+  'admin_print_templates.show': {
+    methods: ["GET","HEAD"]
+    pattern: '/admin/print-templates/:resource/:key'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue, ParamValue]
+      params: { resource: ParamValue; key: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/print_templates_controller').default['show']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/print_templates_controller').default['show']>>>
+    }
+  }
+  'admin_print_templates.update': {
+    methods: ["PUT"]
+    pattern: '/admin/print-templates/:resource/:key'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue, ParamValue]
+      params: { resource: ParamValue; key: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/print_templates_controller').default['update']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/print_templates_controller').default['update']>>>
+    }
+  }
+  'admin_print_templates.versions': {
+    methods: ["GET","HEAD"]
+    pattern: '/admin/print-templates/:resource/:key/versions'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue, ParamValue]
+      params: { resource: ParamValue; key: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/print_templates_controller').default['versions']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/print_templates_controller').default['versions']>>>
+    }
+  }
   'workflows.failed': {
     methods: ["GET","HEAD"]
     pattern: '/admin/workflows'
@@ -1637,6 +2201,54 @@ export interface Registry {
       query: {}
       response: ExtractResponse<Awaited<ReturnType<import('#controllers/workflows_controller').default['retry']>>>
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/workflows_controller').default['retry']>>>
+    }
+  }
+  'delegations.admin_index': {
+    methods: ["GET","HEAD"]
+    pattern: '/admin/delegations'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/delegations_controller').default['adminIndex']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/delegations_controller').default['adminIndex']>>>
+    }
+  }
+  'delegations.admin_candidates': {
+    methods: ["GET","HEAD"]
+    pattern: '/admin/delegations/candidates'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/delegations_controller').default['adminCandidates']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/delegations_controller').default['adminCandidates']>>>
+    }
+  }
+  'delegations.admin_store': {
+    methods: ["POST"]
+    pattern: '/admin/delegations'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/delegations_controller').default['adminStore']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/delegations_controller').default['adminStore']>>>
+    }
+  }
+  'delegations.admin_destroy': {
+    methods: ["DELETE"]
+    pattern: '/admin/delegations/:id'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/delegations_controller').default['adminDestroy']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/delegations_controller').default['adminDestroy']>>>
     }
   }
   'admin_webhooks.index': {
@@ -1855,6 +2467,42 @@ export interface Registry {
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/settings_controller').default['confirmMail']>>>
     }
   }
+  'admin_settings.update_mail': {
+    methods: ["PUT"]
+    pattern: '/admin/settings/mail'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/settings_controller').default['updateMail']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/settings_controller').default['updateMail']>>>
+    }
+  }
+  'admin_settings.set_mail_password': {
+    methods: ["PUT"]
+    pattern: '/admin/settings/mail/password'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/settings_controller').default['setMailPassword']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/settings_controller').default['setMailPassword']>>>
+    }
+  }
+  'admin_settings.clear_mail_password': {
+    methods: ["DELETE"]
+    pattern: '/admin/settings/mail/password'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/settings_controller').default['clearMailPassword']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/settings_controller').default['clearMailPassword']>>>
+    }
+  }
   'admin_settings.upsert': {
     methods: ["PUT"]
     pattern: '/admin/settings'
@@ -1877,6 +2525,42 @@ export interface Registry {
       query: ExtractQuery<InferInput<(typeof import('#validators/authentication_settings').authenticationSettingsValidator)>>
       response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/authentication_settings_controller').default['update']>>>
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/authentication_settings_controller').default['update']>>> | { status: 422; response: { errors: SimpleError[] } }
+    }
+  }
+  'admin_settings.update_channel': {
+    methods: ["PUT"]
+    pattern: '/admin/settings/channels'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/settings_controller').default['updateChannel']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/settings_controller').default['updateChannel']>>>
+    }
+  }
+  'admin_settings.rotate_channel': {
+    methods: ["POST"]
+    pattern: '/admin/settings/channels/rotate'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/settings_controller').default['rotateChannel']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/settings_controller').default['rotateChannel']>>>
+    }
+  }
+  'admin_settings.test_channel': {
+    methods: ["POST"]
+    pattern: '/admin/settings/channels/test'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/settings_controller').default['testChannel']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/settings_controller').default['testChannel']>>>
     }
   }
   'admin_settings.destroy': {
@@ -1925,6 +2609,150 @@ export interface Registry {
       query: {}
       response: ExtractResponse<Awaited<ReturnType<import('#controllers/api_tokens_controller').default['destroy']>>>
       errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/api_tokens_controller').default['destroy']>>>
+    }
+  }
+  'admin_appearance.index': {
+    methods: ["GET","HEAD"]
+    pattern: '/admin/appearance'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/appearance_controller').default['index']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/appearance_controller').default['index']>>>
+    }
+  }
+  'admin_appearance.update_identity': {
+    methods: ["PUT"]
+    pattern: '/admin/appearance'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/appearance_controller').default['updateIdentity']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/appearance_controller').default['updateIdentity']>>>
+    }
+  }
+  'admin_appearance.reset_identity': {
+    methods: ["DELETE"]
+    pattern: '/admin/appearance'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/appearance_controller').default['resetIdentity']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/appearance_controller').default['resetIdentity']>>>
+    }
+  }
+  'admin_appearance.upload_logo': {
+    methods: ["POST"]
+    pattern: '/admin/appearance/logos'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/appearance_controller').default['uploadLogo']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/appearance_controller').default['uploadLogo']>>>
+    }
+  }
+  'admin_appearance.store_occasion': {
+    methods: ["POST"]
+    pattern: '/admin/appearance/occasions'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/appearance_controller').default['storeOccasion']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/appearance_controller').default['storeOccasion']>>>
+    }
+  }
+  'admin_appearance.update_occasion': {
+    methods: ["PUT"]
+    pattern: '/admin/appearance/occasions/:id'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/appearance_controller').default['updateOccasion']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/appearance_controller').default['updateOccasion']>>>
+    }
+  }
+  'admin_appearance.destroy_occasion': {
+    methods: ["DELETE"]
+    pattern: '/admin/appearance/occasions/:id'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/appearance_controller').default['destroyOccasion']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/appearance_controller').default['destroyOccasion']>>>
+    }
+  }
+  'admin_assistant.index': {
+    methods: ["GET","HEAD"]
+    pattern: '/admin/assistant'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/assistant_controller').default['index']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/assistant_controller').default['index']>>>
+    }
+  }
+  'admin_assistant.update': {
+    methods: ["PUT"]
+    pattern: '/admin/assistant'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/assistant_controller').default['update']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/assistant_controller').default['update']>>>
+    }
+  }
+  'admin_assistant.set_key': {
+    methods: ["PUT"]
+    pattern: '/admin/assistant/key'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/assistant_controller').default['setKey']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/assistant_controller').default['setKey']>>>
+    }
+  }
+  'admin_assistant.clear_key': {
+    methods: ["DELETE"]
+    pattern: '/admin/assistant/key'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/assistant_controller').default['clearKey']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/assistant_controller').default['clearKey']>>>
+    }
+  }
+  'admin_assistant.test': {
+    methods: ["POST"]
+    pattern: '/admin/assistant/test'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/admin/assistant_controller').default['test']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/admin/assistant_controller').default['test']>>>
     }
   }
   'admin_lookups.index': {
