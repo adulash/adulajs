@@ -44,6 +44,53 @@ async function readStopwatch(page: Page) {
   return page.evaluate<{ firstFrame: boolean | null; ms: number | null }>('window.__opening')
 }
 
+/**
+ * Records every element that takes the focus from the next click on, by its accessible name,
+ * to check that the focus goes straight to the dialog's body.
+ */
+async function recordFocus(page: Page) {
+  await page.evaluate(`(() => {
+    window.__focus = []
+    if (window.__focusing) return
+    window.__focusing = true
+    document.addEventListener('focusin', (event) => {
+      const element = event.target
+      const name = (element.getAttribute('aria-label') || element.innerText || '').trim()
+      window.__focus.push({ tag: element.tagName, name: name.slice(0, 40) })
+    }, true)
+  })()`)
+}
+
+/** The focus's path since `recordFocus`, and whether it rests on the dialog's first field. */
+async function readFocus(page: Page) {
+  return page.evaluate<{
+    visited: { tag: string; name: string }[]
+    first: boolean
+    active: string
+  }>(`(() => {
+    const dialog = document.querySelector('[role=dialog][data-state=open]')
+    const first = [...dialog.querySelectorAll('button, input, select, textarea, [tabindex]')].find(
+      (element) =>
+        element.tabIndex >= 0 && !element.disabled && element.type !== 'hidden' &&
+        element.getClientRects().length > 0
+    )
+    return {
+      visited: window.__focus,
+      first: !!first && first === document.activeElement,
+      active: document.activeElement.outerHTML.slice(0, 300),
+    }
+  })()`)
+}
+
+/** Waits until the open dialog's body is mounted and holds the focus. */
+async function waitForBody(page: Page) {
+  await page.waitForFunction(`(() => {
+    const dialog = document.querySelector('[role=dialog][data-state=open]')
+    return !!dialog && !dialog.querySelector('[data-record-pending]')
+      && dialog.contains(document.activeElement) && document.activeElement !== dialog
+  })()`)
+}
+
 async function markPage(page: Page) {
   await page.evaluate(`(() => {
     window.__heading = document.querySelector('main h1')
@@ -371,7 +418,8 @@ test.group('Dialogs open over the mounted page', (group) => {
     await page.keyboard.press('Escape')
     await page.locator('[role=dialog]').waitFor({ state: 'detached' })
     // The view fetched ahead (the create form once the list is idle, a record on hover): the
-    // dialog's first frame is its complete, final one.
+    // dialog's first frame has its final size and footer with no skeleton, and its body follows
+    // one frame later (`AfterFirstPaint`), with the focus on its first field.
     await row.hover()
     await page.waitForLoadState('networkidle')
     for (const opener of [page.getByRole('link', { name: 'إضافة عينة' }), row]) {
@@ -379,6 +427,7 @@ test.group('Dialogs open over the mounted page', (group) => {
       await opener.click()
       const dialog = page.locator('[role=dialog][data-state=open]')
       await dialog.waitFor()
+      await waitForBody(page)
       assert.equal(await dialog.locator('[data-slot="record-loading"]').count(), 0, 'complete')
       await page.waitForTimeout(100)
       const opening = await readStopwatch(page)
@@ -389,6 +438,94 @@ test.group('Dialogs open over the mounted page', (group) => {
       await page.locator('[role=dialog]').waitFor({ state: 'detached' })
     }
   }).timeout(60_000)
+
+  test('a prefetched dialog is on screen within 150 ms and focuses its first field, cold and warm', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(admin.user)
+    const signedIn = await visit('/resources/ui_samples')
+    const origin = new URL(signedIn.url()).origin
+    const cookies = await browserContext.cookies()
+    const openers = [
+      {
+        name: 'create',
+        view: /\/resources\/ui_samples\/create\/view/,
+        opener: (page: Page) => page.getByRole('link', { name: 'إضافة عينة' }),
+        // The list fetches the form ahead once idle.
+        prefetch: async () => {},
+      },
+      {
+        name: 'record',
+        view: /\/resources\/ui_samples\/\d+\/view/,
+        opener: (page: Page) =>
+          page.locator('main tbody a[href^="/resources/ui_samples/"]').first(),
+        // A row link fetches its record ahead on hover.
+        prefetch: async (page: Page) => {
+          await page.mouse.move(0, 0)
+          await page.locator('main tbody a[href^="/resources/ui_samples/"]').first().hover()
+        },
+      },
+    ]
+    for (const { name, view, opener, prefetch } of openers) {
+      // A browser of its own: nothing in it has rendered this dialog yet, as for a user's first
+      // opening of the day, with its view fetched ahead of the click.
+      const browser = await chromium.launch()
+      try {
+        const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+        await context.addCookies(cookies)
+        const page = await context.newPage()
+        const listed = name === 'create' ? page.waitForResponse(view) : null
+        await page.goto(origin + '/resources/ui_samples')
+        await page.locator('main table tbody tr[data-row-id]').first().waitFor()
+        await listed
+        await page.waitForLoadState('networkidle')
+        for (const run of ['cold', 'warm']) {
+          const label = `${name}, ${run}`
+          await prefetch(page)
+          await page.waitForLoadState('networkidle')
+          await startStopwatch(page)
+          await recordFocus(page)
+          await opener(page).click()
+          const dialog = page.locator('[role=dialog][data-state=open]')
+          await dialog.waitFor()
+          await waitForBody(page)
+          await page.waitForTimeout(100)
+          const opening = await readStopwatch(page)
+          const focus = await readFocus(page)
+          console.log(`[opening] prefetched ${label}: ${JSON.stringify({ ...opening, focus })}`)
+          assert.isTrue(opening.firstFrame, `${label}: on screen at the first frame`)
+          assert.isBelow(opening.ms!, 150, `${label}: within 150 ms of the click`)
+          assert.equal(
+            await dialog.locator('[data-slot="record-loading"]').count(),
+            0,
+            'no skeleton'
+          )
+          // The focus never visits the footer's controls on its way to the body.
+          for (const control of ['إلغاء', 'إغلاق'])
+            assert.notInclude(
+              focus.visited.map((f) => f.name),
+              control,
+              `${label}: «${control}» never takes the focus: ${JSON.stringify(focus.visited)}`
+            )
+          assert.isTrue(focus.first, `${label}: the first field has the focus: ${focus.active}`)
+          if (name === 'create')
+            assert.isTrue(
+              await page.evaluate<boolean>(
+                '!!document.activeElement?.closest("[role=dialog] form")'
+              ),
+              `${label}: the focus is in the form`
+            )
+          await page.keyboard.press('Escape')
+          await page.locator('[role=dialog]').waitFor({ state: 'detached' })
+          await page.waitForLoadState('networkidle')
+        }
+      } finally {
+        await browser.close()
+      }
+    }
+  }).timeout(120_000)
 
   test('the dialog keeps its size and place from the first frame while its body loads', async ({
     browserContext,

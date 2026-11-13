@@ -88,8 +88,16 @@ table with a standalone form, and a record dialog appeared only after its view a
     «حفظ السجل» for a form) and a skeleton of the record's card, header and two columns. Views are fetched ahead of the click (`prefetchRecord` on a row link's hover or
     focus, `prefetchCreate` once the list is idle and on «إضافة»'s hover or focus), so most
     dialogs open complete; an opening finds a prefetch still on its way and waits for it
-    instead of sending a second request. A record's prefetch serves one opening, the create
-    form every opening, both for 20 seconds; a save clears them. Below lg the page itself
+    instead of sending a second request. A view at hand is still mounted one frame after the
+    dialog's first paint (`AfterFirstPaint` in `resource-page.tsx`): the click paints the
+    dialog at its final size with the footer it keeps and no skeleton, and a long form's first
+    render, with the style and layout Radix forces after it, follows in the next frame, then
+    takes the focus as an opening would; until then Radix's opening focus is held back and the
+    dialog itself holds the focus, so the footer's «إلغاء» or «إغلاق» never takes it. Only the
+    registry's record overlay wraps its body this way: a project's own page override wrapped in
+    `ResourceSurface` renders its body at once, without `AfterFirstPaint`. Measured on a cold
+    browser, the first «إضافة» of the sample form went from 270–810 ms to under 50 ms. A
+    record's prefetch serves one opening, the create form every opening, both for 20 seconds; a save clears them. Below lg the page itself
     scrolls, and locking it hides its scrollbar; the lock pads the body by the scrollbar's
     width on the side the scrollbar was. That side is the browser's, not the direction's
     (Chromium keeps the page's scrollbar on the right in RTL, Firefox moves it left), so
