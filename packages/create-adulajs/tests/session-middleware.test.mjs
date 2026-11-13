@@ -25,7 +25,7 @@ test('new applications refuse a rotated session id', async () => {
     await readFile(new URL('../build/template.json', import.meta.url), 'utf8')
   )
   const middleware = template.files['app/middleware/session_middleware.ts']
-  assert.match(middleware, /recentlyRotated\(presented\)/)
+  assert.match(middleware, /rotationOf\(presented\)/)
   assert.match(middleware, /recordRotation\(presented\)/)
   assert.ok(template.files['app/exceptions/replaced_session_exception.ts'])
   const migration = Object.entries(template.files).find(

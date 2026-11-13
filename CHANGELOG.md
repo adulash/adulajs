@@ -228,9 +228,11 @@ Behaviour that changes on upgrade, so read it first:
 
 * Signing in, starting impersonation or ending it no longer signs the user out when a request
   the browser sent just before (a deferred prop, the bell, a dialog's view) is answered after
-  it: the session middleware records the replaced session id, and for a minute a request
-  carrying it is refused (409 `E_SESSION_REPLACED`) without writing the old session back or
-  setting its cookie. A session an administrator revokes still ends at once.
+  it: the session middleware records the replaced session id (by its handle, kept ten
+  minutes). For a minute a request carrying it is refused (409 `E_SESSION_REPLACED`), and one
+  already in flight when it rotated is refused if it reads or keeps its own answer if it
+  writes; neither writes the old session back nor sets its cookie. A session an administrator
+  revokes still ends at once.
 * A write's success message is no longer lost when a background JSON read (a dialog's
   related lists, a view fetched ahead of a click) reaches the server between the write and
   its redirect: the starter's session middleware leaves flash messages for the page they
@@ -332,7 +334,7 @@ Projects own the starter's files; upgrades do not rewrite them. Merge them from 
   middleware of `start/kernel.ts` in place of `@adonisjs/session/session_middleware`.
 * Rotated sessions: copy and run the migration
   `database/migrations/1790000003000_create_session_rotations_table.ts`, add
-  `app/exceptions/replaced_session_exception.ts` and `recordRotation`/`recentlyRotated` in
+  `app/exceptions/replaced_session_exception.ts` and `recordRotation`/`rotationOf` in
   `app/services/sessions.ts`, and merge the rotation checks into
   `app/middleware/session_middleware.ts`.
 * Impersonation: `app/services/impersonation.ts`,

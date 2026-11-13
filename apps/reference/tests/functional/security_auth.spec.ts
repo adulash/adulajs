@@ -14,6 +14,7 @@ import { Socket } from 'node:net'
 import { RequestFactory } from '@adonisjs/core/factories/http'
 import env from '#start/env'
 import { compileTrustedProxies, isDirectProxyRequest } from '#services/trusted_proxies'
+import { sessionHandle } from '#services/sessions'
 import {
   HEALTH_LIMIT,
   LOCKOUT_MAX_MINUTES,
@@ -463,9 +464,11 @@ test.group('Security: login lockout, health throttle and session fixation', (gro
     const refused = await early
     refused.assertStatus(409)
     assert.isUndefined(refused.cookie('adonis-session'))
+    if (env.get('SESSION_DRIVER') === 'database')
+      assert.lengthOf(await knex()('sessions').where({ id: planted }), 0, 'not written back')
     // After that it is an ended session like any other: signed out.
     await knex()('session_rotations')
-      .where({ id: planted })
+      .where({ id: sessionHandle(planted) })
       .update({ rotated_at: knex().raw(`now() - interval '2 minutes'`) })
     const attacker = client.get('/account/profile').redirects(0)
     attacker.sessionClient.sessionId = planted

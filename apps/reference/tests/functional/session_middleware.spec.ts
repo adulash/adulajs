@@ -9,6 +9,7 @@ import type { SessionData, SessionStoreContract } from '@adonisjs/session/types'
 import db from '@adonisjs/lucid/services/db'
 import FlashKeepingSessionMiddleware from '#middleware/session_middleware'
 import ReplacedSessionException from '#exceptions/replaced_session_exception'
+import { sessionHandle } from '#services/sessions'
 
 /**
  * The invariants of the starter's session middleware (app/middleware/session_middleware.ts):
@@ -210,8 +211,18 @@ test.group('Session middleware refuses a rotated session', () => {
     const id = await withMessage(store)
     const next = await rotate(store, id)
     assert.notEqual(next, id)
-    assert.exists(await knex()('session_rotations').where({ id }).first())
-    assert.notExists(await knex()('session_rotations').where({ id: next }).first())
+    // Stored by handle, never the session id itself.
+    assert.exists(
+      await knex()('session_rotations')
+        .where({ id: sessionHandle(id) })
+        .first()
+    )
+    assert.notExists(await knex()('session_rotations').where({ id }).first())
+    assert.notExists(
+      await knex()('session_rotations')
+        .where({ id: sessionHandle(next) })
+        .first()
+    )
   })
 
   test('a request with the replaced id is refused before its handler, nothing written', async ({
@@ -270,7 +281,7 @@ test.group('Session middleware refuses a rotated session', () => {
     const id = await withMessage(store)
     await rotate(store, id)
     await knex()('session_rotations')
-      .where({ id })
+      .where({ id: sessionHandle(id) })
       .update({ rotated_at: knex().raw(`now() - interval '2 minutes'`) })
     const ctx = await send(store, () => {}, { sessionId: id, accept: 'text/html' })
     assert.isUndefined(ctx.session.get('auth_web'), 'the old session is gone: a guest')
@@ -292,6 +303,67 @@ test.group('Session middleware refuses a rotated session', () => {
     assert.isTrue(reached)
   })
 
+  test('a write in flight when the session rotates keeps its answer, saved once, the old session not written', async ({
+    assert,
+  }) => {
+    const store = new Store()
+    const id = await withMessage(store)
+    let saves = 0
+    let next: string | undefined
+    const ctx = await send(
+      store,
+      async ({ session, response }) => {
+        saves++
+        next = await rotate(store, id)
+        session.put('touched', true)
+        response.redirect('/notifications')
+      },
+      { sessionId: id, method: 'POST', accept: 'text/html' }
+    )
+    assert.equal(saves, 1)
+    assert.equal(ctx.response.getStatus(), 302, 'its own answer: the redirect')
+    assert.isFalse(store.sessions.has(id), 'the old session is not written back')
+    assert.isUndefined(store.sessions.get(next!)?.touched)
+  })
+
+  test('a request in flight across a rotation is caught however long it ran', async ({
+    assert,
+  }) => {
+    const store = new Store()
+    const id = await withMessage(store)
+    await assert.rejects(
+      () =>
+        send(
+          store,
+          async () => {
+            await rotate(store, id)
+            // The handler outlasted the minute: the rotation it saw is no longer recent.
+            await knex()('session_rotations')
+              .whereIn('id', [sessionHandle(id), id])
+              .update({ rotated_at: knex().raw(`now() - interval '5 minutes'`) })
+          },
+          { sessionId: id, accept: 'text/html' }
+        ),
+      ReplacedSessionException
+    )
+    assert.isFalse(store.sessions.has(id))
+  })
+
+  test('rotations older than ten minutes are pruned on the next one', async ({ assert }) => {
+    const store = new Store()
+    const old = await withMessage(store)
+    await rotate(store, old)
+    await knex()('session_rotations')
+      .whereIn('id', [sessionHandle(old), old])
+      .update({ rotated_at: knex().raw(`now() - interval '11 minutes'`) })
+    await rotate(store, await withMessage(store))
+    assert.notExists(
+      await knex()('session_rotations')
+        .whereIn('id', [sessionHandle(old), old])
+        .first()
+    )
+  })
+
   test('the refusal answers each kind of request without the session', async ({ assert }) => {
     const store = new Store()
     const id = await withMessage(store)
@@ -311,6 +383,10 @@ test.group('Session middleware refuses a rotated session', () => {
         assert.notEqual(ctx.response.getHeader('x-inertia-version'), undefined)
       }
       if (check === 'json') assert.equal(ctx.response.getBody().code, 'E_SESSION_REPLACED')
+      if (check === 'text') {
+        assert.match(String(ctx.response.getHeader('content-type')), /text\/html/)
+        assert.include(String(ctx.response.getBody()), 'href="/notifications"')
+      }
       assert.notExists(ctx.response.getHeader('set-cookie'), 'no cookie')
     }
   })

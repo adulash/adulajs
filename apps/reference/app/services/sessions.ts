@@ -71,31 +71,39 @@ export async function endSession(sessionId: string) {
  * How long after a rotation a request with the replaced id is refused rather than served. Late
  * answers arrive within seconds; past this, a browser that somehow kept the old cookie is
  * treated as before (the old session is gone, so it is signed out) instead of refused forever.
+ * A request already in flight when its session rotates is caught whatever its length
+ * (rotationOf, compared before and after its handler).
  */
 const ROTATION_GRACE_SECONDS = 60
 
-/** Records that a rotation replaced this session id (see session_rotations). */
+/**
+ * Records that a rotation replaced this session id (see session_rotations): its handle, as
+ * user_sessions shows them, never the id itself. Rows older than ten minutes go on each write.
+ */
 export async function recordRotation(sessionId: string) {
   await knex()('session_rotations')
-    .insert({ id: sessionId, rotated_at: knex().fn.now() })
+    .insert({ id: sessionHandle(sessionId), rotated_at: knex().fn.now() })
     .onConflict('id')
     .merge()
   await knex()('session_rotations')
-    .where('rotated_at', '<', knex().raw(`now() - interval '1 day'`))
+    .where('rotated_at', '<', knex().raw(`now() - interval '10 minutes'`))
     .delete()
 }
 
-/** True when a rotation replaced this session id within the grace period. */
-export async function recentlyRotated(sessionId: string) {
+/**
+ * The recorded rotation of this session id, if any: when it happened (as the database wrote
+ * it, so two readings compare without a clock) and whether that is within the grace period.
+ */
+export async function rotationOf(sessionId: string) {
   const row = await knex()('session_rotations')
-    .where({ id: sessionId })
-    .where(
-      'rotated_at',
-      '>',
-      knex().raw(`now() - make_interval(secs => ?)`, [ROTATION_GRACE_SECONDS])
+    .where({ id: sessionHandle(sessionId) })
+    .first(
+      knex().raw('rotated_at::text as at'),
+      knex().raw(`rotated_at > now() - make_interval(secs => ?) as recent`, [
+        ROTATION_GRACE_SECONDS,
+      ])
     )
-    .first('id')
-  return Boolean(row)
+  return row ? { at: String(row.at), recent: Boolean(row.recent) } : null
 }
 
 export type SessionState = { active: true } | { active: false; reason: 'disabled' | 'revoked' }

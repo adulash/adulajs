@@ -3,7 +3,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
 import SessionMiddleware from '@adonisjs/session/session_middleware'
 import ReplacedSessionException from '#exceptions/replaced_session_exception'
-import { recentlyRotated, recordRotation } from '#services/sessions'
+import { recordRotation, rotationOf } from '#services/sessions'
 
 /**
  * AdonisJS's session middleware, keeping flash messages for the page they belong to and a
@@ -13,12 +13,16 @@ import { recentlyRotated, recordRotation } from '#services/sessions'
  * the browser sent with the old id and the server answers after the rotation (a deferred prop,
  * the bell, a dialog's view) used to be written back under the old id and hand the browser the
  * old cookie: the next page found the old session ended and signed the user out. The replaced
- * id is recorded before the rotating request's own write; a request carrying it is refused
- * (ReplacedSessionException, 409) with nothing written and no cookie set, whether it arrives
- * after the rotation or was already in flight (checked again once its handler is done). Only a
- * rotation is recorded: a session an administrator revokes or a sign-out ends is refused as
- * before, and a replaced id is refused for a minute only (recentlyRotated), after which it is
- * an ended session like any other.
+ * id is recorded before the rotating request's own write, and the old session is never written
+ * back nor its cookie set again:
+ * - a request arriving with it within a minute of the rotation is refused before its handler
+ *   (ReplacedSessionException, 409);
+ * - a request already in flight when it rotated (the record changed while its handler ran,
+ *   however long that took): a read is refused the same way; a write keeps its own answer (its
+ *   redirect, followed with the new cookie), so what it saved is not reported as a failure and
+ *   saved twice on a retry; only the session write is skipped.
+ * Only a rotation is recorded: a session an administrator revokes or a sign-out ends is
+ * refused as before, and past the minute a replaced id is an ended session like any other.
  *
  * Flash messages.
  * Every request takes the flash messages out of the session when it starts and writes the
@@ -51,17 +55,22 @@ export default class FlashKeepingSessionMiddleware {
       const session = ctx.session
       // The id the browser sent, if any (a first visit has none).
       const presented = session.fresh ? undefined : session.sessionId
-      if (presented && (await recentlyRotated(presented))) throw new ReplacedSessionException()
+      const rotated = presented ? await rotationOf(presented) : null
+      if (rotated?.recent) throw new ReplacedSessionException()
       const background = isBackgroundRead(ctx) && !session.flashMessages.isEmpty
       const before = background ? JSON.stringify(session.all()) : ''
       const response = await next()
       if (presented && session.hasRegeneratedSession) {
         // This request rotated the session: record the old id before its write and its answer.
         await recordRotation(presented)
-      } else if (presented && (await recentlyRotated(presented))) {
-        // Another request rotated it while this one was in flight. Throwing here, inside
-        // AdonisJS's next(), skips its commit: nothing written, no cookie.
-        throw new ReplacedSessionException()
+      } else if (presented && (await rotatedSince(presented, rotated?.at))) {
+        // Another request rotated it while this one was in flight. A read is refused: throwing
+        // here, inside AdonisJS's next(), skips its commit (nothing written, no cookie).
+        if (isRead(ctx)) throw new ReplacedSessionException()
+        // A write has done its work: its answer stands, without the old session's write and
+        // cookie (the commit skipped as for an unchanged background read, below).
+        session.commit = async () => {}
+        return response
       }
       if (!background) return response
       const unchanged =
@@ -85,12 +94,20 @@ export default class FlashKeepingSessionMiddleware {
   }
 }
 
-/** A read for data, not a page: JSON accepted, not an Inertia page visit or partial reload. */
-function isBackgroundRead({ request }: HttpContext) {
+/** True when the session id's rotation record is not the one seen before the handler. */
+async function rotatedSince(sessionId: string, seen: string | undefined) {
+  const now = await rotationOf(sessionId)
+  return now !== null && now.at !== seen
+}
+
+/** GET or HEAD, by the method the server routed. */
+function isRead({ request }: HttpContext) {
   const method = request.method()
-  return (
-    (method === 'GET' || method === 'HEAD') &&
-    !request.header('x-inertia') &&
-    request.accepts(['html', 'json']) === 'json'
-  )
+  return method === 'GET' || method === 'HEAD'
+}
+
+/** A read for data, not a page: JSON accepted, not an Inertia page visit or partial reload. */
+function isBackgroundRead(ctx: HttpContext) {
+  const { request } = ctx
+  return isRead(ctx) && !request.header('x-inertia') && request.accepts(['html', 'json']) === 'json'
 }

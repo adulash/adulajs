@@ -3,7 +3,8 @@ import { BaseSchema } from '@adonisjs/lucid/schema'
 /**
  * Session ids a rotation replaced (sign-in, starting or ending impersonation, two-factor
  * sign-in), so that a request still carrying one, answered after the rotation, does not hand
- * the browser the old cookie again. Rows only matter for a minute; older ones are pruned.
+ * the browser the old cookie again. Each row holds the id's handle (sessionHandle, as
+ * user_sessions shows them), never the id itself; rows older than ten minutes are pruned.
  */
 export default class extends BaseSchema {
   async up() {
