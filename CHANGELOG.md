@@ -234,6 +234,15 @@ Behaviour that changes on upgrade, so read it first:
   `resources/views/inertia_layout.edge`, a required anchor, to the company name (escaped as
   plain text). Applications it generates show their company name and mark as before; their
   initial tab title, «AdulaJS» until now, also becomes the company name.
+* Record dialogs open over the list without re-rendering the page or breaking its
+  transition (owner decision 25, ADR 035). The dialog paints at its final size with its
+  footer from the first frame. Lists fetch the create form once idle, and a record's view
+  on hover or focus, so an opening rarely waits. A prefetched view's body mounts one frame
+  after the dialog's first paint: the first «إضافة» of a long form went from 270–810 ms to
+  under 100 ms on a cold browser. The focus stays on the dialog until the body takes it,
+  so «إلغاء» or «إغلاق» never takes it. Locking the page's scroll pads the side the
+  scrollbar is on, so opening and closing no longer shift the page sideways. After a save,
+  the list returns with the new record first (owner decision 27).
 * A write's success message is no longer lost when a background JSON read (a dialog's
   related lists, a view fetched ahead of a click) reaches the server between the write and
   its redirect: the starter's session middleware leaves flash messages for the page they
