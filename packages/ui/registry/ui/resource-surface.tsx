@@ -795,6 +795,15 @@ export function ResourceSurface({
         // Its body loads after opening (and its related lists after that): the full height
         // from the first frame keeps the dialog still while they arrive.
         height="fill"
+        // A record body still on its way (loading, or mounting after the first paint): the
+        // dialog itself takes the focus instead of the footer's «إلغاء» or «إغلاق», and the
+        // body moves it to its first control once there (AfterFirstPaint).
+        onOpenAutoFocus={(event) => {
+          const content = event.currentTarget as HTMLElement
+          if (!content.querySelector('[data-record-pending]')) return
+          event.preventDefault()
+          content.focus({ preventScroll: true })
+        }}
         title={title}
         description={description}
         footer={

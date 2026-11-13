@@ -132,6 +132,8 @@ function RecordLoading({ form, skeleton = true }: { form: boolean; skeleton?: bo
           <RecordFooterClose />
         )}
       </RecordFooter>
+      {/* While it shows, the dialog holds the focus itself (ResourceSurface). */}
+      <span hidden data-record-pending="" />
       {skeleton && <RecordSkeleton />}
     </>
   )
@@ -157,7 +159,8 @@ function firstTabbable(container: Element) {
  * otherwise run inside the click and hold that first frame back (some 250 ms for the sample
  * form the first time it renders). One frame later the body takes its place, no skeleton in
  * between, and the focus goes to its first control as it would have at opening, unless the
- * user already moved it.
+ * user already moved it. Until then the dialog itself holds the focus (not «إلغاء», which a
+ * screen reader would announce and Enter would press).
  */
 function AfterFirstPaint({ form, children }: { form: boolean; children: ReactNode }) {
   const [ready, setReady] = useState(false)
