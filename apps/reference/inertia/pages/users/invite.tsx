@@ -11,7 +11,11 @@ export default function Invite() {
   return (
     <>
       <Head title="دعوة مستخدم" />
-      <InviteUserDialog open onClose={() => router.visit('/')} />
+      <InviteUserDialog
+        open
+        // Closing a dialog never shows the top progress bar (owner decision 29).
+        onClose={() => router.visit('/', { showProgress: false })}
+      />
     </>
   )
 }

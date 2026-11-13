@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto'
 import { test } from '@japa/runner'
 import db from '@adonisjs/lucid/services/db'
 import type { Page } from 'playwright'
@@ -178,5 +179,136 @@ test.group('Dialogs never show the progress bar (owner decision 29)', (group) =>
     await details.waitFor({ state: 'hidden' })
     await settle(page)
     assert.equal(await progressShown(page), 0, 'closing over the alerts')
+  }).timeout(60_000)
+
+  test('a record loaded by its own address closes over its list with no progress bar', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    const [record] = await db
+      .connection()
+      .getWriteClient()('ui_samples')
+      .select('id')
+      .orderBy('id')
+      .limit(1)
+    await browserContext.loginAs(admin.user)
+    const page = await visit(`/resources/ui_samples/${record.id}`)
+    const details = page.getByRole('dialog', { name: /^تفاصيل/ })
+    await details.waitFor()
+    await details.locator('[data-slot="record-loading"]').waitFor({ state: 'detached' })
+    await page.waitForLoadState('networkidle')
+    await slowServer(page)
+    await watchProgress(page)
+
+    await page.keyboard.press('Escape')
+    await page.waitForURL((url) => url.pathname === '/resources/ui_samples')
+    await page.locator('main table tbody tr[data-row-id]').first().waitFor()
+    await settle(page)
+    assert.equal(await progressShown(page), 0, 'closing a record opened by its address')
+  }).timeout(60_000)
+
+  test('closing a task from «مهامي» shows no progress bar', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    const knex = db.connection().getWriteClient()
+    const [record] = await knex('ui_samples').select('id').orderBy('id').limit(1)
+    const actor = await adula().actors.load(admin.user.id)
+    await adula().assignments.assign('ui_samples', record.id, actor, {
+      assigneeId: admin.user.id,
+      title: 'مهمة الشريط',
+    })
+    await browserContext.loginAs(admin.user)
+    const page = await visit('/my-tasks')
+    const task = page.locator('main li').filter({ hasText: 'مهمة الشريط' }).first()
+    await task.waitFor()
+    await page.waitForLoadState('networkidle')
+    await slowServer(page)
+    await watchProgress(page)
+
+    const done = task.getByRole('button', { name: 'تم الإنجاز' })
+    await done.click()
+    const closing = page.getByRole('dialog', { name: 'إنجاز المهمة' })
+    await closing.waitFor()
+    await page.getByRole('button', { name: 'تراجع', exact: true }).click()
+    await closing.waitFor({ state: 'hidden' })
+    await settle(page)
+    assert.equal(await progressShown(page), 0, 'opening and backing out of the close dialog')
+
+    await done.click()
+    await closing.waitFor()
+    await closing.getByRole('button', { name: 'تأكيد الإنجاز', exact: true }).click()
+    await closing.waitFor({ state: 'hidden' })
+    await done.waitFor({ state: 'detached' })
+    await settle(page)
+    assert.equal(await progressShown(page), 0, 'closing the task refreshes the list behind it')
+  }).timeout(60_000)
+
+  test('the invitation page closes with no progress bar', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    const inviter = await seedActor([{ subject: 'core.users', action: 'invite' }], {
+      fullName: 'داعٍ الشريط',
+      orgUnitId: admin.orgUnitId,
+    })
+    await browserContext.loginAs(inviter.user)
+    const page = await visit('/users/invite')
+    const invite = page.getByRole('dialog')
+    await invite.getByLabel('الاسم الكامل').waitFor()
+    await page.waitForLoadState('networkidle')
+    await slowServer(page)
+    await watchProgress(page)
+
+    await page.keyboard.press('Escape')
+    await page.waitForURL((url) => url.pathname === '/')
+    await invite.waitFor({ state: 'hidden' })
+    await settle(page)
+    assert.equal(await progressShown(page), 0, 'closing the invitation')
+  }).timeout(60_000)
+
+  test('a record opened from «تدفقات فاشلة» shows no progress bar', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    const knex = db.connection().getWriteClient()
+    const [record] = await knex('ui_samples').select('id').orderBy('id').limit(1)
+    const [failed] = await knex('workflow_runs')
+      .insert({
+        id: randomUUID(),
+        resource: 'ui_samples',
+        record_id: record.id,
+        definition: 'progress_probe',
+        definition_version: 1,
+        snapshot: JSON.stringify({ value: 'start' }),
+        status: 'failed',
+      })
+      .returning('id')
+    try {
+      await browserContext.loginAs(admin.user)
+      const page = await visit('/admin/workflows')
+      const link = page.locator(`main a[href="/resources/ui_samples/${record.id}"]`).first()
+      await link.waitFor()
+      await page.waitForLoadState('networkidle')
+      await slowServer(page)
+      await watchProgress(page)
+
+      await link.click()
+      const details = page.getByRole('dialog', { name: /^تفاصيل/ })
+      await details.waitFor()
+      await details.locator('[data-slot="record-loading"]').waitFor({ state: 'detached' })
+      await settle(page)
+      assert.equal(await progressShown(page), 0, 'opening over the failed flows')
+      await page.keyboard.press('Escape')
+      await details.waitFor({ state: 'hidden' })
+      await settle(page)
+      assert.equal(await progressShown(page), 0, 'closing over the failed flows')
+    } finally {
+      await knex('workflow_runs').where('id', failed.id).delete()
+    }
   }).timeout(60_000)
 })
