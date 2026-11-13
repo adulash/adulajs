@@ -20,12 +20,17 @@ test('the company identity reaches every brand spot of the workspace and guest s
       'inertia/components/brand-mark.tsx': await source('inertia/components/brand-mark.tsx'),
       'inertia/pages/home.tsx': await source('inertia/pages/home.tsx'),
       'inertia/app.tsx': await source('inertia/app.tsx'),
+      'resources/views/inertia_layout.edge': await source('resources/views/inertia_layout.edge'),
     }
     await renderProject(
       target,
       { version: '0.0.0', files },
       { name: 'acme', identity: { company: 'شركة أكمي', logoPath: '/logo.png' } }
     )
+    // The tab title before a page sets its own names the company, never the framework.
+    const layout = await readFile(join(target, 'resources/views/inertia_layout.edge'), 'utf8')
+    assert.match(layout, /<title data-inertia>\s*شركة أكمي\s*<\/title>/)
+    assert.doesNotMatch(layout, /أدولا|AdulaJS/)
     // The creator's identity enters each file under an imported name. The shells declare names
     // of their own (the saved appearance is a local `brand`), so an imported name the file
     // also declares would be shadowed and the created system would not typecheck.
@@ -115,6 +120,56 @@ test('a template whose shell lost a brand anchor is refused, not rendered with t
         { name: 'acme', identity: { company: 'شركة أكمي', logoPath: null } }
       ),
       /default\.tsx has no brand anchor/
+    )
+  } finally {
+    await rm(target, { recursive: true, force: true })
+  }
+})
+
+/** The four shell files and the layout, as the creator receives them from the template. */
+const shellFiles = async (layout) => ({
+  'package.json': JSON.stringify({ name: 'reference', dependencies: {} }),
+  'inertia/layouts/default.tsx': await source('inertia/layouts/default.tsx'),
+  'inertia/layouts/workspace.tsx': await source('inertia/layouts/workspace.tsx'),
+  'inertia/components/brand-mark.tsx': await source('inertia/components/brand-mark.tsx'),
+  'inertia/app.tsx': await source('inertia/app.tsx'),
+  'resources/views/inertia_layout.edge': layout,
+})
+
+test('a company name with markup or Edge syntax stays plain text in the tab title', async () => {
+  const target = await mkdtemp(join(tmpdir(), 'adula-brand-'))
+  try {
+    const company = `أكمي <b>&</b> {{ secret }} @if(true) $1 'x' "y"`
+    await renderProject(
+      target,
+      {
+        version: '0.0.0',
+        files: await shellFiles(await source('resources/views/inertia_layout.edge')),
+      },
+      { name: 'acme', identity: { company, logoPath: null } }
+    )
+    const layout = await readFile(join(target, 'resources/views/inertia_layout.edge'), 'utf8')
+    const title = /<title data-inertia>\s*([^\n]*?)\s*<\/title>/.exec(layout)?.[1] ?? ''
+    // Nothing in the title can open a tag, an Edge interpolation or tag, or a pattern.
+    assert.doesNotMatch(title, /[<>{}@$&"'](?!#\d+;)/)
+    const decoded = title.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    assert.equal(decoded, company)
+  } finally {
+    await rm(target, { recursive: true, force: true })
+  }
+})
+
+test('a layout that lost the title anchor is refused, not rendered with the framework name', async () => {
+  const target = await mkdtemp(join(tmpdir(), 'adula-brand-'))
+  try {
+    const layout = (await source('resources/views/inertia_layout.edge')).replace('أدولا', 'AdulaJS')
+    await assert.rejects(
+      renderProject(
+        target,
+        { version: '0.0.0', files: await shellFiles(layout) },
+        { name: 'acme', identity: { company: 'شركة أكمي', logoPath: null } }
+      ),
+      /inertia_layout\.edge has no brand anchor/
     )
   } finally {
     await rm(target, { recursive: true, force: true })
