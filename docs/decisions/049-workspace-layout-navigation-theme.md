@@ -144,7 +144,7 @@ header bullet above and the two header buttons of #153.
 
 * One header runs from edge to edge at the top of the window, and the sidebar and the page sit
   below it (shadcn's site-header layout). Owner: «لماذا لا يكون الهيدر كامل قطعة واحدة من الطرف
-  الى الطرف، والقائمة الجانبية والصفحات تظهر تحتها». The brand (mark, «عدولة» and its tagline)
+  الى الطرف، والقائمة الجانبية والصفحات تظهر تحتها». The brand (mark, «أدولا» and its tagline)
   is part of the header, not of the sidebar («شعار «عدولة» اجعله يصبح جزء من header»); the
   sidebar begins with its navigation and the icon rail shows no brand tile.
 * The sidebar has one control, and it belongs visibly to the sidebar. Owner: «زر التحكم بإظهار

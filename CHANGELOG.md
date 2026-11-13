@@ -226,6 +226,14 @@ Behaviour that changes on upgrade, so read it first:
 
 ### Fixed
 
+* The product's Arabic name is «أدولا», not «عدولة» (owner decision 28): the reference
+  shells' brand fallback and mark letter («أ»), the browser tab title without
+  `VITE_APP_NAME` (`inertia/app.tsx` and `<title>` in `inertia_layout.edge`), the default
+  `MAIL_FROM_NAME` and the npm READMEs («أدولا (AdulaJS)»). The creator now rewrites the
+  `>أدولا<`, `أ` and `VITE_APP_NAME || 'أدولا'` anchors, and also the `<title>` in
+  `resources/views/inertia_layout.edge`, a required anchor, to the company name (escaped as
+  plain text). Applications it generates show their company name and mark as before; their
+  initial tab title, «AdulaJS» until now, also becomes the company name.
 * A write's success message is no longer lost when a background JSON read (a dialog's
   related lists, a view fetched ahead of a click) reaches the server between the write and
   its redirect: the starter's session middleware leaves flash messages for the page they

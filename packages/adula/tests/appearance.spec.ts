@@ -123,12 +123,12 @@ test.group('Appearance identity and occasions (ADR 053)', (group) => {
     const appearance = service('2026-11-06T09:00:00Z')
     const logo = await storedLogo(appearance)
     const { identity } = await appearance.saveIdentity(admin, {
-      company: '  شركة عدولة  ',
+      company: '  شركة أدولا  ',
       logoId: logo.id,
       loginTitle: 'مرحبًا بك',
       primaryColor: '#006C35',
     })
-    assert.equal(identity.company, 'شركة عدولة')
+    assert.equal(identity.company, 'شركة أدولا')
     assert.equal(identity.primaryColor, '#006c35')
     const bound = await appearance.logo(logo.id)
     assert.equal(bound!.recordId, BASE_LOGO_RECORD)
@@ -149,7 +149,7 @@ test.group('Appearance identity and occasions (ADR 053)', (group) => {
       primaryColor: '#006c35',
     })
     assert.equal(digits.identity.company, 'Acme 2026')
-    for (const company of ['سطر\u2028آخر', 'عدولة\u202e', 'عدولة\u2066x\u2069', '\u0085عدولة'])
+    for (const company of ['سطر\u2028آخر', 'أدولا\u202e', 'أدولا\u2066x\u2069', '\u0085أدولا'])
       assert.equal(
         await code(appearance.saveIdentity(admin, { company })),
         'E_APPEARANCE_INPUT',
@@ -262,7 +262,7 @@ test.group('Appearance identity and occasions (ADR 053)', (group) => {
   }) => {
     const appearance = service('2026-09-19T12:00:00Z')
     await appearance.saveIdentity(admin, {
-      company: 'عدولة',
+      company: 'أدولا',
       primaryColor: '#1d4ed8',
       loginTitle: 'الدخول',
     })
@@ -288,7 +288,7 @@ test.group('Appearance identity and occasions (ADR 053)', (group) => {
     assert.equal(during.logoId, logo.id)
     assert.equal(during.banner, 'كل عام والوطن بخير')
     assert.equal(during.login.title, 'أهلًا في يومنا الوطني')
-    assert.equal(during.company, 'عدولة')
+    assert.equal(during.company, 'أدولا')
 
     appearance.clock = () => new Date('2026-09-23T20:59:00Z')
     const lastEvening = await appearance.resolve()

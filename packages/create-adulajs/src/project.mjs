@@ -242,19 +242,29 @@ export async function renderProject(target, template, { name, identity, packageF
           rewrite(
             path,
             files[path],
-            /^([ \t]*)ع$/m,
+            /^([ \t]*)أ$/m,
             `$1{${alias}.logo ? <img src={${alias}.logo} alt="" className="size-full object-contain" /> : ${alias}.company.charAt(0)}`
           )
-        : rewrite(path, files[path], '>عدولة<', `>{${alias}.company}<`))
+        : rewrite(path, files[path], '>أدولا<', `>{${alias}.company}<`))
   }
   files['inertia/app.tsx'] =
     `import { brand as ${alias} } from './brand'\n` +
     rewrite(
       'inertia/app.tsx',
       files['inertia/app.tsx'],
-      "import.meta.env.VITE_APP_NAME || 'AdulaJS'",
+      "import.meta.env.VITE_APP_NAME || 'أدولا'",
       `${alias}.company`
     )
+  // The tab title before a page sets its own shows the company, never the framework. The
+  // name is free text: as character references it cannot open markup, an Edge tag or
+  // interpolation, nor a replacement pattern in the rewrite below.
+  const titleText = identity.company.replace(/[&<>"'{}@$\\`]/g, (c) => `&#${c.charCodeAt(0)};`)
+  files['resources/views/inertia_layout.edge'] = rewrite(
+    'resources/views/inertia_layout.edge',
+    files['resources/views/inertia_layout.edge'] ?? '',
+    /(<title data-inertia>\s*)أدولا(\s*<\/title>)/,
+    `$1${titleText}$2`
+  )
   files['docs/design-identity.md'] =
     `# Company identity\n\nSource: project creator, supplied during installation.\n\n- Company: ${identity.company}\n- Logo: ${identity.logoPath ?? 'Pending; request it before further visual design.'}\n- Primary color: ${identity.primaryColor ?? 'Pending; existing AdulaJS colors are provisional.'}\n- Font: ${identity.fontFamily ?? 'Pending; IBM Plex Sans Arabic is provisional.'}\n- Guidelines: ${identity.guidelines ?? 'Pending; request the company brand guide.'}\n\nUse the bundled adula-frontend-design skill for business interfaces. Keep shadcn/ui and Dialog defaults. A specified font must be licensed and installed locally or added as a project-owned asset; do not fetch unprovided fonts or branding.\n`
   files['AGENTS.md'] =

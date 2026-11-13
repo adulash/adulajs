@@ -33,7 +33,7 @@ const mailConfig = defineConfig({
   default: env.get('MAIL_MAILER') ?? 'smtp',
   from: {
     address: env.get('MAIL_FROM_ADDRESS') ?? 'no-reply@localhost',
-    name: env.get('MAIL_FROM_NAME') ?? 'عدولة',
+    name: env.get('MAIL_FROM_NAME') ?? 'أدولا',
   },
   mailers: {
     smtp: (): MailTransportContract => new Smtp(),

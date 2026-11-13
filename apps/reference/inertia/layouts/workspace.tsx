@@ -252,7 +252,7 @@ export default function Workspace({ children }: { children: ReactNode }) {
           title={savedCompany ?? undefined}
           data-brand-name
         >
-          {savedCompany ?? <>عدولة</>}
+          {savedCompany ?? <>أدولا</>}
         </strong>
         {!savedCompany && (
           <span className="hidden truncate text-[11px] text-muted-foreground sm:block">

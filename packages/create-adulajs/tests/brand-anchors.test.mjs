@@ -20,12 +20,17 @@ test('the company identity reaches every brand spot of the workspace and guest s
       'inertia/components/brand-mark.tsx': await source('inertia/components/brand-mark.tsx'),
       'inertia/pages/home.tsx': await source('inertia/pages/home.tsx'),
       'inertia/app.tsx': await source('inertia/app.tsx'),
+      'resources/views/inertia_layout.edge': await source('resources/views/inertia_layout.edge'),
     }
     await renderProject(
       target,
       { version: '0.0.0', files },
       { name: 'acme', identity: { company: 'شركة أكمي', logoPath: '/logo.png' } }
     )
+    // The tab title before a page sets its own names the company, never the framework.
+    const layout = await readFile(join(target, 'resources/views/inertia_layout.edge'), 'utf8')
+    assert.match(layout, /<title data-inertia>\s*شركة أكمي\s*<\/title>/)
+    assert.doesNotMatch(layout, /أدولا|AdulaJS/)
     // The creator's identity enters each file under an imported name. The shells declare names
     // of their own (the saved appearance is a local `brand`), so an imported name the file
     // also declares would be shadowed and the created system would not typecheck.
@@ -42,19 +47,19 @@ test('the company identity reaches every brand spot of the workspace and guest s
     }
     const read = (path) => readFile(join(target, path), 'utf8')
     const workspace = await read('inertia/layouts/workspace.tsx')
-    assert.doesNotMatch(workspace, /عدولة/)
+    assert.doesNotMatch(workspace, /أدولا/)
     // The mark lives in brand-mark.tsx (checked below); the workspace keeps no letter of its own.
-    assert.doesNotMatch(workspace, /^\s*ع$/m)
+    assert.doesNotMatch(workspace, /^\s*أ$/m)
     // The brand lives in the full-width header that every layout and size shares (owner
     // decision 20); each of its name anchors shows the company name, unless a saved
     // appearance identity wins.
     const company = imported('inertia/layouts/workspace.tsx', workspace)
-    const anchors = files['inertia/layouts/workspace.tsx'].split('>عدولة<').length - 1
+    const anchors = files['inertia/layouts/workspace.tsx'].split('>أدولا<').length - 1
     assert.ok(anchors >= 1)
     assert.equal(workspace.split(`>{${company}.company}<`).length - 1, anchors)
     // The guest shell (home and account pages) shows the company too, never the reference brand.
     const guest = await read('inertia/layouts/default.tsx')
-    assert.doesNotMatch(guest, /AdulaJS|عدولة/)
+    assert.doesNotMatch(guest, /AdulaJS|أدولا/)
     const guestCompany = imported('inertia/layouts/default.tsx', guest)
     assert.ok(guest.includes(`>{${guestCompany}.company}<`))
     // Home takes its title suffix from app.tsx, so it needs no brand import of its own.
@@ -64,7 +69,7 @@ test('the company identity reaches every brand spot of the workspace and guest s
     const appCompany = imported('inertia/app.tsx', app)
     assert.ok(app.includes(`const appName = ${appCompany}.company`))
     const mark = await read('inertia/components/brand-mark.tsx')
-    assert.doesNotMatch(mark, /^\s*ع$/m)
+    assert.doesNotMatch(mark, /^\s*أ$/m)
     const markCompany = imported('inertia/components/brand-mark.tsx', mark)
     assert.ok(mark.includes(`{${markCompany}.logo ? <img src={${markCompany}.logo}`))
   } finally {
@@ -101,7 +106,7 @@ test('a template whose shell lost a brand anchor is refused, not rendered with t
     const files = {
       'package.json': JSON.stringify({ name: 'reference', dependencies: {} }),
       'inertia/layouts/default.tsx': (await source('inertia/layouts/default.tsx')).replaceAll(
-        'عدولة',
+        'أدولا',
         'Adula'
       ),
       'inertia/layouts/workspace.tsx': await source('inertia/layouts/workspace.tsx'),
@@ -115,6 +120,56 @@ test('a template whose shell lost a brand anchor is refused, not rendered with t
         { name: 'acme', identity: { company: 'شركة أكمي', logoPath: null } }
       ),
       /default\.tsx has no brand anchor/
+    )
+  } finally {
+    await rm(target, { recursive: true, force: true })
+  }
+})
+
+/** The four shell files and the layout, as the creator receives them from the template. */
+const shellFiles = async (layout) => ({
+  'package.json': JSON.stringify({ name: 'reference', dependencies: {} }),
+  'inertia/layouts/default.tsx': await source('inertia/layouts/default.tsx'),
+  'inertia/layouts/workspace.tsx': await source('inertia/layouts/workspace.tsx'),
+  'inertia/components/brand-mark.tsx': await source('inertia/components/brand-mark.tsx'),
+  'inertia/app.tsx': await source('inertia/app.tsx'),
+  'resources/views/inertia_layout.edge': layout,
+})
+
+test('a company name with markup or Edge syntax stays plain text in the tab title', async () => {
+  const target = await mkdtemp(join(tmpdir(), 'adula-brand-'))
+  try {
+    const company = `أكمي <b>&</b> {{ secret }} @if(true) $1 'x' "y"`
+    await renderProject(
+      target,
+      {
+        version: '0.0.0',
+        files: await shellFiles(await source('resources/views/inertia_layout.edge')),
+      },
+      { name: 'acme', identity: { company, logoPath: null } }
+    )
+    const layout = await readFile(join(target, 'resources/views/inertia_layout.edge'), 'utf8')
+    const title = /<title data-inertia>\s*([^\n]*?)\s*<\/title>/.exec(layout)?.[1] ?? ''
+    // Nothing in the title can open a tag, an Edge interpolation or tag, or a pattern.
+    assert.doesNotMatch(title, /[<>{}@$&"'](?!#\d+;)/)
+    const decoded = title.replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
+    assert.equal(decoded, company)
+  } finally {
+    await rm(target, { recursive: true, force: true })
+  }
+})
+
+test('a layout that lost the title anchor is refused, not rendered with the framework name', async () => {
+  const target = await mkdtemp(join(tmpdir(), 'adula-brand-'))
+  try {
+    const layout = (await source('resources/views/inertia_layout.edge')).replace('أدولا', 'AdulaJS')
+    await assert.rejects(
+      renderProject(
+        target,
+        { version: '0.0.0', files: await shellFiles(layout) },
+        { name: 'acme', identity: { company: 'شركة أكمي', logoPath: null } }
+      ),
+      /inertia_layout\.edge has no brand anchor/
     )
   } finally {
     await rm(target, { recursive: true, force: true })
