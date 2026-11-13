@@ -13,7 +13,7 @@ import { preferenceOverride } from '~/components/preferences'
 import { applyAppearance, appearanceCompany, type SharedAppearance } from '~/components/appearance'
 import './css/adula.css'
 
-const appName = import.meta.env.VITE_APP_NAME || 'AdulaJS'
+const appName = import.meta.env.VITE_APP_NAME || 'أدولا'
 
 /**
  * The server renders `lang` and `dir` into the HTML; client navigations can switch the

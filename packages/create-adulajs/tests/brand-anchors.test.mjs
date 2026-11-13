@@ -44,7 +44,7 @@ test('the company identity reaches every brand spot of the workspace and guest s
     const workspace = await read('inertia/layouts/workspace.tsx')
     assert.doesNotMatch(workspace, /أدولا/)
     // The mark lives in brand-mark.tsx (checked below); the workspace keeps no letter of its own.
-    assert.doesNotMatch(workspace, /^\s*ع$/m)
+    assert.doesNotMatch(workspace, /^\s*أ$/m)
     // The brand lives in the full-width header that every layout and size shares (owner
     // decision 20); each of its name anchors shows the company name, unless a saved
     // appearance identity wins.
@@ -64,7 +64,7 @@ test('the company identity reaches every brand spot of the workspace and guest s
     const appCompany = imported('inertia/app.tsx', app)
     assert.ok(app.includes(`const appName = ${appCompany}.company`))
     const mark = await read('inertia/components/brand-mark.tsx')
-    assert.doesNotMatch(mark, /^\s*ع$/m)
+    assert.doesNotMatch(mark, /^\s*أ$/m)
     const markCompany = imported('inertia/components/brand-mark.tsx', mark)
     assert.ok(mark.includes(`{${markCompany}.logo ? <img src={${markCompany}.logo}`))
   } finally {

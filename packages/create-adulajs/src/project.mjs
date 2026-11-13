@@ -242,7 +242,7 @@ export async function renderProject(target, template, { name, identity, packageF
           rewrite(
             path,
             files[path],
-            /^([ \t]*)ع$/m,
+            /^([ \t]*)أ$/m,
             `$1{${alias}.logo ? <img src={${alias}.logo} alt="" className="size-full object-contain" /> : ${alias}.company.charAt(0)}`
           )
         : rewrite(path, files[path], '>أدولا<', `>{${alias}.company}<`))
@@ -252,7 +252,7 @@ export async function renderProject(target, template, { name, identity, packageF
     rewrite(
       'inertia/app.tsx',
       files['inertia/app.tsx'],
-      "import.meta.env.VITE_APP_NAME || 'AdulaJS'",
+      "import.meta.env.VITE_APP_NAME || 'أدولا'",
       `${alias}.company`
     )
   files['docs/design-identity.md'] =

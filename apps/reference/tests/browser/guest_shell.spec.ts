@@ -46,6 +46,8 @@ test.group('Guest shell', (group) => {
       const title = await page.title()
       const appName = title.split(' - ').at(-1) ?? ''
       assert.equal(title.split(appName).length - 1, 1, `${path}: title ${title}`)
+      // Without a configured name the tab reads «أدولا» (owner decision 28).
+      assert.equal(appName, process.env.VITE_APP_NAME || 'أدولا', `${path}: title ${title}`)
       for (const viewport of viewports) {
         await page.setViewportSize(viewport)
         await page.screenshot({

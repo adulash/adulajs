@@ -166,7 +166,7 @@ test.group('Workspace shell in the browser', (group) => {
     // in the rail, the brand stays in the header.
     const narrow = await box(trigger)
     assert.isAtLeast(narrow.x, rail.x - 0.5)
-    assert.equal(await sidebar.getByText('ع', { exact: true }).count(), 0)
+    assert.equal(await sidebar.getByText('أ', { exact: true }).count(), 0)
     await page.assertVisible(header.getByRole('link', { name: /أدولا/ }))
     assert.equal(await trigger.getAttribute('aria-expanded'), 'false')
     // Icons keep their names: an accessible name and a tooltip.

@@ -23,7 +23,7 @@ export function BrandMark({
       aria-hidden="true"
       className={`grid shrink-0 place-items-center rounded-xl bg-primary font-bold text-primary-foreground ${box} ${size === 'md' ? 'text-2xl' : 'text-xl'}`}
     >
-            ع
+            أ
     </span>
   )
 }
