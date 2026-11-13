@@ -156,9 +156,9 @@ Behaviour that changes on upgrade, so read it first:
   weekly schedule. Refresh tokens are sealed and never reach the browser; every action
   needs `manage all`, is refused while impersonating and is audited under `core.backups`.
   `backup:seal` and `backup:open` convert between a snapshot and an archive. These copies
-  never count as the offsite snapshot of ADR 023. **Real Google Drive and OneDrive delivery
-  is unverified:** the tests use local fakes of both APIs, and the owner's OAuth clients
-  have not yet completed a real connection and upload.
+  never count as the offsite snapshot of ADR 023. **The Google Drive and OneDrive
+  destinations are experimental in 2.3.0:** they have not been verified against real
+  accounts (the tests use local fakes of both APIs), and ADR 051 stays proposed.
 * Excel import and export (#161, ADR 043 and 046 amended): `xlsxImportAdapter` and
   `guardXlsx` (zip consistency, real inflated sizes, UTF-8 XML without DOCTYPE, row, cell
   and shared-string limits before parsing), an Excel template next to the CSV one, and

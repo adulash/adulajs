@@ -83,6 +83,9 @@ Administrators can also create an encrypted backup from «النسخ الاحت�
 or daily/weekly (ADR 051). This is an extra copy; it does not replace the offsite snapshot
 above, and production still requires the `BACKUP_S3_*` variables.
 
+The Google Drive and OneDrive destinations are experimental in 2.3.0: they have not been
+verified against real Google Drive or OneDrive accounts, and ADR 051 stays proposed.
+
 Configuration (all optional; `node ace adula:doctor` reports what is missing):
 
 * `BACKUP_ENCRYPTION_KEY`: base64 of 32 random bytes, for example
