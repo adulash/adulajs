@@ -390,6 +390,56 @@ test.group('Dialogs open over the mounted page', (group) => {
     }
   }).timeout(60_000)
 
+  test('a prefetched «إضافة» is on screen within 150 ms on its first, cold opening', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(admin.user)
+    const signedIn = await visit('/resources/ui_samples')
+    const origin = new URL(signedIn.url()).origin
+    // A browser of its own: nothing in it has rendered the create form yet, as for a user's
+    // first «إضافة» of the day. The list fetches the form ahead once idle, so the click finds
+    // its view at hand.
+    const browser = await chromium.launch()
+    try {
+      const context = await browser.newContext({ viewport: { width: 1440, height: 900 } })
+      await context.addCookies(await browserContext.cookies())
+      const page = await context.newPage()
+      const prefetched = page.waitForResponse(/\/resources\/ui_samples\/create\/view/)
+      await page.goto(origin + '/resources/ui_samples')
+      await page.locator('main table tbody tr[data-row-id]').first().waitFor()
+      await prefetched
+      await page.waitForLoadState('networkidle')
+      const add = page.getByRole('link', { name: 'إضافة عينة' })
+      const times: Record<string, number> = {}
+      for (const run of ['cold', 'warm']) {
+        await startStopwatch(page)
+        await add.click()
+        const dialog = page.locator('[role=dialog][data-state=open]')
+        await dialog.waitFor()
+        await dialog.getByLabel('العنوان').waitFor()
+        await page.waitForTimeout(100)
+        const opening = await readStopwatch(page)
+        times[run] = opening.ms!
+        console.log(`[opening] prefetched create, ${run}: ${JSON.stringify(opening)}`)
+        assert.isTrue(opening.firstFrame, `${run}: on screen at the first frame`)
+        assert.isBelow(opening.ms!, 150, `${run}: within 150 ms of the click`)
+        assert.equal(await dialog.locator('[data-slot="record-loading"]').count(), 0, 'no skeleton')
+        // The focus went to the form's first control once it arrived, as at any opening.
+        assert.isTrue(
+          await page.evaluate<boolean>('!!document.activeElement?.closest("[role=dialog] form")'),
+          `${run}: the focus is in the form`
+        )
+        await page.keyboard.press('Escape')
+        await page.locator('[role=dialog]').waitFor({ state: 'detached' })
+        await page.waitForLoadState('networkidle')
+      }
+    } finally {
+      await browser.close()
+    }
+  }).timeout(90_000)
+
   test('the dialog keeps its size and place from the first frame while its body loads', async ({
     browserContext,
     visit,

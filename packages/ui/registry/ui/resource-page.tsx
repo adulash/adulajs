@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Head, usePage } from '@inertiajs/react'
 import { Link } from '@adonisjs/inertia/react'
 import { Plus, Save } from 'lucide-react'
@@ -106,9 +106,10 @@ function openingTitle(
 
 /**
  * The body of a dialog whose view is still loading: the dialog is already open, with its fixed
- * footer and the close control it will keep, so nothing moves when the view arrives.
+ * footer and the close control it will keep, so nothing moves when the view arrives. Without
+ * the skeleton, the first frame of a dialog whose view is at hand (AfterFirstPaint).
  */
-function RecordLoading({ form }: { form: boolean }) {
+function RecordLoading({ form, skeleton = true }: { form: boolean; skeleton?: boolean }) {
   const { t } = useMessages()
   return (
     <>
@@ -131,7 +132,61 @@ function RecordLoading({ form }: { form: boolean }) {
           <RecordFooterClose />
         )}
       </RecordFooter>
-      <RecordSkeleton />
+      {skeleton && <RecordSkeleton />}
+    </>
+  )
+}
+
+/** What Radix focuses when a dialog opens: the first tabbable control, links aside. */
+function firstTabbable(container: Element) {
+  for (const element of container.querySelectorAll<HTMLElement>(
+    'button, input, select, textarea, [tabindex]'
+  )) {
+    const disabled = (element as HTMLButtonElement).disabled
+    const hidden = element instanceof HTMLInputElement && element.type === 'hidden'
+    if (element.tabIndex >= 0 && !disabled && !hidden && element.getClientRects().length)
+      return element
+  }
+  return undefined
+}
+
+/**
+ * A record body mounted after the dialog's first paint (decision 25). The click paints the
+ * dialog at once, at its final size, with the footer it keeps; a long form's first render and
+ * what follows it (style and layout forced by Radix's presence, size and focus handling) would
+ * otherwise run inside the click and hold that first frame back (some 250 ms for the sample
+ * form the first time it renders). One frame later the body takes its place, no skeleton in
+ * between, and the focus goes to its first control as it would have at opening, unless the
+ * user already moved it.
+ */
+function AfterFirstPaint({ form, children }: { form: boolean; children: ReactNode }) {
+  const [ready, setReady] = useState(false)
+  const marker = useRef<HTMLSpanElement>(null)
+  const opened = useRef<Element | null>(null)
+  useEffect(() => {
+    // A frame callback runs before that frame's paint; the timeout after it runs after.
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const frame = requestAnimationFrame(() => {
+      timer = setTimeout(() => {
+        opened.current = document.activeElement
+        setReady(true)
+      }, 0)
+    })
+    return () => {
+      cancelAnimationFrame(frame)
+      clearTimeout(timer)
+    }
+  }, [])
+  useEffect(() => {
+    if (!ready || document.activeElement !== opened.current) return
+    const dialog = marker.current?.closest('[role=dialog]')
+    if (dialog) firstTabbable(dialog)?.focus()
+  }, [ready])
+  if (!ready) return <RecordLoading form={form} skeleton={false} />
+  return (
+    <>
+      <span ref={marker} hidden />
+      {children}
     </>
   )
 }
@@ -254,34 +309,36 @@ export function RecordOverlayDialog({ resource }: { resource?: ResourceDescripti
       dismissRef={dismiss}
     >
       {view ? (
-        <RecordBody
-          view={view}
-          childrenData={childrenData}
-          activity={activity}
-          onSaved={(saved) => {
-            if (view.mode === 'form' && view.editor.mode === 'create') {
-              // A new record returns to the list, pinned first and highlighted there (owner,
-              // 2.3.0); the toast's «عرض» opens it.
-              const row = fetchListRow(name, saved)
-              next.current = () => void closeCreated(overlay, saved, row)
-              dismiss.current?.()
-              return
+        <AfterFirstPaint form={mode === 'edit'}>
+          <RecordBody
+            view={view}
+            childrenData={childrenData}
+            activity={activity}
+            onSaved={(saved) => {
+              if (view.mode === 'form' && view.editor.mode === 'create') {
+                // A new record returns to the list, pinned first and highlighted there (owner,
+                // 2.3.0); the toast's «عرض» opens it.
+                const row = fetchListRow(name, saved)
+                next.current = () => void closeCreated(overlay, saved, row)
+                dismiss.current?.()
+                return
+              }
+              // A saved edit shows the record's details in the same dialog.
+              void openRecord(name, saved, 'show', { replace: true, changed: true })
+            }}
+            onCancel={() =>
+              id === undefined
+                ? closeRecord(overlay)
+                : void openRecord(name, id, 'show', { replace: true })
             }
-            // A saved edit shows the record's details in the same dialog.
-            void openRecord(name, saved, 'show', { replace: true, changed: true })
-          }}
-          onCancel={() =>
-            id === undefined
-              ? closeRecord(overlay)
-              : void openRecord(name, id, 'show', { replace: true })
-          }
-          onEdit={() => id !== undefined && void openRecord(name, id, 'edit', { replace: true })}
-          onAction={(action) =>
-            action === 'delete' || id === undefined
-              ? closeRecord({ ...overlay, changed: true })
-              : void openRecord(name, id, 'show', { replace: true, changed: true })
-          }
-        />
+            onEdit={() => id !== undefined && void openRecord(name, id, 'edit', { replace: true })}
+            onAction={(action) =>
+              action === 'delete' || id === undefined
+                ? closeRecord({ ...overlay, changed: true })
+                : void openRecord(name, id, 'show', { replace: true, changed: true })
+            }
+          />
+        </AfterFirstPaint>
       ) : (
         <RecordLoading form={mode === 'edit'} />
       )}
