@@ -1,6 +1,6 @@
 import { test } from '@japa/runner'
 import type { ApiClient } from '@japa/api-client'
-import type { Locator, Page } from 'playwright'
+import type { Locator, Page, Request } from 'playwright'
 import db from '@adonisjs/lucid/services/db'
 import { seedActor, type UiActor } from '#tests/helpers/ui_fixtures'
 
@@ -194,6 +194,50 @@ function withParam(path: string, param: string, value: string) {
   return `${pathname}?${query}`
 }
 
+/** Requests for the page itself (its document or an Inertia visit), from now until `stop`. */
+function watchPageRequests(page: Page, path: string) {
+  const pathname = path.split('?')[0]
+  const sent: string[] = []
+  const listener = (request: Request) => {
+    const type = request.resourceType()
+    if (type !== 'document' && type !== 'xhr' && type !== 'fetch') return
+    const url = new URL(request.url())
+    if (url.pathname === pathname) sent.push(`${request.method()} ${url.pathname}${url.search}`)
+  }
+  page.on('request', listener)
+  return { sent, stop: () => page.off('request', listener) }
+}
+
+/** Counts each time the Inertia progress bar becomes visible, checked every frame. */
+async function watchProgress(page: Page) {
+  await page.evaluate(`(() => {
+    window.__progress = 0
+    let shown = false
+    const visible = () => {
+      const bar = document.getElementById('nprogress')
+      if (!bar || !bar.isConnected) return false
+      if (bar.hasAttribute('popover')) return bar.matches(':popover-open')
+      return getComputedStyle(bar).display !== 'none'
+    }
+    const frame = () => {
+      const now = visible()
+      if (now && !shown) window.__progress++
+      shown = now
+      requestAnimationFrame(frame)
+    }
+    requestAnimationFrame(frame)
+  })()`)
+}
+
+/** How many times the bar appeared since the last reset; resets the count. */
+async function progressShown(page: Page) {
+  return page.evaluate<number>(`(() => {
+    const count = window.__progress
+    window.__progress = 0
+    return count
+  })()`)
+}
+
 async function seed(client: ApiClient, admin: UiActor) {
   const post = (url: string, body: Record<string, unknown>) =>
     client.post(url).json(body).loginAs(admin.user).headers(json).withCsrfToken()
@@ -219,6 +263,11 @@ async function seed(client: ApiClient, admin: UiActor) {
       group: names.lookupGroup,
       key: names.lookupKey,
       labelAr: `تسمية العناوين ${run}`,
+    }),
+    await post('/admin/lookups', {
+      group: `${names.lookupGroup}_other`,
+      key: names.lookupKey,
+      labelAr: `تسمية أخرى ${run}`,
     }),
   ]
   for (const result of results)
@@ -252,9 +301,16 @@ test.group('Entity dialogs have their own address (decision 30)', (group) => {
 
       // Opening pushes the parameter, with no request: the page behind stays mounted.
       await page.evaluate(`window.__page = document.querySelector('main h1')`)
+      await watchProgress(page)
+      const requests = watchPageRequests(page, row.path)
       await row.trigger(page).click()
       await dialog.waitFor()
       const value = await paramValue(page, row.param)
+      // Past the progress bar's delay, so a bar started by the opening would be on screen.
+      await page.waitForTimeout(600)
+      requests.stop()
+      assert.deepEqual(requests.sent, [], 'opening the dialog requested the page')
+      assert.equal(await progressShown(page), 0, 'opening the dialog showed the progress bar')
       assert.isTrue(
         await page.evaluate<boolean>(
           `window.__page === document.querySelector('main h1') && window.__page.isConnected`
@@ -312,6 +368,27 @@ test.group('Entity dialogs have their own address (decision 30)', (group) => {
     await page.goBack()
     await page.waitForURL((url) => url.pathname === '/admin/org-units')
     assert.equal(await page.getByRole('dialog').count(), 0)
+  })
+
+  test('an existing item the page does not show is stripped like an unknown one', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    // These admin screens have no per-item permission: a user without the admin permission is
+    // refused the page itself. What a page leaves out (here another list's value) is the case
+    // the address must not reveal: a real id outside the page opens nothing and is removed.
+    const knex = db.connection().getWriteClient()
+    const elsewhere = await knex('lookups')
+      .where({ group: names.lookupGroup, key: names.lookupKey })
+      .first('id')
+    await browserContext.loginAs(admin.user)
+    const path = `/admin/lookups?group=${names.lookupGroup}_other`
+    const page = await visit(withParam(path, 'edit', String(elsewhere.id)))
+    await waitWithout(page, path, 'edit')
+    assert.equal(address(page).query.get('group'), `${names.lookupGroup}_other`)
+    assert.equal(await page.getByRole('dialog').count(), 0)
+    await page.getByRole('button', { name: `تحرير تسمية أخرى ${run}`, exact: true }).waitFor()
   })
 
   // «إلغاء» closes through the dialog's own close, so typed changes still ask first (decision 23).

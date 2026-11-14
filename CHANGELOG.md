@@ -156,7 +156,12 @@ Behaviour that changes on upgrade, so read it first:
   from the address with nothing shown. Delegations, webhooks and inbound sources, print and
   message templates, occasions, lookups and organization units use it; confirmations,
   one-setting edits, one-time secrets, step flows and logs keep no address, and a test flags
-  a new dialog that is neither.
+  a new dialog that is neither. What users see change with it: a save refreshes the list
+  first and then closes the dialog; message templates, organization units and lookups keep
+  the dialog and its draft open when the server refuses a save; a new lookup value replaces
+  the dialog's history entry, so Back after saving leaves the page instead of reopening it;
+  and the print template editor opens at once with a loading body while its template is
+  fetched.
 * Encrypted backups to download, Google Drive and OneDrive (#160, ADR 051): «النسخ
   الاحتياطي» in the administration creates an `.adulabackup` archive (AES-256-GCM frames
   keyed from `BACKUP_ENCRYPTION_KEY`), offers it for download for 24 hours or uploads it
