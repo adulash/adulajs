@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-## 2.3.0 — 2026-11-10
+## 2.3.0 — 2026-11-14
 
 Minor release by the owner's decision: the requests of milestone 2.3.0 (#150 to #162), the
 owner's review of the workspace shell, appearance and occasion themes, mail settings in the
