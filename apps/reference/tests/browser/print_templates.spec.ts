@@ -185,4 +185,48 @@ test.group('Print templates browser acceptance', (group) => {
       await page.close()
     }
   })
+
+  // A wide table scrolls inside its own frame on a phone. Its actions header holds an
+  // absolutely positioned (sr-only) label: without a positioned frame that label escaped the
+  // frame's clipping, widened the document to the table's width and pushed the template
+  // dialog off screen (a phone showed a dark, empty page).
+  test('on a phone the template pages and the template dialog stay within the screen', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(owner.user)
+    const page = await visit('/admin/print-templates')
+    await page.setViewportSize({ width: 375, height: 812 })
+    const widths = () =>
+      page.evaluate(() => ({
+        viewport: window.innerWidth,
+        document: document.documentElement.scrollWidth,
+      }))
+    const withinScreen = async (path: string) => {
+      const { viewport, document } = await widths()
+      assert.isAtMost(document, viewport, `${path}: document wider than the phone`)
+    }
+    for (const path of ['/admin/print-templates', '/admin/templates', '/admin/workflows']) {
+      await page.goto(path)
+      await page.locator('main table').waitFor()
+      await withinScreen(path)
+    }
+
+    const dialog = page.getByRole('dialog', { name: 'قالب طباعة جديد' })
+    const dialogWithinScreen = async (how: string) => {
+      await dialog.getByLabel('اسم القالب').waitFor()
+      await withinScreen(how)
+      const box = (await dialog.boundingBox())!
+      const { viewport } = await widths()
+      assert.isAtLeast(box.x, 0, `${how}: dialog starts off screen`)
+      assert.isAtMost(box.x + box.width, viewport, `${how}: dialog ends off screen`)
+    }
+    // Opened from the list, and loaded directly from its address.
+    await page.goto('/admin/print-templates')
+    await page.getByRole('button', { name: 'قالب جديد' }).click()
+    await dialogWithinScreen('«قالب جديد»')
+    await page.goto('/admin/print-templates?new=1')
+    await dialogWithinScreen('?new=1')
+  })
 })

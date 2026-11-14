@@ -66,7 +66,7 @@ export default function TemplatesIndex({ templates }: Props) {
           نصوص الإشعارات والبريد. التعديل محفوظ لهذا النشر، ويمكن إعادته إلى النص الافتراضي.
         </p>
       </div>
-      <div className="overflow-x-auto rounded-xl border bg-card">
+      <div className="relative overflow-x-auto rounded-xl border bg-card">
         <table className="w-full min-w-[720px] text-sm">
           <thead className="bg-muted text-xs text-muted-foreground">
             <tr>
