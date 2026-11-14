@@ -11,7 +11,7 @@ import type { SessionData, SessionStoreContract } from '@adonisjs/session/types'
 import db from '@adonisjs/lucid/services/db'
 import FlashKeepingSessionMiddleware from '#middleware/session_middleware'
 import ReplacedSessionException from '#exceptions/replaced_session_exception'
-import { endSession, sessionHandle } from '#services/sessions'
+import { endSession, markSignedOut, sessionHandle } from '#services/sessions'
 import { CopyingMemoryStore } from '#config/session'
 import User from '#models/user'
 
@@ -394,11 +394,13 @@ test.group('Session middleware refuses a rotated session', () => {
     // Impersonation starts (X becomes Y) while a sign-out sent with X is being handled.
     const ctx = await send(
       store,
-      async ({ session, response }) => {
+      async (request) => {
         next = await rotate(store, id, user.id)
-        session.forget('auth_web')
+        // As the sign-out does (session_controller.destroy).
+        request.session.forget('auth_web')
+        markSignedOut(request)
         await endSession(id)
-        response.redirect('/login')
+        request.response.redirect('/login')
       },
       { sessionId: id, method: 'POST', accept: 'text/html' }
     )
@@ -409,6 +411,32 @@ test.group('Session middleware refuses a rotated session', () => {
     const after = await pageWith(client, next!)
     after.assertStatus(302)
     after.assertHeader('location', '/login')
+  })
+
+  test('an automatic sign-out of the replaced session in flight leaves the new one signed in', async ({
+    client,
+    assert,
+  }) => {
+    const { user, store, id } = await signedIn('revoked')
+    let next: string | undefined
+    // An autosave sent with X while impersonation starts: the rotation revokes X before it is
+    // recorded, so the auth middleware finds X revoked and signs the request out, as it does
+    // any revoked session. That is not the user's sign-out: Y stays signed in.
+    await send(
+      store,
+      async ({ session, response }) => {
+        await endSession(id)
+        next = await rotate(store, id, user.id)
+        // As the auth middleware does for a revoked session.
+        session.forget('auth_web')
+        response.redirect('/login')
+      },
+      { sessionId: id, method: 'POST', accept: 'text/html' }
+    )
+    const row = await knex()('user_sessions').where({ id: next! }).first()
+    assert.isNull(row.revoked_at, 'the replacing session stays')
+    const after = await pageWith(client, next!)
+    after.assertStatus(200)
   })
 
   test('a write in flight across a rotation that did not sign out leaves the new session signed in', async ({

@@ -112,6 +112,24 @@ export async function rotationOf(sessionId: string) {
 }
 
 /**
+ * Requests in which the user signed themselves out (the sign-out and «إنهاء» of the current
+ * session). Only these end a rotated session's successor: an automatic sign-out of a revoked
+ * or disabled session (the auth middleware) must not, since a rotation itself revokes the
+ * session it replaces before it is recorded.
+ */
+const signedOut = new WeakSet<HttpContext>()
+
+/** Marks this request as the user's own sign-out of their current session. */
+export function markSignedOut(ctx: HttpContext) {
+  signedOut.add(ctx)
+}
+
+/** Whether the user signed themselves out in this request. */
+export function signedOutIn(ctx: HttpContext) {
+  return signedOut.has(ctx)
+}
+
+/**
  * Ends the live session that replaced this one, following later rotations: a sign-out sent
  * with the old id and answered after the rotation would otherwise leave the browser signed in
  * under the new one. Closed as a sign-out closes its own session (no "session_revoked"
