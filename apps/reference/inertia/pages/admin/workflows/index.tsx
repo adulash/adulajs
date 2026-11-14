@@ -24,7 +24,7 @@ export default function FailedWorkflows({ runs }: Props) {
           خطوات استنفدت محاولاتها. أصلح السبب ثم أعد التشغيل من الخطوة نفسها.
         </p>
       </div>
-      <div className="overflow-x-auto rounded-xl border bg-card">
+      <div className="relative overflow-x-auto rounded-xl border bg-card">
         <table className="w-full min-w-[720px] text-sm">
           <thead className="bg-muted text-xs text-muted-foreground">
             <tr>

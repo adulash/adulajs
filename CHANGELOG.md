@@ -330,6 +330,12 @@ Behaviour that changes on upgrade, so read it first:
   company name and the administrator e-mail. It refuses a template whose shell lacks the
   company mark, and every rewrite of the template is required, so a changed template fails
   the creation instead of producing a system that does not compile.
+* On a phone, the print templates, message templates and failed workflows pages fit the
+  screen again, and the «قالب جديد» dialog opens on screen instead of to the side over a dark
+  page. Their tables scroll inside their own frame, but the actions column's visually hidden
+  heading (absolutely positioned) escaped that frame's clipping and widened the whole page
+  to the table's width, since 2.2.0. The frames are now positioned (`relative`), as the
+  shadcn `Table` wrapper is.
 
 ### Upgrade
 
