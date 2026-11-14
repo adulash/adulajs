@@ -164,11 +164,16 @@ test.group('Field type widgets in the generated UI', (group) => {
     await page.waitForURL(/\/resources\/suppliers$/)
     const created = page.locator('main tr[data-created]')
     await created.getByText(name, { exact: true }).waitFor()
+    // The highlight fades after 2.4 s: read the row's id while it lasts, then use the id.
+    const id = await created.getAttribute('data-row-id')
 
     const stored = await knex()('suppliers').where({ code, org_unit_id: admin.orgUnitId }).first()
     assert.exists(stored)
-    assert.equal(await created.getAttribute('data-row-id'), String(stored.id))
-    await created.getByRole('link', { name: `عرض السجل ${stored.id}`, exact: true }).click()
+    assert.equal(id, String(stored.id))
+    await page
+      .locator(`main tr[data-row-id="${id}"]`)
+      .getByRole('link', { name: `عرض السجل ${id}`, exact: true })
+      .click()
     await page.waitForURL(new RegExp(`/resources/suppliers/${stored.id}$`))
     assert.include(stored, {
       name,
