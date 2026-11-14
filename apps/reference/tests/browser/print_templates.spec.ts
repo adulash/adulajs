@@ -198,11 +198,13 @@ test.group('Print templates browser acceptance', (group) => {
     await browserContext.loginAs(owner.user)
     const page = await visit('/admin/print-templates')
     await page.setViewportSize({ width: 375, height: 812 })
+    // The server tsconfig omits the DOM lib; this runs inside the page through evaluate().
+    type InPage = { innerWidth: number; document: { documentElement: { scrollWidth: number } } }
     const widths = () =>
-      page.evaluate(() => ({
-        viewport: window.innerWidth,
-        document: document.documentElement.scrollWidth,
-      }))
+      page.evaluate(() => {
+        const view = globalThis as unknown as InPage
+        return { viewport: view.innerWidth, document: view.document.documentElement.scrollWidth }
+      })
     const withinScreen = async (path: string) => {
       const { viewport, document } = await widths()
       assert.isAtMost(document, viewport, `${path}: document wider than the phone`)
