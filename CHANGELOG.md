@@ -233,9 +233,10 @@ Behaviour that changes on upgrade, so read it first:
   already in flight when it rotated is refused if it reads or keeps its own answer if it
   writes; neither writes the old session back nor sets its cookie. The user's own sign-out in
   flight across the rotation also ends the session that replaced its own, so the browser is
-  signed out as asked; an automatic sign-out of the replaced session does not. A write in flight across a rotation loses any flash message it set, since its session
-  is not written. The refusal is never cached or framed, and links only to this host. A
-  session an administrator revokes still ends at once.
+  signed out as asked; an automatic sign-out of the replaced session does not. A write in
+  flight across a rotation loses any flash message it set, since its session is not written.
+  The refusal is never cached or framed, and links only to this host. A session an
+  administrator revokes still ends at once.
 * A write's success message is no longer lost when a background JSON read (a dialog's
   related lists, a view fetched ahead of a click) reaches the server between the write and
   its redirect: the starter's session middleware leaves flash messages for the page they

@@ -9,6 +9,9 @@ import { HttpContextFactory, RequestFactory, ResponseFactory } from '@adonisjs/c
 import { SessionMiddlewareFactory } from '@adonisjs/session/factories'
 import type { SessionData, SessionStoreContract } from '@adonisjs/session/types'
 import db from '@adonisjs/lucid/services/db'
+import app from '@adonisjs/core/services/app'
+import router from '@adonisjs/core/services/router'
+import SessionController from '#controllers/session_controller'
 import FlashKeepingSessionMiddleware from '#middleware/session_middleware'
 import ReplacedSessionException from '#exceptions/replaced_session_exception'
 import { endSession, markSignedOut, sessionHandle } from '#services/sessions'
@@ -78,7 +81,10 @@ function context(options: RequestOptions = {}) {
     req.headers.cookie = `${COOKIE}=${new CookieClient(encryption()).sign(COOKIE, options.sessionId)}`
   const res = new ServerResponse(req)
   const request = new RequestFactory().merge({ req, res, encryption: encryption() }).create()
-  const response = new ResponseFactory().merge({ req, res, encryption: encryption() }).create()
+  // The application's router, so a redirect to a named route resolves as in a real request.
+  const response = new ResponseFactory()
+    .merge({ req, res, encryption: encryption(), router })
+    .create()
   return new HttpContextFactory().merge({ request, response }).create()
 }
 
@@ -408,6 +414,35 @@ test.group('Session middleware refuses a rotated session', () => {
     const row = await knex()('user_sessions').where({ id: next! }).first()
     assert.isNotNull(row.revoked_at, 'the replacing session is ended')
     // The browser follows the redirect with the new cookie, and is signed out.
+    const after = await pageWith(client, next!)
+    after.assertStatus(302)
+    after.assertHeader('location', '/login')
+  })
+
+  test('the real sign-out, in flight while impersonation starts, signs out the new session', async ({
+    client,
+    assert,
+  }) => {
+    const { user, store, id } = await signedIn('logout')
+    let next: string | undefined
+    // POST /logout sent with X reaches session_controller.destroy, signed in as the user,
+    // while impersonation (which revokes X, then rotates it to Y) completes.
+    const ctx = await send(
+      store,
+      async (request) => {
+        const auth = await app.container.make('auth.manager')
+        request.auth = auth.createAuthenticator(request)
+        await request.auth.authenticateUsing(['web'])
+        await endSession(id)
+        next = await rotate(store, id, user.id)
+        await new SessionController().destroy(request)
+      },
+      { sessionId: id, method: 'POST', accept: 'text/html', url: '/logout' }
+    )
+    assert.equal(ctx.response.getStatus(), 302)
+    assert.equal(ctx.response.getHeader('location'), '/login')
+    const row = await knex()('user_sessions').where({ id: next! }).first()
+    assert.isNotNull(row.revoked_at, 'the new session is ended')
     const after = await pageWith(client, next!)
     after.assertStatus(302)
     after.assertHeader('location', '/login')
