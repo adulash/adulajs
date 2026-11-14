@@ -677,6 +677,8 @@ export function closeRecord(overlay: RecordOverlay) {
       replace: true,
       preserveState: true,
       preserveScroll: true,
+      // Closing a dialog never shows the top progress bar (owner decision 29).
+      showProgress: false,
       headers: { 'X-Inertia-Reset': 'result' },
       onSuccess: () => restoreFocus(overlay.record),
     })
@@ -755,6 +757,8 @@ export function ResourceSurface({
         const saved = listReturn(backHref)
         forgetListView()
         router.visit(saved?.href ?? backHref, {
+          // Closing a dialog never shows the top progress bar (owner decision 29).
+          showProgress: false,
           onSuccess: () => {
             if (saved) scrollPageTo(saved.scroll)
             // A direct route has no mounted DialogTrigger to restore focus to.

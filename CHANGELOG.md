@@ -226,6 +226,14 @@ Behaviour that changes on upgrade, so read it first:
 
 ### Fixed
 
+* Opening, switching or closing a dialog never shows the top progress bar (owner decision
+  29). Three closing visits now pass `showProgress: false`: closing a record dialog after a
+  change, closing a record dialog loaded by its own address (`resource-surface`), and closing
+  the invitation page (`users/invite`). Opening and switching dialogs make client visits or
+  background requests, and refreshes after a dialog's action (`router.reload`, as in
+  «مهامي») are asynchronous, so neither shows the bar; a browser test covers each of them,
+  over the alerts and failed-flows pages too. Page navigation keeps the bar with the same
+  delay and colour.
 * The product's Arabic name is «أدولا», not «عدولة» (owner decision 28): the reference
   shells' brand fallback and mark letter («أ»), the browser tab title without
   `VITE_APP_NAME` (`inertia/app.tsx` and `<title>` in `inertia_layout.edge`), the default
