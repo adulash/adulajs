@@ -341,7 +341,8 @@ Projects own the starter's files; upgrades do not rewrite them. Merge them from 
   `app/exceptions/replaced_session_exception.ts` and `recordRotation`/`rotationOf`/
   `endSuccessor`/`markSignedOut` in `app/services/sessions.ts`, call `markSignedOut(ctx)`
   after the logout in `session_controller.destroy` and `account_sessions_controller.destroy`,
-  and merge the rotation checks into `app/middleware/session_middleware.ts`.
+  and when `admin_sessions_controller.destroy` revokes the administrator's own current
+  session, and merge the rotation checks into `app/middleware/session_middleware.ts`.
 * Impersonation: `app/services/impersonation.ts`,
   `app/controllers/admin/users_controller.ts`, `app/controllers/session_controller.ts`,
   `app/controllers/account_sessions_controller.ts`. API clients that start impersonation

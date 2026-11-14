@@ -12,6 +12,9 @@ import db from '@adonisjs/lucid/services/db'
 import app from '@adonisjs/core/services/app'
 import router from '@adonisjs/core/services/router'
 import SessionController from '#controllers/session_controller'
+import AccountSessionsController from '#controllers/account_sessions_controller'
+import AdminSessionsController from '#controllers/admin_sessions_controller'
+import { seedActor } from '#tests/helpers/ui_fixtures'
 import FlashKeepingSessionMiddleware from '#middleware/session_middleware'
 import ReplacedSessionException from '#exceptions/replaced_session_exception'
 import { endSession, markSignedOut, sessionHandle } from '#services/sessions'
@@ -225,12 +228,14 @@ test.group('Session middleware refuses a rotated session', () => {
   }
 
   /** A user signed in on a session of the application's own store, recorded as sign-in does. */
-  async function signedIn(label: string) {
-    const user = await User.create({
-      fullName: `تدوير ${label}`,
-      email: `rotation-${label}-${randomUUID()}@example.test`,
-      password: 'rotation-test-only-password',
-    })
+  async function signedIn(label: string, existing?: User) {
+    const user =
+      existing ??
+      (await User.create({
+        fullName: `تدوير ${label}`,
+        email: `rotation-${label}-${randomUUID()}@example.test`,
+        password: 'rotation-test-only-password',
+      }))
     const store = new Store(CopyingMemoryStore.sessions)
     const ctx = await send(store, ({ session }) => session.put('auth_web', user.id), {
       method: 'POST',
@@ -239,6 +244,38 @@ test.group('Session middleware refuses a rotated session', () => {
     const id = ctx.session.sessionId
     await knex()('user_sessions').insert({ id, user_id: user.id })
     return { user, store, id }
+  }
+
+  /** Signs the request in from its session, as the auth middleware does. */
+  async function authenticate(request: HttpContext) {
+    const auth = await app.container.make('auth.manager')
+    request.auth = auth.createAuthenticator(request)
+    await request.auth.authenticateUsing(['web'])
+  }
+
+  /**
+   * A request sent with X that ends the current session through `end`, while a rotation of X
+   * (to Y) completes inside it. Returns Y.
+   */
+  async function endAcrossRotation(
+    label: string,
+    end: (request: HttpContext, id: string) => Promise<unknown>,
+    options: { url: string; method: string; revokeFirst?: boolean; user?: User }
+  ) {
+    const { user, store, id } = await signedIn(label, options.user)
+    let next: string | undefined
+    await send(
+      store,
+      async (request) => {
+        await authenticate(request)
+        // Impersonation revokes X before it rotates it.
+        if (options.revokeFirst) await endSession(id)
+        next = await rotate(store, id, user.id)
+        await end(request, id)
+      },
+      { sessionId: id, method: options.method, accept: 'text/html', url: options.url }
+    )
+    return next!
   }
 
   /** What the application answers a page request carrying this session id. */
@@ -423,27 +460,66 @@ test.group('Session middleware refuses a rotated session', () => {
     client,
     assert,
   }) => {
-    const { user, store, id } = await signedIn('logout')
-    let next: string | undefined
     // POST /logout sent with X reaches session_controller.destroy, signed in as the user,
     // while impersonation (which revokes X, then rotates it to Y) completes.
-    const ctx = await send(
-      store,
+    let answer: HttpContext['response'] | undefined
+    const next = await endAcrossRotation(
+      'logout',
       async (request) => {
-        const auth = await app.container.make('auth.manager')
-        request.auth = auth.createAuthenticator(request)
-        await request.auth.authenticateUsing(['web'])
-        await endSession(id)
-        next = await rotate(store, id, user.id)
         await new SessionController().destroy(request)
+        answer = request.response
       },
-      { sessionId: id, method: 'POST', accept: 'text/html', url: '/logout' }
+      { url: '/logout', method: 'POST', revokeFirst: true }
     )
-    assert.equal(ctx.response.getStatus(), 302)
-    assert.equal(ctx.response.getHeader('location'), '/login')
-    const row = await knex()('user_sessions').where({ id: next! }).first()
+    assert.equal(answer!.getStatus(), 302)
+    assert.equal(answer!.getHeader('location'), '/login')
+    const row = await knex()('user_sessions').where({ id: next }).first()
     assert.isNotNull(row.revoked_at, 'the new session is ended')
-    const after = await pageWith(client, next!)
+    const after = await pageWith(client, next)
+    after.assertStatus(302)
+    after.assertHeader('location', '/login')
+  })
+
+  test('ending the current session in «جلساتي», in flight across a rotation, signs out the new one', async ({
+    client,
+    assert,
+  }) => {
+    // DELETE /account/sessions/<current handle>. The controller finds only live sessions, so
+    // the rotation here has not revoked X yet when the request reads it.
+    const next = await endAcrossRotation(
+      'account',
+      async (request, id) => {
+        request.params = { id: sessionHandle(id) }
+        await new AccountSessionsController().destroy(request)
+      },
+      { url: '/account/sessions/current', method: 'DELETE' }
+    )
+    const row = await knex()('user_sessions').where({ id: next }).first()
+    assert.isNotNull(row.revoked_at, 'the new session is ended')
+    const after = await pageWith(client, next)
+    after.assertStatus(302)
+    after.assertHeader('location', '/login')
+  })
+
+  test('an administrator ending their own current session, in flight across a rotation, signs out the new one', async ({
+    client,
+    assert,
+  }) => {
+    const admin = await seedActor([{ subject: 'all', action: 'manage' }], {
+      fullName: 'مدير التدوير',
+    })
+    // DELETE /admin/sessions/<their own current handle>.
+    const next = await endAcrossRotation(
+      'admin',
+      async (request, id) => {
+        request.params = { id: sessionHandle(id) }
+        await new AdminSessionsController().destroy(request)
+      },
+      { url: '/admin/sessions/current', method: 'DELETE', user: admin.user }
+    )
+    const row = await knex()('user_sessions').where({ id: next }).first()
+    assert.isNotNull(row.revoked_at, 'the new session is ended')
+    const after = await pageWith(client, next)
     after.assertStatus(302)
     after.assertHeader('location', '/login')
   })
