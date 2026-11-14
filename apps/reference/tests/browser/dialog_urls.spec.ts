@@ -210,6 +210,31 @@ function watchPageRequests(page: Page, path: string) {
   return { sent, stop: () => page.off('request', listener) }
 }
 
+/**
+ * Waits until the page's deferred props (the shared «مهامي» count) have answered. Playwright's
+ * networkidle is reached once and not checked again, so on a cold first page that load can
+ * start after it; a click then would cancel and restart it (clientVisit), which is the page's
+ * load, not something the opening sends.
+ */
+async function pageLoaded(page: Page) {
+  await page.waitForFunction(`(() => {
+    // The first page as the server sent it: a JSON script (Inertia 3) or the root's attribute.
+    const script = document.querySelector('script[data-page][type="application/json"]')
+    const text = script?.textContent || document.querySelector('[data-page]')?.getAttribute('data-page') || '{}'
+    let deferred = {}
+    try {
+      deferred = JSON.parse(text).deferredProps ?? {}
+    } catch {}
+    if (Object.keys(deferred).length === 0) return true
+    return performance.getEntriesByType('resource').some((entry) => {
+      const url = new URL(entry.name)
+      return url.pathname === location.pathname
+        && (entry.initiatorType === 'xmlhttprequest' || entry.initiatorType === 'fetch')
+    })
+  })()`)
+  await page.waitForLoadState('networkidle')
+}
+
 /** Counts each time the Inertia progress bar becomes visible, checked every frame. */
 async function watchProgress(page: Page) {
   await page.evaluate(`(() => {
@@ -305,7 +330,7 @@ test.group('Entity dialogs have their own address (decision 30)', (group) => {
       // Opening pushes the parameter, with no request: the page behind stays mounted.
       await page.evaluate(`window.__page = document.querySelector('main h1')`)
       // The page's own load (its deferred props) ends first: only what the opening sends counts.
-      await page.waitForLoadState('networkidle')
+      await pageLoaded(page)
       await watchProgress(page)
       const requests = watchPageRequests(page, row.path)
       await row.trigger(page).click()
