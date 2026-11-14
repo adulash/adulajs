@@ -12,9 +12,9 @@ import { DateTime } from 'luxon'
 import { IncomingMessage } from 'node:http'
 import { Socket } from 'node:net'
 import { RequestFactory } from '@adonisjs/core/factories/http'
-import env from '#start/env'
 import { compileTrustedProxies, isDirectProxyRequest } from '#services/trusted_proxies'
 import { sessionHandle } from '#services/sessions'
+import { CopyingMemoryStore } from '#config/session'
 import {
   HEALTH_LIMIT,
   LOCKOUT_MAX_MINUTES,
@@ -453,8 +453,8 @@ test.group('Security: login lockout, health throttle and session fixation', (gro
       rows.map((row) => row.id),
       [after]
     )
-    if (env.get('SESSION_DRIVER') === 'database')
-      assert.lengthOf(await knex()('sessions').where({ id: planted }), 0)
+    // The tests' session store (config/session.ts): the planted session is gone.
+    assert.isFalse(CopyingMemoryStore.sessions.has(planted), 'the planted session is destroyed')
 
     // The planted id is not signed in; the new one is.
     // Within a minute of the rotation the planted id is refused outright, with no session and
@@ -464,8 +464,7 @@ test.group('Security: login lockout, health throttle and session fixation', (gro
     const refused = await early
     refused.assertStatus(409)
     assert.isUndefined(refused.cookie('adonis-session'))
-    if (env.get('SESSION_DRIVER') === 'database')
-      assert.lengthOf(await knex()('sessions').where({ id: planted }), 0, 'not written back')
+    assert.isFalse(CopyingMemoryStore.sessions.has(planted), 'not written back')
     // After that it is an ended session like any other: signed out.
     await knex()('session_rotations')
       .where({ id: sessionHandle(planted) })

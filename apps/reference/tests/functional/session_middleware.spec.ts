@@ -1,4 +1,6 @@
 import { test } from '@japa/runner'
+import { randomUUID } from 'node:crypto'
+import type { ApiClient } from '@japa/api-client'
 import { IncomingMessage, ServerResponse } from 'node:http'
 import { Socket } from 'node:net'
 import encryptionService from '@adonisjs/core/services/encryption'
@@ -9,7 +11,9 @@ import type { SessionData, SessionStoreContract } from '@adonisjs/session/types'
 import db from '@adonisjs/lucid/services/db'
 import FlashKeepingSessionMiddleware from '#middleware/session_middleware'
 import ReplacedSessionException from '#exceptions/replaced_session_exception'
-import { sessionHandle } from '#services/sessions'
+import { endSession, sessionHandle } from '#services/sessions'
+import { CopyingMemoryStore } from '#config/session'
+import User from '#models/user'
 
 /**
  * The invariants of the starter's session middleware (app/middleware/session_middleware.ts):
@@ -19,8 +23,9 @@ import { sessionHandle } from '#services/sessions'
  * keeps copies, as Redis and the database store do.
  */
 class Store implements SessionStoreContract {
-  sessions = new Map<string, SessionData>()
   writes = 0
+  /** Its own sessions, or the application's (the tests' store) for a request the app serves. */
+  constructor(public sessions = new Map<string, SessionData>()) {}
   read(id: string) {
     const data = this.sessions.get(id)
     return data ? structuredClone(data) : null
@@ -60,13 +65,14 @@ type RequestOptions = {
   method?: string
   accept?: string
   headers?: Record<string, string>
+  url?: string
 }
 
 /** A request context as AdonisJS builds one: `GET` JSON (a background read) unless told. */
 function context(options: RequestOptions = {}) {
   const req = new IncomingMessage(new Socket())
   req.method = options.method ?? 'GET'
-  req.url = '/notifications'
+  req.url = options.url ?? '/notifications'
   req.headers = { accept: options.accept ?? 'application/json', ...options.headers }
   if (options.sessionId)
     req.headers.cookie = `${COOKIE}=${new CookieClient(encryption()).sign(COOKIE, options.sessionId)}`
@@ -196,14 +202,44 @@ test.group('Session middleware keeps flash messages for their page', () => {
  */
 test.group('Session middleware refuses a rotated session', () => {
   const knex = () => db.connection().getWriteClient()
-  /** A rotation through the middleware: the old id is replaced, and the new one returned. */
-  async function rotate(store: Store, id: string) {
-    const ctx = await send(store, ({ session }) => session.regenerate(), {
-      sessionId: id,
+  /**
+   * A rotation through the middleware: the old id is replaced, and the new one returned. With a
+   * user, the new session is recorded for them, as impersonation and sign-in record it.
+   */
+  async function rotate(store: Store, id: string, userId?: number) {
+    const ctx = await send(
+      store,
+      async ({ session }) => {
+        session.regenerate()
+        if (userId) await knex()('user_sessions').insert({ id: session.sessionId, user_id: userId })
+      },
+      { sessionId: id, method: 'POST', accept: 'text/html' }
+    )
+    return ctx.session.sessionId
+  }
+
+  /** A user signed in on a session of the application's own store, recorded as sign-in does. */
+  async function signedIn(label: string) {
+    const user = await User.create({
+      fullName: `تدوير ${label}`,
+      email: `rotation-${label}-${randomUUID()}@example.test`,
+      password: 'rotation-test-only-password',
+    })
+    const store = new Store(CopyingMemoryStore.sessions)
+    const ctx = await send(store, ({ session }) => session.put('auth_web', user.id), {
       method: 'POST',
       accept: 'text/html',
     })
-    return ctx.session.sessionId
+    const id = ctx.session.sessionId
+    await knex()('user_sessions').insert({ id, user_id: user.id })
+    return { user, store, id }
+  }
+
+  /** What the application answers a page request carrying this session id. */
+  async function pageWith(client: ApiClient, id: string) {
+    const request = client.get('/account/profile').redirects(0)
+    request.sessionClient.sessionId = id as ReturnType<typeof randomUUID>
+    return request
   }
 
   test('a rotating request records the id it replaced', async ({ assert }) => {
@@ -349,6 +385,72 @@ test.group('Session middleware refuses a rotated session', () => {
     assert.isFalse(store.sessions.has(id))
   })
 
+  test('a sign-out in flight when the session rotates signs out the session that replaced it', async ({
+    client,
+    assert,
+  }) => {
+    const { user, store, id } = await signedIn('signout')
+    let next: string | undefined
+    // Impersonation starts (X becomes Y) while a sign-out sent with X is being handled.
+    const ctx = await send(
+      store,
+      async ({ session, response }) => {
+        next = await rotate(store, id, user.id)
+        session.forget('auth_web')
+        await endSession(id)
+        response.redirect('/login')
+      },
+      { sessionId: id, method: 'POST', accept: 'text/html' }
+    )
+    assert.equal(ctx.response.getStatus(), 302, 'its own answer: the redirect')
+    const row = await knex()('user_sessions').where({ id: next! }).first()
+    assert.isNotNull(row.revoked_at, 'the replacing session is ended')
+    // The browser follows the redirect with the new cookie, and is signed out.
+    const after = await pageWith(client, next!)
+    after.assertStatus(302)
+    after.assertHeader('location', '/login')
+  })
+
+  test('a write in flight across a rotation that did not sign out leaves the new session signed in', async ({
+    client,
+    assert,
+  }) => {
+    const { user, store, id } = await signedIn('write')
+    let next: string | undefined
+    await send(
+      store,
+      async ({ session, response }) => {
+        next = await rotate(store, id, user.id)
+        session.put('touched', true)
+        response.redirect('/notifications')
+      },
+      { sessionId: id, method: 'POST', accept: 'text/html' }
+    )
+    const row = await knex()('user_sessions').where({ id: next! }).first()
+    assert.isNull(row.revoked_at)
+    const after = await pageWith(client, next!)
+    after.assertStatus(200)
+  })
+
+  test('the refusal links only to this host, whatever the path starts with', async ({ assert }) => {
+    for (const url of [
+      '//evil.example/account',
+      '/\evil.example/account',
+      '///evil.example/account',
+    ])
+      for (const headers of [
+        { 'x-inertia': 'true', 'accept': 'text/html' },
+        { accept: 'text/html' },
+      ] as Record<string, string>[]) {
+        const ctx = context({ url, headers })
+        const error = new ReplacedSessionException()
+        await error.handle(error, ctx)
+        const location = ctx.response.getHeader('x-inertia-location')
+        if (location !== undefined) assert.equal(location, '/evil.example/account', url)
+        else assert.include(String(ctx.response.getBody()), 'href="/evil.example/account"', url)
+      }
+  })
+
   test('rotations older than ten minutes are pruned on the next one', async ({ assert }) => {
     const store = new Store()
     const old = await withMessage(store)
@@ -388,6 +490,10 @@ test.group('Session middleware refuses a rotated session', () => {
         assert.include(String(ctx.response.getBody()), 'href="/notifications"')
       }
       assert.notExists(ctx.response.getHeader('set-cookie'), 'no cookie')
+      // Answered before shield: its own headers keep it out of caches and frames.
+      assert.equal(ctx.response.getHeader('cache-control'), 'no-store')
+      assert.equal(ctx.response.getHeader('x-frame-options'), 'DENY')
+      assert.equal(ctx.response.getHeader('content-security-policy'), "frame-ancestors 'none'")
     }
   })
 })

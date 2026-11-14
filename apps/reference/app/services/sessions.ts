@@ -77,12 +77,17 @@ export async function endSession(sessionId: string) {
 const ROTATION_GRACE_SECONDS = 60
 
 /**
- * Records that a rotation replaced this session id (see session_rotations): its handle, as
- * user_sessions shows them, never the id itself. Rows older than ten minutes go on each write.
+ * Records that a rotation replaced this session id with `successor` (see session_rotations):
+ * their handles, as user_sessions shows them, never the ids themselves. Rows older than ten
+ * minutes go on each write.
  */
-export async function recordRotation(sessionId: string) {
+export async function recordRotation(sessionId: string, successor: string) {
   await knex()('session_rotations')
-    .insert({ id: sessionHandle(sessionId), rotated_at: knex().fn.now() })
+    .insert({
+      id: sessionHandle(sessionId),
+      successor: sessionHandle(successor),
+      rotated_at: knex().fn.now(),
+    })
     .onConflict('id')
     .merge()
   await knex()('session_rotations')
@@ -104,6 +109,29 @@ export async function rotationOf(sessionId: string) {
       ])
     )
   return row ? { at: String(row.at), recent: Boolean(row.recent) } : null
+}
+
+/**
+ * Ends the live session that replaced this one, following later rotations: a sign-out sent
+ * with the old id and answered after the rotation would otherwise leave the browser signed in
+ * under the new one. Closed as a sign-out closes its own session (no "session_revoked"
+ * activity), with its store row removed as a revocation does; the auth middleware signs out
+ * the next request that carries it.
+ */
+export async function endSuccessor(sessionId: string) {
+  let handle = sessionHandle(sessionId)
+  // A chain of rotations within the last ten minutes, bounded against a cycle.
+  for (let hops = 0; hops < 10; hops++) {
+    const row = await knex()('session_rotations').where({ id: handle }).first('successor')
+    if (!row?.successor) break
+    handle = String(row.successor)
+  }
+  if (handle === sessionHandle(sessionId)) return null
+  const successor = await resolveSessionHandle(handle)
+  if (!successor) return null
+  await endSession(successor)
+  await knex()('sessions').where({ id: successor }).delete()
+  return successor
 }
 
 export type SessionState = { active: true } | { active: false; reason: 'disabled' | 'revoked' }

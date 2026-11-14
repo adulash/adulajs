@@ -26,7 +26,9 @@ test('new applications refuse a rotated session id', async () => {
   )
   const middleware = template.files['app/middleware/session_middleware.ts']
   assert.match(middleware, /rotationOf\(presented\)/)
-  assert.match(middleware, /recordRotation\(presented\)/)
+  assert.match(middleware, /recordRotation\(presented, session\.sessionId\)/)
+  // A sign-out in flight across a rotation ends the session that replaced its own.
+  assert.match(middleware, /endSuccessor\(presented\)/)
   assert.ok(template.files['app/exceptions/replaced_session_exception.ts'])
   const migration = Object.entries(template.files).find(
     ([path, source]) =>

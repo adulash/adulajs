@@ -9,7 +9,7 @@ import type { SessionData, SessionStoreContract } from '@adonisjs/session/types'
  * own memory store hands out the stored object itself, so a request that takes a flash message
  * without writing the session would still remove it, unlike production.
  */
-class CopyingMemoryStore implements SessionStoreContract {
+export class CopyingMemoryStore implements SessionStoreContract {
   static sessions = new Map<string, SessionData>()
   read(sessionId: string) {
     const data = CopyingMemoryStore.sessions.get(sessionId)

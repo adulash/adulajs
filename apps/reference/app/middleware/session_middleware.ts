@@ -3,7 +3,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
 import SessionMiddleware from '@adonisjs/session/session_middleware'
 import ReplacedSessionException from '#exceptions/replaced_session_exception'
-import { recordRotation, rotationOf } from '#services/sessions'
+import { endSuccessor, recordRotation, rotationOf } from '#services/sessions'
 
 /**
  * AdonisJS's session middleware, keeping flash messages for the page they belong to and a
@@ -20,7 +20,9 @@ import { recordRotation, rotationOf } from '#services/sessions'
  * - a request already in flight when it rotated (the record changed while its handler ran,
  *   however long that took): a read is refused the same way; a write keeps its own answer (its
  *   redirect, followed with the new cookie), so what it saved is not reported as a failure and
- *   saved twice on a retry; only the session write is skipped.
+ *   saved twice on a retry; only the session write is skipped. A write that signed the user out
+ *   (a sign-out sent just before the rotation) also ends the session that replaced its own, so
+ *   the browser, which by then holds the new cookie, is signed out as the user asked.
  * Only a rotation is recorded: a session an administrator revokes or a sign-out ends is
  * refused as before, and past the minute a replaced id is an ended session like any other.
  *
@@ -57,16 +59,20 @@ export default class FlashKeepingSessionMiddleware {
       const presented = session.fresh ? undefined : session.sessionId
       const rotated = presented ? await rotationOf(presented) : null
       if (rotated?.recent) throw new ReplacedSessionException()
+      // The guards' sign-in keys (auth_web), to tell a request that signed the user out.
+      const signedIn = Object.keys(session.all()).filter((key) => key.startsWith('auth_'))
       const background = isBackgroundRead(ctx) && !session.flashMessages.isEmpty
       const before = background ? JSON.stringify(session.all()) : ''
       const response = await next()
       if (presented && session.hasRegeneratedSession) {
         // This request rotated the session: record the old id before its write and its answer.
-        await recordRotation(presented)
+        await recordRotation(presented, session.sessionId)
       } else if (presented && (await rotatedSince(presented, rotated?.at))) {
         // Another request rotated it while this one was in flight. A read is refused: throwing
         // here, inside AdonisJS's next(), skips its commit (nothing written, no cookie).
         if (isRead(ctx)) throw new ReplacedSessionException()
+        // A sign-out: its own session is already gone, so it ends the one that replaced it.
+        if (signedIn.some((key) => !session.has(key))) await endSuccessor(presented)
         // A write has done its work: its answer stands, without the old session's write and
         // cookie (the commit skipped as for an unchanged background read, below).
         session.commit = async () => {}

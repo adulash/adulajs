@@ -231,8 +231,11 @@ Behaviour that changes on upgrade, so read it first:
   it: the session middleware records the replaced session id (by its handle, kept ten
   minutes). For a minute a request carrying it is refused (409 `E_SESSION_REPLACED`), and one
   already in flight when it rotated is refused if it reads or keeps its own answer if it
-  writes; neither writes the old session back nor sets its cookie. A session an administrator
-  revokes still ends at once.
+  writes; neither writes the old session back nor sets its cookie. A sign-out in flight across
+  the rotation also ends the session that replaced its own, so the browser is signed out as
+  asked. A write in flight across a rotation loses any flash message it set, since its session
+  is not written. The refusal is never cached or framed, and links only to this host. A
+  session an administrator revokes still ends at once.
 * A write's success message is no longer lost when a background JSON read (a dialog's
   related lists, a view fetched ahead of a click) reaches the server between the write and
   its redirect: the starter's session middleware leaves flash messages for the page they
@@ -334,8 +337,8 @@ Projects own the starter's files; upgrades do not rewrite them. Merge them from 
   middleware of `start/kernel.ts` in place of `@adonisjs/session/session_middleware`.
 * Rotated sessions: copy and run the migration
   `database/migrations/1790000003000_create_session_rotations_table.ts`, add
-  `app/exceptions/replaced_session_exception.ts` and `recordRotation`/`rotationOf` in
-  `app/services/sessions.ts`, and merge the rotation checks into
+  `app/exceptions/replaced_session_exception.ts` and `recordRotation`/`rotationOf`/
+  `endSuccessor` in `app/services/sessions.ts`, and merge the rotation checks into
   `app/middleware/session_middleware.ts`.
 * Impersonation: `app/services/impersonation.ts`,
   `app/controllers/admin/users_controller.ts`, `app/controllers/session_controller.ts`,

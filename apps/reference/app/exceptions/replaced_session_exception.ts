@@ -11,6 +11,10 @@ import type { HttpContext } from '@adonisjs/core/http'
  *   refresh) and reloads the page, with the current cookie, for a visit.
  * - A JSON read gets 409 E_SESSION_REPLACED; a page load a short Arabic page that reloads
  *   it on request (by then the browser has the new cookie, which is left as it is).
+ *
+ * It is answered before shield runs, so it sets the headers shield would: never cached, never
+ * framed. The address it sends back is the request's own path with a single leading slash: a
+ * path starting with `//` or `/\` would make a protocol-relative link to another host.
  */
 export default class ReplacedSessionException extends Exception {
   static status = 409
@@ -18,16 +22,21 @@ export default class ReplacedSessionException extends Exception {
   static message = 'تغيّرت جلستك؛ أعد المحاولة'
 
   async handle(error: this, { request, response }: HttpContext) {
+    response
+      .header('Cache-Control', 'no-store')
+      .header('X-Frame-Options', 'DENY')
+      .header('Content-Security-Policy', "frame-ancestors 'none'")
+    const here = sameOrigin(request.url(true))
     if (request.header('x-inertia')) {
       return response
         .status(409)
-        .header('X-Inertia-Location', request.url(true))
+        .header('X-Inertia-Location', here)
         .header('X-Inertia-Version', 'session-replaced')
         .send('')
     }
     if (request.accepts(['html', 'json']) === 'json')
       return response.status(409).send({ code: error.code, message: error.message })
-    const url = escapeHtml(request.url(true))
+    const url = escapeHtml(here)
     return response
       .status(409)
       .header('Content-Type', 'text/html; charset=utf-8')
@@ -38,6 +47,11 @@ export default class ReplacedSessionException extends Exception {
           `<p>${error.message}</p><p><a href="${url}">أعد تحميل الصفحة</a></p></body></html>`
       )
   }
+}
+
+/** The path and query on this host: one leading slash, whatever the request started with. */
+function sameOrigin(url: string) {
+  return '/' + url.replace(/^[/\\]+/, '')
 }
 
 function escapeHtml(text: string) {
