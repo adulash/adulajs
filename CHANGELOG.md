@@ -149,6 +149,14 @@ Behaviour that changes on upgrade, so read it first:
   prop, and `useDialogValue(value)` and `<DialogValue key value />` declare state that is not a
   plain control. A test refuses hand-made dirty tracking, and a browser sweep opens and closes
   every reachable dialog untouched.
+* Entity dialogs have their own address (ADR 016, owner decision 30): the `@adula/ui` item
+  `dialog-param` (`useDialogParam`, `useEntityDialog`) opens a create, edit or show dialog
+  from `?new=1` or `?edit=<id>` with a client-side visit. Back closes it over the same page,
+  a reload or a shared address opens it again, and an unknown or forbidden value is dropped
+  from the address with nothing shown. Delegations, webhooks and inbound sources, print and
+  message templates, occasions, lookups and organization units use it; confirmations,
+  one-setting edits, one-time secrets, step flows and logs keep no address, and a test flags
+  a new dialog that is neither.
 * Encrypted backups to download, Google Drive and OneDrive (#160, ADR 051): «النسخ
   الاحتياطي» in the administration creates an `.adulabackup` archive (AES-256-GCM frames
   keyed from `BACKUP_ENCRYPTION_KEY`), offers it for download for 24 hours or uploads it
@@ -303,8 +311,8 @@ Projects own the starter's files; upgrades do not rewrite them. Merge them from 
   user-avatar slider sortable-list attachment-preview data-table list-filters
   record-collaboration record-assignments record-workflows resource-form resource-surface
   resource-bulk resource-actions resource-dashboard resource-field resource-import
-  resource-page resource-value resource-show messages` (with the shared `field_values.ts`
-  and `list_query.ts`).
+  resource-page resource-value resource-show messages dialog-param` (with the shared
+  `field_values.ts` and `list_query.ts`).
 * Custom dialogs: remove hand-made unsaved-change tracking and any `data-dirty` attribute;
   declare state that is not a plain input, text area or select with `useDialogValue` or the
   `Dialog` `value` prop.

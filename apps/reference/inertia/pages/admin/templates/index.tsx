@@ -11,6 +11,7 @@ import { Switch } from '~/components/ui/switch'
 import { Textarea } from '~/components/ui/textarea'
 import { Dialog, DialogClose } from '~/components/ui/dialog'
 import { LongDialogContent } from '~/components/ui/long-dialog'
+import { useDialogParam } from '~/components/ui/dialog_param'
 
 type Props = { templates: MessageTemplate[] }
 
@@ -21,17 +22,23 @@ function preview(text: string, variables: readonly string[]) {
 }
 
 export default function TemplatesIndex({ templates }: Props) {
-  const [editing, setEditing] = useState<MessageTemplate | null>(null)
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [mail, setMail] = useState(false)
   const [processing, setProcessing] = useState(false)
-  const open = (template: MessageTemplate) => {
-    setEditing(template)
-    setSubject(template.subject)
-    setBody(template.body)
-    setMail(template.mail)
-  }
+  // `?edit=<key>` opens the template's dialog (decision 30); an unknown key is dropped.
+  const dialog = useDialogParam(
+    'edit',
+    (key) => templates.find((template) => template.key === key),
+    {
+      onOpen: (template: MessageTemplate) => {
+        setSubject(template.subject)
+        setBody(template.body)
+        setMail(template.mail)
+      },
+    }
+  )
+  const editing = dialog.item
   const save = (event: React.FormEvent) => {
     event.preventDefault()
     if (!editing) return
@@ -40,10 +47,12 @@ export default function TemplatesIndex({ templates }: Props) {
       { subject, body, mail },
       {
         preserveScroll: true,
+        // The dialog stays mounted while the list refreshes, then closes over it.
+        preserveState: true,
         onStart: () => setProcessing(true),
         onFinish: () => setProcessing(false),
         onSuccess: (page) => {
-          if (!page.flash?.error) setEditing(null)
+          if (!page.flash?.error) dialog.close()
         },
       }
     )
@@ -108,7 +117,7 @@ export default function TemplatesIndex({ templates }: Props) {
                       size="sm"
                       variant="outline"
                       aria-label={`تعديل ${template.label}`}
-                      onClick={() => open(template)}
+                      onClick={() => dialog.open(template.key)}
                     >
                       <Pencil size={14} />
                       تعديل
@@ -137,7 +146,7 @@ export default function TemplatesIndex({ templates }: Props) {
       </div>
       <Dialog
         open={editing !== null}
-        onOpenChange={(value) => !value && setEditing(null)}
+        onOpenChange={(value) => !value && dialog.close()}
         value={{ subject, body, mail }}
       >
         <LongDialogContent

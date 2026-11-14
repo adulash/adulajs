@@ -15,6 +15,7 @@ import { Textarea } from '~/components/ui/textarea'
 import { FileInput } from '~/components/ui/file-input'
 import { Dialog, DialogClose } from '~/components/ui/dialog'
 import { LongDialogContent } from '~/components/ui/long-dialog'
+import { useEntityDialog } from '~/components/ui/dialog_param'
 import {
   Table,
   TableBody,
@@ -97,7 +98,13 @@ type OccasionDraft = {
   loginDescription: string
 }
 
-const reload = () => router.reload({ only: ['identity', 'occasions', 'today', 'appearance'] })
+const reload = () =>
+  new Promise<void>((resolve) =>
+    router.reload({
+      only: ['identity', 'occasions', 'today', 'appearance'],
+      onFinish: () => resolve(),
+    })
+  )
 const STATUS: Record<
   Occasion['status'],
   { label: string; variant: 'default' | 'outline' | 'secondary' }
@@ -150,7 +157,11 @@ export default function AdminAppearance({ identity, occasions, today, defaults, 
   // Occasion dates are calendar days, shown in the user's calendar (Gregorian, Hijri or both).
   const day = (value: string) => calendarDisplay(value, calendar)
   const [editing, setEditing] = useState<IdentityDraft | null>(null)
-  const [occasion, setOccasion] = useState<OccasionDraft | null>(null)
+  // `?new=1` and `?edit=<id>` open the occasion's dialog (decision 30).
+  const occasionDialog = useEntityDialog({
+    find: (id) => occasions.find((item) => String(item.id) === id),
+  })
+  const occasion = occasionDialog.item
   const active = occasions.find((item) => item.status === 'active') ?? null
   const customised = Object.entries(identity).some(
     ([key, value]) => key !== 'logoUrl' && value !== null
@@ -305,7 +316,7 @@ export default function AdminAppearance({ identity, occasions, today, defaults, 
               مظهر مؤقت بتاريخ بداية ونهاية، مثل اليوم الوطني. لا تتداخل مناسبتان في يوم واحد.
             </CardDescription>
           </div>
-          <Button variant="outline" onClick={() => setOccasion(occasionDraft(null, today))}>
+          <Button variant="outline" onClick={() => occasionDialog.openCreate()}>
             <Plus size={14} />
             إضافة مناسبة
           </Button>
@@ -345,7 +356,7 @@ export default function AdminAppearance({ identity, occasions, today, defaults, 
                           variant="ghost"
                           size="icon-sm"
                           aria-label={`تعديل ${item.name}`}
-                          onClick={() => setOccasion(occasionDraft(item, today))}
+                          onClick={() => occasionDialog.openEdit(item.id)}
                         >
                           <Pencil />
                         </Button>
@@ -377,11 +388,12 @@ export default function AdminAppearance({ identity, occasions, today, defaults, 
       )}
       {occasion && (
         <OccasionDialog
-          initial={occasion}
+          key={occasion === 'new' ? 'new' : occasion.id}
+          initial={occasionDraft(occasion === 'new' ? null : occasion, today)}
           identity={identity}
           defaults={defaults}
           limits={limits}
-          onClose={() => setOccasion(null)}
+          onClose={occasionDialog.close}
         />
       )}
       {confirmation}
@@ -574,8 +586,9 @@ function useSave(onClose: () => void) {
     try {
       await request()
       toast.success(success)
+      // The page refreshes before the dialog closes, so closing returns to the current data.
+      await reload()
       onClose()
-      reload()
     } catch (caught) {
       setError(failure(caught, 'تعذر الحفظ.'))
     } finally {

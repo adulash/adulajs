@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react'
+import { useRef, useState, type ReactElement } from 'react'
 import { Head, router } from '@inertiajs/react'
 import axios from 'axios'
 import { AlertCircle, Eye, History, Pencil, Plus } from 'lucide-react'
@@ -7,6 +7,7 @@ import Workspace from '~/layouts/workspace'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { LongDialogContent } from '~/components/ui/long-dialog'
+import { useEntityDialog } from '~/components/ui/dialog_param'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Switch } from '~/components/ui/switch'
@@ -102,6 +103,18 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
   const begin = (next: Draft) => {
     setDraft(next)
   }
+  // `?new=1` and `?edit=<resource>.<key>` open the template's dialog (decision 30). The list
+  // holds summaries only, so an edit opens once its template has been fetched.
+  const dialog = useEntityDialog({
+    find: (id) =>
+      templates.find(
+        (template) => template.source === 'custom' && `${template.resource}.${template.key}` === id
+      ),
+    canCreate: resources.length > 0,
+    onOpen: (template) => (template === 'new' ? openCreate() : void openEdit(template)),
+  })
+  // The fetch that may still put its template in the dialog; a newer opening replaces it.
+  const fetching = useRef<PrintTemplateSummary | null>(null)
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -118,6 +131,7 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
   const names = resources.find((resource) => resource.name === draft?.resource)
   const update = (patch: Partial<Draft>) => setDraft((current) => current && { ...current, ...patch })
   const openCreate = () => {
+    fetching.current = null
     const resource = resources[0]
     setEditing(false)
     setError(null)
@@ -136,6 +150,9 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
     })
   }
   const openEdit = async (template: PrintTemplateSummary) => {
+    fetching.current = template
+    // The dialog stays closed until this template arrives, never showing the previous one.
+    setDraft(null)
     setError(null)
     setListError(null)
     setPreviewHtml(null)
@@ -148,9 +165,14 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
       )
       detail = response.data.data
     } catch (failure) {
+      if (fetching.current !== template) return
+      fetching.current = null
       setListError(errorMessage(failure))
+      dialog.close()
       return
     }
+    if (fetching.current !== template) return
+    fetching.current = null
     setEditing(true)
     begin({
       resource: detail.resource,
@@ -208,8 +230,11 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
       if (editing)
         await axios.put(`/admin/print-templates/${draft.resource}/${draft.key}`, draft, json)
       else await axios.post('/admin/print-templates', draft, json)
-      setDraft(null)
-      router.reload({ only: ['templates'] })
+      // The list refreshes before the dialog closes, so closing returns to the current rows.
+      await new Promise<void>((resolve) =>
+        router.reload({ only: ['templates'], onFinish: () => resolve() })
+      )
+      dialog.close()
     } catch (failure) {
       setError(errorMessage(failure))
     } finally {
@@ -226,7 +251,7 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
             تخطيطات طباعة لكل كيان. كل حفظ ينشئ نسخة جديدة، ويُسجَّل رقم النسخة مع كل طباعة.
           </p>
         </div>
-        <Button onClick={openCreate} disabled={!resources.length}>
+        <Button onClick={() => dialog.openCreate()} disabled={!resources.length}>
           <Plus size={15} />
           قالب جديد
         </Button>
@@ -300,7 +325,7 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
                         size="sm"
                         variant="outline"
                         aria-label={`تعديل ${template.label}`}
-                        onClick={() => void openEdit(template)}
+                        onClick={() => dialog.openEdit(`${template.resource}.${template.key}`)}
                       >
                         <Pencil size={14} />
                         تعديل
@@ -324,8 +349,8 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
       </div>
 
       <Dialog
-        open={draft !== null}
-        onOpenChange={(value) => !value && setDraft(null)}
+        open={dialog.item !== null && draft !== null}
+        onOpenChange={(value) => !value && dialog.close()}
         value={draft}
       >
         <LongDialogContent
