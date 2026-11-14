@@ -1,4 +1,4 @@
-import { useState, type ReactElement } from 'react'
+import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { Head, router } from '@inertiajs/react'
 import axios from 'axios'
 import { AlertCircle, Eye, History, Pencil, Plus } from 'lucide-react'
@@ -7,16 +7,15 @@ import Workspace from '~/layouts/workspace'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { LongDialogContent } from '~/components/ui/long-dialog'
+import { useEntityDialog } from '~/components/ui/dialog_param'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
+import { Skeleton } from '~/components/ui/skeleton'
 import { Switch } from '~/components/ui/switch'
 import { Textarea } from '~/components/ui/textarea'
 import { ResourceSelect } from '~/components/ui/resource-field'
 import { Alert, AlertDescription } from '~/components/ui/alert'
-import {
-  Dialog,
-  DialogClose,
-} from '~/components/ui/dialog'
+import { Dialog, DialogClose } from '~/components/ui/dialog'
 
 type Column = { key: string; label: string; type: string }
 type ResourceNames = {
@@ -81,20 +80,43 @@ function starter(resource: ResourceNames | undefined) {
 <h2>{{label "${group.key}"}}</h2>
 <table class="lines">
   <thead><tr>${columns
-        .map((column) => `<th>{{label "${group.key}.${column.key}"}}</th>`)
-        .join('')}</tr></thead>
+    .map((column) => `<th>{{label "${group.key}.${column.key}"}}</th>`)
+    .join('')}</tr></thead>
   <tbody>{{#each lines.${group.key}}}<tr>${columns
-        .map((column) => `<td>{{row.${column.key}}}</td>`)
-        .join('')}</tr>{{/each}}</tbody>
+    .map((column) => `<td>{{row.${column.key}}}</td>`)
+    .join('')}</tr>{{/each}}</tbody>
 </table>`
     : ''
   return `<header class="doc">\n  <div><h1>{{template}}</h1><p>{{company}} · {{resource}} #{{id}}</p></div>\n  <div>{{logo}}</div>\n</header>\n<table class="fields">\n${fields}\n</table>${lines}`
 }
 
 function errorMessage(error: unknown) {
-  const data = (error as { response?: { data?: { error?: { message?: string } } } })?.response
-    ?.data
+  const data = (error as { response?: { data?: { error?: { message?: string } } } })?.response?.data
   return data?.error?.message ?? 'تعذر إكمال الطلب. حاول مجددًا.'
+}
+
+/** The editor's body while its template is fetched: the two columns it will have. */
+function TemplateLoading() {
+  return (
+    <div
+      role="status"
+      aria-label="جارٍ التحميل..."
+      data-slot="record-loading"
+      className="grid gap-6 lg:grid-cols-2"
+    >
+      {[0, 1].map((column) => (
+        <div key={column} className="space-y-4">
+          {[0, 1, 2].map((field) => (
+            <div key={field} className="space-y-2">
+              <Skeleton className="h-4 w-32" />
+              <Skeleton className="h-9 w-full" />
+            </div>
+          ))}
+          <Skeleton className="h-40 w-full" />
+        </div>
+      ))}
+    </div>
+  )
 }
 
 export default function PrintTemplatesIndex({ templates, resources, helpers, timeZone }: Props) {
@@ -102,6 +124,34 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
   const begin = (next: Draft) => {
     setDraft(next)
   }
+  // `?new=1` and `?edit=<resource>.<key>` open the template's dialog (decision 30). The list
+  // holds summaries only, so an edit opens once its template has been fetched.
+  const dialog = useEntityDialog({
+    find: (id) =>
+      templates.find(
+        (template) => template.source === 'custom' && `${template.resource}.${template.key}` === id
+      ),
+    canCreate: resources.length > 0,
+    onOpen: (template) => (template === 'new' ? openCreate() : void openEdit(template)),
+  })
+  // The fetch that may still put its template in the dialog; a newer opening replaces it.
+  const fetching = useRef<PrintTemplateSummary | null>(null)
+  // The dialog itself while it holds the focus for a template still on its way (decision 25):
+  // not «إلغاء», which Enter would press. The form's first field takes it once there, unless
+  // the user has moved it meanwhile.
+  const holding = useRef<HTMLElement | null>(null)
+  const loaded = draft !== null
+  useEffect(() => {
+    const content = holding.current
+    if (!loaded || !content) return
+    holding.current = null
+    if (document.activeElement !== content) return
+    content
+      .querySelector<HTMLElement>(
+        '#print-template-form :is(input, textarea, select, button):not([disabled]):not([type=hidden])'
+      )
+      ?.focus()
+  }, [loaded])
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -116,8 +166,10 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
   // Kept apart from `history` so the content stays while the Dialog animates closed.
   const [historyOpen, setHistoryOpen] = useState(false)
   const names = resources.find((resource) => resource.name === draft?.resource)
-  const update = (patch: Partial<Draft>) => setDraft((current) => current && { ...current, ...patch })
+  const update = (patch: Partial<Draft>) =>
+    setDraft((current) => current && { ...current, ...patch })
   const openCreate = () => {
+    fetching.current = null
     const resource = resources[0]
     setEditing(false)
     setError(null)
@@ -136,6 +188,11 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
     })
   }
   const openEdit = async (template: PrintTemplateSummary) => {
+    fetching.current = template
+    // The dialog opens at once with its final size and a skeleton body (decision 25); the form
+    // replaces the skeleton once this template arrives, never showing the previous one.
+    setEditing(true)
+    setDraft(null)
     setError(null)
     setListError(null)
     setPreviewHtml(null)
@@ -148,10 +205,14 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
       )
       detail = response.data.data
     } catch (failure) {
+      if (fetching.current !== template) return
+      fetching.current = null
       setListError(errorMessage(failure))
+      dialog.close()
       return
     }
-    setEditing(true)
+    if (fetching.current !== template) return
+    fetching.current = null
     begin({
       resource: detail.resource,
       key: detail.key,
@@ -208,8 +269,11 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
       if (editing)
         await axios.put(`/admin/print-templates/${draft.resource}/${draft.key}`, draft, json)
       else await axios.post('/admin/print-templates', draft, json)
-      setDraft(null)
-      router.reload({ only: ['templates'] })
+      // The list refreshes before the dialog closes, so closing returns to the current rows.
+      await new Promise<void>((resolve) =>
+        router.reload({ only: ['templates'], onFinish: () => resolve() })
+      )
+      dialog.close()
     } catch (failure) {
       setError(errorMessage(failure))
     } finally {
@@ -226,7 +290,7 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
             تخطيطات طباعة لكل كيان. كل حفظ ينشئ نسخة جديدة، ويُسجَّل رقم النسخة مع كل طباعة.
           </p>
         </div>
-        <Button onClick={openCreate} disabled={!resources.length}>
+        <Button onClick={() => dialog.openCreate()} disabled={!resources.length}>
           <Plus size={15} />
           قالب جديد
         </Button>
@@ -300,7 +364,7 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
                         size="sm"
                         variant="outline"
                         aria-label={`تعديل ${template.label}`}
-                        onClick={() => void openEdit(template)}
+                        onClick={() => dialog.openEdit(`${template.resource}.${template.key}`)}
                       >
                         <Pencil size={14} />
                         تعديل
@@ -324,13 +388,21 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
       </div>
 
       <Dialog
-        open={draft !== null}
-        onOpenChange={(value) => !value && setDraft(null)}
+        open={dialog.item !== null}
+        onOpenChange={(value) => !value && dialog.close()}
         value={draft}
       >
         <LongDialogContent
           dir="rtl"
           width="5xl"
+          height="fill"
+          onOpenAutoFocus={(event) => {
+            if (draft) return
+            event.preventDefault()
+            const content = event.currentTarget as HTMLElement
+            holding.current = content
+            content.focus({ preventScroll: true })
+          }}
           title={editing ? 'تعديل قالب الطباعة' : 'قالب طباعة جديد'}
           description={
             editing
@@ -344,18 +416,15 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
                   إلغاء
                 </Button>
               </DialogClose>
-              <Button type="submit" form="print-template-form" disabled={saving}>
+              <Button type="submit" form="print-template-form" disabled={saving || !draft}>
                 {saving ? 'جارٍ الحفظ…' : editing ? 'حفظ نسخة جديدة' : 'إنشاء القالب'}
               </Button>
             </>
           }
         >
+          {!draft && <TemplateLoading />}
           {draft && (
-            <form
-              id="print-template-form"
-              className="grid gap-6 lg:grid-cols-2"
-              onSubmit={save}
-            >
+            <form id="print-template-form" className="grid gap-6 lg:grid-cols-2" onSubmit={save}>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">
@@ -496,8 +565,8 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
                     </code>
                   </p>
                   <p className="text-muted-foreground">
-                    تُهرَّب كل القيم، وتُحذف الوسوم والخصائص غير المسموحة عند الحفظ. لا يظهر حقل لا
-                    يملك القارئ صلاحية قراءته.
+                    تُهرَّب كل القيم، وتُحذف الوسوم والخصائص غير المسموحة عند الحفظ. لا يظهر حقل لا يملك
+                    القارئ صلاحية قراءته.
                   </p>
                 </div>
                 <div className="flex items-end gap-3">

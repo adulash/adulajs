@@ -12,12 +12,14 @@ import { Label } from '~/components/ui/label'
 import { Badge } from '~/components/ui/badge'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '~/components/ui/dialog'
+import { useDialogParam } from '~/components/ui/dialog_param'
 import {
   Table,
   TableBody,
@@ -57,10 +59,34 @@ export default function LookupsIndex({ groups, group, values }: Props) {
     labelEn: '',
     newGroup,
   })
+  // `?new=list`, `?new=value` (in the open list) and `?edit=<value id>` open the dialog
+  // (decision 30); anything else is dropped from the address.
+  const creating = useDialogParam(
+    'new',
+    (kind) => (kind === 'list' || (kind === 'value' && group) ? kind : undefined),
+    { onOpen: (kind) => setDraft(kind === 'list' ? blank('', true) : blank(group ?? '', false)) }
+  )
+  const editing = useDialogParam('edit', (id) => values.find((value) => String(value.id) === id), {
+    onOpen: (value: LookupValue) =>
+      setDraft({
+        id: value.id,
+        group: value.group,
+        key: value.key,
+        labelAr: value.labelAr,
+        labelEn: value.labelEn === value.key ? '' : value.labelEn,
+        newGroup: false,
+      }),
+  })
+  const open = (editing.item ?? creating.item) !== null && draft !== null
+  const close = () => (editing.value !== null ? editing.close() : creating.close())
   const save = (event: FormEvent) => {
     event.preventDefault()
     if (!draft) return
-    const done = { ...options, onSuccess: () => setDraft(null) }
+    // A refused value returns with an error message; the dialog stays open with the draft.
+    const done = {
+      ...options,
+      onSuccess: (page: { flash?: { error?: unknown } }) => !page.flash?.error && close(),
+    }
     if (draft.id)
       router.patch(
         `/admin/lookups/${draft.id}`,
@@ -71,7 +97,8 @@ export default function LookupsIndex({ groups, group, values }: Props) {
       router.post(
         '/admin/lookups',
         { group: draft.group, key: draft.key, labelAr: draft.labelAr, labelEn: draft.labelEn },
-        { ...done, preserveState: false }
+        // A new value returns to its list's address, which replaces the dialog's entry.
+        { ...done, replace: true }
       )
   }
   const move = (index: number, offset: number) => {
@@ -87,11 +114,11 @@ export default function LookupsIndex({ groups, group, values }: Props) {
         title="القوائم المرجعية"
         description="قيم الحقول ذات الخيارات المحددة: عدّل تسمياتها وترتيبها وأوقف ما لم يعد يُستخدم. المفتاح ثابت لأن السجلات تحفظه."
       >
-        <Button variant="outline" onClick={() => setDraft(blank('', true))}>
+        <Button variant="outline" onClick={() => creating.open('list')}>
           <Plus size={16} />
           قائمة جديدة
         </Button>
-        <Button disabled={!group} onClick={() => group && setDraft(blank(group, false))}>
+        <Button disabled={!group} onClick={() => group && creating.open('value')}>
           <Plus size={16} />
           إضافة قيمة
         </Button>
@@ -166,7 +193,10 @@ export default function LookupsIndex({ groups, group, values }: Props) {
                 </TableHeader>
                 <TableBody>
                   {values.map((value, index) => (
-                    <TableRow key={value.id} className={value.active ? '' : 'text-muted-foreground'}>
+                    <TableRow
+                      key={value.id}
+                      className={value.active ? '' : 'text-muted-foreground'}
+                    >
                       <TableCell>
                         <span className="inline-flex gap-0.5">
                           <Button
@@ -222,23 +252,16 @@ export default function LookupsIndex({ groups, group, values }: Props) {
                             size="icon-sm"
                             variant="ghost"
                             aria-label={`تحرير ${value.labelAr}`}
-                            onClick={() =>
-                              setDraft({
-                                id: value.id,
-                                group: value.group,
-                                key: value.key,
-                                labelAr: value.labelAr,
-                                labelEn: value.labelEn === value.key ? '' : value.labelEn,
-                                newGroup: false,
-                              })
-                            }
+                            onClick={() => editing.open(value.id)}
                           >
                             <Pencil size={15} />
                           </Button>
                           <Button
                             size="icon-sm"
                             variant="ghost"
-                            aria-label={value.active ? `تعطيل ${value.labelAr}` : `تفعيل ${value.labelAr}`}
+                            aria-label={
+                              value.active ? `تعطيل ${value.labelAr}` : `تفعيل ${value.labelAr}`
+                            }
                             disabled={value.active && value.usage !== 0}
                             title={
                               value.active && value.usage
@@ -252,7 +275,11 @@ export default function LookupsIndex({ groups, group, values }: Props) {
                                     description: `لن تظهر «${value.labelAr}» عند إنشاء السجلات أو تعديلها، ويمكن تفعيلها لاحقاً.`,
                                     label: 'تعطيل القيمة',
                                     action: () =>
-                                      router.post(`/admin/lookups/${value.id}/disable`, {}, options),
+                                      router.post(
+                                        `/admin/lookups/${value.id}/disable`,
+                                        {},
+                                        options
+                                      ),
                                   })
                                 : router.post(`/admin/lookups/${value.id}/enable`, {}, options)
                             }
@@ -297,7 +324,7 @@ export default function LookupsIndex({ groups, group, values }: Props) {
           </section>
         </div>
       )}
-      <Dialog mode="edit" open={draft !== null} onOpenChange={(open) => !open && setDraft(null)}>
+      <Dialog mode="edit" open={open} onOpenChange={(next) => !next && close()}>
         <DialogContent>
           <form onSubmit={save} className="space-y-5">
             <DialogHeader>
@@ -369,9 +396,11 @@ export default function LookupsIndex({ groups, group, values }: Props) {
               />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDraft(null)}>
-                إلغاء
-              </Button>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  إلغاء
+                </Button>
+              </DialogClose>
               <Button type="submit" disabled={!draft?.key || !draft?.labelAr || !draft?.group}>
                 حفظ
               </Button>

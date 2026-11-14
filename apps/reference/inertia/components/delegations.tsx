@@ -242,8 +242,11 @@ export function DelegationDialog({
         },
         json
       )
+      // The list refreshes before the dialog closes, so closing returns to the current rows.
+      await new Promise<void>((resolve) =>
+        router.reload({ only: ['delegations'], onFinish: () => resolve() })
+      )
       onOpenChange(false)
-      router.reload({ only: ['delegations'] })
     } catch (caught) {
       setError(errorMessage(caught, 'تعذر حفظ التفويض.'))
     } finally {

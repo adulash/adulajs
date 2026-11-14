@@ -11,12 +11,14 @@ import { ResourceSelect } from '~/components/ui/resource-field'
 import { Badge } from '~/components/ui/badge'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '~/components/ui/dialog'
+import { useDialogParam } from '~/components/ui/dialog_param'
 
 type Props = { units: OrgUnitNode[] }
 type Draft = { parentId: number | null; name: string; type: string }
@@ -28,6 +30,15 @@ const unitOption = (unit: OrgUnitNode) => ({
 
 export default function OrgUnitsIndex({ units }: Props) {
   const [creating, setCreating] = useState<Draft | null>(null)
+  // `?new=1` opens the create dialog (decision 30); a sub-unit's parent comes with the opening.
+  const createDialog = useDialogParam<true, number>(
+    'new',
+    (value) => (value === '1' ? true : undefined),
+    {
+      onOpen: (_open, _value, parentId) =>
+        setCreating({ parentId: parentId ?? null, name: '', type: 'department' }),
+    }
+  )
   const [renaming, setRenaming] = useState<OrgUnitNode | null>(null)
   const [renameTo, setRenameTo] = useState('')
   const [deleting, setDeleting] = useState<OrgUnitNode | null>(null)
@@ -36,7 +47,11 @@ export default function OrgUnitsIndex({ units }: Props) {
   const submitCreate = (event: FormEvent) => {
     event.preventDefault()
     if (!creating) return
-    router.post('/admin/org-units', creating, { ...options, onSuccess: () => setCreating(null) })
+    router.post('/admin/org-units', creating, {
+      ...options,
+      // A refused unit returns with an error message; the dialog stays open with the draft.
+      onSuccess: (page) => !page.flash?.error && createDialog.close(),
+    })
   }
   const submitRename = (event: FormEvent) => {
     event.preventDefault()
@@ -60,7 +75,7 @@ export default function OrgUnitsIndex({ units }: Props) {
         title="الهيكل التنظيمي"
         description="شجرة واحدة لكل المستويات؛ نقل وحدة يحدّث نطاق كل ما تحتها فوراً."
       >
-        <Button onClick={() => setCreating({ parentId: null, name: '', type: 'department' })}>
+        <Button onClick={() => createDialog.open()}>
           <Plus size={16} />
           إضافة وحدة
         </Button>
@@ -105,7 +120,7 @@ export default function OrgUnitsIndex({ units }: Props) {
                 size="icon-sm"
                 variant="ghost"
                 aria-label={`إضافة وحدة فرعية تحت ${unit.name}`}
-                onClick={() => setCreating({ parentId: unit.id, name: '', type: 'department' })}
+                onClick={() => createDialog.open('1', unit.id)}
               >
                 <Plus size={15} />
               </Button>
@@ -137,7 +152,10 @@ export default function OrgUnitsIndex({ units }: Props) {
           </li>
         )}
       </ul>
-      <Dialog open={creating !== null} onOpenChange={(open) => !open && setCreating(null)}>
+      <Dialog
+        open={createDialog.item !== null && creating !== null}
+        onOpenChange={(open) => !open && createDialog.close()}
+      >
         <DialogContent>
           <form onSubmit={submitCreate} className="space-y-5">
             <DialogHeader>
@@ -181,9 +199,11 @@ export default function OrgUnitsIndex({ units }: Props) {
               />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setCreating(null)}>
-                إلغاء
-              </Button>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  إلغاء
+                </Button>
+              </DialogClose>
               <Button type="submit">إضافة</Button>
             </DialogFooter>
           </form>
@@ -205,9 +225,11 @@ export default function OrgUnitsIndex({ units }: Props) {
               />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setRenaming(null)}>
-                إلغاء
-              </Button>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  إلغاء
+                </Button>
+              </DialogClose>
               <Button type="submit">حفظ</Button>
             </DialogFooter>
           </form>
@@ -222,9 +244,11 @@ export default function OrgUnitsIndex({ units }: Props) {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDeleting(null)}>
-              إلغاء
-            </Button>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                إلغاء
+              </Button>
+            </DialogClose>
             <Button
               type="button"
               variant="destructive"

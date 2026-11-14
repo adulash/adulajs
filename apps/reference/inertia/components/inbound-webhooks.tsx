@@ -21,6 +21,7 @@ import {
   DialogTitle,
 } from '~/components/ui/dialog'
 import { LongDialogContent } from '~/components/ui/long-dialog'
+import { useEntityDialog } from '~/components/ui/dialog_param'
 
 const json = { headers: { Accept: 'application/json' }, withXSRFToken: true }
 type Draft = {
@@ -59,7 +60,6 @@ function message(error: unknown, fallback: string) {
 export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
   const formatDateTime = useDateTimeFormatter()
   const { confirm, confirmation } = useConfirmAction()
-  const [editing, setEditing] = useState<InboundSource | 'new' | null>(null)
   const [draft, setDraft] = useState<Draft>(blank)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -68,24 +68,33 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
   const address = (source: InboundSource) => `${window.location.origin}${source.path}`
   const set = (patch: Partial<Draft>) => setDraft((current) => ({ ...current, ...patch }))
   const reload = () => router.reload({ only: ['inbound'] })
-
-  const open = (source: InboundSource | 'new') => {
-    setEditing(source)
-    setError('')
-    const next = source === 'new' ? blank : { ...source, key: source.key }
-    setDraft(next)
-  }
+  // `?new-source=1` and `?edit-source=<id>` open the source's dialog (decision 30); the
+  // outgoing webhooks on the same page use `new` and `edit`.
+  const dialog = useEntityDialog({
+    names: { create: 'new-source', edit: 'edit-source' },
+    find: (id) => sources.find((source) => String(source.id) === id),
+    onOpen: (source) => {
+      setError('')
+      setDraft(source === 'new' ? blank : { ...source, key: source.key })
+    },
+  })
+  const editing = dialog.item
   const save = async (event: FormEvent) => {
     event.preventDefault()
     setBusy(true)
     setError('')
     try {
+      let created: { source: InboundSource; value: string } | null = null
       if (editing === 'new') {
         const response = await axios.post('/admin/inbound-webhooks', draft, json)
-        setSecret({ source: response.data.data.source, value: response.data.data.secret })
+        created = { source: response.data.data.source, value: response.data.data.secret }
       } else if (editing) await axios.put(`/admin/inbound-webhooks/${editing.id}`, draft, json)
-      setEditing(null)
-      reload()
+      // The list refreshes before the dialog closes, so closing returns to the current rows.
+      await new Promise<void>((resolve) =>
+        router.reload({ only: ['inbound'], onFinish: () => resolve() })
+      )
+      dialog.close()
+      if (created) setSecret(created)
     } catch (caught) {
       setError(message(caught, 'تعذر حفظ المصدر.'))
     } finally {
@@ -112,7 +121,7 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
             مرة واحدة ثم يطلق حدثاً تعالجه التطبيقات.
           </p>
         </div>
-        <Button variant="outline" onClick={() => open('new')}>
+        <Button variant="outline" onClick={() => dialog.openCreate()}>
           <Plus size={16} />
           إضافة مصدر وارد
         </Button>
@@ -143,7 +152,7 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
                 <History size={14} />
                 المستلمات
               </Button>
-              <Button size="sm" variant="outline" onClick={() => open(source)}>
+              <Button size="sm" variant="outline" onClick={() => dialog.openEdit(source.id)}>
                 تعديل
               </Button>
               <Button
@@ -197,7 +206,7 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
 
       <Dialog
         open={editing !== null}
-        onOpenChange={(value) => !value && setEditing(null)}
+        onOpenChange={(value) => !value && dialog.close()}
         value={draft}
       >
         <LongDialogContent

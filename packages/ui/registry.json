@@ -1013,6 +1013,20 @@
           "type": "registry:ui"
         }
       ]
+    },
+    {
+      "name": "dialog-param",
+      "type": "registry:ui",
+      "registryDependencies": [
+        "resource-surface"
+      ],
+      "dependencies": [],
+      "files": [
+        {
+          "path": "registry/ui/dialog_param.ts",
+          "type": "registry:ui"
+        }
+      ]
     }
   ]
 }

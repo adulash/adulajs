@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from '~/components/ui/dialog'
 import { LongDialogContent } from '~/components/ui/long-dialog'
+import { useEntityDialog } from '~/components/ui/dialog_param'
 
 type EventOption = { key: string; resource: string; verb: string }
 type Props = { webhooks: Webhook[]; events: EventOption[]; inbound: InboundSource[] }
@@ -65,7 +66,6 @@ function message(error: unknown, fallback: string) {
 
 export default function WebhooksIndex({ webhooks, events, inbound }: Props) {
   const formatDateTime = useDateTimeFormatter()
-  const [editing, setEditing] = useState<Webhook | 'new' | null>(null)
   const [name, setName] = useState('')
   const [url, setUrl] = useState('')
   const [selected, setSelected] = useState<string[]>([])
@@ -75,12 +75,17 @@ export default function WebhooksIndex({ webhooks, events, inbound }: Props) {
   const [secret, setSecret] = useState<string | null>(null)
   const [log, setLog] = useState<{ webhook: Webhook; rows: WebhookDelivery[] } | null>(null)
 
-  const open = (webhook: Webhook | 'new') => {
+  // `?new=1` and `?edit=<id>` open the webhook's dialog (decision 30).
+  const dialog = useEntityDialog({
+    find: (id) => webhooks.find((webhook) => String(webhook.id) === id),
+    onOpen: (webhook) => start(webhook),
+  })
+  const editing = dialog.item
+  const start = (webhook: Webhook | 'new') => {
     const next =
       webhook === 'new'
-        ? { name: '', url: 'https://', events: [], active: true }
+        ? { name: '', url: 'https://', events: [] as string[], active: true }
         : { name: webhook.name, url: webhook.url, events: webhook.events, active: webhook.active }
-    setEditing(webhook)
     setError('')
     setName(next.name)
     setUrl(next.url)
@@ -92,9 +97,10 @@ export default function WebhooksIndex({ webhooks, events, inbound }: Props) {
     setBusy(true)
     setError('')
     try {
+      let created: string | null = null
       if (editing === 'new') {
         const response = await axios.post('/admin/webhooks', { name, url, events: selected }, json)
-        setSecret(response.data.data.secret)
+        created = response.data.data.secret
       } else if (editing) {
         await axios.put(
           `/admin/webhooks/${editing.id}`,
@@ -102,8 +108,12 @@ export default function WebhooksIndex({ webhooks, events, inbound }: Props) {
           json
         )
       }
-      setEditing(null)
-      router.reload({ only: ['webhooks'] })
+      // The list refreshes before the dialog closes, so closing returns to the current rows.
+      await new Promise<void>((resolve) =>
+        router.reload({ only: ['webhooks'], onFinish: () => resolve() })
+      )
+      dialog.close()
+      if (created) setSecret(created)
     } catch (caught) {
       setError(message(caught, 'تعذر حفظ الربط.'))
     } finally {
@@ -127,7 +137,7 @@ export default function WebhooksIndex({ webhooks, events, inbound }: Props) {
             Webhooks موقّعة بـ HMAC تُرسل عند وقوع الأحداث، وتُعاد المحاولة تلقائياً عند الفشل.
           </p>
         </div>
-        <Button onClick={() => open('new')}>
+        <Button onClick={() => dialog.openCreate()}>
           <Plus size={16} />
           إضافة ربط
         </Button>
@@ -163,7 +173,7 @@ export default function WebhooksIndex({ webhooks, events, inbound }: Props) {
                 <History size={14} />
                 المحاولات
               </Button>
-              <Button size="sm" variant="outline" onClick={() => open(webhook)}>
+              <Button size="sm" variant="outline" onClick={() => dialog.openEdit(webhook.id)}>
                 تعديل
               </Button>
               <Button
@@ -190,7 +200,7 @@ export default function WebhooksIndex({ webhooks, events, inbound }: Props) {
 
       <Dialog
         open={editing !== null}
-        onOpenChange={(value) => !value && setEditing(null)}
+        onOpenChange={(value) => !value && dialog.close()}
         // The events are a set: their order is no change.
         value={{ name, url, events: [...selected].sort(), active }}
       >
