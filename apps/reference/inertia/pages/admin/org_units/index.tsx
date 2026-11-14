@@ -11,6 +11,7 @@ import { ResourceSelect } from '~/components/ui/resource-field'
 import { Badge } from '~/components/ui/badge'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -198,9 +199,11 @@ export default function OrgUnitsIndex({ units }: Props) {
               />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => createDialog.close()}>
-                إلغاء
-              </Button>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  إلغاء
+                </Button>
+              </DialogClose>
               <Button type="submit">إضافة</Button>
             </DialogFooter>
           </form>
@@ -222,9 +225,11 @@ export default function OrgUnitsIndex({ units }: Props) {
               />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setRenaming(null)}>
-                إلغاء
-              </Button>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  إلغاء
+                </Button>
+              </DialogClose>
               <Button type="submit">حفظ</Button>
             </DialogFooter>
           </form>
@@ -239,9 +244,11 @@ export default function OrgUnitsIndex({ units }: Props) {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDeleting(null)}>
-              إلغاء
-            </Button>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                إلغاء
+              </Button>
+            </DialogClose>
             <Button
               type="button"
               variant="destructive"

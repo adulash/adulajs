@@ -12,6 +12,7 @@ import { Label } from '~/components/ui/label'
 import { Badge } from '~/components/ui/badge'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -65,21 +66,17 @@ export default function LookupsIndex({ groups, group, values }: Props) {
     (kind) => (kind === 'list' || (kind === 'value' && group) ? kind : undefined),
     { onOpen: (kind) => setDraft(kind === 'list' ? blank('', true) : blank(group ?? '', false)) }
   )
-  const editing = useDialogParam(
-    'edit',
-    (id) => values.find((value) => String(value.id) === id),
-    {
-      onOpen: (value: LookupValue) =>
-        setDraft({
-          id: value.id,
-          group: value.group,
-          key: value.key,
-          labelAr: value.labelAr,
-          labelEn: value.labelEn === value.key ? '' : value.labelEn,
-          newGroup: false,
-        }),
-    }
-  )
+  const editing = useDialogParam('edit', (id) => values.find((value) => String(value.id) === id), {
+    onOpen: (value: LookupValue) =>
+      setDraft({
+        id: value.id,
+        group: value.group,
+        key: value.key,
+        labelAr: value.labelAr,
+        labelEn: value.labelEn === value.key ? '' : value.labelEn,
+        newGroup: false,
+      }),
+  })
   const open = (editing.item ?? creating.item) !== null && draft !== null
   const close = () => (editing.value !== null ? editing.close() : creating.close())
   const save = (event: FormEvent) => {
@@ -196,7 +193,10 @@ export default function LookupsIndex({ groups, group, values }: Props) {
                 </TableHeader>
                 <TableBody>
                   {values.map((value, index) => (
-                    <TableRow key={value.id} className={value.active ? '' : 'text-muted-foreground'}>
+                    <TableRow
+                      key={value.id}
+                      className={value.active ? '' : 'text-muted-foreground'}
+                    >
                       <TableCell>
                         <span className="inline-flex gap-0.5">
                           <Button
@@ -259,7 +259,9 @@ export default function LookupsIndex({ groups, group, values }: Props) {
                           <Button
                             size="icon-sm"
                             variant="ghost"
-                            aria-label={value.active ? `تعطيل ${value.labelAr}` : `تفعيل ${value.labelAr}`}
+                            aria-label={
+                              value.active ? `تعطيل ${value.labelAr}` : `تفعيل ${value.labelAr}`
+                            }
                             disabled={value.active && value.usage !== 0}
                             title={
                               value.active && value.usage
@@ -273,7 +275,11 @@ export default function LookupsIndex({ groups, group, values }: Props) {
                                     description: `لن تظهر «${value.labelAr}» عند إنشاء السجلات أو تعديلها، ويمكن تفعيلها لاحقاً.`,
                                     label: 'تعطيل القيمة',
                                     action: () =>
-                                      router.post(`/admin/lookups/${value.id}/disable`, {}, options),
+                                      router.post(
+                                        `/admin/lookups/${value.id}/disable`,
+                                        {},
+                                        options
+                                      ),
                                   })
                                 : router.post(`/admin/lookups/${value.id}/enable`, {}, options)
                             }
@@ -390,9 +396,11 @@ export default function LookupsIndex({ groups, group, values }: Props) {
               />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={close}>
-                إلغاء
-              </Button>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  إلغاء
+                </Button>
+              </DialogClose>
               <Button type="submit" disabled={!draft?.key || !draft?.labelAr || !draft?.group}>
                 حفظ
               </Button>

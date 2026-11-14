@@ -313,4 +313,81 @@ test.group('Entity dialogs have their own address (decision 30)', (group) => {
     await page.waitForURL((url) => url.pathname === '/admin/org-units')
     assert.equal(await page.getByRole('dialog').count(), 0)
   })
+
+  // «إلغاء» closes through the dialog's own close, so typed changes still ask first (decision 23).
+  for (const surface of [
+    {
+      label: 'a lookup list',
+      path: `/admin/lookups?group=${names.lookupGroup}`,
+      trigger: 'قائمة جديدة',
+      dialog: 'قائمة جديدة',
+      field: 'التسمية العربية',
+      param: 'new',
+    },
+    {
+      label: 'an organization unit',
+      path: '/admin/org-units',
+      trigger: 'إضافة وحدة',
+      dialog: 'وحدة جديدة',
+      field: 'الاسم',
+      param: 'new',
+    },
+  ])
+    test(`«إلغاء» after typing in ${surface.label} asks before discarding`, async ({
+      browserContext,
+      visit,
+      assert,
+    }) => {
+      await browserContext.loginAs(admin.user)
+      const page = await visit(surface.path)
+      const dialog = page.getByRole('dialog', { name: surface.dialog, exact: true })
+      const confirm = page.getByRole('dialog', { name: 'إغلاق النموذج؟' })
+      await page.getByRole('button', { name: surface.trigger, exact: true }).click()
+      await dialog.waitFor()
+      await dialog.getByLabel(surface.field, { exact: true }).fill('نص لم يُحفظ')
+      await dialog.getByRole('button', { name: 'إلغاء', exact: true }).click()
+      await confirm.waitFor()
+      await page.getByRole('button', { name: 'متابعة التحرير', exact: true }).click()
+      await confirm.waitFor({ state: 'hidden' })
+      assert.equal(
+        await dialog.getByLabel(surface.field, { exact: true }).inputValue(),
+        'نص لم يُحفظ'
+      )
+      assert.isTrue(address(page).query.has(surface.param))
+    })
+
+  test('the print template editor is open in the first frame, its body loading inside it', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(admin.user)
+    const page = await visit('/admin/print-templates')
+    const dialog = page.getByRole('dialog', { name: 'تعديل قالب الطباعة', exact: true })
+    // Hold the template's fetch so the loading state can be seen.
+    let release!: () => void
+    const held = new Promise<void>((resolve) => (release = resolve))
+    await page.route(`**/admin/print-templates/orders/${names.templateKey}`, async (route) => {
+      await held
+      await route.continue()
+    })
+    await page.evaluate(`(() => {
+      window.__firstFrame = null
+      document.addEventListener('click', () => requestAnimationFrame(() => {
+        window.__firstFrame = !!document.querySelector('[role=dialog][data-state=open]')
+      }), { capture: true, once: true })
+    })()`)
+    await page.getByRole('button', { name: `تعديل قالب العناوين ${run}`, exact: true }).click()
+    await page.waitForFunction('window.__firstFrame !== null')
+    assert.isTrue(
+      await page.evaluate<boolean>('window.__firstFrame'),
+      'not open at the first frame'
+    )
+    await dialog.waitFor()
+    await dialog.locator('[data-slot=record-loading]').waitFor()
+    assert.isTrue(await dialog.getByRole('button', { name: 'حفظ نسخة جديدة' }).isDisabled())
+    release()
+    await dialog.getByLabel('متن القالب', { exact: true }).waitFor()
+    assert.equal(await dialog.locator('[data-slot=record-loading]').count(), 0)
+  })
 })
