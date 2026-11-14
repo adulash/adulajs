@@ -159,10 +159,22 @@ test.group('Field type widgets in the generated UI', (group) => {
     await page.assertVisible(categories.getByText('2 محدد'))
     await page.screenshot({ path: join(shots, 'field-types-form.png'), fullPage: true })
     await page.getByRole('button', { name: 'حفظ السجل', exact: true }).click()
-    await page.waitForURL(/\/resources\/suppliers\/\d+$/)
+    // Saving a new record returns to the list with the new row first and highlighted (owner,
+    // 2.3.0); the details open from that row.
+    await page.waitForURL(/\/resources\/suppliers$/)
+    const created = page.locator('main tr[data-created]')
+    await created.getByText(name, { exact: true }).waitFor()
+    // The highlight fades after 2.4 s: read the row's id while it lasts, then use the id.
+    const id = await created.getAttribute('data-row-id')
 
     const stored = await knex()('suppliers').where({ code, org_unit_id: admin.orgUnitId }).first()
     assert.exists(stored)
+    assert.equal(id, String(stored.id))
+    await page
+      .locator(`main tr[data-row-id="${id}"]`)
+      .getByRole('link', { name: `عرض السجل ${id}`, exact: true })
+      .click()
+    await page.waitForURL(new RegExp(`/resources/suppliers/${stored.id}$`))
     assert.include(stored, {
       name,
       kind: 'local',
@@ -205,7 +217,9 @@ test.group('Field type widgets in the generated UI', (group) => {
     await page.screenshot({ path: join(shots, 'field-types-show.png'), fullPage: true })
 
     // Editing: stored values come back into the widgets; switching the kind swaps the fields.
-    await page.getByRole('link', { name: 'تعديل السجل', exact: true }).click()
+    // Over the list, the details dialog switches to the form in place (a button, not a visit).
+    const details = page.getByRole('dialog', { name: 'تفاصيل · الموردون' })
+    await details.getByRole('button', { name: 'تعديل السجل', exact: true }).click()
     await page.waitForURL(/\/edit$/)
     await page.getByRole('heading', { name: 'تعديل مورد', exact: true }).waitFor()
     assert.equal(await field('نسبة الخصم').inputValue(), '2.50')
