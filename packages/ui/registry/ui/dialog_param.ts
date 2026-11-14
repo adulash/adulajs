@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { usePage } from '@inertiajs/react'
 import { clientVisit } from '~/components/ui/resource-surface'
 
@@ -92,19 +92,31 @@ export function useDialogParam<T, P = undefined>(
   options: DialogParamOptions<T, P> = {}
 ): DialogParam<T, P> {
   const url = usePage().url
-  const value = dialogParam(url, name)
+  const addressed = dialogParam(url, name)
+  // The value being opened while its visit is on its way: the dialog opens with the click, in
+  // the same frame (decision 25), not once the address has changed.
+  const [opening, setOpening] = useState<string | null>(null)
+  const abandoned = useRef(false)
+  useEffect(() => {
+    if (opening !== null && addressed !== null) setOpening(null)
+  }, [opening, addressed])
+  const value = addressed ?? opening
   const found = value === null ? undefined : resolve(value)
   const item = found ?? null
   const { pending = false, onOpen } = options
 
   // A value that resolves to nothing is removed from the address, without a history entry.
-  const unknown = value !== null && found === undefined && !pending
+  const unknown = addressed !== null && found === undefined && !pending
   useEffect(() => {
     if (!unknown) return
     if (pushed === here()) pushed = null
     clientVisit(
       'replace',
-      { url: withDialogParam(here(), name, null), preserveState: true, preserveScroll: true },
+      {
+        url: withDialogParam(here(), name, null),
+        preserveState: true,
+        preserveScroll: true,
+      },
       true
     )
   }, [unknown, name])
@@ -130,6 +142,8 @@ export function useDialogParam<T, P = undefined>(
     const target = withDialogParam(here(), name, String(next))
     if (target === here()) return
     preset.current = given
+    abandoned.current = false
+    setOpening(String(next))
     clientVisit(
       'push',
       {
@@ -138,6 +152,11 @@ export function useDialogParam<T, P = undefined>(
         preserveScroll: true,
         onSuccess: () => {
           pushed = target
+          // Closed before its address arrived: the entry it pushed is left the same way.
+          if (abandoned.current) {
+            abandoned.current = false
+            close()
+          }
         },
       },
       true
@@ -146,7 +165,13 @@ export function useDialogParam<T, P = undefined>(
 
   const close = () => {
     const current = here()
-    if (dialogParam(current, name) === null) return
+    if (dialogParam(current, name) === null) {
+      if (opening !== null) {
+        abandoned.current = true
+        setOpening(null)
+      }
+      return
+    }
     const target = withDialogParam(current, name, null)
     if (pushed === current) {
       pushed = null

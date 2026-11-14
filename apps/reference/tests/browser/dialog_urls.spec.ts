@@ -202,7 +202,9 @@ function watchPageRequests(page: Page, path: string) {
     const type = request.resourceType()
     if (type !== 'document' && type !== 'xhr' && type !== 'fetch') return
     const url = new URL(request.url())
-    if (url.pathname === pathname) sent.push(`${request.method()} ${url.pathname}${url.search}`)
+    if (url.pathname !== pathname) return
+    const partial = request.headers()['x-inertia-partial-data']
+    sent.push(`${request.method()} ${url.pathname}${url.search}${partial ? ` (${partial})` : ''}`)
   }
   page.on('request', listener)
   return { sent, stop: () => page.off('request', listener) }
@@ -258,6 +260,7 @@ async function seed(client: ApiClient, admin: UiActor) {
       name: names.occasion,
       startsOn: '2099-01-01',
       endsOn: '2099-01-02',
+      banner: `رسالة العناوين ${run}`,
     }),
     await post('/admin/lookups', {
       group: names.lookupGroup,
@@ -301,6 +304,8 @@ test.group('Entity dialogs have their own address (decision 30)', (group) => {
 
       // Opening pushes the parameter, with no request: the page behind stays mounted.
       await page.evaluate(`window.__page = document.querySelector('main h1')`)
+      // The page's own load (its deferred props) ends first: only what the opening sends counts.
+      await page.waitForLoadState('networkidle')
       await watchProgress(page)
       const requests = watchPageRequests(page, row.path)
       await row.trigger(page).click()
@@ -309,7 +314,7 @@ test.group('Entity dialogs have their own address (decision 30)', (group) => {
       // Past the progress bar's delay, so a bar started by the opening would be on screen.
       await page.waitForTimeout(600)
       requests.stop()
-      assert.deepEqual(requests.sent, [], 'opening the dialog requested the page')
+      assert.equal(requests.sent.join(' | '), '', 'opening the dialog requested the page')
       assert.equal(await progressShown(page), 0, 'opening the dialog showed the progress bar')
       assert.isTrue(
         await page.evaluate<boolean>(
