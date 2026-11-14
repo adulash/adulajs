@@ -2,6 +2,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import { Exception } from '@adonisjs/core/exceptions'
 import {
   listUserSessions,
+  markSignedOut,
   resolveSessionHandle,
   revokeSession,
   revokeUserSessions,
@@ -37,6 +38,7 @@ export default class AccountSessionsController {
     if (id === session.sessionId) {
       const impersonation = activeImpersonation(ctx)
       await auth.use('web').logout()
+      markSignedOut(ctx)
       endImpersonation(session)
       if (impersonation) await logImpersonationEnd(impersonation, 'logout')
       session.flash('success', 'أُنهيت جلستك الحالية. سجّل الدخول مجدداً عند الحاجة.')

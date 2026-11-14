@@ -3,7 +3,7 @@ import { loginValidator } from '#validators/user'
 import type { HttpContext } from '@adonisjs/core/http'
 import { errors as authErrors } from '@adonisjs/auth'
 import { logAuthActivity, requestContext } from '#services/auth_activity'
-import { endSession } from '#services/sessions'
+import { endSession, markSignedOut } from '#services/sessions'
 import { completeSignIn } from '#services/sign_in'
 import { socialProviders } from '#services/social_accounts'
 import {
@@ -88,6 +88,7 @@ export default class SessionController {
     const sessionId = session.sessionId
     const impersonation = activeImpersonation(ctx)
     await auth.use('web').logout()
+    markSignedOut(ctx)
     endImpersonation(session)
     if (impersonation) await logImpersonationEnd(impersonation, 'logout')
     await endSession(sessionId)

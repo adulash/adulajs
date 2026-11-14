@@ -251,6 +251,17 @@ Behaviour that changes on upgrade, so read it first:
   so «إلغاء» or «إغلاق» never takes it. Locking the page's scroll pads the side the
   scrollbar is on, so opening and closing no longer shift the page sideways. After a save,
   the list returns with the new record first (owner decision 27).
+* Signing in, starting impersonation or ending it no longer signs the user out when a request
+  the browser sent just before (a deferred prop, the bell, a dialog's view) is answered after
+  it: the session middleware records the replaced session id (by its handle, kept ten
+  minutes). For a minute a request carrying it is refused (409 `E_SESSION_REPLACED`), and one
+  already in flight when it rotated is refused if it reads or keeps its own answer if it
+  writes; neither writes the old session back nor sets its cookie. The user's own sign-out in
+  flight across the rotation also ends the session that replaced its own, so the browser is
+  signed out as asked; an automatic sign-out of the replaced session does not. A write in
+  flight across a rotation loses any flash message it set, since its session is not written.
+  The refusal is never cached or framed, and links only to this host. A session an
+  administrator revokes still ends at once.
 * A write's success message is no longer lost when a background JSON read (a dialog's
   related lists, a view fetched ahead of a click) reaches the server between the write and
   its redirect: the starter's session middleware leaves flash messages for the page they
@@ -350,6 +361,13 @@ Projects own the starter's files; upgrades do not rewrite them. Merge them from 
   and `inertia/layouts/workspace.tsx`. An integration user needs `manage all` for its token.
 * Flash messages: the new `app/middleware/session_middleware.ts`, registered in the router
   middleware of `start/kernel.ts` in place of `@adonisjs/session/session_middleware`.
+* Rotated sessions: copy and run the migration
+  `database/migrations/1790000003000_create_session_rotations_table.ts`, add
+  `app/exceptions/replaced_session_exception.ts` and `recordRotation`/`rotationOf`/
+  `endSuccessor`/`markSignedOut` in `app/services/sessions.ts`, call `markSignedOut(ctx)`
+  after the logout in `session_controller.destroy` and `account_sessions_controller.destroy`,
+  and when `admin_sessions_controller.destroy` revokes the administrator's own current
+  session, and merge the rotation checks into `app/middleware/session_middleware.ts`.
 * Impersonation: `app/services/impersonation.ts`,
   `app/controllers/admin/users_controller.ts`, `app/controllers/session_controller.ts`,
   `app/controllers/account_sessions_controller.ts`. API clients that start impersonation

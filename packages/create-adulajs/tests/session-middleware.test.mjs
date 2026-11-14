@@ -17,3 +17,22 @@ test('new applications use the flash-keeping session middleware', async () => {
   assert.match(middleware, /from '@adonisjs\/session\/session_middleware'/)
   assert.match(middleware, /request\.method\(\)/)
 })
+
+// A request still carrying a session id a rotation replaced (sign-in, impersonation) is refused
+// instead of handing the browser the old cookie back.
+test('new applications refuse a rotated session id', async () => {
+  const template = JSON.parse(
+    await readFile(new URL('../build/template.json', import.meta.url), 'utf8')
+  )
+  const middleware = template.files['app/middleware/session_middleware.ts']
+  assert.match(middleware, /rotationOf\(presented\)/)
+  assert.match(middleware, /recordRotation\(presented, session\.sessionId\)/)
+  // A sign-out in flight across a rotation ends the session that replaced its own.
+  assert.match(middleware, /endSuccessor\(presented\)/)
+  assert.ok(template.files['app/exceptions/replaced_session_exception.ts'])
+  const migration = Object.entries(template.files).find(
+    ([path, source]) =>
+      path.startsWith('database/migrations/') && source.includes("createTable('session_rotations'")
+  )
+  assert.ok(migration, 'the starter creates session_rotations')
+})
