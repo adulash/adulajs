@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactElement } from 'react'
+import { useEffect, useRef, useState, type ReactElement } from 'react'
 import { Head, router } from '@inertiajs/react'
 import axios from 'axios'
 import { AlertCircle, Eye, History, Pencil, Plus } from 'lucide-react'
@@ -136,6 +136,22 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
   })
   // The fetch that may still put its template in the dialog; a newer opening replaces it.
   const fetching = useRef<PrintTemplateSummary | null>(null)
+  // The dialog itself while it holds the focus for a template still on its way (decision 25):
+  // not «إلغاء», which Enter would press. The form's first field takes it once there, unless
+  // the user has moved it meanwhile.
+  const holding = useRef<HTMLElement | null>(null)
+  const loaded = draft !== null
+  useEffect(() => {
+    const content = holding.current
+    if (!loaded || !content) return
+    holding.current = null
+    if (document.activeElement !== content) return
+    content
+      .querySelector<HTMLElement>(
+        '#print-template-form :is(input, textarea, select, button):not([disabled]):not([type=hidden])'
+      )
+      ?.focus()
+  }, [loaded])
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -380,6 +396,13 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
           dir="rtl"
           width="5xl"
           height="fill"
+          onOpenAutoFocus={(event) => {
+            if (draft) return
+            event.preventDefault()
+            const content = event.currentTarget as HTMLElement
+            holding.current = content
+            content.focus({ preventScroll: true })
+          }}
           title={editing ? 'تعديل قالب الطباعة' : 'قالب طباعة جديد'}
           description={
             editing

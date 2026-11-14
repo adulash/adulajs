@@ -450,9 +450,15 @@ test.group('Entity dialogs have their own address (decision 30)', (group) => {
     })
     await page.evaluate(`(() => {
       window.__firstFrame = null
+      window.__cancelFocused = false
       document.addEventListener('click', () => requestAnimationFrame(() => {
         window.__firstFrame = !!document.querySelector('[role=dialog][data-state=open]')
       }), { capture: true, once: true })
+      document.addEventListener('focusin', (event) => {
+        const target = event.target
+        if (target instanceof HTMLElement && target.closest('[role=dialog]')
+          && target.textContent?.trim() === 'إلغاء') window.__cancelFocused = true
+      }, true)
     })()`)
     await page.getByRole('button', { name: `تعديل قالب العناوين ${run}`, exact: true }).click()
     await page.waitForFunction('window.__firstFrame !== null')
@@ -463,8 +469,21 @@ test.group('Entity dialogs have their own address (decision 30)', (group) => {
     await dialog.waitFor()
     await dialog.locator('[data-slot=record-loading]').waitFor()
     assert.isTrue(await dialog.getByRole('button', { name: 'حفظ نسخة جديدة' }).isDisabled())
+    // While loading, the dialog itself holds the focus, so Enter cannot press «إلغاء».
+    assert.isTrue(
+      await page.evaluate<boolean>(`document.activeElement?.getAttribute('role') === 'dialog'`),
+      'the loading dialog does not hold the focus'
+    )
     release()
     await dialog.getByLabel('متن القالب', { exact: true }).waitFor()
     assert.equal(await dialog.locator('[data-slot=record-loading]').count(), 0)
+    // Once the template is there, its form's first field has the focus.
+    await page.waitForFunction(`(() => {
+      const first = document.querySelector(
+        '#print-template-form :is(input, textarea, select, button):not([disabled]):not([type=hidden])'
+      )
+      return !!first && document.activeElement === first
+    })()`)
+    assert.isFalse(await page.evaluate<boolean>('window.__cancelFocused'), '«إلغاء» had the focus')
   })
 })
