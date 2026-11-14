@@ -216,22 +216,38 @@ function watchPageRequests(page: Page, path: string) {
  * start after it; a click then would cancel and restart it (clientVisit), which is the page's
  * load, not something the opening sends.
  */
+/** What the in-page waits read (the test build has no DOM types). */
+type InPage = {
+  document: {
+    querySelector(
+      selector: string
+    ): { textContent: string | null; getAttribute(name: string): string | null } | null
+    activeElement: unknown
+  }
+  location: { pathname: string }
+}
+
 async function pageLoaded(page: Page) {
-  await page.waitForFunction(`(() => {
+  // A function, not a string: the app's CSP refuses string evaluation in the page.
+  await page.waitForFunction(() => {
+    const { document, location } = globalThis as unknown as InPage
     // The first page as the server sent it: a JSON script (Inertia 3) or the root's attribute.
     const script = document.querySelector('script[data-page][type="application/json"]')
-    const text = script?.textContent || document.querySelector('[data-page]')?.getAttribute('data-page') || '{}'
-    let deferred = {}
+    const text =
+      script?.textContent ||
+      document.querySelector('[data-page]')?.getAttribute('data-page') ||
+      '{}'
+    let deferred: Record<string, unknown> = {}
     try {
       deferred = JSON.parse(text).deferredProps ?? {}
     } catch {}
     if (Object.keys(deferred).length === 0) return true
     return performance.getEntriesByType('resource').some((entry) => {
       const url = new URL(entry.name)
-      return url.pathname === location.pathname
-        && (entry.initiatorType === 'xmlhttprequest' || entry.initiatorType === 'fetch')
+      const type = (entry as PerformanceResourceTiming).initiatorType
+      return url.pathname === location.pathname && (type === 'xmlhttprequest' || type === 'fetch')
     })
-  })()`)
+  })
   await page.waitForLoadState('networkidle')
 }
 
@@ -491,7 +507,9 @@ test.group('Entity dialogs have their own address (decision 30)', (group) => {
       }, true)
     })()`)
     await page.getByRole('button', { name: `تعديل قالب العناوين ${run}`, exact: true }).click()
-    await page.waitForFunction('window.__firstFrame !== null')
+    await page.waitForFunction(
+      () => (globalThis as unknown as { __firstFrame: boolean | null }).__firstFrame !== null
+    )
     assert.isTrue(
       await page.evaluate<boolean>('window.__firstFrame'),
       'not open at the first frame'
@@ -508,12 +526,13 @@ test.group('Entity dialogs have their own address (decision 30)', (group) => {
     await dialog.getByLabel('متن القالب', { exact: true }).waitFor()
     assert.equal(await dialog.locator('[data-slot=record-loading]').count(), 0)
     // Once the template is there, its form's first field has the focus.
-    await page.waitForFunction(`(() => {
+    await page.waitForFunction(() => {
+      const { document } = globalThis as unknown as InPage
       const first = document.querySelector(
         '#print-template-form :is(input, textarea, select, button):not([disabled]):not([type=hidden])'
       )
       return !!first && document.activeElement === first
-    })()`)
+    })
     assert.isFalse(await page.evaluate<boolean>('window.__cancelFocused'), '«إلغاء» had the focus')
   })
 })
