@@ -435,7 +435,7 @@ test.group('Session middleware refuses a rotated session', () => {
   test('the refusal links only to this host, whatever the path starts with', async ({ assert }) => {
     for (const url of [
       '//evil.example/account',
-      '/\evil.example/account',
+      '/\\evil.example/account',
       '///evil.example/account',
     ])
       for (const headers of [
