@@ -4,6 +4,7 @@ import type { Knex } from 'knex'
 import { subject } from '@casl/ability'
 import type { Actor } from '../auth/ability.js'
 import { buildAbility } from '../auth/ability.js'
+import { accessibleBy } from '../auth/sql.js'
 import type { ResourceService } from '../admin/resource_service.js'
 import type { ResourceRegistry } from '../resource/registry.js'
 import type { Field, RecordData, Resource } from '../resource/types.js'
@@ -18,6 +19,9 @@ import {
   type ImportAdapter,
   type ImportFile,
 } from './import_adapters.js'
+import { XLSX_MIME_TYPE, xlsxImportAdapter } from './xlsx.js'
+import { guardFormula } from '../admin/resource/export.js'
+import writeXlsxFile from 'write-excel-file/node'
 
 /** Batch states before dry runs; kept for compatibility. See ImportBatchStatus. */
 export type ImportStatus = 'mapping' | 'queued' | 'running' | 'done' | 'failed'
@@ -75,7 +79,7 @@ export type ImportBatchRecord = Omit<ImportBatch, 'status' | 'targets'> & {
 }
 export type ActorSource = { load(id: number): Promise<Actor> }
 export type ImportBatchesOptions = {
-  /** Extra file formats; CSV is always available. See ImportAdapter. */
+  /** Extra file formats; CSV and xlsx are always available. See ImportAdapter. */
   adapters?: ImportAdapter[]
 }
 export type ImportCreateInput = {
@@ -186,7 +190,7 @@ class DryRunRollback extends Error {}
  * Upsert mode updates the live record matched by a unique field and creates the rest.
  */
 export class ImportBatches {
-  private formats: ImportAdapter[] = [csvImportAdapter]
+  private formats: ImportAdapter[] = [csvImportAdapter, xlsxImportAdapter]
 
   constructor(
     private db: Knex,
@@ -199,7 +203,7 @@ export class ImportBatches {
   }
 
   /**
-   * Adds a file format, for example an XLSX adapter. A later adapter with the same
+   * Adds a file format, for example an ODS adapter. A later adapter with the same
    * name replaces the earlier one; CSV stays the fallback for text without an extension.
    */
   registerAdapter(adapter: ImportAdapter) {
@@ -270,6 +274,27 @@ export class ImportBatches {
     return {
       fileName: `${name}-template.csv`,
       content: `\uFEFF${Papa.unparse([headers])}\n`,
+    }
+  }
+
+  /**
+   * The same template as an Excel workbook: one right-to-left sheet whose bold header row
+   * holds the actor's importable fields, required ones marked with `*`.
+   */
+  async xlsxTemplate(name: string, actor: Actor, mode: ImportMode = 'create') {
+    const targets = this.targets(name, actor, mode)
+    const header = targets.map((target) => ({
+      value: guardFormula(`${target.label}${target.required ? ' *' : ''}`),
+      fontWeight: 'bold' as const,
+    }))
+    const content = await writeXlsxFile([header], {
+      rightToLeft: true,
+      stickyRowsCount: 1,
+    }).toBuffer()
+    return {
+      fileName: `${name}-template.xlsx`,
+      mimeType: XLSX_MIME_TYPE,
+      content: new Uint8Array(content.buffer, content.byteOffset, content.byteLength),
     }
   }
 
@@ -618,8 +643,11 @@ export class ImportBatches {
 
   /**
    * Saves one row through ResourceService. Upsert first looks for the live record with
-   * the same match value; ResourceService then authorizes the update against the actor's
-   * scope and rules and checks the record's current `version`. A real import runs in a
+   * the same match value among the records the actor may update (scope and role rules as
+   * SQL, as list() applies them); ResourceService then authorizes the update and checks
+   * the record's current `version`. A value held only by a record outside that reach takes
+   * the create path and answers exactly as a create of it would (a duplicate from the
+   * unique index), so the row never tells the importer where the value is stored. A real import runs in a
    * savepoint of `trx` (the caller's progress transaction); a dry run does the same inside
    * a transaction that is always rolled back.
    */
@@ -638,10 +666,17 @@ export class ImportBatches {
         const value = input[matchField]
         if (value === null || value === undefined)
           throw new Error(`${field.label.ar}: قيمة المطابقة مطلوبة`)
-        const found = await scope(resource.name)
-          .whereNull('deleted_at')
-          .where(field.column ?? columnName(matchField), value as string)
-          .first(['id', ...(resource.version ? ['version'] : [])])
+        const reachable = scope(`${resource.name} as r`)
+          .whereNull('r.deleted_at')
+          .where(`r.${field.column ?? columnName(matchField)}`, value as string)
+        accessibleBy(
+          reachable,
+          buildAbility(actor.rules, this.registry.all()),
+          actor,
+          'update',
+          resource
+        )
+        const found = await reachable.first(['r.id', ...(resource.version ? ['r.version'] : [])])
         if (found) {
           id = Number(found.id)
           if (resource.version) input.version = Number(found.version)

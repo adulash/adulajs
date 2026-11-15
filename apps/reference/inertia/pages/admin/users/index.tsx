@@ -8,6 +8,9 @@ import { AdminHeader } from '~/components/admin-nav'
 import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Badge } from '~/components/ui/badge'
+import { UserAvatar } from '~/components/ui/user-avatar'
+import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
+import { InviteUserDialog, closeInvite, openInvite } from '~/components/invite-user-dialog'
 import {
   Table,
   TableBody,
@@ -20,14 +23,25 @@ import {
 type Props = { users: UserPage; search: string }
 
 export default function UsersIndex({ users, search }: Props) {
-  const { canInviteUsers } = usePage<{ canInviteUsers?: boolean }>().props
+  const page = usePage<{ canInviteUsers?: boolean }>()
+  const { canInviteUsers } = page.props
+  // `?invite=1` opens the invitation over the list, so the address can be shared or reloaded.
+  const query = new URLSearchParams(page.url.split('?')[1] ?? '')
+  const inviting = Boolean(canInviteUsers) && query.has('invite')
+  const listHref = (params: URLSearchParams) => {
+    const rest = params.toString()
+    return `/admin/users${rest ? `?${rest}` : ''}`
+  }
+  const withInvite = new URLSearchParams(query)
+  withInvite.set('invite', '1')
+  const inviteHref = listHref(withInvite)
   const [term, setTerm] = useState(search)
   const submit = (event: FormEvent) => {
     event.preventDefault()
-    router.get('/admin/users', term ? { search: term } : {}, { preserveState: true })
+    router.get('/admin/users', term ? { q: term } : {}, { preserveState: true })
   }
   const next = users.nextCursor
-    ? `/admin/users?cursor=${users.nextCursor}${search ? `&search=${encodeURIComponent(search)}` : ''}`
+    ? `/admin/users?cursor=${users.nextCursor}${search ? `&q=${encodeURIComponent(search)}` : ''}`
     : null
   return (
     <>
@@ -35,7 +49,9 @@ export default function UsersIndex({ users, search }: Props) {
       <AdminHeader title="المستخدمون" description="الأدوار والوحدات وحالة الحساب لكل مستخدم.">
         {canInviteUsers && (
           <Button asChild>
-            <Link href="/users/invite">إضافة مستخدم</Link>
+            <Link href={inviteHref} onClick={openInvite}>
+              دعوة مستخدم
+            </Link>
           </Button>
         )}
       </AdminHeader>
@@ -45,14 +61,14 @@ export default function UsersIndex({ users, search }: Props) {
           placeholder="البريد أو الاسم"
           value={term}
           onChange={(event) => setTerm(event.target.value)}
-          className="max-w-sm bg-white"
+          className="max-w-sm bg-card"
         />
         <Button type="submit" variant="outline">
           <Search size={16} />
           بحث
         </Button>
       </form>
-      <section className="overflow-hidden rounded-xl border border-border bg-white">
+      <section className="overflow-hidden rounded-xl border border-border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
@@ -66,31 +82,38 @@ export default function UsersIndex({ users, search }: Props) {
           <TableBody>
             {users.data.map((user) => (
               <TableRow key={user.id}>
-                <TableCell>
-                  <strong className="block">{user.fullName || '—'}</strong>
-                  <span className="text-xs text-muted-foreground" dir="ltr">
-                    {user.email}
+                <TableCell className="min-w-40 whitespace-normal">
+                  <span className="flex items-center gap-3">
+                    <UserAvatar
+                      user={{ id: user.id, name: user.fullName, avatarUrl: user.avatarUrl }}
+                      size="sm"
+                    />
+                    <span className="min-w-0">
+                      <strong className="block wrap-anywhere">{user.fullName || '—'}</strong>
+                      <span className="block text-xs wrap-anywhere text-muted-foreground" dir="ltr">
+                        {user.email}
+                      </span>
+                    </span>
                   </span>
                 </TableCell>
-                <TableCell>
+                <TableCell className="min-w-0">
                   <span className="flex flex-wrap gap-1">
                     {user.roles.length === 0 && (
                       <span className="text-xs text-muted-foreground">بلا أدوار</span>
                     )}
                     {user.roles.map((role) => (
-                      <Badge key={role.id} variant="secondary">
-                        {role.role}
-                        {role.orgUnit ? ` · ${role.orgUnit}` : ''}
-                      </Badge>
+                      <NameBadge key={role.id} variant="secondary">
+                        {role.orgUnit ? `${role.role} · ${role.orgUnit}` : role.role}
+                      </NameBadge>
                     ))}
                   </span>
                 </TableCell>
-                <TableCell>
+                <TableCell className="min-w-0">
                   <span className="flex flex-wrap gap-1">
                     {user.orgUnits.map((unit) => (
-                      <Badge key={unit.id} variant="outline">
+                      <NameBadge key={unit.id} variant="outline">
                         {unit.name}
-                      </Badge>
+                      </NameBadge>
                     ))}
                   </span>
                 </TableCell>
@@ -125,7 +148,26 @@ export default function UsersIndex({ users, search }: Props) {
           </div>
         )}
       </section>
+      <InviteUserDialog open={inviting} onClose={closeInvite} />
     </>
   )
 }
+/**
+ * A role or unit name as a standard Badge. Badges wrap whole onto the next line of their cell; a
+ * single name longer than the cell is cut with an ellipsis and shown in full in a Tooltip, so
+ * every column stays inside the table frame with the sidebar expanded.
+ */
+function NameBadge({ variant, children }: { variant: 'secondary' | 'outline'; children: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Badge variant={variant} className="max-w-full" tabIndex={0}>
+          <span className="max-w-48 truncate">{children}</span>
+        </Badge>
+      </TooltipTrigger>
+      <TooltipContent>{children}</TooltipContent>
+    </Tooltip>
+  )
+}
+
 UsersIndex.layout = (page: ReactElement) => <Workspace>{page}</Workspace>

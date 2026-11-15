@@ -1,7 +1,9 @@
 # ADR 043 — Integration surface: generated client, import adapters, sync jobs, notification channels
 
 Date: 2026-10-18. Status: accepted for implementation under the owner's post-review plan
-(Phase 4, integration).
+(Phase 4, integration). Amended in 2.3.0 (#161): the owner approved read-excel-file,
+write-excel-file and fflate, and xlsx is now a built-in adapter next to CSV (see
+docs/integration.md, «File formats»).
 
 ## Context
 
@@ -36,7 +38,11 @@ The authorized dependency list (adulajs-plan.md) adds no package for any of thes
   * No XLSX parser is added. The owner must approve one first; the candidates are listed in
     the integration report.
   * **Upsert by a unique field** requires the update permission and goes through
-    `ResourceService` with the importer's scope.
+    `ResourceService` with the importer's scope. Since 2.3.0 the matching record is looked
+    up only among the records the importer may update (scope and role rules, as the list
+    applies them); a value held only outside that reach takes the create path and answers
+    as a create of it would. Unique indexes span every unit, so that answer is a duplicate:
+    any user who may create a record can learn that a unique value is in use, never where.
   * **Dry run** saves every row in a transaction that is rolled back, so a check is exactly
     the real path and leaves no records, events, sequence numbers or notifications.
   * **Templates** are header rows in Arabic, filtered to the fields the actor may import.

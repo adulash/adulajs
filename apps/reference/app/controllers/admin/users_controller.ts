@@ -1,5 +1,13 @@
 import type { HttpContext } from '@adonisjs/core/http'
-import { AdulaError, OrgUnitsAdmin, RolesAdmin, UsersAdmin, logActivity } from 'adula'
+import {
+  AdulaError,
+  OrgUnitsAdmin,
+  RolesAdmin,
+  UserAvatars,
+  UsersAdmin,
+  avatarUrl,
+  logActivity,
+} from 'adula'
 import User from '#models/user'
 import { adula } from '#services/adula'
 import { endSession, recordSession, revokeUserSessions } from '#services/sessions'
@@ -11,15 +19,26 @@ import {
   beginImpersonation,
   endImpersonation,
   hasImpersonationMarker,
+  IMPERSONATION_REASON,
+  logImpersonationEnd,
+  impersonationReason,
 } from '#services/impersonation'
+import { requestContext } from '#services/auth_activity'
 import { actorId, knex, mutate, optionalId, positiveId, text, wantsJson } from './support.js'
 
 const service = () => new UsersAdmin(knex())
 const RESOURCE = 'core.users'
 
+/** The viewed user's versioned picture URL, or null so the page shows initials. */
+async function viewedAvatarUrl(userId: number) {
+  const avatar = await new UserAvatars(knex()).find(userId)
+  return avatar ? avatarUrl(userId, avatar.version) : null
+}
+
 export default class UsersController {
   async index(ctx: HttpContext) {
-    const search = text(ctx.request.input('search')) ?? ''
+    // `q` is the documented search parameter of administration lists; `search` stays an alias.
+    const search = text(ctx.request.input('q')) ?? text(ctx.request.input('search')) ?? ''
     const users = await service().list({
       search,
       cursor: optionalId(ctx.request.input('cursor')) ?? undefined,
@@ -37,15 +56,25 @@ export default class UsersController {
     const tokens = await listUserTokens(await User.findOrFail(user.id))
     // Status only: the secret and recovery codes never leave the server.
     const { enabled, enabledAt, recoveryRemaining } = await twoFactorStatus(user.id)
-    const props = {
-      user,
+    // Roles granting full administration get their own confirmation on the page. Any
+    // `manage all` grant counts, conditioned or not, so the stronger prompt errs on the safe side.
+    const privileged = await knex()('role_rules')
+      .distinct('role_id')
+      .where({ subject: 'all', action: 'manage', inverted: false })
+    const privilegedRoleIds = privileged.map((row) => Number(row.role_id))
+    const detail = {
       roles,
       orgUnits,
       tokens,
       twoFactor: { enabled, enabledAt, recoveryRemaining },
+      privilegedRoleIds,
+      // The viewed user's profile picture (ADR 050), versioned; null shows the initials.
+      avatarUrl: await viewedAvatarUrl(user.id),
     }
-    if (wantsJson(ctx)) return props
-    return ctx.inertia.render('admin/users/show', props)
+    // The JSON body keeps `user`; the page receives the viewed account as `target` so it
+    // never replaces the signed-in account the shell reads.
+    if (wantsJson(ctx)) return { user, ...detail }
+    return ctx.inertia.render('admin/users/show', { target: user, ...detail })
   }
 
   async assignRole(ctx: HttpContext) {
@@ -215,18 +244,33 @@ export default class UsersController {
         // Acting as another administrator would hide one administrator behind another.
         if (await isAdministrator(id))
           throw new AdulaError(403, 'E_IMPERSONATE_ADMIN', 'لا يمكن انتحال حساب مسؤول آخر')
+        // Checked after the refusals above so their codes stay informative.
+        const reason = impersonationReason(ctx.request.input('reason'))
+        if (!reason)
+          throw new AdulaError(
+            422,
+            'E_IMPERSONATION_REASON',
+            `اكتب سبب انتحال الحساب (من ${IMPERSONATION_REASON.min} إلى ${IMPERSONATION_REASON.max} حرف)`
+          )
         const user = await User.findOrFail(id)
+        // Who acted as whom, why and from where; the end row records how long it lasted.
+        const { ip, userAgent } = requestContext(ctx)
         await logActivity(knex(), {
           resource: RESOURCE,
           recordId: id,
           actorId: admin,
           action: 'impersonate',
+          changes: { reason, ip, userAgent },
         })
+        const start = await knex()('activities')
+          .where({ resource: RESOURCE, record_id: id, actor_id: admin, action: 'impersonate' })
+          .orderBy('id', 'desc')
+          .first('id')
         // Login regenerates the session id; the administrator's row is closed and
         // the impersonation session gets its own row.
         const previous = ctx.session.sessionId
         await ctx.auth.use('web').login(user)
-        beginImpersonation(ctx.session, admin, id)
+        beginImpersonation(ctx.session, admin, id, start ? Number(start.id) : undefined)
         await endSession(previous)
         await recordSession(ctx, id)
         return { id }
@@ -254,17 +298,13 @@ export default class UsersController {
         if (!original || state?.disabledAt) {
           await ctx.auth.use('web').logout()
           await endSession(previous)
+          if (original) await logImpersonationEnd(impersonation, 'revoked')
           throw new AdulaError(403, 'E_IMPERSONATOR_REVOKED', 'لم يعد حساب المدير متاحاً')
         }
         await ctx.auth.use('web').login(original)
         await endSession(previous)
         await recordSession(ctx, impersonator)
-        await logActivity(knex(), {
-          resource: RESOURCE,
-          recordId: current,
-          actorId: impersonator,
-          action: 'stop_impersonation',
-        })
+        await logImpersonationEnd(impersonation, 'stop')
         return { id: impersonator }
       },
       'عدت إلى حسابك',

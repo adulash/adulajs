@@ -1,10 +1,14 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
+import { isAdministrator } from '#middleware/admin_middleware'
 import { refuseTwoFactorRequired, twoFactorRequirementUnmet } from '#services/two_factor'
 
 /**
  * Authenticates /api/v1 requests with a personal bearer token only. Disabled
  * users are refused, and read-only tokens may only issue GET/HEAD requests.
+ * API tokens belong to administrators (owner decision, 2.3.0): a token whose owner is
+ * not an administrator today, minted earlier or before a role change, is refused here.
+ * The row stays: the user's administration page lists it and revokes it.
  */
 export default class ApiAuthMiddleware {
   async handle(ctx: HttpContext, next: NextFn) {
@@ -12,6 +16,10 @@ export default class ApiAuthMiddleware {
     if (user.disabledAt)
       return ctx.response.unauthorized({
         error: { code: 'E_ACCOUNT_DISABLED', message: 'هذا الحساب معطّل' },
+      })
+    if (!(await isAdministrator(user.id)))
+      return ctx.response.forbidden({
+        error: { code: 'E_TOKEN_ADMIN_ONLY', message: 'رموز API لمدير النظام فقط' },
       })
     const token = ctx.auth.use('api').user?.currentAccessToken
     const write = !['GET', 'HEAD'].includes(ctx.request.method())

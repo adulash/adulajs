@@ -5,6 +5,7 @@ import { adula } from '#services/adula'
 import { refuseTwoFactorRequired, twoFactorRequirementUnmet } from '#services/two_factor'
 import {
   listActiveSessions,
+  markSignedOut,
   resolveSessionHandle,
   revokeSession,
   sessionHandle,
@@ -25,6 +26,8 @@ export default class AdminSessionsController {
     if (!actor) return
     const id = await resolveSessionHandle(String(ctx.params.id))
     const revoked = id ? await revokeSession(id, actor.id) : null
+    // Their own current session: a sign-out of their own, as in «جلساتي».
+    if (revoked && id === ctx.session.sessionId) markSignedOut(ctx)
     if (revoked) ctx.session.flash('success', 'أُنهيت الجلسة وسيُطلب من صاحبها الدخول مجدداً.')
     else ctx.session.flash('error', 'الجلسة غير موجودة أو أُنهيت من قبل.')
     return ctx.response.redirect().toRoute('admin_sessions.index')

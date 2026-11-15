@@ -24,3 +24,54 @@ test('registry components compose the registry Select instead of native lists', 
     if (name.endsWith('.tsx'))
       assert.doesNotMatch(await readFile(new URL(name, dir), 'utf8'), /<select[\s>]/, name)
 })
+
+test('registry buttons take their height from the button size scale, not className', async () => {
+  // Button sizes (xs, sm, default, lg, icon-*) keep controls aligned; a height in className
+  // drifts from that scale. No registry button may set its own height.
+  const { readdir } = await import('node:fs/promises')
+  const dir = new URL('../registry/ui/', import.meta.url)
+  const found = {}
+  for (const name of await readdir(dir)) {
+    if (!name.endsWith('.tsx')) continue
+    const source = await readFile(new URL(name, dir), 'utf8')
+    const overrides = [...source.matchAll(/<Button\b[^>]*?className="([^"]*)"/gs)].filter(
+      ([, classes]) => /(?:^|\s)(?:min-|max-)?(?:h|size)-/.test(classes)
+    )
+    if (overrides.length) found[name] = overrides.length
+  }
+  // No exceptions remain: every registry button uses the size scale.
+  assert.deepEqual(found, {})
+})
+
+test('a saved view is deleted through the registry Button, not a hand-styled native button', async () => {
+  // The «×» beside a saved view is a ghost icon-xs Button, rounded to sit inside its pill.
+  const source = await readFile(new URL('../registry/ui/data-table.tsx', import.meta.url), 'utf8')
+  const remove = /<(\w+)\b([^>]*?)aria-label=\{t\('حذف العرض \{name\}'/s.exec(source)
+  assert.ok(remove, 'the saved view delete control is missing')
+  assert.equal(remove[1], 'Button')
+  assert.match(remove[2], /variant="ghost"/)
+  assert.match(remove[2], /size="icon-xs"/)
+  assert.match(remove[2], /className="rounded-full"/)
+})
+
+test('file fields compose FileInput instead of the native control and its English text', async () => {
+  // The browser's own file control shows "Choose File / No file chosen" in its own language
+  // and styling. Only FileInput may render a file input, and every other file input in the
+  // registry or the reference application must be hidden behind a translated control.
+  const { readdir } = await import('node:fs/promises')
+  const { sep } = await import('node:path')
+  const roots = [
+    new URL('../registry/ui/', import.meta.url),
+    new URL('../../../apps/reference/inertia/', import.meta.url),
+  ]
+  const native = []
+  for (const root of roots)
+    for (const name of await readdir(root, { recursive: true })) {
+      if (!name.endsWith('.tsx') || name.split(sep).join('/').startsWith('components/ui/')) continue
+      const source = await readFile(new URL(name.split(sep).join('/'), root), 'utf8')
+      for (const match of source.matchAll(/<(?:input|Input)\b[^>]*?type="file"[^>]*>/gs))
+        if (name !== 'file-input.tsx' && !/className="sr-only"|\bhidden\b/.test(match[0]))
+          native.push(name)
+    }
+  assert.deepEqual(native, [])
+})

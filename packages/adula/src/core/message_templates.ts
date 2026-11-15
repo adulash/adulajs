@@ -245,7 +245,24 @@ export async function notifyWithTemplate(
   variables: Record<string, unknown>,
   templates = new MessageTemplates(db),
   target?: NotificationTarget | null
-) {
+): Promise<void> {
+  await insertTemplatedNotification(db, userId, key, variables, templates, target)
+}
+
+/**
+ * notifyWithTemplate that also names the comment the notification quotes and returns the
+ * notification id. Internal (not exported from the package): RecordCollaboration links
+ * comment notifications so deleting or editing the comment withdraws the quoted text.
+ */
+export async function insertTemplatedNotification(
+  db: Knex,
+  userId: number,
+  key: string,
+  variables: Record<string, unknown>,
+  templates = new MessageTemplates(db),
+  target?: NotificationTarget | null,
+  link: { commentId?: number } = {}
+): Promise<number> {
   const message = await templates.render(key, variables, db)
   const preferences: {
     channel: string
@@ -276,6 +293,7 @@ export async function notifyWithTemplate(
         template_key: key,
         mail_state: message.mail ? (mailOff ? 'skipped' : 'pending') : null,
         ...targetColumns(target),
+        ...(link.commentId ? { comment_id: link.commentId } : {}),
       })
       .returning('id')
     if (external.length)
@@ -286,10 +304,11 @@ export async function notifyWithTemplate(
           channel: preference.channel,
         }))
       )
+    return Number(row.id)
   }
   // The row and its deliveries commit together; a caller's transaction is used as-is.
-  if (!external.length || (db as Knex.Transaction).isTransaction) await insert(db)
-  else await db.transaction(insert)
+  if (!external.length || (db as Knex.Transaction).isTransaction) return insert(db)
+  return db.transaction(insert)
 }
 
 export type MailSender = (message: {

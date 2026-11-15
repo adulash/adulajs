@@ -13,12 +13,15 @@ import { ResourceSelect } from '~/components/ui/resource-field'
 import { useConfirmAction } from '~/components/ui/confirm-action'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '~/components/ui/dialog'
+import { LongDialogContent } from '~/components/ui/long-dialog'
+import { useEntityDialog } from '~/components/ui/dialog_param'
 
 const json = { headers: { Accept: 'application/json' }, withXSRFToken: true }
 type Draft = {
@@ -57,7 +60,6 @@ function message(error: unknown, fallback: string) {
 export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
   const formatDateTime = useDateTimeFormatter()
   const { confirm, confirmation } = useConfirmAction()
-  const [editing, setEditing] = useState<InboundSource | 'new' | null>(null)
   const [draft, setDraft] = useState<Draft>(blank)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
@@ -66,23 +68,33 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
   const address = (source: InboundSource) => `${window.location.origin}${source.path}`
   const set = (patch: Partial<Draft>) => setDraft((current) => ({ ...current, ...patch }))
   const reload = () => router.reload({ only: ['inbound'] })
-
-  const open = (source: InboundSource | 'new') => {
-    setEditing(source)
-    setError('')
-    setDraft(source === 'new' ? blank : { ...source, key: source.key })
-  }
+  // `?new-source=1` and `?edit-source=<id>` open the source's dialog (decision 30); the
+  // outgoing webhooks on the same page use `new` and `edit`.
+  const dialog = useEntityDialog({
+    names: { create: 'new-source', edit: 'edit-source' },
+    find: (id) => sources.find((source) => String(source.id) === id),
+    onOpen: (source) => {
+      setError('')
+      setDraft(source === 'new' ? blank : { ...source, key: source.key })
+    },
+  })
+  const editing = dialog.item
   const save = async (event: FormEvent) => {
     event.preventDefault()
     setBusy(true)
     setError('')
     try {
+      let created: { source: InboundSource; value: string } | null = null
       if (editing === 'new') {
         const response = await axios.post('/admin/inbound-webhooks', draft, json)
-        setSecret({ source: response.data.data.source, value: response.data.data.secret })
+        created = { source: response.data.data.source, value: response.data.data.secret }
       } else if (editing) await axios.put(`/admin/inbound-webhooks/${editing.id}`, draft, json)
-      setEditing(null)
-      reload()
+      // The list refreshes before the dialog closes, so closing returns to the current rows.
+      await new Promise<void>((resolve) =>
+        router.reload({ only: ['inbound'], onFinish: () => resolve() })
+      )
+      dialog.close()
+      if (created) setSecret(created)
     } catch (caught) {
       setError(message(caught, 'تعذر حفظ المصدر.'))
     } finally {
@@ -109,7 +121,7 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
             مرة واحدة ثم يطلق حدثاً تعالجه التطبيقات.
           </p>
         </div>
-        <Button variant="outline" onClick={() => open('new')}>
+        <Button variant="outline" onClick={() => dialog.openCreate()}>
           <Plus size={16} />
           إضافة مصدر وارد
         </Button>
@@ -118,7 +130,7 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
         {sources.map((source) => (
           <li
             key={source.id}
-            className="flex flex-wrap items-start justify-between gap-3 rounded-xl border bg-white px-5 py-4"
+            className="flex flex-wrap items-start justify-between gap-3 rounded-xl border bg-card px-5 py-4"
           >
             <div className="min-w-0 flex-1 space-y-1">
               <p className="flex flex-wrap items-center gap-2 font-semibold">
@@ -140,7 +152,7 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
                 <History size={14} />
                 المستلمات
               </Button>
-              <Button size="sm" variant="outline" onClick={() => open(source)}>
+              <Button size="sm" variant="outline" onClick={() => dialog.openEdit(source.id)}>
                 تعديل
               </Button>
               <Button
@@ -192,15 +204,34 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
         )}
       </ul>
 
-      <Dialog open={editing !== null} onOpenChange={(value) => !value && setEditing(null)}>
-        <DialogContent dir="rtl" className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{editing === 'new' ? 'إضافة مصدر وارد' : 'تعديل المصدر'}</DialogTitle>
-            <DialogDescription>
-              القيم الافتراضية تناسب GitHub. غيّر الترويسات لمرسل يستخدم أسماء أخرى.
-            </DialogDescription>
-          </DialogHeader>
-          <form id="inbound-form" className="grid gap-4 sm:grid-cols-2" onSubmit={save}>
+      <Dialog
+        open={editing !== null}
+        onOpenChange={(value) => !value && dialog.close()}
+        value={draft}
+      >
+        <LongDialogContent
+          dir="rtl"
+          width="2xl"
+          title={editing === 'new' ? 'إضافة مصدر وارد' : 'تعديل المصدر'}
+          description="القيم الافتراضية تناسب GitHub. غيّر الترويسات لمرسل يستخدم أسماء أخرى."
+          footer={
+            <>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  إلغاء
+                </Button>
+              </DialogClose>
+              <Button type="submit" form="inbound-form" disabled={busy}>
+                حفظ
+              </Button>
+            </>
+          }
+        >
+          <form
+            id="inbound-form"
+            className="grid gap-4 sm:grid-cols-2"
+            onSubmit={save}
+          >
             <div className="space-y-2">
               <Label htmlFor="inbound-name">الاسم</Label>
               <Input
@@ -278,21 +309,13 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
             {error && (
               <p
                 role="alert"
-                className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800 sm:col-span-2"
+                className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive sm:col-span-2"
               >
                 {error}
               </p>
             )}
           </form>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setEditing(null)}>
-              إلغاء
-            </Button>
-            <Button type="submit" form="inbound-form" disabled={busy}>
-              حفظ
-            </Button>
-          </DialogFooter>
-        </DialogContent>
+        </LongDialogContent>
       </Dialog>
 
       <Dialog open={secret !== null} onOpenChange={(value) => !value && setSecret(null)}>
@@ -331,13 +354,21 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={log !== null} onOpenChange={(value) => !value && setLog(null)}>
-        <DialogContent dir="rtl" className="sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>المستلمات</DialogTitle>
-            <DialogDescription>{log?.source.name}</DialogDescription>
-          </DialogHeader>
-          <div className="max-h-96 overflow-auto">
+      <Dialog mode="view" open={log !== null} onOpenChange={(value) => !value && setLog(null)}>
+        <LongDialogContent
+          dir="rtl"
+          width="3xl"
+          title="المستلمات"
+          description={log?.source.name}
+          footer={
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                إغلاق
+              </Button>
+            </DialogClose>
+          }
+        >
+          <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-muted text-xs text-muted-foreground">
                 <tr>
@@ -392,7 +423,7 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
               </tbody>
             </table>
           </div>
-        </DialogContent>
+        </LongDialogContent>
       </Dialog>
       {confirmation}
     </section>

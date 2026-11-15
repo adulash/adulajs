@@ -12,8 +12,9 @@ import { DateTime } from 'luxon'
 import { IncomingMessage } from 'node:http'
 import { Socket } from 'node:net'
 import { RequestFactory } from '@adonisjs/core/factories/http'
-import env from '#start/env'
 import { compileTrustedProxies, isDirectProxyRequest } from '#services/trusted_proxies'
+import { sessionHandle } from '#services/sessions'
+import { CopyingMemoryStore } from '#config/session'
 import {
   HEALTH_LIMIT,
   LOCKOUT_MAX_MINUTES,
@@ -299,7 +300,8 @@ test.group('Security: API tokens end with the credential and access decisions', 
   }) => {
     const admin = await makeAdmin()
     const member = await makeUser('token-member')
-    const user = await makeUser('token-owner')
+    // API tokens belong to administrators, so the owner is one whose token works until revoked.
+    const user = await makeAdmin()
     const minted = await mintToken(user, 'تقارير')
     await mintToken(user, 'مزامنة')
 
@@ -451,10 +453,22 @@ test.group('Security: login lockout, health throttle and session fixation', (gro
       rows.map((row) => row.id),
       [after]
     )
-    if (env.get('SESSION_DRIVER') === 'database')
-      assert.lengthOf(await knex()('sessions').where({ id: planted }), 0)
+    // The tests' session store (config/session.ts): the planted session is gone.
+    assert.isFalse(CopyingMemoryStore.sessions.has(planted), 'the planted session is destroyed')
 
     // The planted id is not signed in; the new one is.
+    // Within a minute of the rotation the planted id is refused outright, with no session and
+    // no cookie (a late request of the victim's own browser must not bring it back).
+    const early = client.get('/account/profile').redirects(0)
+    early.sessionClient.sessionId = planted
+    const refused = await early
+    refused.assertStatus(409)
+    assert.isUndefined(refused.cookie('adonis-session'))
+    assert.isFalse(CopyingMemoryStore.sessions.has(planted), 'not written back')
+    // After that it is an ended session like any other: signed out.
+    await knex()('session_rotations')
+      .where({ id: sessionHandle(planted) })
+      .update({ rotated_at: knex().raw(`now() - interval '2 minutes'`) })
     const attacker = client.get('/account/profile').redirects(0)
     attacker.sessionClient.sessionId = planted
     const denied = await attacker

@@ -24,6 +24,7 @@ A Default of `required` means the option must be given; `—` means it is option
 | `version` | `boolean` | the value of `submittable` | Optimistic versions: updates send the current version and stale writes are 409. |
 | `fields` | `Record<string, Field>` | required | The fields by key (camelCase; the column is the snake_case key unless `column` is set). |
 | `list` | `readonly string[]` | required | Field keys shown as list columns, in order. |
+| `defaultSort` | `{ field: string; direction?: 'asc' \| 'desc' }` | newest first: created_at descending, then id descending | The list's order when the user has chosen none: a sortable field (or `id`) and its direction (ascending unless given). Ties are broken by id in the same direction. |
 | `form` | `readonly string[]` | required | Field keys of the create and edit form, in order. |
 | `show` | `readonly string[]` | required | Field keys of the record details view, in order. |
 | `serialize` | `readonly string[]` | the keys of `list` and `show` | Field keys returned by reads and the API. |

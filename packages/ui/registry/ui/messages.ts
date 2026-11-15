@@ -10,11 +10,15 @@ import {
 
 export {
   arabicText,
+  countForm,
   createTranslator,
+  documentCount,
+  recordCount,
   interpolate,
   localizedLabel,
   type InterfaceDirection,
   type InterfaceLanguage,
+  type CountForm,
   type LocalizedLabel,
   type MessageParams,
   type Translate,

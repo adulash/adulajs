@@ -3,6 +3,8 @@ import db from '@adonisjs/lucid/services/db'
 import User from '#models/user'
 import { adula } from '#services/adula'
 import { seedActor, type UiActor } from '#tests/helpers/ui_fixtures'
+import { readXlsxTable } from 'adula'
+import { bufferXlsxResponses, XLSX_TYPE } from '#tests/helpers/xlsx_files'
 import { insertProbes, installProbes, resetProbes } from '#tests/helpers/list_probes'
 
 /**
@@ -17,7 +19,12 @@ const arabic = /[؀-ۿ]/
 const EXPORT_LIMIT_MESSAGE =
   'عدد السجلات المطابقة يتجاوز حد التصدير (5000 سجل). ضيّق التصفية ثم أعد المحاولة.'
 
-type Rule = { subject: string; action: string; conditions?: Record<string, unknown> }
+type Rule = {
+  subject: string
+  action: string
+  conditions?: Record<string, unknown>
+  inverted?: boolean
+}
 
 /** A user with one role (rules may carry conditions) and membership of one unit. */
 async function actorWith(rules: Rule[], options: { level?: number; orgUnitId?: number } = {}) {
@@ -29,9 +36,30 @@ async function actorWith(rules: Rule[], options: { level?: number; orgUnitId?: n
       subject: rule.subject,
       action: rule.action,
       ...(rule.conditions ? { conditions: JSON.stringify(rule.conditions) } : {}),
+      ...(rule.inverted ? { inverted: true } : {}),
     }))
   )
   return actor
+}
+
+/**
+ * API tokens belong to administrators (owner decision, 2.3.0), and a token keeps its owner's
+ * rules. The bearer twin of a narrow actor is an administrator denied every other resource
+ * and each probe action the actor lacks, so the bearer route still meets the same limits.
+ */
+async function bearerTwin(denials: Rule[], options: { level?: number; orgUnitId?: number }) {
+  const others = adula()
+    .registry.all()
+    .map((resource) => resource.name)
+    .filter((name) => name !== 'list_probes')
+  return actorWith(
+    [
+      { subject: 'all', action: 'manage' },
+      ...others.map((subject) => ({ subject, action: 'manage', inverted: true })),
+      ...denials.map((rule) => ({ ...rule, inverted: true })),
+    ],
+    options
+  )
 }
 
 async function bearer(user: User, abilities = ['read']) {
@@ -91,7 +119,15 @@ test.group('List layer: filter operators', (group) => {
     )
     outsider = await seedActor([{ subject: 'all', action: 'manage' }], { level: 1 })
     managerToken = await bearer(manager.user)
-    clerkToken = await bearer(clerk.user)
+    // The clerk's bearer twin: view and update the probes only, at the same level and unit.
+    const clerkTwin = await bearerTwin(
+      [
+        { subject: 'list_probes', action: 'create' },
+        { subject: 'list_probes', action: 'delete' },
+      ],
+      { level: 0, orgUnitId: manager.orgUnitId }
+    )
+    clerkToken = await bearer(clerkTwin.user)
     await seedBase(manager.user.id, manager.orgUnitId, outsider.orgUnitId)
     return remove
   })
@@ -257,6 +293,7 @@ test.group('List layer: server export', (group) => {
     })
     outsider = await seedActor([{ subject: 'all', action: 'manage' }], { level: 1 })
     managerToken = await bearer(manager.user)
+    bufferXlsxResponses()
     return remove
   })
   group.each.setup(async () => {
@@ -354,6 +391,58 @@ test.group('List layer: server export', (group) => {
       ['Beta', '', 'مغلقة', '10', '2500.00', '2026-02-01', '', ''],
       ['Gamma', 'ن', 'مفتوحة', '15', '', '2026-03-01', '', ''],
     ])
+  })
+
+  test('format=xlsx or an Excel Accept header returns the same rows as a workbook', async ({
+    client,
+    assert,
+  }) => {
+    const query = { filters: { qty: { lte: 20 } }, sort: 'qty' }
+    const response = await client
+      .get('/api/v1/resources/list_probes/export')
+      .qs({ ...query, format: 'xlsx' })
+      .header('Authorization', `Bearer ${managerToken}`)
+    response.assertStatus(200)
+    assert.equal(response.header('content-type'), XLSX_TYPE)
+    const day = new Date().toISOString().slice(0, 10)
+    assert.include(response.header('content-disposition'), `filename="list_probes-${day}.xlsx"`)
+    assert.equal(response.header('cache-control'), 'no-store')
+    const table = await readXlsxTable(new Uint8Array(response.body() as Buffer))
+    assert.deepEqual(table.headers.slice(0, 6), [
+      'العنوان',
+      'ملاحظة',
+      'الحالة',
+      'الكمية',
+      'المبلغ',
+      'الاستحقاق',
+    ])
+    assert.deepEqual(
+      table.rows.map((row) => row.slice(0, 6)),
+      [
+        ['Alpha', '', 'مفتوحة', '5', '1000', '2026-01-10'],
+        ['Beta', '', 'مغلقة', '10', '2500', '2026-02-01'],
+        ['Gamma', 'ن', 'مفتوحة', '15', '', '2026-03-01'],
+      ]
+    )
+    const [entry] = await knex()('activities')
+      .where({ resource: 'core.exports', action: 'exported', actor_id: manager.user.id })
+      .orderBy('id', 'desc')
+    const changes = typeof entry.changes === 'string' ? JSON.parse(entry.changes) : entry.changes
+    assert.equal(changes.format, 'xlsx')
+    const accepted = await client
+      .get('/resources/list_probes/export')
+      .qs(query)
+      .loginAs(manager.user)
+      .header('Accept', `${XLSX_TYPE}, application/json`)
+    accepted.assertStatus(200)
+    assert.equal(accepted.header('content-type'), XLSX_TYPE)
+    const unknown = await client
+      .get('/resources/list_probes/export')
+      .qs({ format: 'pdf' })
+      .loginAs(manager.user)
+      .headers(json)
+    unknown.assertStatus(422)
+    assert.equal(unknown.body().error.code, 'E_EXPORT_FORMAT')
   })
 
   test('hidden and higher-level fields are omitted for a low-level actor', async ({
@@ -685,6 +774,8 @@ test.group('List layer: restore and «المحذوفات»', (group) => {
   let outsider: UiActor
   let ids: Awaited<ReturnType<typeof seedBase>>
   let clerkToken: string
+  let clerkReadToken: string
+  let viewerToken: string
   group.setup(async () => {
     const remove = await installProbes()
     manager = await seedActor([{ subject: 'all', action: 'manage' }], { level: 1 })
@@ -700,7 +791,24 @@ test.group('List layer: restore and «المحذوفات»', (group) => {
       orgUnitId: manager.orgUnitId,
     })
     outsider = await seedActor([{ subject: 'all', action: 'manage' }], { level: 1 })
-    clerkToken = await bearer(clerk.user, ['read', 'write'])
+    // The bearer twins: the clerk deletes (and so restores) open probes only; the viewer
+    // neither creates, updates nor deletes.
+    const unit = { level: 0, orgUnitId: manager.orgUnitId }
+    const clerkTwin = await bearerTwin(
+      [
+        { subject: 'list_probes', action: 'create' },
+        { subject: 'list_probes', action: 'update' },
+        { subject: 'list_probes', action: 'delete', conditions: { status: { $ne: 'open' } } },
+      ],
+      unit
+    )
+    clerkToken = await bearer(clerkTwin.user, ['read', 'write'])
+    clerkReadToken = await bearer(clerkTwin.user)
+    const viewerTwin = await bearerTwin(
+      ['create', 'update', 'delete'].map((action) => ({ subject: 'list_probes', action })),
+      unit
+    )
+    viewerToken = await bearer(viewerTwin.user)
     return remove
   })
   group.each.setup(async () => {
@@ -718,11 +826,11 @@ test.group('List layer: restore and «المحذوفات»', (group) => {
       .headers(json)
     session.assertStatus(403)
     assert.equal(session.body().error.code, 'E_FORBIDDEN')
-    const token = await bearer(viewer.user)
     const api = await client
       .get('/api/v1/resources/list_probes/trash')
-      .header('Authorization', `Bearer ${token}`)
+      .header('Authorization', `Bearer ${viewerToken}`)
     api.assertStatus(403)
+    assert.equal(api.body().error.code, 'E_FORBIDDEN')
     const page = await client
       .get('/resources/list_probes/trash')
       .loginAs(viewer.user)
@@ -847,10 +955,9 @@ test.group('List layer: restore and «المحذوفات»', (group) => {
   })
 
   test('restore over the bearer API needs a write token', async ({ client, assert }) => {
-    const readOnly = await bearer(clerk.user)
     const refused = await client
       .post(`/api/v1/resources/list_probes/${ids.alpha}/restore`)
-      .header('Authorization', `Bearer ${readOnly}`)
+      .header('Authorization', `Bearer ${clerkReadToken}`)
     refused.assertStatus(403)
     assert.equal(refused.body().error.code, 'E_TOKEN_SCOPE')
     const restored = await client
@@ -876,6 +983,14 @@ test.group('List layer: restore and «المحذوفات»', (group) => {
       bulk: true,
       exportable: true,
     })
+    // The page carries the same actions as GET …/bulk, so the list needs no second request (#108).
+    const keysOf = (actions: { key: string }[]) => actions.map((action) => action.key)
+    const offered = await client
+      .get('/resources/list_probes/bulk')
+      .loginAs(clerk.user)
+      .headers(json)
+    assert.deepEqual(index.body().props.view.bulkActions, offered.body().data)
+    assert.deepEqual(keysOf(index.body().props.view.bulkActions), ['delete', 'restore'])
     const plain = await client
       .get('/resources/list_probes')
       .loginAs(viewer.user)
@@ -886,6 +1001,7 @@ test.group('List layer: restore and «المحذوفات»', (group) => {
       bulk: false,
       exportable: true,
     })
+    assert.deepEqual(plain.body().props.view.bulkActions, [])
     const trash = await client
       .get('/resources/list_probes/trash')
       .loginAs(manager.user)
@@ -896,6 +1012,11 @@ test.group('List layer: restore and «المحذوفات»', (group) => {
     assert.isTrue(trash.body().props.view.trashed)
     assert.equal(trash.body().props.view.mode, 'index')
     assert.deepEqual(trash.body().props.view.savedViews, [])
+    const trashOffered = await client
+      .get('/resources/list_probes/bulk')
+      .loginAs(manager.user)
+      .headers(json)
+    assert.deepEqual(trash.body().props.view.bulkActions, trashOffered.body().data)
     assert.deepEqual(titles(trash.body().props.result), ['Alpha', 'Beta'])
     assert.isTrue(trash.body().props.result.permissions[String(ids.alpha)].restore)
   })

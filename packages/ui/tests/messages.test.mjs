@@ -3,9 +3,12 @@ import assert from 'node:assert/strict'
 import { readFile, readdir } from 'node:fs/promises'
 import {
   arabicText,
+  countForm,
   createTranslator,
+  documentCount,
   interpolate,
   localizedLabel,
+  recordCount,
 } from '../registry/ui/message_format.ts'
 import { arabicInterfaceMessages } from '../../adula/src/languages/ar_ui.ts'
 import { englishInterfaceMessages } from '../../adula/src/languages/en_ui.ts'
@@ -14,6 +17,12 @@ const registryDirectory = new URL('../registry/ui/', import.meta.url)
 const referenceFiles = [
   'layouts/workspace.tsx',
   'components/admin-nav.tsx',
+  'components/account-menu.tsx',
+  'components/tasks-button.tsx',
+  'components/top-navigation.tsx',
+  'components/nav-order-dialog.tsx',
+  'components/notification-bell.tsx',
+  'components/preferences.ts',
   'components/language-setting.tsx',
   'pages/auth/login.tsx',
   'pages/home.tsx',
@@ -41,6 +50,41 @@ test('a translated interface maps the exact Arabic text and keeps its placeholde
   // Text without a translation falls back to Arabic; prototype keys are not translations.
   assert.equal(t('حفظ السجل'), 'حفظ السجل')
   assert.equal(t('constructor'), 'constructor')
+})
+
+test('counts agree with their number under Arabic rules, from 100 on by n % 100 (#110)', () => {
+  const records = Object.fromEntries(
+    [1, 2, 3, 10, 11, 99, 100, 101, 102, 103, 111, 1000].map((count) => [count, recordCount(count)])
+  )
+  assert.deepEqual(records, {
+    1: 'سجل واحد',
+    2: 'سجلان',
+    3: '3 سجلات',
+    10: '10 سجلات',
+    11: '11 سجلًا',
+    99: '99 سجلًا',
+    100: '100 سجل',
+    101: '101 سجل',
+    102: '102 سجل',
+    103: '103 سجلات',
+    111: '111 سجلًا',
+    1000: '1000 سجل',
+  })
+  assert.equal(documentCount(2), 'مستندان')
+  assert.equal(documentCount(12), '12 مستندًا')
+  assert.equal(countForm(0), 'zero')
+  // Each form is its own catalog text, so an English interface reads naturally.
+  const english = createTranslator(
+    Object.fromEntries(
+      Object.entries(arabicInterfaceMessages).map(([key, text]) => [
+        text,
+        englishInterfaceMessages[key],
+      ])
+    )
+  )
+  assert.equal(recordCount(1, english), '1 record')
+  assert.equal(recordCount(2, english), '2 records')
+  assert.equal(recordCount(11, english), '11 records')
 })
 
 test('labels use the current language when present and fall back to Arabic', () => {

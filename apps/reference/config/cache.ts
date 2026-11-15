@@ -1,10 +1,12 @@
 import app from '@adonisjs/core/services/app'
+import env from '#start/env'
 import { defineConfig, store, drivers } from '@adonisjs/cache'
 import type { InferStores } from '@adonisjs/cache/types'
 
 const cacheConfig = defineConfig({
   default: 'redis',
-  prefix: app.inTest ? 'adula-reference-test' : 'adula-reference',
+  // Each test database has its own prefix, so concurrent runs never clear each other's cache.
+  prefix: app.inTest ? `adula-reference-test:${env.get('DB_DATABASE')}` : 'adula-reference',
   ttl: '5m',
   stores: {
     redis: store()

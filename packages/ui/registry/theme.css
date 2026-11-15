@@ -6,14 +6,17 @@
 @import '@fontsource/ibm-plex-sans-arabic/700.css';
 @source "../";
 
+/* Dark mode follows the `dark` class the server renders on <html> (ADR 049). */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --font-sans: var(--brand-font, 'IBM Plex Sans Arabic'), sans-serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--foreground);
-  --color-popover: var(--card);
-  --color-popover-foreground: var(--foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
@@ -23,6 +26,11 @@
   --color-accent: var(--accent);
   --color-accent-foreground: var(--primary);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  /* Status colors for text, icons and tinted backgrounds (bg-success/10), in both themes. */
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
   --color-border: var(--border);
   --color-input: var(--border);
   --color-ring: var(--ring);
@@ -34,18 +42,47 @@
 
 /* Identity tokens: override any of these (and --brand-font) in the project-owned brand.css. */
 :root {
+  color-scheme: light;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.145 0 0);
   --primary: oklch(0.205 0 0);
   --primary-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.527 0.154 150.069);
+  --warning: oklch(0.555 0.163 48.998);
+  --info: oklch(0.488 0.243 264.376);
   --ring: oklch(0.708 0 0);
   --secondary: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
   --accent: oklch(0.97 0 0);
   --border: oklch(0.922 0 0);
   --radius: 0.625rem;
+}
+
+/* The dark theme (#155): every token above, with text at 4.5:1 or more on its surfaces. */
+.dark {
+  color-scheme: dark;
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.145 0 0);
+  --success: oklch(0.792 0.209 151.711);
+  --warning: oklch(0.828 0.189 84.429);
+  --info: oklch(0.707 0.165 254.624);
+  --ring: oklch(0.556 0 0);
+  --secondary: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --border: oklch(1 0 0 / 12%);
 }
 
 @layer base {
@@ -73,6 +110,15 @@
 }
 body {
   font-family: var(--font-sans);
+}
+/* A dialog locks page scrolling (react-remove-scroll), which hides the page's scrollbar and
+   pads the body by its width on the right so nothing moves. The side of the page's scrollbar
+   is the browser's, not the direction's (Chromium keeps it on the right in a right-to-left
+   page, Firefox moves it left): dialog.tsx measures it, and where it is on the left the room
+   moves there. */
+html[data-root-scrollbar='left'] body[data-scroll-locked] {
+  margin-right: 0 !important;
+  margin-left: var(--removed-body-scroll-bar-size, 0px) !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

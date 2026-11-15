@@ -314,12 +314,14 @@ test('code generation does not open the notification listener', async () => {
   )
 })
 
-test('the home page title the creator rebrands still exists', async () => {
+test('the home page title leaves the application name to the title template', async () => {
   const template = JSON.parse(
     await readFile(new URL('../build/template.json', import.meta.url), 'utf8')
   )
-  // If this text moves, the brand import goes unused and the new system fails its typecheck.
-  assert.ok(template.files['inertia/pages/home.tsx'].includes("{ app: 'AdulaJS' }"))
+  // app.tsx appends the company to every title; a page that adds it too shows it twice.
+  const home = template.files['inertia/pages/home.tsx']
+  assert.match(home, /<Head title=\{t\('مساحة العمل'\)\} \/>/)
+  assert.doesNotMatch(home, /AdulaJS|\{app\}/)
 })
 
 test('starter pages compose the registry Select instead of native lists', async () => {

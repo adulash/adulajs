@@ -113,6 +113,18 @@ test.group('Saved views over HTTP', (group) => {
     )
   })
 
+  test('a read-only colleague cannot publish a shared view', async ({ client, assert }) => {
+    const refused = await client
+      .post(base)
+      .loginAs(colleague.user)
+      .withCsrfToken()
+      .headers(json)
+      .json({ name: 'للجميع', query: {}, shared: true })
+    refused.assertStatus(403)
+    const rows = await knex()('saved_views').count('* as count')
+    assert.equal(rows[0].count, '0')
+  })
+
   test('a colleague cannot delete a view they do not own', async ({ client, assert }) => {
     const created = await client
       .post(base)

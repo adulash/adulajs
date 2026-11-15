@@ -9,7 +9,10 @@ import {
 } from '../index.js'
 import type { Actor, RecordData } from '../index.js'
 import { AdulaError, ResourceRegistry } from '../index.js'
+import { unzipSync } from 'fflate'
+import { readSheet } from 'read-excel-file/universal'
 import { csvCell } from '../src/admin/resource/export.js'
+import { guardFormula, guardXlsx } from '../index.js'
 import { admin, customer, db } from './helpers.js'
 import { failure } from './helpers/failure.js'
 import { clerk, item, listRegistry, setupListItems } from './helpers/list_items.js'
@@ -189,6 +192,73 @@ test.group('CSV export (ADR 046)', (group) => {
     assert.equal(audit.changes.resource, 'list_items')
     assert.equal(audit.changes.rows, 4)
     assert.deepEqual(audit.changes.query, { sort: 'title' })
+    assert.equal(audit.changes.format, 'csv')
+  })
+
+  test('the Excel export has the same rows with typed cells, right to left', async ({ assert }) => {
+    await db('activities').where({ resource: 'core.exports' }).del()
+    const file = await service().exportXlsx('list_items', admin, { sort: 'title' })
+    assert.equal(file.rows, 4)
+    assert.match(file.filename, /^عناصر القائمة-\d{4}-\d{2}-\d{2}\.xlsx$/)
+    assert.match(file.asciiFilename, /^list_items-\d{4}-\d{2}-\d{2}\.xlsx$/)
+    const guarded = guardXlsx(file.content)
+    const sheetXml = new TextDecoder().decode(unzipSync(guarded.archive)[guarded.sheetPath])
+    assert.include(sheetXml, 'rightToLeft="1"')
+    const bytes = file.content.buffer.slice(
+      file.content.byteOffset,
+      file.content.byteOffset + file.content.byteLength
+    ) as ArrayBuffer
+    const [header, alpha, beta] = await readSheet(bytes)
+    assert.deepEqual(header, [
+      'العنوان',
+      'ملاحظة',
+      'الحالة',
+      'الكمية',
+      'المبلغ',
+      'الاستحقاق',
+      'شوهد',
+      'نشط',
+      'المالك',
+      'العميل',
+      'سري',
+    ])
+    assert.deepEqual(alpha, [
+      'Alpha',
+      null,
+      'مفتوح',
+      5,
+      10,
+      new Date('2026-01-10T00:00:00.000Z'),
+      '2026-01-10T08:00:00.000Z',
+      'نعم',
+      'مدير النظام',
+      `'=HYPERLINK("x")`,
+      7,
+    ] as unknown[])
+    assert.equal(beta[7], 'لا')
+    // No cell holds a formula: user text is stored as a string, guarded like CSV.
+    assert.notInclude(sheetXml, '<f>')
+    const audit = await db('activities').where({ resource: 'core.exports' }).first()
+    assert.equal(audit.changes.format, 'xlsx')
+    assert.equal(audit.changes.rows, 4)
+    // The same authorization as the CSV export.
+    const refused = await failure(() => service().exportXlsx('list_items', nobody()))
+    assert.equal(refused.status, 403)
+    const scoped = await service().exportXlsx('list_items', clerk(), { sort: 'title' })
+    const [clerkHeader] = await readSheet(
+      scoped.content.buffer.slice(
+        scoped.content.byteOffset,
+        scoped.content.byteOffset + scoped.content.byteLength
+      ) as ArrayBuffer
+    )
+    assert.notInclude(clerkHeader, 'سري')
+  })
+
+  test('guardFormula prefixes text a spreadsheet would evaluate', ({ assert }) => {
+    for (const text of ['=1+1', '+1', '-1', '@SUM(A1)', '\tx', '\rx', '  =x', '＝x'])
+      assert.equal(guardFormula(text), `'${text}`)
+    for (const text of ['مبلغ', 'a=b', '1-2', '']) assert.equal(guardFormula(text), text)
+    assert.equal(csvCell('=x', true), `"'=x"`)
   })
 
   test('the export is the actor list: scope, filters and hidden fields', async ({ assert }) => {
@@ -238,6 +308,8 @@ test.group('CSV export (ADR 046)', (group) => {
         error.message,
         'عدد السجلات المطابقة يتجاوز حد التصدير (5000 سجل). ضيّق التصفية ثم أعد المحاولة.'
       )
+      const workbook = await failure(() => service().exportXlsx('list_items', admin))
+      assert.equal(workbook.code, 'E_EXPORT_LIMIT')
       const after = await db('activities').where({ resource: 'core.exports' }).count('* as c')
       assert.deepEqual(after, before)
       // Exactly the limit is allowed.
@@ -823,5 +895,109 @@ test.group('Dashboards (ADR 046)', (group) => {
     const unknown = await failure(() => dashboards().render('constructor', admin))
     assert.equal(unknown.status, 404)
     assert.equal(unknown.message, 'لوحة المؤشرات غير موجودة')
+  })
+  test('the personal overview shows only readable widgets in the saved order (ADR 050)', async ({
+    assert,
+  }) => {
+    const personal = defineDashboard({
+      name: 'personal',
+      label: { ar: 'شخصي' },
+      widgets: [
+        {
+          key: 'count',
+          label: { ar: 'العدد' },
+          resource: 'list_items',
+          measure: 'count',
+          overview: true,
+        },
+        {
+          key: 'secretSum',
+          label: { ar: 'السري' },
+          resource: 'list_items',
+          measure: { sum: 'secret' },
+          overview: true,
+        },
+        {
+          key: 'orders',
+          label: { ar: 'الطلبات' },
+          resource: 'orders',
+          measure: 'count',
+          overview: true,
+        },
+        {
+          key: 'notOffered',
+          label: { ar: 'خارج النظرة' },
+          resource: 'list_items',
+          measure: 'count',
+        },
+      ],
+    })
+    assert.throws(
+      () =>
+        defineDashboard({
+          name: 'bad',
+          label: { ar: 'x' },
+          widgets: [
+            {
+              key: 'a',
+              label: { ar: 'أ' },
+              resource: 'list_items',
+              measure: 'count',
+              overview: 'yes' as never,
+            },
+          ],
+        }),
+      /overview is true or false/
+    )
+    const boards = new Dashboards(db, listRegistry, service(), [personal])
+    const builtins = [
+      { id: 'core.welcome', label: 'مرحبًا' },
+      { id: 'core.tasks', label: 'مهامي' },
+    ]
+    const ids = (state: { widgets: { id: string }[] }) => state.widgets.map((widget) => widget.id)
+
+    const first = await boards.overview(admin, null, builtins)
+    assert.deepEqual(ids(first), [
+      'core.welcome',
+      'core.tasks',
+      'dashboard.personal.count',
+      'dashboard.personal.secretSum',
+      'dashboard.personal.orders',
+    ])
+    assert.isFalse(first.customized)
+    assert.deepInclude(first.widgets[2], {
+      kind: 'dashboard',
+      hidden: false,
+      dashboard: 'personal',
+    })
+
+    // A clerk who may not read the secret field or orders never gets those widgets, even when
+    // their saved layout names them; unknown ids are dropped and new widgets are appended.
+    const saved = {
+      order: ['dashboard.personal.orders', 'dashboard.personal.secretSum', 'nothing', 'core.tasks'],
+      hidden: ['dashboard.personal.secretSum', 'core.welcome', 'nothing'],
+    }
+    const clerkView = await boards.overview(clerk(), saved, builtins)
+    assert.deepEqual(ids(clerkView), ['core.tasks', 'core.welcome', 'dashboard.personal.count'])
+    assert.deepEqual(
+      clerkView.widgets.map((widget) => widget.hidden),
+      [false, true, false]
+    )
+    assert.isTrue(clerkView.customized)
+    const count = clerkView.widgets[2]
+    assert.equal(count.kind === 'dashboard' && count.data?.value, 3)
+    assert.notInclude(JSON.stringify(clerkView), 'secret')
+
+    // The administrator's hidden widget is listed for the dialog but not computed.
+    const adminView = await boards.overview(admin, saved, builtins)
+    assert.deepEqual(ids(adminView).slice(0, 3), [
+      'dashboard.personal.orders',
+      'dashboard.personal.secretSum',
+      'core.tasks',
+    ])
+    const secret = adminView.widgets[1]
+    assert.isTrue(secret.hidden)
+    assert.isNull(secret.kind === 'dashboard' ? secret.data : 'builtin')
+    assert.deepEqual(await boards.overview(nobody(), saved, []), { widgets: [], customized: false })
   })
 })

@@ -1,4 +1,5 @@
 import { test } from '@japa/runner'
+import { removeAttachments } from '#tests/helpers/attachments'
 import { randomUUID } from 'node:crypto'
 import { spawn } from 'node:child_process'
 import { rm, stat } from 'node:fs/promises'
@@ -106,16 +107,10 @@ test.group('Attachment upload, download and storage migration', (group) => {
       { user_id: outsider.id, org_unit_id: outside.id },
     ])
     return async () => {
-      const rows = await knex()('attachments').whereIn(
-        'id',
-        uploaded.map((file) => file.id)
+      await removeAttachments(
+        uploaded.map((file) => file.id),
+        ['local', 'local_test_archive']
       )
-      for (const row of rows)
-        for (const disk of ['local', 'local_test_archive'] as const)
-          await drive
-            .use(disk)
-            .delete(row.path)
-            .catch(() => {})
       await rm(app.makePath('storage/uploads-test-archive'), { recursive: true, force: true })
     }
   })

@@ -27,7 +27,10 @@ or snapshot to keep in step.
    definition now lets be empty (for example a required field that gained `visibleWhen`;
    until then saving it hidden is 422 `E_NOT_NULL`), and `recreateUnique` drops and
    recreates, in the same migration, a unique index of a submittable table that still
-   counts cancelled documents. `NOT NULL` is never added to an existing column.
+   counts cancelled documents. `NOT NULL` is never added to an existing column. A resource
+   that gained `version: true` gets its `version` column in the same migration (existing
+   rows start at version 1); another missing standard column, such as `org_unit_id`, is
+   reported and the command exits 1, because no default can supply it.
 4. `node ace adula:doctor` runs the `resources.schema` check: for every registered resource
    it reports a missing table, missing columns, different column types, `NOT NULL` columns
    the definition lets be empty, missing unique indexes, unique indexes that still count
@@ -37,7 +40,11 @@ or snapshot to keep in step.
 `node ace adula:resource:snapshot <name>` is deprecated. It still rewrites a pending
 create-migration from the current definition and prints a notice pointing to
 `adula:resource:migration`; the `resources.snapshots` doctor check is unchanged (the
-snapshot records `visibleWhen` and the resolved `precision`/`scale`).
+snapshot records `visibleWhen`, the resolved `precision`/`scale` and the `group` of
+lookup fields). It writes nothing and exits 1 when a `belongsTo` or `manyToMany` field
+links a table whose create-migration runs later, since that foreign key would fail on a
+fresh database: keep the field out of the create-migration and add it with
+`adula:resource:migration` once both tables exist.
 
 ## Example
 
@@ -184,6 +191,7 @@ manyToMany yet.
 | `label`, `recordLabel`, `createLabel` | List heading (plural), record noun («إضافة مورد»), full create-button text. |
 | `scoped` | Required. `true` adds `org_unit_id` and organizational scope. `scope: { from }` copies the unit from a required belongsTo parent. |
 | `fields`, `list`, `form`, `show`, `serialize`, `hidden`, `title` | Field definitions and the keys each surface uses. `title` names the record in relations, pickers, tasks and approvals. |
+| `defaultSort` | The list's order when the user has chosen none, for example `{ field: 'code', direction: 'asc' }` (`id` or a sortable field; ascending unless given; ties by id in the same direction). Without it, lists, exports and the API list show the newest first: `created_at` descending, then `id` descending. A sort the user picks always wins. |
 | `unique` | Composite unique combinations, for example `[['orgUnitId', 'code']]`: a partial unique index over live rows (not cancelled documents on a submittable resource) per combination that treats NULLs as equal (`NULLS NOT DISTINCT`: two rows with the same code and both empty in another member conflict). Adding a combination with `adula:resource:migration` fails while live rows already repeat it, null members included: correct those rows first. Each needs two or more distinct stored fields; `orgUnitId` is allowed on a scoped resource (a code unique per unit). |
 | `submittable`, `version` | Draft/submit/cancel/amend-by-copy; optimistic versions (default with submittable). |
 | `actions` | `view`, `create`, `update`, `delete`, and `submit`, `cancel`, `amend` when submittable. |

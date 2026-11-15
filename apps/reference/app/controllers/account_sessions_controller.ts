@@ -2,12 +2,18 @@ import type { HttpContext } from '@adonisjs/core/http'
 import { Exception } from '@adonisjs/core/exceptions'
 import {
   listUserSessions,
+  markSignedOut,
   resolveSessionHandle,
   revokeSession,
   revokeUserSessions,
   sessionHandle,
 } from '#services/sessions'
-import { acting, endImpersonation } from '#services/impersonation'
+import {
+  acting,
+  activeImpersonation,
+  endImpersonation,
+  logImpersonationEnd,
+} from '#services/impersonation'
 
 export default class AccountSessionsController {
   async index({ inertia, auth, session }: HttpContext) {
@@ -30,8 +36,11 @@ export default class AccountSessionsController {
       })
     await revokeSession(id, acting(ctx))
     if (id === session.sessionId) {
+      const impersonation = activeImpersonation(ctx)
       await auth.use('web').logout()
+      markSignedOut(ctx)
       endImpersonation(session)
+      if (impersonation) await logImpersonationEnd(impersonation, 'logout')
       session.flash('success', 'أُنهيت جلستك الحالية. سجّل الدخول مجدداً عند الحاجة.')
       return response.redirect().toRoute('session.create')
     }

@@ -22,9 +22,10 @@ export { accessibleBy, authorizationSql, conditionSql } from './src/auth/sql.js'
 export { ACTOR_ID, resolveActorConditions } from './src/auth/conditions.js'
 export { ResourceService, canQueryField } from './src/admin/resource_service.js'
 export type { AggregateOptions, AggregateRow, ListOptions } from './src/admin/resource_service.js'
-export { EXPORT_ROW_LIMIT } from './src/admin/resource_service.js'
+export { EXPORT_ROW_LIMIT, guardFormula } from './src/admin/resource_service.js'
 export type {
   CsvExport,
+  XlsxExport,
   ExportOptions,
   ListFilterScalar,
   ListFilterValue,
@@ -49,6 +50,10 @@ export type {
   DashboardSummary,
   DashboardWidgetDefinition,
   DashboardWidgetResult,
+  OverviewBuiltin,
+  OverviewLayout,
+  OverviewState,
+  OverviewWidget,
 } from './src/lists/dashboards.js'
 export { serialize, writableInput, selectedFields } from './src/admin/contracts.js'
 export { AdulaError } from './src/admin/errors.js'
@@ -188,6 +193,14 @@ export type {
   ImportStartOptions,
 } from './src/integrations/imports.js'
 export { csvImportAdapter, importFile } from './src/integrations/import_adapters.js'
+export {
+  guardXlsx,
+  readXlsxTable,
+  xlsxImportAdapter,
+  XLSX_LIMITS,
+  XLSX_MIME_TYPE,
+} from './src/integrations/xlsx.js'
+export type { GuardedXlsx, XlsxLimits } from './src/integrations/xlsx.js'
 export type { ImportAdapter, ImportFile, ImportTable } from './src/integrations/import_adapters.js'
 export { createImportModesSchema, createImportLeasesSchema } from './src/database/schema.js'
 export { openApiDocument } from './src/integrations/openapi.js'
@@ -231,6 +244,8 @@ export { createPrintTemplatesSchema } from './src/database/schema.js'
 export { Webhooks, signWebhook, WEBHOOK_MAX_ATTEMPTS } from './src/integrations/webhooks.js'
 export {
   createOutboundPoster,
+  createOutboundRequester,
+  OutboundResponseTooLargeError,
   isBlockedAddress,
   outboundErrorCategory,
 } from './src/integrations/outbound.js'
@@ -350,7 +365,16 @@ export type {
   CalendarSystem,
   CalendarPreference,
   DigitsPreference,
+  NavigationLayout,
 } from './src/core/ui_preferences.js'
+export {
+  UserPreferences,
+  definePreference,
+  isPreferenceSetting,
+  PREFERENCE_PREFIX,
+  PREFERENCE_MAX_BYTES,
+} from './src/core/user_preferences.js'
+export type { PreferenceDefinition } from './src/core/user_preferences.js'
 export { moveOrgUnit } from './src/org/org_service.js'
 export { publishOutbox, consumeEvent } from './src/events/outbox.js'
 export type { Jobs, DomainEvent, Listener } from './src/events/outbox.js'
@@ -358,6 +382,41 @@ export { AdonisJobs } from './src/events/adonis_jobs.js'
 export { recordMutation } from './src/events/record_mutation.js'
 export { assessBackup, verifyBackup } from './src/services/backup.js'
 export type { BackupObject, BackupStatus } from './src/services/backup.js'
+export {
+  BACKUP_ARCHIVE_EXTENSION,
+  BACKUP_ARCHIVE_FILES,
+  BackupArchiveError,
+  createOpenStream,
+  createSealStream,
+  openBackupArchive,
+  parseBackupKey,
+  sealBackupArchive,
+} from './src/backups/archive.js'
+export type { BackupArchiveErrorCode } from './src/backups/archive.js'
+export {
+  BackupProviderError,
+  googleDriveProvider,
+  oneDriveProvider,
+} from './src/backups/providers.js'
+export type {
+  BackupProvider,
+  BackupProviderClient,
+  BackupProviderErrorCategory,
+  BackupProviderOptions,
+  GoogleDriveEndpoints,
+  OneDriveEndpoints,
+} from './src/backups/providers.js'
+export { BACKUP_FAILURE_MESSAGES, CloudBackups } from './src/backups/cloud_backups.js'
+export type {
+  BackupConnection,
+  BackupKind,
+  BackupRun,
+  BackupRunStatus,
+  BackupSchedule,
+  BackupTrigger,
+  CloudBackupStatus,
+  CloudBackupsOptions,
+} from './src/backups/cloud_backups.js'
 export { ActivityAdmin, logActivity } from './src/core/activity.js'
 export type {
   ActivityEntry,
@@ -378,6 +437,16 @@ export type {
   MatrixField,
 } from './src/core/roles.js'
 export { UsersAdmin } from './src/core/users.js'
+export {
+  UserAvatars,
+  avatarUrl,
+  avatarUrlFor,
+  avatarVersionColumn,
+  avatarHeaders,
+} from './src/core/user_avatars.js'
+export type { AvatarRecord, RemovedAvatarFile } from './src/core/user_avatars.js'
+export { prepareAvatarImage, AVATAR_LIMITS } from './src/core/avatar_image.js'
+export type { AvatarImage } from './src/core/avatar_image.js'
 export { UserInvitations, type InvitationDelivery } from './src/core/user_invitations.js'
 export type { UserSummary, UserPage, UserRoleAssignment, UserOrgUnit } from './src/core/users.js'
 export { OrgUnitsAdmin } from './src/core/org_units.js'
@@ -419,7 +488,14 @@ export type {
   QueueCounts,
   FailedJob,
 } from './src/core/health.js'
-export { MailDeliveryTest, MAIL_TEST_KEY, type MailTestState } from './src/core/mail_test.js'
+export {
+  MailDeliveryTest,
+  MAIL_TEST_KEY,
+  classifyMailFailure,
+  type MailFailure,
+  type MailFailureReason,
+  type MailTestState,
+} from './src/core/mail_test.js'
 export { InitialSetup, type SetupCheck } from './src/core/setup.js'
 export {
   administratorExists,
@@ -490,3 +566,54 @@ export type {
   HttpChannelInput,
 } from './src/core/notification_channels.js'
 export { isSealedSetting } from './src/core/settings.js'
+export {
+  parseResourceToolArgs,
+  runResourceTool,
+  resourceToolError,
+  RESOURCE_READ_SCHEMA,
+  RESOURCE_WRITE_SCHEMA,
+} from './src/admin/resource_tools.js'
+export type { ResourceToolCall, ResourceToolError } from './src/admin/resource_tools.js'
+export { Assistant } from './src/ai/assistant.js'
+export type { AssistantProposal, AssistantTurnResult, AssistantStatus } from './src/ai/assistant.js'
+export { AssistantSettings, ASSISTANT_LIMITS } from './src/ai/settings.js'
+export { MailSettings, MAIL_SETTINGS_KEY } from './src/core/mail_settings.js'
+export type {
+  MailSettingsView,
+  MailSettingsInput,
+  MailRuntime,
+  MailSecurity,
+} from './src/core/mail_settings.js'
+export type { AssistantSettingsView, AssistantSettingsInput } from './src/ai/settings.js'
+export { createChatClient, AssistantError } from './src/ai/client.js'
+export type { ChatClient, ChatRequest, ChatCompletion } from './src/ai/client.js'
+export {
+  Appearance,
+  APPEARANCE_LOGO_OWNER,
+  APPEARANCE_SETTING_KEY,
+  APPEARANCE_TEXT_LIMITS,
+  BASE_LOGO_RECORD,
+  dateIn,
+} from './src/appearance/appearance.js'
+export type {
+  AppearanceIdentity,
+  AppearanceLogo,
+  AppearanceOccasion,
+  RemovedLogoFile,
+  ResolvedAppearance,
+} from './src/appearance/appearance.js'
+export {
+  checkPrimaryColor,
+  contrast,
+  derivePrimaryTheme,
+  normalizeColor,
+  WCAG_AA,
+} from './src/appearance/colors.js'
+export type { ContrastCheck, DerivedTheme, ThemeColors } from './src/appearance/colors.js'
+export {
+  LOGO_LIMITS,
+  detectLogoType,
+  logoHeaders,
+  prepareLogoImage,
+} from './src/appearance/logo.js'
+export type { LogoImage, LogoType } from './src/appearance/logo.js'

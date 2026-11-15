@@ -9,6 +9,13 @@ export interface ApiDefinition {
   mcp: {
     post: typeof routes['mcp.post']
   }
+  assistant: {
+    acceptNotice: typeof routes['assistant.accept_notice']
+    startConversation: typeof routes['assistant.start_conversation']
+    turn: typeof routes['assistant.turn']
+    confirm: typeof routes['assistant.confirm']
+    reject: typeof routes['assistant.reject']
+  }
   inboundWebhooks: {
     receive: typeof routes['inbound_webhooks.receive']
   }
@@ -31,12 +38,18 @@ export interface ApiDefinition {
     cancel: typeof routes['resources.cancel']
     amend: typeof routes['resources.amend']
   }
+  recordViews: {
+    create: typeof routes['record_views.create']
+    show: typeof routes['record_views.show']
+    row: typeof routes['record_views.row']
+  }
   dashboards: {
     index: typeof routes['dashboards.index']
     show: typeof routes['dashboards.show']
   }
   imports: {
     store: typeof routes['imports.store']
+    template: typeof routes['imports.template']
     index: typeof routes['imports.index']
     show: typeof routes['imports.show']
     start: typeof routes['imports.start']
@@ -51,7 +64,9 @@ export interface ApiDefinition {
     follow: typeof routes['record_collaboration.follow']
     tags: typeof routes['record_collaboration.tags']
   }
-  print: typeof routes['print']
+  print: typeof routes['print'] & {
+    templates: typeof routes['print.templates']
+  }
   assignments: {
     forRecord: typeof routes['assignments.for_record']
     store: typeof routes['assignments.store']
@@ -66,9 +81,6 @@ export interface ApiDefinition {
     failed: typeof routes['workflows.failed']
     retry: typeof routes['workflows.retry']
   }
-  recordViews: {
-    show: typeof routes['record_views.show']
-  }
   savedViews: {
     store: typeof routes['saved_views.store']
     destroy: typeof routes['saved_views.destroy']
@@ -78,7 +90,10 @@ export interface ApiDefinition {
     show: typeof routes['attachments.show']
   }
   api: {
-    openApi: typeof routes['api.open_api']
+    openApi: typeof routes['api.open_api'] & {
+      client: typeof routes['api.open_api.client']
+      declarations: typeof routes['api.open_api.declarations']
+    }
     resources: {
       index: typeof routes['api.resources.index']
       aggregate: typeof routes['api.resources.aggregate']
@@ -95,6 +110,16 @@ export interface ApiDefinition {
       cancel: typeof routes['api.resources.cancel']
       amend: typeof routes['api.resources.amend']
     }
+    imports: {
+      index: typeof routes['api.imports.index']
+      show: typeof routes['api.imports.show']
+      start: typeof routes['api.imports.start']
+      store: typeof routes['api.imports.store']
+      template: typeof routes['api.imports.template']
+    }
+  }
+  appearanceLogos: {
+    show: typeof routes['appearance_logos.show']
   }
   newAccount: {
     create: typeof routes['new_account.create']
@@ -131,18 +156,37 @@ export interface ApiDefinition {
     link: typeof routes['oauth.link']
     unlink: typeof routes['oauth.unlink']
   }
+  avatars: {
+    show: typeof routes['avatars.show']
+    storeOwn: typeof routes['avatars.store_own']
+    destroyOwn: typeof routes['avatars.destroy_own']
+    storeFor: typeof routes['avatars.store_for']
+    destroyFor: typeof routes['avatars.destroy_for']
+  }
   profile: {
     show: typeof routes['profile.show']
     update: typeof routes['profile.update']
     password: typeof routes['profile.password']
+    channels: typeof routes['profile.channels']
+    channelCode: typeof routes['profile.channel_code']
+    channelConfirm: typeof routes['profile.channel_confirm']
   }
   language: {
     update: typeof routes['language.update']
   }
-  apiTokens: {
-    index: typeof routes['api_tokens.index']
-    store: typeof routes['api_tokens.store']
-    destroy: typeof routes['api_tokens.destroy']
+  preferences: {
+    update: typeof routes['preferences.update']
+    destroy: typeof routes['preferences.destroy']
+  }
+  delegations: {
+    index: typeof routes['delegations.index']
+    candidates: typeof routes['delegations.candidates']
+    store: typeof routes['delegations.store']
+    destroy: typeof routes['delegations.destroy']
+    adminIndex: typeof routes['delegations.admin_index']
+    adminCandidates: typeof routes['delegations.admin_candidates']
+    adminStore: typeof routes['delegations.admin_store']
+    adminDestroy: typeof routes['delegations.admin_destroy']
   }
   accountSessions: {
     index: typeof routes['account_sessions.index']
@@ -196,18 +240,44 @@ export interface ApiDefinition {
   adminJobs: {
     index: typeof routes['admin_jobs.index']
     retry: typeof routes['admin_jobs.retry']
+    runSync: typeof routes['admin_jobs.run_sync']
+    syncRuns: typeof routes['admin_jobs.sync_runs']
+  }
+  adminBackups: {
+    index: typeof routes['admin_backups.index']
+    connect: typeof routes['admin_backups.connect']
+    callback: typeof routes['admin_backups.callback']
+    disconnect: typeof routes['admin_backups.disconnect']
+    schedule: typeof routes['admin_backups.schedule']
+    run: typeof routes['admin_backups.run']
+    download: typeof routes['admin_backups.download']
   }
   adminSettings: {
     index: typeof routes['admin_settings.index']
+    mail: typeof routes['admin_settings.mail']
     testMail: typeof routes['admin_settings.test_mail']
     confirmMail: typeof routes['admin_settings.confirm_mail']
+    updateMail: typeof routes['admin_settings.update_mail']
+    setMailPassword: typeof routes['admin_settings.set_mail_password']
+    clearMailPassword: typeof routes['admin_settings.clear_mail_password']
     upsert: typeof routes['admin_settings.upsert']
+    updateChannel: typeof routes['admin_settings.update_channel']
+    rotateChannel: typeof routes['admin_settings.rotate_channel']
+    testChannel: typeof routes['admin_settings.test_channel']
     destroy: typeof routes['admin_settings.destroy']
   }
   adminTemplates: {
     index: typeof routes['admin_templates.index']
     update: typeof routes['admin_templates.update']
     reset: typeof routes['admin_templates.reset']
+  }
+  adminPrintTemplates: {
+    index: typeof routes['admin_print_templates.index']
+    store: typeof routes['admin_print_templates.store']
+    preview: typeof routes['admin_print_templates.preview']
+    show: typeof routes['admin_print_templates.show']
+    update: typeof routes['admin_print_templates.update']
+    versions: typeof routes['admin_print_templates.versions']
   }
   adminWebhooks: {
     index: typeof routes['admin_webhooks.index']
@@ -231,6 +301,27 @@ export interface ApiDefinition {
   }
   adminAuthenticationSettings: {
     update: typeof routes['admin_authentication_settings.update']
+  }
+  apiTokens: {
+    index: typeof routes['api_tokens.index']
+    store: typeof routes['api_tokens.store']
+    destroy: typeof routes['api_tokens.destroy']
+  }
+  adminAppearance: {
+    index: typeof routes['admin_appearance.index']
+    updateIdentity: typeof routes['admin_appearance.update_identity']
+    resetIdentity: typeof routes['admin_appearance.reset_identity']
+    uploadLogo: typeof routes['admin_appearance.upload_logo']
+    storeOccasion: typeof routes['admin_appearance.store_occasion']
+    updateOccasion: typeof routes['admin_appearance.update_occasion']
+    destroyOccasion: typeof routes['admin_appearance.destroy_occasion']
+  }
+  adminAssistant: {
+    index: typeof routes['admin_assistant.index']
+    update: typeof routes['admin_assistant.update']
+    setKey: typeof routes['admin_assistant.set_key']
+    clearKey: typeof routes['admin_assistant.clear_key']
+    test: typeof routes['admin_assistant.test']
   }
   adminLookups: {
     index: typeof routes['admin_lookups.index']

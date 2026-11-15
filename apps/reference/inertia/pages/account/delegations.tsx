@@ -1,10 +1,11 @@
-import { useState, type ReactElement } from 'react'
+import type { ReactElement } from 'react'
 import { Head } from '@inertiajs/react'
 import { Plus, UserRoundCheck } from 'lucide-react'
 import type { WorkflowDelegation } from 'adula'
 import Workspace from '~/layouts/workspace'
 import { Alert, AlertDescription } from '~/components/ui/alert'
 import { Button } from '~/components/ui/button'
+import { useDialogParam } from '~/components/ui/dialog_param'
 import { formatDate } from '~/components/ui/resource-value'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
 import { DelegationDialog, DelegationTable } from '~/components/delegations'
@@ -18,7 +19,8 @@ type Props = {
 /** Out-of-office delegation of the user's workflow approvals (ADR 044). */
 export default function AccountDelegations({ delegations, timeZone }: Props) {
   const { calendar } = useUiPreferences()
-  const [creating, setCreating] = useState(false)
+  // `?new=1` opens the create dialog over the list (decision 30).
+  const creating = useDialogParam('new', (value) => (value === '1' ? true : undefined))
   const active = delegations.given.find((item) => item.status === 'active')
   const current = delegations.given.filter(
     (item) => item.status === 'active' || item.status === 'scheduled'
@@ -42,7 +44,7 @@ export default function AccountDelegations({ delegations, timeZone }: Props) {
             ذلك في سجل التدفق، ولا يحصل على صلاحيات إضافية على السجلات.
           </p>
         </div>
-        <Button onClick={() => setCreating(true)}>
+        <Button onClick={() => creating.open()}>
           <Plus size={16} />
           تفويض جديد
         </Button>
@@ -93,8 +95,8 @@ export default function AccountDelegations({ delegations, timeZone }: Props) {
       )}
       <DelegationDialog
         timeZone={timeZone}
-        open={creating}
-        onOpenChange={setCreating}
+        open={creating.item !== null}
+        onOpenChange={(open) => (open ? creating.open() : creating.close())}
         endpoint="/account/delegations"
         candidatesUrl="/account/delegations/candidates"
       />

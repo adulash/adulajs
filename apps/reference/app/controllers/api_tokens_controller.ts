@@ -8,13 +8,16 @@ import { refuseTwoFactorRequired, twoFactorRequirementUnmet } from '#services/tw
 
 const ACCESS = { read: ['read'], write: ['read', 'write'] } as const
 
-/** Users manage their own personal API tokens; secrets are shown once. */
+/**
+ * Administrators manage their own personal API tokens in the settings (owner decision,
+ * 2.3.0); the administration middleware refuses everyone else. Secrets are shown once.
+ */
 export default class ApiTokensController {
   async index(ctx: HttpContext) {
     const user = ctx.auth.getUserOrFail()
     const tokens = await listUserTokens(user)
     if (wantsJson(ctx)) return { data: tokens }
-    return ctx.inertia.render('account/tokens', { tokens })
+    return ctx.inertia.render('admin/tokens/index', { tokens })
   }
 
   async store(ctx: HttpContext) {

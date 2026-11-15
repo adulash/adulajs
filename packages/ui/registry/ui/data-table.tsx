@@ -1,14 +1,32 @@
-import { useEffect, useRef, useState, type ComponentRef, type MouseEvent } from 'react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ComponentRef,
+  type MouseEvent,
+  type RefObject,
+} from 'react'
 import { InfiniteScroll, router, usePage } from '@inertiajs/react'
 import { Link } from '@adonisjs/inertia/react'
 import { tableFeatures, useTable } from '@tanstack/react-table'
-import { useVirtualizer } from '@tanstack/react-virtual'
+import {
+  elementScroll,
+  observeElementOffset,
+  observeElementRect,
+  observeWindowOffset,
+  observeWindowRect,
+  useVirtualizer,
+  windowScroll,
+} from '@tanstack/react-virtual'
 import axios from 'axios'
 import {
   ArrowDown,
   ArrowDownUp,
   ArrowUp,
   Download,
+  FileSpreadsheet,
+  FileText,
   Inbox,
   ListChecks,
   Loader2,
@@ -31,24 +49,48 @@ import { Alert, AlertDescription } from '~/components/ui/alert'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { Checkbox } from '~/components/ui/checkbox'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '~/components/ui/dropdown-menu'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
-import { useMessages } from '~/components/ui/messages'
+import { recordCount, useMessages } from '~/components/ui/messages'
 import { Can } from '~/components/ui/can'
 import { Input } from '~/components/ui/input'
 import { ResourceActions } from '~/components/ui/resource-actions'
-import { openRecord, rememberListView } from '~/components/ui/resource-surface'
-import { displayValue, type LookupOptions, type Option } from '~/components/ui/resource-value'
+import {
+  openRecord,
+  plainClick,
+  prefetchRecord,
+  rememberListView,
+} from '~/components/ui/resource-surface'
+import {
+  displayValue,
+  relatedUser,
+  type LookupOptions,
+  type Option,
+} from '~/components/ui/resource-value'
+import { UserAvatar } from '~/components/ui/user-avatar'
 import {
   FilterControl,
   describeFilter,
   filterValueLabel,
   type FilterLabels,
 } from '~/components/ui/list-filters'
-import { BulkBar, RestoreAction, actionScope, useBulkActions } from '~/components/ui/resource-bulk'
+import {
+  BulkBar,
+  RestoreAction,
+  actionScope,
+  useBulkActions,
+  type BulkAction,
+} from '~/components/ui/resource-bulk'
 import {
   clearFilter,
   exportHref,
   fromSavedFilter,
+  listUrl,
   readFilters,
   selectionState,
   serverMessage,
@@ -58,6 +100,10 @@ import {
   type FieldFilter,
 } from '~/components/ui/list_query'
 
+/** Below this figure the server counts exactly instead of estimating (#111). */
+export const EXACT_COUNT_LIMIT = 1000
+/** The actions column while the table scrolls sideways: pinned, with a shadow toward the cells. */
+const pinned = 'sticky end-0 z-[1] shadow-[0_0_12px_color-mix(in_oklab,var(--foreground)_12%,transparent)]'
 /** Rows above this count render through the virtualizer (plan section 13). */
 export const VIRTUAL_ROWS = 200
 const ROW_HEIGHT = 52
@@ -72,6 +118,125 @@ type ListDescription = ResourceDescription & {
   trash?: boolean
   exportable?: boolean
   bulk?: boolean
+}
+
+/**
+ * The nearest ancestor that scrolls vertically, or null when the page (window) scrolls (#109).
+ * The walk starts above the table section, so the table's own horizontal overflow never counts;
+ * `overflow-x: auto` alone makes an element's overflow-y auto without making it scroll.
+ */
+function scrollingAncestor(node: HTMLElement | null) {
+  for (
+    let element = node?.parentElement ?? null;
+    element && element !== document.body && element !== document.documentElement;
+    element = element.parentElement
+  ) {
+    const { overflowY } = getComputedStyle(element)
+    if (
+      (overflowY === 'auto' || overflowY === 'scroll') &&
+      element.scrollHeight > element.clientHeight
+    )
+      return element
+  }
+  return null
+}
+
+/**
+ * The list scrolls with the workspace (#109): its scroller is the page or a scrolling content
+ * column, resolved after mount (undefined until then) and again when an ancestor starts scrolling.
+ */
+function useScrollParent(anchor: RefObject<HTMLElement | null>, revision: unknown) {
+  const [parent, setParent] = useState<HTMLElement | null | undefined>(undefined)
+  useLayoutEffect(() => {
+    const resolve = () => setParent(scrollingAncestor(anchor.current))
+    resolve()
+    const scrolled = (event: Event) => {
+      const target = event.target
+      if (target instanceof HTMLElement && anchor.current && target.contains(anchor.current))
+        resolve()
+    }
+    window.addEventListener('resize', resolve)
+    document.addEventListener('scroll', scrolled, { capture: true, passive: true })
+    return () => {
+      window.removeEventListener('resize', resolve)
+      document.removeEventListener('scroll', scrolled, { capture: true })
+    }
+  }, [anchor, revision])
+  return parent
+}
+
+/**
+ * Runs `measure` on the next frame, at most once per frame. A ResizeObserver callback that
+ * changes layout (the table's overflow class) would otherwise report an observer loop.
+ */
+function framed(measure: () => void) {
+  let frame = 0
+  return {
+    run: () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(measure)
+    },
+    cancel: () => cancelAnimationFrame(frame),
+  }
+}
+
+/** Where the rows start inside the scroller, for the virtualizer's `scrollMargin`. */
+function useScrollMargin(
+  target: RefObject<HTMLElement | null>,
+  parent: HTMLElement | null | undefined,
+  active: boolean
+) {
+  const [margin, setMargin] = useState(0)
+  useLayoutEffect(() => {
+    if (!active || parent === undefined) return
+    const measure = () => {
+      const element = target.current
+      if (!element) return
+      const top = element.getBoundingClientRect().top
+      setMargin(
+        Math.round(
+          parent === null
+            ? top + window.scrollY
+            : top - parent.getBoundingClientRect().top + parent.scrollTop
+        )
+      )
+    }
+    measure()
+    const next = framed(measure)
+    const observer = new ResizeObserver(next.run)
+    observer.observe(parent ?? document.body)
+    window.addEventListener('resize', next.run)
+    return () => {
+      next.cancel()
+      observer.disconnect()
+      window.removeEventListener('resize', next.run)
+    }
+  }, [target, parent, active])
+  return margin
+}
+
+/** Whether the table is wider than its section, measured as the columns render (#109). */
+function useOverflowing(
+  wrapper: RefObject<HTMLElement | null>,
+  table: RefObject<HTMLElement | null>
+) {
+  const [overflowing, setOverflowing] = useState(false)
+  useLayoutEffect(() => {
+    const measure = () => {
+      if (wrapper.current && table.current)
+        setOverflowing(table.current.offsetWidth > wrapper.current.clientWidth + 1)
+    }
+    measure()
+    const next = framed(measure)
+    const observer = new ResizeObserver(next.run)
+    if (wrapper.current) observer.observe(wrapper.current)
+    if (table.current) observer.observe(table.current)
+    return () => {
+      next.cancel()
+      observer.disconnect()
+    }
+  }, [wrapper, table])
+  return overflowing
 }
 
 /** The file name from `Content-Disposition`, or null. */
@@ -94,6 +259,7 @@ export function DataTable({
   lookups = {},
   savedViews = [],
   trashed = false,
+  bulkActions: initialBulkActions,
 }: {
   resource: ResourceDescription
   result: ResourceList
@@ -101,10 +267,16 @@ export function DataTable({
   savedViews?: SavedView[]
   /** The «المحذوفات» list of `/resources/:name/trash`: rows offer restore only. */
   trashed?: boolean
+  /**
+   * The actor's bulk actions sent with the page (#108); without them the table loads them
+   * after mounting and the selection column appears in a second render.
+   */
+  bulkActions?: BulkAction[]
 }) {
   const { calendar } = useUiPreferences()
   const { t, label, locale } = useMessages()
-  const { url } = usePage()
+  const page = usePage<{ overlay?: { list?: unknown }; created?: string }>()
+  const url = listUrl(page.url, page.props.overlay)
   const description = resource as ListDescription
   const query = new URL(url, 'http://localhost').searchParams
   const listPath = `/resources/${resource.name}${trashed ? '/trash' : ''}`
@@ -115,9 +287,13 @@ export function DataTable({
   const [exportFailure, setExportFailure] = useState('')
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const labels = useRef<FilterLabels>({})
+  const section = useRef<HTMLElement>(null)
   const container = useRef<HTMLDivElement>(null)
+  const tableElement = useRef<HTMLTableElement>(null)
+  const body = useRef<HTMLTableSectionElement>(null)
+  const sentinel = useRef<HTMLDivElement>(null)
   const scroller = useRef<ComponentRef<typeof InfiniteScroll>>(null)
-  const offered = useBulkActions(resource.name, description.bulk !== false)
+  const offered = useBulkActions(resource.name, description.bulk !== false, initialBulkActions)
   // The «المحذوفات» list offers restore only; the active list everything else.
   const bulkActions = offered.filter(
     (action) => actionScope(action) === (trashed ? 'trash' : 'records')
@@ -136,7 +312,9 @@ export function DataTable({
     source: ResourceList | null
     permissions: ResourceList['permissions']
     related: ResourceList['related']
-  }>({ source: null, permissions: {}, related: {} })
+    /** The first page's count; later pages send none (#111). */
+    total: number | undefined
+  }>({ source: null, permissions: {}, related: {}, total: undefined })
   if (store.current.source !== result) {
     const related = { ...store.current.related }
     for (const [key, rows] of Object.entries(result.related))
@@ -147,9 +325,10 @@ export function DataTable({
       source: result,
       permissions: { ...store.current.permissions, ...result.permissions },
       related,
+      total: result.meta.estimatedTotal ?? store.current.total,
     }
   }
-  const { permissions, related } = store.current
+  const { permissions, related, total } = store.current
   const fields = resource.fields.filter(
     (field) => resource.list.includes(field.key) && field.type !== 'hasMany'
   )
@@ -166,21 +345,79 @@ export function DataTable({
     getRowId: (row) => String(row.id),
   })
   const rows = table.getRowModel().rows
+  // A record created from this list is pinned first (closeCreated, pinCreated): highlighted
+  // for a moment and scrolled into view, whatever the sort and however far the list scrolled.
+  const created = page.props.created
+  const [highlighted, setHighlighted] = useState<string | null>(null)
+  useEffect(() => {
+    if (!created) return
+    setHighlighted(created)
+    const timer = setTimeout(() => setHighlighted(null), 2400)
+    return () => clearTimeout(timer)
+  }, [created])
   const loadedIds = rows.map((row) => row.id)
   const selectable = bulkActions.length > 0
   const columns = fields.length + 1 + (selectable ? 1 : 0)
   const virtualized = rows.length > VIRTUAL_ROWS
+  const scrollParent = useScrollParent(section, rows.length)
+  const windowScrolling = scrollParent === null
+  const scrollMargin = useScrollMargin(body, scrollParent, virtualized)
+  const overflowing = useOverflowing(container, tableElement)
+  // One hook for both scrollers: the window observers replace the element ones (#109).
   const virtual = useVirtualizer({
     count: rows.length,
-    getScrollElement: () => container.current,
+    getScrollElement: () =>
+      (windowScrolling ? window : (scrollParent ?? null)) as unknown as HTMLElement | null,
+    observeElementRect: (windowScrolling
+      ? observeWindowRect
+      : observeElementRect) as unknown as typeof observeElementRect,
+    observeElementOffset: (windowScrolling
+      ? observeWindowOffset
+      : observeElementOffset) as unknown as typeof observeElementOffset,
+    scrollToFn: (windowScrolling ? windowScroll : elementScroll) as unknown as typeof elementScroll,
+    initialOffset: () => (windowScrolling ? window.scrollY : (scrollParent?.scrollTop ?? 0)),
+    scrollMargin,
     estimateSize: () => ROW_HEIGHT,
     overscan: 10,
-    enabled: virtualized,
+    enabled: virtualized && scrollParent !== undefined,
     getItemKey: (index) => rows[index].id,
   })
-  const items = virtualized
-    ? virtual.getVirtualItems()
-    : rows.map((_, index) => ({ index, start: 0, end: 0 }))
+  const scrollToCreated = useRef(virtual)
+  scrollToCreated.current = virtual
+  useEffect(() => {
+    if (!created) return
+    const row = body.current?.querySelector(`[data-row-id="${CSS.escape(created)}"]`)
+    if (row) row.scrollIntoView({ block: 'nearest' })
+    else scrollToCreated.current.scrollToIndex(0)
+  }, [created])
+  const items =
+    virtualized && scrollParent !== undefined
+      ? virtual.getVirtualItems()
+      : rows.slice(0, virtualized ? VIRTUAL_ROWS : rows.length).map((_, index) => ({
+          index,
+          start: scrollMargin,
+          end: scrollMargin,
+        }))
+  // Starts and ends include the rows' offset in the scroller; the spacers do not.
+  const before = virtualized ? Math.max(0, (items[0]?.start ?? scrollMargin) - scrollMargin) : 0
+  const after = virtualized
+    ? Math.max(0, virtual.getTotalSize() - ((items.at(-1)?.end ?? scrollMargin) - scrollMargin))
+    : 0
+  // The next page loads as the end of the list nears the bottom of the scroller (#109).
+  const loadNext = useRef(() => {})
+  loadNext.current = () => {
+    const element = sentinel.current
+    if (!element || failure || !scroller.current?.hasNext()) return
+    const bottom = scrollParent ? scrollParent.getBoundingClientRect().bottom : window.innerHeight
+    if (element.getBoundingClientRect().top - bottom < 200) scroller.current.fetchNext()
+  }
+  useEffect(() => {
+    if (scrollParent === undefined) return
+    const target: HTMLElement | Window = scrollParent ?? window
+    const scrolled = () => loadNext.current()
+    target.addEventListener('scroll', scrolled, { passive: true })
+    return () => target.removeEventListener('scroll', scrolled)
+  }, [scrollParent])
   const go = (next: URLSearchParams) => {
     next.delete('cursor')
     setQueryFailure('')
@@ -236,19 +473,24 @@ export function DataTable({
     }
   }
   // The server export reads the same filtered set as this list, page by page, up to its limit.
-  const exportResults = async () => {
+  const exportResults = async (format: 'csv' | 'xlsx') => {
     setExporting(true)
     setExportFailure('')
     try {
-      const response = await axios.get<Blob>(exportHref(resource.name, query), {
+      const response = await axios.get<Blob>(exportHref(resource.name, query, format), {
         responseType: 'blob',
-        headers: { Accept: 'text/csv, application/json' },
+        headers: {
+          Accept:
+            format === 'xlsx'
+              ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/json'
+              : 'text/csv, application/json',
+        },
       })
       const href = URL.createObjectURL(response.data)
       const link = document.createElement('a')
       link.href = href
       link.download =
-        attachmentName(response.headers['content-disposition']) ?? `${resource.label}.csv`
+        attachmentName(response.headers['content-disposition']) ?? `${resource.label}.${format}`
       link.click()
       // Revoking right after click can cancel the download in some browsers.
       setTimeout(() => URL.revokeObjectURL(href), 60_000)
@@ -264,8 +506,7 @@ export function DataTable({
   // Records open in a dialog over this list, which stays mounted (#31); modified clicks
   // (new tab, new window) keep the link's own behavior.
   const overlay = (event: MouseEvent, id: string, mode: 'show' | 'edit') => {
-    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
-      return
+    if (!plainClick(event)) return
     event.preventDefault()
     void openRecord(resource.name, id, mode)
   }
@@ -299,25 +540,29 @@ export function DataTable({
   const chosen = loadedIds.filter((id) => selected.has(id))
   return (
     <section
+      ref={section}
       aria-label={t('قائمة {resource}', { resource: resource.label })}
-      className="min-w-0 overflow-hidden rounded-xl border border-border bg-white shadow-[0_2px_10px_#1c302804]"
+      // overflow-clip keeps the rounded corners without becoming a scroll container, so the
+      // header sticks to the workspace scroller (#109).
+      className="min-w-0 overflow-clip rounded-xl border border-border bg-card shadow-[0_2px_10px_color-mix(in_oklab,var(--foreground)_2%,transparent)]"
     >
       <div className="flex flex-wrap items-center justify-between gap-4 border-b px-5 py-4">
         <div className="flex flex-wrap items-center gap-3">
           <h2 className="text-sm font-semibold">
-            {trashed
-              ? t('المحذوفات من {resource}', { resource: resource.label })
-              : t('سجل {resource}', { resource: resource.label })}
+            {/* The page heading names the resource; no label in an idafa slot here (#110). */}
+            {trashed ? t('المحذوفات') : t('السجلات')}
           </h2>
           <Badge variant="secondary" className="font-normal tabular-nums">
-            {t('{count} معروض', { count: rows.length })}
+            {t('المعروض: {count}', { count: rows.length })}
           </Badge>
           <span className="text-xs text-muted-foreground">
-            {result.meta.estimatedTotal !== undefined
-              ? t('نحو {count} سجل ضمن نطاقك', {
-                  count: result.meta.estimatedTotal,
-                })
-              : t('حسب نطاق صلاحياتك')}
+            {result.meta.nextCursor === null
+              ? t('ضمن نطاقك: {records}', { records: recordCount(rows.length, t) })
+              : total === undefined
+                ? t('حسب نطاق صلاحياتك')
+                : total < EXACT_COUNT_LIMIT
+                  ? t('ضمن نطاقك: {records}', { records: recordCount(total, t) })
+                  : t('ضمن نطاقك: {records} تقريبًا', { records: recordCount(total, t) })}
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -332,15 +577,28 @@ export function DataTable({
             </Button>
           )}
           {!trashed && description.exportable !== false && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void exportResults()}
-              disabled={!rows.length || exporting}
-            >
-              {exporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
-              {exporting ? t('جارٍ التصدير...') : t('تصدير النتائج')}
-            </Button>
+            <DropdownMenu dir="rtl">
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={!rows.length || exporting}>
+                  {exporting ? (
+                    <Loader2 size={15} className="animate-spin" />
+                  ) : (
+                    <Download size={15} />
+                  )}
+                  {exporting ? t('جارٍ التصدير...') : t('تصدير النتائج')}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => void exportResults('xlsx')}>
+                  <FileSpreadsheet size={15} />
+                  {t('ملف Excel (xlsx)')}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void exportResults('csv')}>
+                  <FileText size={15} />
+                  {t('ملف CSV')}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
       </div>
@@ -438,7 +696,7 @@ export function DataTable({
                 </li>
               ))}
               <li>
-                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={clearFilters}>
+                <Button variant="ghost" size="xs" onClick={clearFilters}>
                   <X size={14} />
                   {t('مسح التصفية')}
                 </Button>
@@ -514,19 +772,13 @@ export function DataTable({
         <div
           ref={container}
           data-slot="table-scroll"
-          className="max-h-[600px] overflow-auto"
-          onScroll={(event) => {
-            const element = event.currentTarget
-            if (
-              !failure &&
-              element.scrollHeight - element.scrollTop - element.clientHeight < 200 &&
-              scroller.current?.hasNext()
-            )
-              scroller.current.fetchNext()
-          }}
+          data-overflowing={overflowing ? '' : undefined}
+          // No scroller of its own: horizontal scrolling only when the columns do not fit (#109).
+          className={overflowing ? 'overflow-x-auto' : undefined}
         >
           <table
-            className="w-full min-w-[720px] text-start text-sm"
+            ref={tableElement}
+            className="w-full text-start text-sm"
             aria-rowcount={rows.length + 1}
             aria-label={resource.label}
           >
@@ -548,7 +800,7 @@ export function DataTable({
                   <th
                     key={field.key}
                     scope="col"
-                    className="h-11 whitespace-nowrap px-5 text-start font-medium"
+                    className="h-11 px-5 text-start font-medium"
                     aria-sort={
                       sort === field.key
                         ? direction === 'desc'
@@ -586,16 +838,16 @@ export function DataTable({
                 ))}
                 <th
                   scope="col"
-                  className="sticky end-0 border-s bg-muted px-5 text-start font-medium"
+                  className={`border-s bg-muted px-5 text-start font-medium ${overflowing ? pinned : ''}`}
                 >
                   {t('الإجراءات')}
                 </th>
               </tr>
             </thead>
-            <tbody>
-              {virtualized && items[0] && items[0].start > 0 && (
+            <tbody ref={body}>
+              {before > 0 && (
                 <tr aria-hidden="true">
-                  <td colSpan={columns} style={{ height: items[0].start }} />
+                  <td colSpan={columns} style={{ height: before }} />
                 </tr>
               )}
               {items.map(({ index }) => {
@@ -605,9 +857,13 @@ export function DataTable({
                 return (
                   <tr
                     key={id}
+                    ref={virtualized ? virtual.measureElement : undefined}
+                    data-index={index}
+                    data-row-id={id}
+                    data-created={highlighted === id ? '' : undefined}
                     aria-rowindex={index + 2}
                     aria-selected={selectable ? checked : undefined}
-                    className={`group border-b last:border-0 hover:bg-background ${checked ? 'bg-accent/40' : ''}`}
+                    className={`group border-b transition-colors duration-700 last:border-0 hover:bg-background ${checked ? 'bg-accent/40' : ''} ${highlighted === id ? 'bg-primary/10' : ''}`}
                     style={{ height: ROW_HEIGHT }}
                   >
                     {selectable && (
@@ -630,8 +886,10 @@ export function DataTable({
                         lookups={lookups}
                       />
                     ))}
-                    {/* Pinned at the inline end so wide tables keep their row actions in view. */}
-                    <td className="sticky end-0 whitespace-nowrap border-s bg-card px-5 text-xs group-hover:bg-background">
+                    {/* Pinned at the inline end, with a shadow, only while the columns overflow. */}
+                    <td
+                      className={`whitespace-nowrap border-s bg-card px-5 text-xs group-hover:bg-background ${overflowing ? pinned : ''}`}
+                    >
                       <span className="inline-flex items-center gap-1">
                         {trashed ? (
                           // Restore is authorized by the delete rule on the deleted record (ADR 046).
@@ -651,6 +909,9 @@ export function DataTable({
                               <Link
                                 href={`/resources/${resource.name}/${id}`}
                                 aria-label={t('عرض السجل {id}', { id })}
+                                // Fetched on hover or focus, so the details open complete.
+                                onPointerEnter={() => prefetchRecord(resource.name, id, 'show')}
+                                onFocus={() => prefetchRecord(resource.name, id, 'show')}
                                 onClick={(event) => overlay(event, id, 'show')}
                               >
                                 {t('عرض')}
@@ -661,6 +922,8 @@ export function DataTable({
                                 <Link
                                   href={`/resources/${resource.name}/${id}/edit`}
                                   aria-label={t('تعديل السجل {id}', { id })}
+                                  onPointerEnter={() => prefetchRecord(resource.name, id, 'edit')}
+                                  onFocus={() => prefetchRecord(resource.name, id, 'edit')}
                                   onClick={(event) => overlay(event, id, 'edit')}
                                 >
                                   {t('تعديل')}
@@ -672,7 +935,11 @@ export function DataTable({
                               id={id}
                               version={row.version ?? undefined}
                               permissions={permissions[id] ?? {}}
-                              label={t('السجل {id}', { id })}
+                              label={
+                                typeof row._title === 'string' && row._title
+                                  ? row._title
+                                  : t('السجل {id}', { id })
+                              }
                               size="sm"
                               variant="ghost"
                               onDone={refresh}
@@ -684,14 +951,9 @@ export function DataTable({
                   </tr>
                 )
               })}
-              {virtualized && (
+              {after > 0 && (
                 <tr aria-hidden="true">
-                  <td
-                    colSpan={columns}
-                    style={{
-                      height: Math.max(0, virtual.getTotalSize() - (items.at(-1)?.end ?? 0)),
-                    }}
-                  />
+                  <td colSpan={columns} style={{ height: after }} />
                 </tr>
               )}
               {!rows.length && (
@@ -728,6 +990,7 @@ export function DataTable({
             </tbody>
           </table>
         </div>
+        <div ref={sentinel} aria-hidden="true" />
       </InfiniteScroll>
     </section>
   )
@@ -810,23 +1073,25 @@ function SavedViewsBar({
         >
           <Button
             variant="ghost"
-            size="sm"
-            className="h-7 rounded-full px-2 text-xs"
+            size="xs"
+            className="rounded-full"
             onClick={() => onApply(view)}
           >
             {view.name}
             {!view.own && <span className="text-muted-foreground"> · {t('مشترك')}</span>}
           </Button>
           {view.own && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon-xs"
+              className="rounded-full"
               aria-label={t('حذف العرض {name}', { name: view.name })}
               disabled={busy}
               onClick={() => remove(view)}
-              className="text-muted-foreground transition-colors hover:text-destructive"
             >
-              <X size={13} />
-            </button>
+              <X aria-hidden />
+            </Button>
           )}
         </span>
       ))}
@@ -845,21 +1110,20 @@ function SavedViewsBar({
             <Checkbox checked={shared} onCheckedChange={(value) => setShared(value === true)} />
             {t('مشترك')}
           </label>
-          <Button type="submit" size="sm" className="h-8" disabled={busy || !name.trim()}>
+          <Button type="submit" size="sm" disabled={busy || !name.trim()}>
             {t('حفظ')}
           </Button>
           <Button
             type="button"
             variant="ghost"
             size="sm"
-            className="h-8"
             onClick={() => setNaming(false)}
           >
             {t('إلغاء')}
           </Button>
         </form>
       ) : (
-        <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setNaming(true)}>
+        <Button variant="outline" size="sm" onClick={() => setNaming(true)}>
           <BookmarkPlus size={14} />
           {t('حفظ العرض الحالي')}
         </Button>
@@ -885,16 +1149,28 @@ function Cell({
   const numeric = ['money', 'integer', 'decimal', 'percent', 'date', 'datetime'].includes(
     field.type
   )
+  const person = relatedUser(field, row, related)
   return (
-    <td
-      className={`max-w-[280px] truncate px-5 ${numeric ? 'tabular-nums' : ''}`}
-      dir={numeric ? 'ltr' : undefined}
-      title={text}
-    >
+    <td className="px-5 py-2" title={text}>
       {field.type === 'boolean' && row[field.key] !== null && row[field.key] !== undefined ? (
         <Badge variant={row[field.key] ? 'default' : 'secondary'}>{text}</Badge>
+      ) : person ? (
+        // One picture per cell, beside the name it decorates (ADR 050).
+        <span className="inline-flex items-center gap-1.5">
+          <UserAvatar user={person} size="xs" />
+          <bdi dir="auto" className="line-clamp-2 max-w-md break-words">
+            {text}
+          </bdi>
+        </span>
       ) : (
-        text
+        // The cell keeps the page direction; the value is isolated so «-3» and «12-3-ABC» read
+        // in their own order (#113), and text wraps to two lines instead of forcing width (#109).
+        <bdi
+          dir={numeric ? 'ltr' : 'auto'}
+          className={`line-clamp-2 max-w-md break-words ${numeric ? 'tabular-nums' : ''}`}
+        >
+          {text}
+        </bdi>
       )}
     </td>
   )

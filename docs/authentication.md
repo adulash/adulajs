@@ -217,6 +217,33 @@ The answers are:
 The resource pages (`/resources/*`) are not gated: they apply the same permissions as for
 any user and carry no administration screens.
 
+## API tokens
+
+API tokens belong to administrators (owner decision, 2.3.0). An administrator manages their
+own tokens under **Administration → Settings → رموز API** (`/admin/tokens`): create one
+with a name, an access level (read, or read-write) and an expiry of 1 to 365 days, copy
+its secret once, and revoke it. Everyone else receives 403 there, as on every `/admin`
+page.
+
+On `/api/v1`, a token works only while its owner is an administrator. A token of any other
+user, for example one minted before 2.3.0 or before its owner lost `manage all`, is refused
+with `403 E_TOKEN_ADMIN_ONLY` when it is used; its row is not deleted. The user's
+administration page lists that user's tokens and revokes them. An administrator acting as
+another user cannot mint a token: only non-administrators can be impersonated, so the
+administration check answers `403 E_FORBIDDEN` first, and the token controller's own
+`403 E_IMPERSONATING` check stays behind it. The second-factor requirement above still
+applies.
+
+## Impersonation
+
+An administrator may act as another non-administrator account from its user page to diagnose a
+problem. Starting asks for a written reason (10 to 500 characters) in a dialog;
+`POST /admin/users/:id/impersonate` without one answers `422 E_IMPERSONATION_REASON`. The
+`impersonate` activity row records the reason, IP address and user agent; the
+`stop_impersonation` row records how it ended (`stop`, `revoked` or `logout`), when it started,
+its duration in seconds and the start row's id. Every write made meanwhile names the
+administrator (`impersonatedBy`).
+
 ## Routes
 
 | Method and path                                                  | Purpose                                                                |
@@ -231,6 +258,9 @@ any user and carry no administration screens.
 | `GET /oauth/:provider/redirect`, `GET /oauth/:provider/callback` | Provider sign-in; the callback also completes linking                  |
 | `POST /admin/users/:id/reset-two-factor`                         | Administrator reset                                                    |
 | `PUT /admin/settings/authentication`                             | Enable or disable providers, and require two-factor for administrators |
+| `GET /admin/tokens`, `POST /admin/tokens`                        | List and create the administrator's own API tokens                     |
+| `DELETE /admin/tokens/:id`                                       | Revoke one of the administrator's own API tokens                       |
+| `POST /admin/users/:id/revoke-tokens`                            | Revoke every API token of a user                                       |
 
 ## ASVS 4.0.3 coverage
 
@@ -238,7 +268,7 @@ any user and carry no administration screens.
 
 | Item                                 | How                                                                                          |
 | ------------------------------------ | -------------------------------------------------------------------------------------------- |
-| 2.2.1                                | Lockout per (account, address), plus an account-wide ceiling for second-factor attempts      |
+| 2.3.0                                | Lockout per (account, address), plus an account-wide ceiling for second-factor attempts      |
 | 2.5.x                                | An administrator reset ends sessions and API tokens; disabling needs the password and a code |
 | 2.6.1–2.6.3                          | Recovery codes: single use, more than 80 bits each, salted SHA-256                           |
 | 2.8.1 and 2.8.3                      | RFC 6238 with a defined lifetime and a 160-bit secret                                        |

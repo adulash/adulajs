@@ -6,15 +6,10 @@ import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
 import { Label } from '~/components/ui/label'
 import { Textarea } from '~/components/ui/textarea'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '~/components/ui/dialog'
+import { Dialog, DialogClose } from '~/components/ui/dialog'
+import { LongDialogContent } from '~/components/ui/long-dialog'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
+import { UserAvatar } from '~/components/ui/user-avatar'
 import { formatDatetime } from '~/components/ui/resource-value'
 
 const json = { headers: { Accept: 'application/json' }, withXSRFToken: true }
@@ -79,7 +74,7 @@ export function SlaBadge({
     <span className="inline-flex flex-wrap items-center gap-1.5 text-xs">
       <Badge
         variant={state === 'overdue' ? 'destructive' : 'outline'}
-        className={state === 'due_soon' ? 'border-amber-300 bg-amber-50 text-amber-900' : undefined}
+        className={state === 'due_soon' ? 'border-warning/30 bg-warning/10 text-warning' : undefined}
       >
         <AlarmClock aria-hidden="true" />
         {slaStateLabel[state]}
@@ -98,7 +93,7 @@ export function SlaBadge({
 /** «On behalf of <name>» for an approval decided through a delegation. */
 export function OnBehalfOf({ name }: { name: string | null | undefined }) {
   return (
-    <Badge variant="outline" className="border-sky-300 bg-sky-50 text-sky-900">
+    <Badge variant="outline" className="border-info/30 bg-info/10 text-info">
       <UserRoundCheck aria-hidden="true" />
       نيابة عن {name ?? 'زميل'}
     </Badge>
@@ -185,23 +180,51 @@ export function WorkflowDecision({
           </Button>
         ))}
       </div>
-      <Dialog open={choice !== null} onOpenChange={(next) => !next && !busy && setChoice(null)}>
-        <DialogContent dir="rtl">
-          <DialogHeader>
-            <DialogTitle>
-              {choice && (form ? `تأكيد القرار: ${choice.label}` : dialogTitle[choice.key])}
-            </DialogTitle>
-            <DialogDescription>
-              {run.myApproval.title} — {run.resourceLabel}:{' '}
-              {run.recordTitle ?? `#${run.recordId}`}
-            </DialogDescription>
-          </DialogHeader>
+      <Dialog
+        mode="edit"
+        open={choice !== null}
+        onOpenChange={(next) => !next && !busy && setChoice(null)}
+        // The note is the only value typed here, and it opens empty.
+        value={comment}
+      >
+        <LongDialogContent
+          dir="rtl"
+          width="lg"
+          title={choice && (form ? `تأكيد القرار: ${choice.label}` : dialogTitle[choice.key])}
+          description={`${run.myApproval.title} — ${run.resourceLabel}: ${run.recordTitle ?? `#${run.recordId}`}`}
+          footer={
+            <>
+              <DialogClose asChild>
+                <Button type="button" variant="outline" disabled={busy}>
+                  إلغاء
+                </Button>
+              </DialogClose>
+              <Button
+                type="submit"
+                form={`decision-form-${run.id}`}
+                variant={rejecting ? 'destructive' : 'default'}
+                disabled={busy}
+              >
+                {choice?.label}
+              </Button>
+            </>
+          }
+        >
           {behalf && (
-            <p className="rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-900">
+            <p className="mb-4 rounded-lg bg-info/10 px-3 py-2 text-xs text-info">
               تقرر نيابة عن {behalf.name ?? 'زميل'} بموجب تفويض، ويُسجَّل القرار باسمك نيابة عنه.
             </p>
           )}
-          <div className="space-y-2">
+          <form
+            id={`decision-form-${run.id}`}
+            className="space-y-2"
+            // The required note is checked here, with an Arabic message, not by the browser.
+            noValidate
+            onSubmit={(event) => {
+              event.preventDefault()
+              void submit()
+            }}
+          >
             <Label htmlFor={`decision-comment-${run.id}`} className="flex items-center gap-1">
               {choice?.comment === 'required' ? (
                 <>
@@ -221,26 +244,16 @@ export function WorkflowDecision({
               required={choice?.comment === 'required'}
               onChange={(event) => setComment(event.target.value)}
             />
-          </div>
+          </form>
           {error && (
-            <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800">
+            <p
+              role="alert"
+              className="mt-4 rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive"
+            >
               {error}
             </p>
           )}
-          <DialogFooter>
-            <Button type="button" variant="outline" disabled={busy} onClick={() => setChoice(null)}>
-              تراجع
-            </Button>
-            <Button
-              type="button"
-              variant={rejecting ? 'destructive' : 'default'}
-              disabled={busy}
-              onClick={() => void submit()}
-            >
-              {choice?.label}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
+        </LongDialogContent>
       </Dialog>
     </>
   )
@@ -266,7 +279,7 @@ export function RecordWorkflows({ resource, id }: { resource: string; id: number
   }, [load])
   if (runs !== null && runs.length === 0) return null
   return (
-    <section aria-label="سير العمل" className="rounded-xl border bg-white">
+    <section aria-label="سير العمل" className="rounded-xl border bg-card">
       <div className="flex items-center gap-2 border-b px-7 py-4">
         <GitBranch size={16} className="text-muted-foreground" />
         <h2 className="text-sm font-semibold">سير العمل</h2>
@@ -308,7 +321,7 @@ export function RecordWorkflows({ resource, id }: { resource: string; id: number
                 </span>
               </div>
               {run.lastError && (
-                <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800">
+                <p className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
                   {run.lastError}
                 </p>
               )}
@@ -316,9 +329,23 @@ export function RecordWorkflows({ resource, id }: { resource: string; id: number
                 {run.history.map((entry, index) => (
                   <li key={index} className="flex flex-wrap gap-x-3">
                     <span className="font-medium">{eventLabel[entry.event] ?? entry.event}</span>
-                    {entry.actorName && <span>{entry.actorName}</span>}
+                    {entry.actorName && (
+                      <span className="inline-flex items-center gap-1.5">
+                        {entry.actorId ? (
+                          <UserAvatar
+                            user={{
+                              id: entry.actorId,
+                              name: entry.actorName,
+                              avatarUrl: entry.actorAvatarUrl,
+                            }}
+                            size="xs"
+                          />
+                        ) : null}
+                        {entry.actorName}
+                      </span>
+                    )}
                     {entry.onBehalfOfName && (
-                      <span className="text-sky-800">نيابة عن {entry.onBehalfOfName}</span>
+                      <span className="text-info">نيابة عن {entry.onBehalfOfName}</span>
                     )}
                     {entry.event === 'sla_escalated' &&
                       typeof entry.detail.action === 'string' && (

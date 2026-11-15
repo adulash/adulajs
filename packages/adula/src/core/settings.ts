@@ -3,6 +3,7 @@ import type { JsonValue } from '../resource/types.js'
 import { AdulaError } from '../admin/errors.js'
 import { logActivity } from './activity.js'
 import { UI_PREFERENCES_KEY, validateUiPreferences } from './ui_preferences.js'
+import { isPreferenceSetting } from './user_preferences.js'
 
 export type SettingScope = 'system' | 'org_unit' | 'user'
 export type SettingRow = {
@@ -30,16 +31,18 @@ export function isProtectedSetting(key: string) {
     PROTECTED_SETTING_KEYS.includes(key) ||
     key.startsWith('backup.') ||
     key.startsWith('setup.') ||
+    // Written by the appearance section (ADR 053), which validates colours and texts.
+    key.startsWith('appearance.') ||
     isSealedSetting(key)
   )
 }
 
 /**
- * Settings that hold a sealed secret (`channels.*`, written by their own section). The
- * settings screen lists them read-only and never returns the sealed value.
+ * Settings that hold a sealed secret (`channels.*`, `ai.*`, `mail.smtp`, written by their own
+ * section). The settings screen lists them read-only and never returns the sealed value.
  */
 export function isSealedSetting(key: string) {
-  return key.startsWith('channels.')
+  return key.startsWith('channels.') || key.startsWith('ai.') || key === 'mail.smtp'
 }
 
 function presentValue(key: string, value: JsonValue): JsonValue {
@@ -83,6 +86,10 @@ function toRow(row: Record<string, unknown>): SettingRow {
   }
 }
 
+function reserved(): never {
+  throw new AdulaError(403, 'E_SETTING_RESERVED', 'هذا المفتاح تفضيل شخصي يضبطه المستخدم من حسابه')
+}
+
 export class SettingsAdmin {
   constructor(private db: Knex) {}
 
@@ -90,12 +97,14 @@ export class SettingsAdmin {
     const rows = await this.db('settings')
       .where({ scope: settingScope(scope), scope_id: scopeId })
       .orderBy('key')
-    return rows.map(toRow)
+    // A user's own interface preferences are private to that user (ADR 049).
+    return rows.filter((row) => !isPreferenceSetting(String(row.key))).map(toRow)
   }
 
   async upsert(actorId: number, input: SettingInput): Promise<SettingRow> {
     const key = settingKey(input.key)
     const scope = settingScope(input.scope)
+    if (isPreferenceSetting(key)) reserved()
     if (key === UI_PREFERENCES_KEY) {
       if (scope !== 'system')
         throw new AdulaError(422, 'E_SETTING_SCOPE', 'تفضيلات الواجهة تُضبط على مستوى النظام')
@@ -128,6 +137,7 @@ export class SettingsAdmin {
     return this.db.transaction(async (trx) => {
       const row = await trx('settings').where('id', id).first()
       if (!row) throw new AdulaError(404, 'E_SETTING_NOT_FOUND', 'الإعداد غير موجود')
+      if (isPreferenceSetting(row.key)) reserved()
       if (isProtectedSetting(row.key))
         throw new AdulaError(403, 'E_SETTING_READ_ONLY', 'هذا المفتاح تشغيلي للقراءة فقط')
       await trx('settings').where('id', id).delete()

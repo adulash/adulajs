@@ -6,12 +6,18 @@ export type CalendarSystem = 'gregory' | 'islamic-umalqura'
 export type CalendarPreference = CalendarSystem | 'both'
 /** Latin (0-9) or Arabic-Indic (٠-٩) digits in printed documents. */
 export type DigitsPreference = 'latn' | 'arab'
+/** Where the workspace navigation sits: a side panel or a bar of tabs above the page. */
+export type NavigationLayout = 'sidebar' | 'top'
 export type UiPreferences = {
   calendar: CalendarPreference
   confirmDialogClose: boolean
   pageTransitions: boolean
   /** Optional for values stored before it existed; absent means 'latn'. */
   digits?: DigitsPreference
+  /** The system's navigation layout; absent means 'sidebar'. */
+  layout?: NavigationLayout
+  /** Lets each user choose their own layout from the account menu; absent means false. */
+  layoutUserChoice?: boolean
 }
 export const UI_PREFERENCES_KEY = 'ui.preferences'
 export const DEFAULT_UI_PREFERENCES: UiPreferences = {
@@ -20,7 +26,14 @@ export const DEFAULT_UI_PREFERENCES: UiPreferences = {
   pageTransitions: true,
 }
 
-const PREFERENCE_KEYS = ['calendar', 'confirmDialogClose', 'pageTransitions', 'digits']
+const PREFERENCE_KEYS = [
+  'calendar',
+  'confirmDialogClose',
+  'pageTransitions',
+  'digits',
+  'layout',
+  'layoutUserChoice',
+]
 
 export function validateUiPreferences(value: unknown): UiPreferences {
   const input = value as UiPreferences | undefined
@@ -32,6 +45,8 @@ export function validateUiPreferences(value: unknown): UiPreferences {
     typeof input.confirmDialogClose !== 'boolean' ||
     typeof input.pageTransitions !== 'boolean' ||
     (input.digits !== undefined && !['latn', 'arab'].includes(input.digits)) ||
+    (input.layout !== undefined && !['sidebar', 'top'].includes(input.layout)) ||
+    (input.layoutUserChoice !== undefined && typeof input.layoutUserChoice !== 'boolean') ||
     Object.keys(input).some((key) => !PREFERENCE_KEYS.includes(key))
   )
     throw new AdulaError(
@@ -44,6 +59,8 @@ export function validateUiPreferences(value: unknown): UiPreferences {
     confirmDialogClose: input.confirmDialogClose,
     pageTransitions: input.pageTransitions,
     ...(input.digits === undefined ? {} : { digits: input.digits }),
+    ...(input.layout === undefined ? {} : { layout: input.layout }),
+    ...(input.layoutUserChoice === undefined ? {} : { layoutUserChoice: input.layoutUserChoice }),
   }
 }
 

@@ -1,32 +1,42 @@
 import env from '#start/env'
-import { defineConfig, transports } from '@adonisjs/mail'
-
-const smtpUser = env.get('SMTP_USERNAME')
-const smtpPassword = env.get('SMTP_PASSWORD')
+import { defineConfig } from '@adonisjs/mail'
+import type { MailTransportContract, NodeMailerMessage } from '@adonisjs/mail/types'
 
 /**
- * SMTP only: no external mail service. Tests fake the mailer, and a local
- * relay on 127.0.0.1:1025 is the development default.
+ * SMTP only: no external mail service. The `smtp` mailer reads the settings saved in the
+ * administration at send time and falls back to the SMTP_* variables (ADR 020 amendment).
+ * It loads lazily, because services are not ready while the configuration is read.
  */
+class Smtp implements MailTransportContract {
+  #inner?: Promise<MailTransportContract>
+
+  #transport() {
+    this.#inner ??= import('#services/mail_transport').then(
+      ({ SettingsSmtpTransport }) => new SettingsSmtpTransport()
+    )
+    return this.#inner
+  }
+
+  async send(message: NodeMailerMessage) {
+    const transport = await this.#transport()
+    return transport.send(message)
+  }
+
+  async close() {
+    if (!this.#inner) return
+    const transport = await this.#inner
+    await transport.close?.()
+  }
+}
+
 const mailConfig = defineConfig({
   default: env.get('MAIL_MAILER') ?? 'smtp',
   from: {
     address: env.get('MAIL_FROM_ADDRESS') ?? 'no-reply@localhost',
-    name: env.get('MAIL_FROM_NAME') ?? 'عدولة',
+    name: env.get('MAIL_FROM_NAME') ?? 'أدولا',
   },
   mailers: {
-    smtp: transports.smtp({
-      host: env.get('SMTP_HOST') ?? '127.0.0.1',
-      port: env.get('SMTP_PORT') ?? 1025,
-      secure: env.get('SMTP_SECURE') ?? env.get('SMTP_PORT') === 465,
-      requireTLS: env.get('SMTP_REQUIRE_TLS') ?? env.get('NODE_ENV') === 'production',
-      connectionTimeout: 10000,
-      greetingTimeout: 10000,
-      socketTimeout: 20000,
-      ...(smtpUser && smtpPassword
-        ? { auth: { type: 'login' as const, user: smtpUser, pass: smtpPassword } }
-        : {}),
-    }),
+    smtp: (): MailTransportContract => new Smtp(),
   },
 })
 

@@ -108,14 +108,17 @@ files['tsconfig.json'] = files['tsconfig.json'].replace(', "tests/fixtures/front
 // Test cleanup is restricted to a dedicated database; new applications own their
 // tests and retain the same PostgreSQL authorization contract used by generators.
 files['tests/bootstrap.ts'] = files['tests/bootstrap.ts']
-  .replace('adula-reference-test', 'application-specific test')
+  .replace('adula-reference-test:<test database>', '<namespace>-test:<test database>')
   .replace(/      await db.rawQuery\([\s\S]*?\n      \)/, '')
-for (const path of ['config/cache.ts', 'config/queue.ts'])
-  files[path] =
-    "import env from '#start/env'\n" +
-    files[path]
-      .replaceAll("'adula-reference-test'", "`${env.get('ADULA_NAMESPACE')}-test`")
-      .replaceAll("'adula-reference'", "env.get('ADULA_NAMESPACE')")
+// The reference configs already import env and key the test prefix by the test database.
+for (const path of ['config/cache.ts', 'config/queue.ts']) {
+  const source = files[path]
+    .replaceAll('`adula-reference-test:${', "`${env.get('ADULA_NAMESPACE')}-test:${")
+    .replaceAll("'adula-reference'", "env.get('ADULA_NAMESPACE')")
+  if (source.includes('adula-reference') || !source.includes("import env from '#start/env'"))
+    throw new Error(`${path}: the reference cache/queue prefix changed shape`)
+  files[path] = source
+}
 files['start/env.ts'] = files['start/env.ts'].replace(
   '  // App\n',
   '  // App\n  ADULA_NAMESPACE: Env.schema.string(),\n'

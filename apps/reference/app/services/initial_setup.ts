@@ -7,7 +7,13 @@ import redis from '@adonisjs/redis/services/main'
 import drive from '@adonisjs/drive/services/main'
 import { InitialSetup, Settings, runtimeHealth, type SetupCheck } from 'adula'
 import env from '#start/env'
-import { mailTest, mailFingerprint, publicMailTest } from '#services/mail_delivery_test'
+import { adula } from '#services/adula'
+import {
+  mailTest,
+  mailFingerprint,
+  publicMailTest,
+  mailSetupProps,
+} from '#services/mail_delivery_test'
 
 const database = () => db.connection().getWriteClient()
 export const setup = () => new InitialSetup(database())
@@ -57,7 +63,45 @@ const oauthCredentials = (provider: OauthProvider) =>
 export const oauthFingerprint = (provider: OauthProvider) =>
   fingerprint([...oauthCredentials(provider), env.get('APP_URL')])
 
+/**
+ * The deployment's identity: the company name and logo saved in «المظهر والهوية» (ADR 053),
+ * over the project's company-identity.json or the root unit's name. Printed documents, the
+ * two-factor issuer and the shells use it; `logoId` is an appearance logo in storage.
+ */
 export async function identity() {
+  const base = await fileIdentity()
+  const saved = await adula().appearance.resolve()
+  return {
+    company: saved.company ?? base.company,
+    logo: saved.logoId ? null : base.logo,
+    logoId: saved.logoId,
+  }
+}
+
+/** The identity the project files declare; the setup checklist approves this one. */
+type FileIdentity = { company: string; logo: string | null }
+const FILE_IDENTITY_MS = 30_000
+let fileIdentityCache: { at: number; value: Promise<FileIdentity> } | null = null
+
+/**
+ * The identity from company-identity.json, else the root organisation unit. Every Inertia
+ * request reads it through the shared `appearance` prop, so it is kept for 30 seconds, like
+ * the occasions; a failed read is not kept.
+ */
+export function fileIdentity(): Promise<FileIdentity> {
+  const now = Date.now()
+  if (fileIdentityCache && now - fileIdentityCache.at < FILE_IDENTITY_MS)
+    return fileIdentityCache.value
+  const value = readFileIdentity()
+  const entry = { at: now, value }
+  fileIdentityCache = entry
+  value.catch(() => {
+    if (fileIdentityCache === entry) fileIdentityCache = null
+  })
+  return value
+}
+
+async function readFileIdentity(): Promise<FileIdentity> {
   try {
     const brand = JSON.parse(await readFile(app.makePath('company-identity.json'), 'utf8')) as {
       company: string
@@ -111,7 +155,7 @@ export async function identityFingerprint() {
   const sources = await Promise.all(
     ['docs/design-identity.md', 'inertia/css/brand.css', 'inertia/brand.ts'].map(identitySource)
   )
-  return fingerprint([await identity(), ...sources])
+  return fingerprint([await fileIdentity(), ...sources])
 }
 export async function probeInfrastructure() {
   await database().raw('SELECT 1')
@@ -142,7 +186,7 @@ export async function setupSnapshot(user: { id: number; email: string }) {
         .where({ id: notification.id, user_id: user.id })
         .first('read_at')
     : null
-  const mail = await mailTest().current(user.id, user.email, mailFingerprint())
+  const mail = await mailTest().current(user.id, user.email, await mailFingerprint())
   const oauth = await Promise.all(
     (['github', 'google', 'microsoft'] as const).map(async (provider) => {
       const configured = oauthCredentials(provider).every(Boolean)
@@ -179,6 +223,7 @@ export async function setupSnapshot(user: { id: number; email: string }) {
     identityConfirmed: approved?.fingerprint === (await identityFingerprint()),
     mailTest: publicMailTest(mail),
     mailRecipient: user.email,
+    ...(await mailSetupProps()),
     notification: notification ? { ...notification, read: Boolean(receipt?.read_at) } : null,
     storage,
     storageDisk: env.get('DRIVE_DISK'),

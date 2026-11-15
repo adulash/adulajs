@@ -159,10 +159,22 @@ test.group('Field type widgets in the generated UI', (group) => {
     await page.assertVisible(categories.getByText('2 محدد'))
     await page.screenshot({ path: join(shots, 'field-types-form.png'), fullPage: true })
     await page.getByRole('button', { name: 'حفظ السجل', exact: true }).click()
-    await page.waitForURL(/\/resources\/suppliers\/\d+$/)
+    // Saving a new record returns to the list with the new row first and highlighted (owner,
+    // 2.3.0); the details open from that row.
+    await page.waitForURL(/\/resources\/suppliers$/)
+    const created = page.locator('main tr[data-created]')
+    await created.getByText(name, { exact: true }).waitFor()
+    // The highlight fades after 2.4 s: read the row's id while it lasts, then use the id.
+    const id = await created.getAttribute('data-row-id')
 
     const stored = await knex()('suppliers').where({ code, org_unit_id: admin.orgUnitId }).first()
     assert.exists(stored)
+    assert.equal(id, String(stored.id))
+    await page
+      .locator(`main tr[data-row-id="${id}"]`)
+      .getByRole('link', { name: `عرض السجل ${id}`, exact: true })
+      .click()
+    await page.waitForURL(new RegExp(`/resources/suppliers/${stored.id}$`))
     assert.include(stored, {
       name,
       kind: 'local',
@@ -205,7 +217,9 @@ test.group('Field type widgets in the generated UI', (group) => {
     await page.screenshot({ path: join(shots, 'field-types-show.png'), fullPage: true })
 
     // Editing: stored values come back into the widgets; switching the kind swaps the fields.
-    await page.getByRole('link', { name: 'تعديل السجل', exact: true }).click()
+    // Over the list, the details dialog switches to the form in place (a button, not a visit).
+    const details = page.getByRole('dialog', { name: 'تفاصيل · الموردون' })
+    await details.getByRole('button', { name: 'تعديل السجل', exact: true }).click()
     await page.waitForURL(/\/edit$/)
     await page.getByRole('heading', { name: 'تعديل مورد', exact: true }).waitFor()
     assert.equal(await field('نسبة الخصم').inputValue(), '2.50')
@@ -269,5 +283,122 @@ test.group('Field type widgets in the generated UI', (group) => {
     // The list-layer filter (ADR 046) opens from a button named after the field.
     await page.getByRole('button', { name: 'تصفية طرق الدفع', exact: true }).waitFor()
     assert.equal(await page.getByRole('row').filter({ hasText: name }).count(), 0)
+  })
+
+  test('RTL forms keep codes and signs in order, align numbers and show no sample date (#113)', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(admin.user)
+    const page = await visit('/resources/suppliers/create')
+    await page.getByRole('heading', { name: 'إضافة مورد', exact: true }).waitFor()
+    const field = (name: string) => page.getByLabel(name, { exact: true })
+    await field('رمز المورد').fill('12-3-ABC')
+    await field('مدة السداد (يوم)').fill('-3')
+    // `dir="auto"` resolves a Latin code to LTR inside the RTL form, so it reads 12-3-ABC.
+    assert.isTrue(
+      await field('رمز المورد').evaluate((element) =>
+        (element as unknown as { matches: (selector: string) => boolean }).matches(':dir(ltr)')
+      )
+    )
+    assert.equal(await field('مدة السداد (يوم)').inputValue(), '-3')
+    const alignment = (name: string) =>
+      field(name).evaluate((element) => {
+        const style = (element as unknown as Styled).ownerDocument.defaultView.getComputedStyle(
+          element as unknown as Styled
+        ) as unknown as { direction: string; textAlign: string }
+        return `${style.direction} ${style.textAlign}`
+      })
+    // Integers, decimals and money share one side.
+    assert.equal(await alignment('مدة السداد (يوم)'), await alignment('التقييم'))
+    assert.equal(await alignment('مدة السداد (يوم)'), await alignment('حد الائتمان'))
+
+    const leave = await visit('/resources/leave_requests/create')
+    const start = leave.getByLabel('تاريخ البداية', { exact: true })
+    await start.waitFor()
+    assert.equal(await start.inputValue(), '')
+    // An empty date reads as an example of what to do, never as a stored date.
+    assert.notMatch((await start.getAttribute('placeholder')) ?? '', /[0-9٠-٩]/)
+    assert.isNotEmpty((await start.getAttribute('placeholder')) ?? '')
+  })
+
+  test('a select takes the focus on click and filters long Arabic lists by folded letters (#114)', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    const stamp = randomUUID().slice(0, 6)
+    const lookupGroup = 'leave_request_status'
+    const labels = [
+      'إسكان',
+      'إجازة سنوية',
+      'إجازة مرضية',
+      'أمومة',
+      'إرادة',
+      'تدريب',
+      'مهمة رسمية',
+      'زواج',
+      'وفاة قريب',
+      'حج',
+      'امتحان',
+      'دراسة',
+    ]
+    const keys = labels.map((_, index) => `fold_${stamp}_${index}`)
+    await knex()('lookups').insert(
+      labels.map((label, index) => ({
+        group: lookupGroup,
+        key: keys[index],
+        label_ar: label,
+        label_en: label,
+      }))
+    )
+    try {
+      await browserContext.loginAs(admin.user)
+      const page = await visit('/resources/leave_requests/create')
+      const reason = page.getByLabel('السبب', { exact: true })
+      await reason.waitFor()
+      await reason.fill('سبب مكتوب')
+      const search = page.getByRole('combobox', { name: 'تصفية الخيارات', exact: true })
+      await page.getByRole('combobox', { name: 'الحالة', exact: true }).click()
+      // The click takes the focus off the previous field; the popover then focuses its search box.
+      await search.waitFor()
+      assert.isTrue(await page.evaluate<boolean>("document.activeElement?.tagName !== 'TEXTAREA'"))
+      // A CSS focus wait: a polling string predicate needs eval, which the CSP refuses.
+      await page.locator('[aria-label="تصفية الخيارات"]:focus').waitFor()
+      await page.keyboard.type('اسكان')
+      // The typed text went to the search box, not to the previous field.
+      assert.equal(await reason.inputValue(), 'سبب مكتوب')
+      assert.equal(await search.inputValue(), 'اسكان')
+      const options = page.getByRole('option')
+      await page.assertElementsCount('[role="option"]', 1)
+      assert.equal(await options.first().innerText(), 'إسكان')
+      await page.keyboard.press('Enter')
+      await page
+        .getByRole('combobox', { name: 'الحالة', exact: true })
+        .getByText('إسكان', { exact: true })
+        .waitFor()
+      // Reopened at once, while the list is still closing: the search box takes the focus again
+      // and starts empty.
+      await page.getByRole('combobox', { name: 'الحالة', exact: true }).click()
+      // A CSS focus wait: a polling string predicate needs eval, which the CSP refuses.
+      await page.locator('[aria-label="تصفية الخيارات"]:focus').waitFor()
+      assert.equal(await search.inputValue(), '')
+      await page.keyboard.type('اراده')
+      await page.assertElementsCount('[role="option"]', 1)
+      assert.equal(await options.first().innerText(), 'إرادة')
+      await page.keyboard.press('Escape')
+
+      // A short list keeps the Select; clicking it still moves the focus off the previous field.
+      const suppliers = await visit('/resources/suppliers/create')
+      const name = suppliers.getByLabel('اسم المورد', { exact: true })
+      await name.waitFor()
+      await name.fill('مورد')
+      await suppliers.getByRole('combobox', { name: 'نوع المورد', exact: true }).click()
+      await suppliers.keyboard.type('x')
+      assert.equal(await name.inputValue(), 'مورد')
+    } finally {
+      await knex()('lookups').whereIn('key', keys).delete()
+    }
   })
 })

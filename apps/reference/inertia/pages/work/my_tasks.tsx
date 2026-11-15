@@ -7,6 +7,7 @@ import type { Assignment, AssignmentPage, WorkflowRun } from 'adula'
 import Workspace from '~/layouts/workspace'
 import { useDateTimeFormatter } from '~/components/admin-nav'
 import { Badge } from '~/components/ui/badge'
+import { UserAvatar } from '~/components/ui/user-avatar'
 import { Button } from '~/components/ui/button'
 import {
   Dialog,
@@ -20,6 +21,8 @@ import { Label } from '~/components/ui/label'
 import { Textarea } from '~/components/ui/textarea'
 import { Tabs, TabsList, TabsTrigger } from '~/components/ui/tabs'
 import { formatDate } from '~/components/ui/resource-value'
+import { openRecord, plainClick, rememberListView } from '~/components/ui/resource-surface'
+import { RecordOverlayDialog } from '~/components/ui/resource-page'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
 import { OnBehalfOf, SlaBadge, WorkflowDecision } from '~/components/ui/record-workflows'
 
@@ -41,6 +44,23 @@ const statusLabel: Record<Assignment['status'], string> = {
 }
 
 /** Everything waiting for the user: assigned tasks and approval decisions, acted on in place (#35). */
+/**
+ * A task's record opens in a dialog over this list, which stays mounted (the same as a
+ * generic list's rows); a modified click opens the record page, and closing it returns here
+ * with this tab and scroll.
+ */
+function openTaskRecord(
+  event: React.MouseEvent,
+  item: { resource: string; recordId: number | string; resourceLabel?: string | null }
+) {
+  rememberListView(`/resources/${item.resource}/${item.recordId}`)
+  if (!plainClick(event)) return
+  event.preventDefault()
+  void openRecord(item.resource, item.recordId, 'show', {
+    label: item.resourceLabel ?? undefined,
+  })
+}
+
 export default function MyTasks({ assignments, tab, decisions }: Props) {
   const formatDateTime = useDateTimeFormatter()
   const { calendar } = useUiPreferences()
@@ -137,7 +157,7 @@ export default function MyTasks({ assignments, tab, decisions }: Props) {
         </Tabs>
       </div>
       {error && (
-        <p role="alert" className="mb-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800">
+        <p role="alert" className="mb-4 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </p>
       )}
@@ -145,7 +165,7 @@ export default function MyTasks({ assignments, tab, decisions }: Props) {
         {rows.map((item) => (
           <li
             key={item.id}
-            className="flex flex-wrap items-start justify-between gap-3 rounded-xl border bg-white px-5 py-4"
+            className="flex flex-wrap items-start justify-between gap-3 rounded-xl border bg-card px-5 py-4"
           >
             <div className="min-w-0 flex-1 space-y-1">
               <p className="flex flex-wrap items-center gap-2 font-semibold">
@@ -159,6 +179,7 @@ export default function MyTasks({ assignments, tab, decisions }: Props) {
               </p>
               <Link
                 href={`/resources/${item.resource}/${item.recordId}`}
+                onClick={(event) => openTaskRecord(event, item)}
                 className="text-sm text-primary underline-offset-4 hover:underline"
               >
                 {item.resourceLabel}: {item.recordTitle ?? `#${item.recordId}`}
@@ -174,8 +195,20 @@ export default function MyTasks({ assignments, tab, decisions }: Props) {
                 <p className="text-sm text-muted-foreground">سبب الإغلاق: {item.closeReason}</p>
               )}
               <p className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                <span>
-                  {item.kind === 'approval' ? 'طلبها' : 'أسندها'}: {item.assignedByName ?? 'النظام'}
+                <span className="inline-flex items-center gap-1.5">
+                  {item.kind === 'approval' ? 'طلبها' : 'أسندها'}:{' '}
+                  {/* «النظام» has no picture; a person does. */}
+                  {item.assignedBy !== null && item.assignedByName ? (
+                    <UserAvatar
+                      user={{
+                        id: item.assignedBy,
+                        name: item.assignedByName,
+                        avatarUrl: item.assignedByAvatarUrl,
+                      }}
+                      size="xs"
+                    />
+                  ) : null}
+                  {item.assignedByName ?? 'النظام'}
                 </span>
                 <span>{formatDateTime(item.createdAt)}</span>
                 {item.status === 'open' && item.sla && item.dueAt ? (
@@ -183,8 +216,9 @@ export default function MyTasks({ assignments, tab, decisions }: Props) {
                 ) : item.dueOn && (
                   <span
                     className={
-                      item.status === 'open' && item.dueOn < today
-                        ? 'flex items-center gap-1 font-medium text-red-700'
+                      item.status === 'open' &&
+                      (item.sla ? item.sla === 'overdue' : item.dueOn < today)
+                        ? 'flex items-center gap-1 font-medium text-destructive'
                         : 'flex items-center gap-1'
                     }
                   >
@@ -214,7 +248,12 @@ export default function MyTasks({ assignments, tab, decisions }: Props) {
               )}
               {item.managed && item.status === 'open' && (
                 <Button size="sm" asChild>
-                  <Link href={`/resources/${item.resource}/${item.recordId}`}>فتح السجل</Link>
+                  <Link
+                    href={`/resources/${item.resource}/${item.recordId}`}
+                    onClick={(event) => openTaskRecord(event, item)}
+                  >
+                    فتح السجل
+                  </Link>
                 </Button>
               )}
               {item.canDecide && item.workflowRunId && runs[item.workflowRunId] && (
@@ -282,6 +321,7 @@ export default function MyTasks({ assignments, tab, decisions }: Props) {
           </form>
         </DialogContent>
       </Dialog>
+      <RecordOverlayDialog />
     </>
   )
 }

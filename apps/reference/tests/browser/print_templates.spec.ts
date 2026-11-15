@@ -128,4 +128,107 @@ test.group('Print templates browser acceptance', (group) => {
     await printed.screenshot({ path: join(shots, 'print-templates-printed.png'), fullPage: true })
     assert.deepEqual(alerts, [])
   })
+
+  test('the template dialog is a long dialog that closes at once when unchanged and asks when changed', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(owner.user)
+    for (const size of [
+      { width: 1440, height: 900 },
+      { width: 375, height: 812 },
+    ]) {
+      const page = await visit('/admin/print-templates')
+      await page.setViewportSize(size)
+      const dialog = page.getByRole('dialog', { name: 'قالب طباعة جديد' })
+      const confirmClose = page.getByRole('dialog', { name: 'إغلاق النموذج؟' })
+      const openDialog = async () => {
+        await page.getByRole('button', { name: 'قالب جديد' }).click()
+        await dialog.waitFor()
+      }
+      const label = dialog.getByLabel('اسم القالب')
+
+      // Fixed header and footer around the scrolling body, the footer on screen.
+      await openDialog()
+      const footer = dialog.locator('[data-slot="long-dialog-footer"]')
+      await footer.getByRole('button', { name: 'إنشاء القالب' }).waitFor()
+      const box = (await footer.boundingBox())!
+      assert.isAtMost(box.y + box.height, size.height, `${size.width}: footer on screen`)
+      assert.equal(await dialog.locator('[data-slot="long-dialog-body"]').count(), 1)
+
+      // Unchanged: Escape closes at once.
+      await page.keyboard.press('Escape')
+      await dialog.waitFor({ state: 'hidden' })
+      assert.equal(await confirmClose.count(), 0)
+
+      // Changed: Escape asks; keep editing, restore the value, and it closes at once again.
+      await openDialog()
+      await label.fill('مسودة لم تُحفظ')
+      await page.keyboard.press('Escape')
+      await confirmClose.waitFor()
+      await confirmClose.getByRole('button', { name: 'متابعة التحرير' }).click()
+      await confirmClose.waitFor({ state: 'hidden' })
+      assert.equal(await label.inputValue(), 'مسودة لم تُحفظ')
+      await label.fill('')
+      await footer.getByRole('button', { name: 'إلغاء', exact: true }).click()
+      await dialog.waitFor({ state: 'hidden' })
+      assert.equal(await confirmClose.count(), 0)
+
+      // Changed again: «إلغاء» asks too, and «إغلاق دون حفظ» closes.
+      await openDialog()
+      await label.fill('مسودة أخرى')
+      await footer.getByRole('button', { name: 'إلغاء', exact: true }).click()
+      await confirmClose.waitFor()
+      await confirmClose.getByRole('button', { name: 'إغلاق دون حفظ' }).click()
+      await dialog.waitFor({ state: 'hidden' })
+      await page.close()
+    }
+  })
+
+  // A wide table scrolls inside its own frame on a phone. Its actions header holds an
+  // absolutely positioned (sr-only) label: without a positioned frame that label escaped the
+  // frame's clipping, widened the document to the table's width and pushed the template
+  // dialog off screen (a phone showed a dark, empty page).
+  test('on a phone the template pages and the template dialog stay within the screen', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(owner.user)
+    const page = await visit('/admin/print-templates')
+    await page.setViewportSize({ width: 375, height: 812 })
+    // The server tsconfig omits the DOM lib; this runs inside the page through evaluate().
+    type InPage = { innerWidth: number; document: { documentElement: { scrollWidth: number } } }
+    const widths = () =>
+      page.evaluate(() => {
+        const view = globalThis as unknown as InPage
+        return { viewport: view.innerWidth, document: view.document.documentElement.scrollWidth }
+      })
+    const withinScreen = async (path: string) => {
+      const { viewport, document } = await widths()
+      assert.isAtMost(document, viewport, `${path}: document wider than the phone`)
+    }
+    for (const path of ['/admin/print-templates', '/admin/templates', '/admin/workflows']) {
+      await page.goto(path)
+      await page.locator('main table').waitFor()
+      await withinScreen(path)
+    }
+
+    const dialog = page.getByRole('dialog', { name: 'قالب طباعة جديد' })
+    const dialogWithinScreen = async (how: string) => {
+      await dialog.getByLabel('اسم القالب').waitFor()
+      await withinScreen(how)
+      const box = (await dialog.boundingBox())!
+      const { viewport } = await widths()
+      assert.isAtLeast(box.x, 0, `${how}: dialog starts off screen`)
+      assert.isAtMost(box.x + box.width, viewport, `${how}: dialog ends off screen`)
+    }
+    // Opened from the list, and loaded directly from its address.
+    await page.goto('/admin/print-templates')
+    await page.getByRole('button', { name: 'قالب جديد' }).click()
+    await dialogWithinScreen('«قالب جديد»')
+    await page.goto('/admin/print-templates?new=1')
+    await dialogWithinScreen('?new=1')
+  })
 })

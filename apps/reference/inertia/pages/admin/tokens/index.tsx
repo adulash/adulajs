@@ -1,16 +1,19 @@
 import { useState, type ReactElement } from 'react'
 import { Head, router } from '@inertiajs/react'
 import axios from 'axios'
-import { Copy, KeySquare, Plus, Trash2 } from 'lucide-react'
+import { KeySquare, Plus, Trash2 } from 'lucide-react'
 import Workspace from '~/layouts/workspace'
-import { useDateTimeFormatter } from '~/components/admin-nav'
+import { AdminHeader, useDateTimeFormatter } from '~/components/admin-nav'
 import { Badge } from '~/components/ui/badge'
+import { useConfirmAction } from '~/components/ui/confirm-action'
 import { Button } from '~/components/ui/button'
+import { CopyButton } from '~/components/ui/copy-button'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '~/components/ui/radio-group'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -31,6 +34,7 @@ const json = { headers: { Accept: 'application/json' }, withXSRFToken: true }
 
 export default function ApiTokens({ tokens }: Props) {
   const formatDateTime = useDateTimeFormatter()
+  const { confirm, confirmation } = useConfirmAction()
   const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
   const [access, setAccess] = useState<'read' | 'write'>('read')
@@ -42,7 +46,7 @@ export default function ApiTokens({ tokens }: Props) {
     setError('')
     try {
       const response = await axios.post(
-        '/account/tokens',
+        '/admin/tokens',
         { name, access, expiresInDays: Number(days) },
         json
       )
@@ -61,24 +65,25 @@ export default function ApiTokens({ tokens }: Props) {
   return (
     <>
       <Head title="رموز API" />
-      <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">رموز API</h1>
-          <p className="mt-3 text-sm text-muted-foreground">
-            يعمل الرمز بصلاحياتك الحالية نفسها عبر <code dir="ltr">/api/v1</code>. وصف الواجهة
-            متاح في <code dir="ltr">/api/v1/openapi.json</code>.
-          </p>
-        </div>
+      <AdminHeader
+        title="رموز API"
+        description={
+          <>
+            يعمل الرمز بصلاحياتك الحالية نفسها عبر <code dir="ltr">/api/v1</code>. وصف الواجهة متاح
+            في <code dir="ltr">/api/v1/openapi.json</code>.
+          </>
+        }
+      >
         <Button onClick={() => setCreating(true)}>
-          <Plus size={16} />
+          <Plus />
           إنشاء رمز
         </Button>
-      </div>
+      </AdminHeader>
       <ul className="space-y-3">
         {tokens.map((token) => (
           <li
             key={token.id}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white px-5 py-4"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-5 py-4"
           >
             <div className="space-y-1">
               <p className="flex items-center gap-2 font-semibold">
@@ -97,12 +102,22 @@ export default function ApiTokens({ tokens }: Props) {
               size="sm"
               variant="ghost"
               aria-label={`إلغاء ${token.name ?? token.id}`}
-              onClick={async () => {
-                await axios.delete(`/account/tokens/${token.id}`, json)
-                router.reload({ only: ['tokens'] })
-              }}
+              onClick={() =>
+                // A revoked token stops its integrations at once and cannot be restored.
+                confirm({
+                  title: `إلغاء الرمز «${token.name ?? `رمز #${token.id}`}»`,
+                  description:
+                    'تتوقف فورًا كل التكاملات التي تستخدم هذا الرمز، ولا يمكن التراجع عن الإلغاء.',
+                  label: 'إلغاء الرمز',
+                  destructive: true,
+                  action: async () => {
+                    await axios.delete(`/admin/tokens/${token.id}`, json)
+                    router.reload({ only: ['tokens'] })
+                  },
+                })
+              }
             >
-              <Trash2 size={14} />
+              <Trash2 />
               إلغاء الرمز
             </Button>
           </li>
@@ -154,15 +169,20 @@ export default function ApiTokens({ tokens }: Props) {
               />
             </div>
             {error && (
-              <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800">
+              <p
+                role="alert"
+                className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive"
+              >
                 {error}
               </p>
             )}
           </form>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setCreating(false)}>
-              إلغاء
-            </Button>
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                إلغاء
+              </Button>
+            </DialogClose>
             <Button type="submit" form="token-form">
               إنشاء
             </Button>
@@ -173,26 +193,22 @@ export default function ApiTokens({ tokens }: Props) {
         <DialogContent dir="rtl">
           <DialogHeader>
             <DialogTitle>انسخ الرمز الآن</DialogTitle>
-            <DialogDescription>لن يظهر الرمز مرة أخرى. أرسله في ترويسة Authorization.</DialogDescription>
+            <DialogDescription>
+              لن يظهر الرمز مرة أخرى. أرسله في ترويسة Authorization.
+            </DialogDescription>
           </DialogHeader>
           <code dir="ltr" className="block break-all rounded-lg bg-muted px-3 py-2 text-xs">
             Bearer {secret}
           </code>
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => secret && navigator.clipboard?.writeText(secret)}
-            >
-              <Copy size={14} />
-              نسخ
-            </Button>
+            {secret && <CopyButton value={secret} className="sm:me-auto" />}
             <Button type="button" onClick={() => setSecret(null)}>
               تم
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {confirmation}
     </>
   )
 }

@@ -21,6 +21,9 @@ const knex = () => db.connection().getWriteClient()
 const password = 'impersonation-test-password-123'
 const COOKIE = 'adonis-session'
 const IMPERSONATOR_KEY = 'impersonator_id'
+/** Starting impersonation needs a written reason (10 to 500 characters). */
+const REASON = 'مراجعة مشكلة أبلغ عنها المستخدم في الطلبات'
+const START = { body: { reason: REASON } }
 
 type Method = 'get' | 'post' | 'patch' | 'put' | 'delete'
 type SendOptions = {
@@ -138,7 +141,7 @@ test.group('Impersonation security', (group) => {
     for (const user of candidates) {
       const browser = new Browser(client)
       await browser.login(user)
-      const denied = await browser.send('post', `/admin/users/${target.id}/impersonate`)
+      const denied = await browser.send('post', `/admin/users/${target.id}/impersonate`, START)
       denied.assertStatus(403)
       assert.equal(browser.userId, user.id)
       assert.notProperty(browser.values, IMPERSONATOR_KEY)
@@ -146,13 +149,15 @@ test.group('Impersonation security', (group) => {
 
     const anonymous = await new Browser(client).send(
       'post',
-      `/admin/users/${target.id}/impersonate`
+      `/admin/users/${target.id}/impersonate`,
+      START
     )
     anonymous.assertStatus(401)
 
     const browser = new Browser(client)
     await browser.login(admin)
     const noCsrf = await browser.send('post', `/admin/users/${target.id}/impersonate`, {
+      ...START,
       csrf: false,
     })
     noCsrf.assertStatus(403)
@@ -182,7 +187,7 @@ test.group('Impersonation security', (group) => {
       ['abc', 404, ''],
     ]
     for (const [id, status, code] of cases) {
-      const response = await browser.send('post', `/admin/users/${id}/impersonate`)
+      const response = await browser.send('post', `/admin/users/${id}/impersonate`, START)
       response.assertStatus(status)
       if (code) assert.equal(response.body().error.code, code)
       assert.equal(browser.userId, admin.id, `still the administrator after ${id}`)
@@ -213,10 +218,11 @@ test.group('Impersonation security', (group) => {
     await browser.login(admin)
 
     const beforeStart = browser.id
-    const started = await browser.send('post', `/admin/users/${target.id}/impersonate`)
+    const started = await browser.send('post', `/admin/users/${target.id}/impersonate`, START)
     started.assertStatus(200)
     assert.equal(browser.userId, target.id)
-    assert.deepEqual(browser.values[IMPERSONATOR_KEY], { adminId: admin.id, targetId: target.id })
+    assert.include(browser.values[IMPERSONATOR_KEY], { adminId: admin.id, targetId: target.id })
+    assert.isNumber((browser.values[IMPERSONATOR_KEY] as { startedAt?: unknown }).startedAt)
     assert.notEqual(browser.id, beforeStart, 'session id regenerated on start')
 
     const shell = await browser.send('get', '/notifications?limit=1')
@@ -230,10 +236,19 @@ test.group('Impersonation security', (group) => {
     assert.notProperty(browser.values, IMPERSONATOR_KEY)
     assert.notEqual(browser.id, beforeStop, 'session id regenerated on stop')
 
+    // Who acted as whom, why, from where, and for how long.
     const [start] = await activities(target.id, 'impersonate')
     assert.equal(start.actor_id, admin.id)
+    assert.equal(start.changes.reason, REASON)
+    assert.isString(start.changes.ip)
+    assert.property(start.changes, 'userAgent')
     const [stop] = await activities(target.id, 'stop_impersonation')
     assert.equal(stop.actor_id, admin.id)
+    assert.equal(stop.changes.ended, 'stop')
+    assert.equal(stop.changes.startActivityId, Number(start.id))
+    assert.isNumber(stop.changes.durationSeconds)
+    assert.isAtLeast(stop.changes.durationSeconds, 0)
+    assert.isString(stop.changes.startedAt)
 
     // Stopping twice, stopping without impersonation and anonymous stop are refused.
     const again = await browser.send('post', '/impersonation/stop')
@@ -250,6 +265,74 @@ test.group('Impersonation security', (group) => {
     noCsrf.assertStatus(403)
   })
 
+  test('starting requires a written reason of 10 to 500 characters', async ({ client, assert }) => {
+    const admin = await makeUser('admin', ADMIN)
+    const target = await makeUser('target')
+    const browser = new Browser(client)
+    await browser.login(admin)
+    for (const body of [
+      undefined,
+      {},
+      { reason: '' },
+      { reason: '          ' },
+      { reason: 'قصير جدًا' },
+      { reason: 'x'.repeat(501) },
+      { reason: ['مراجعة مشكلة أبلغ عنها المستخدم'] },
+      { reason: 12345678901 },
+    ]) {
+      const response = await browser.send('post', `/admin/users/${target.id}/impersonate`, {
+        body,
+      })
+      response.assertStatus(422)
+      assert.equal(response.body().error.code, 'E_IMPERSONATION_REASON')
+      assert.equal(browser.userId, admin.id)
+      assert.notProperty(browser.values, IMPERSONATOR_KEY)
+    }
+    assert.lengthOf(await activities(target.id, 'impersonate'), 0)
+
+    // Ten characters (after trimming) and 500 are accepted; the stored reason is trimmed.
+    await browser.expect('post', `/admin/users/${target.id}/impersonate`, 200, {
+      body: { reason: '  سبب مكتوب.  ' },
+    })
+    const [start] = await activities(target.id, 'impersonate')
+    assert.equal(start.changes.reason, 'سبب مكتوب.')
+    await browser.expect('post', '/impersonation/stop', 200)
+    await browser.expect('post', `/admin/users/${target.id}/impersonate`, 200, {
+      body: { reason: 'ب'.repeat(500) },
+    })
+  })
+
+  test('signing out while impersonating records the end; markers without a start time still stop', async ({
+    client,
+    assert,
+  }) => {
+    const admin = await makeUser('admin', ADMIN)
+    const target = await makeUser('target')
+    const browser = new Browser(client)
+    await browser.login(admin)
+    await browser.expect('post', `/admin/users/${target.id}/impersonate`, 200, START)
+    const logout = await browser.send('post', '/logout')
+    assert.oneOf(logout.status(), [302, 303])
+    const [ended] = await activities(target.id, 'stop_impersonation')
+    assert.equal(ended.actor_id, admin.id)
+    assert.equal(ended.changes.ended, 'logout')
+    assert.isNumber(ended.changes.durationSeconds)
+
+    // A marker written before start times were recorded ends with an unknown duration.
+    const old = await client
+      .post('/impersonation/stop')
+      .loginAs(target)
+      .withSession({ [IMPERSONATOR_KEY]: { adminId: admin.id, targetId: target.id } })
+      .withCsrfToken()
+      .header('Accept', 'application/json')
+    old.assertStatus(200)
+    const rows = await activities(target.id, 'stop_impersonation')
+    const stopped = rows.find((row) => row.changes.ended === 'stop')
+    assert.exists(stopped)
+    assert.isNull(stopped.changes.durationSeconds)
+    assert.isNull(stopped.changes.startActivityId)
+  })
+
   test('superseded session rows are closed when impersonation starts and stops', async ({
     client,
     assert,
@@ -259,7 +342,7 @@ test.group('Impersonation security', (group) => {
     const browser = new Browser(client)
     await browser.login(admin)
     const adminSession = browser.id
-    await browser.send('post', `/admin/users/${target.id}/impersonate`)
+    await browser.send('post', `/admin/users/${target.id}/impersonate`, START)
     await browser.send('get', '/notifications?limit=1')
     const impersonationSession = browser.id
     await browser.send('post', '/impersonation/stop')
@@ -287,13 +370,13 @@ test.group('Impersonation security', (group) => {
     const [adminRole] = await knex()('user_roles').where('user_id', admin.id).select('role_id')
     const browser = new Browser(client)
     await browser.login(admin)
-    await browser.expect('post', `/admin/users/${target.id}/impersonate`, 200)
+    await browser.expect('post', `/admin/users/${target.id}/impersonate`, 200, START)
 
     for (const [method, url, body] of [
       ['get', '/admin/users', undefined],
       ['get', `/admin/users/${third.id}`, undefined],
       ['post', `/admin/users/${target.id}/roles`, { roleId: adminRole.role_id }],
-      ['post', `/admin/users/${third.id}/impersonate`, undefined],
+      ['post', `/admin/users/${third.id}/impersonate`, { reason: REASON }],
       ['post', `/admin/users/${admin.id}/disable`, undefined],
       ['put', '/admin/settings', { key: 'ui.theme', scope: 'system', value: '{}' }],
       ['post', '/admin/roles', { name: `escalate-${randomUUID()}` }],
@@ -309,14 +392,19 @@ test.group('Impersonation security', (group) => {
     )
     assert.lengthOf(await activities(third.id, 'impersonate'), 0)
     assert.equal(browser.userId, target.id)
-    assert.deepEqual(browser.values[IMPERSONATOR_KEY], { adminId: admin.id, targetId: target.id })
+    assert.include(browser.values[IMPERSONATOR_KEY], { adminId: admin.id, targetId: target.id })
+    assert.isNumber((browser.values[IMPERSONATOR_KEY] as { startedAt?: unknown }).startedAt)
 
-    // A personal API token would outlive the session, so none can be minted as the target.
-    const mint = await browser.send('post', '/account/tokens', {
-      body: { name: 'leftover', access: 'write', expiresInDays: 365 },
-    })
-    mint.assertStatus(403)
-    assert.equal(mint.body().error.code, 'E_IMPERSONATING')
+    // A personal API token would outlive the session, so none can be minted as the target:
+    // tokens belong to administrators and the target is not one (the controller's own
+    // impersonation check stays behind it), at the new address and the old one.
+    for (const url of ['/admin/tokens', '/account/tokens']) {
+      const mint = await browser.send('post', url, {
+        body: { name: 'leftover', access: 'write', expiresInDays: 365 },
+      })
+      mint.assertStatus(403)
+      assert.equal(mint.body().error.code, 'E_FORBIDDEN')
+    }
     assert.lengthOf(await knex()('auth_access_tokens').where('tokenable_id', target.id), 0)
 
     // The password cannot be changed without the target's current password.
@@ -351,7 +439,7 @@ test.group('Impersonation security', (group) => {
     const target = await makeUser('target', [{ subject: 'customers', action: 'manage' }])
     const browser = new Browser(client)
     await browser.login(admin)
-    await browser.expect('post', `/admin/users/${target.id}/impersonate`, 200)
+    await browser.expect('post', `/admin/users/${target.id}/impersonate`, 200, START)
     const created = await browser.send('post', '/resources/customers', {
       body: { name: `عميل الانتحال ${randomUUID()}` },
     })
@@ -381,7 +469,7 @@ test.group('Impersonation security', (group) => {
     await knex()('user_org_units').insert({ user_id: target.id, org_unit_id: orgUnitId })
     const browser = new Browser(client)
     await browser.login(admin)
-    await browser.expect('post', `/admin/users/${target.id}/impersonate`, 200)
+    await browser.expect('post', `/admin/users/${target.id}/impersonate`, 200, START)
     const content = Buffer.from(`ملف الانتحال ${randomUUID()}`)
 
     const plain = await browser.expect('post', '/attachments', 201, {
@@ -459,7 +547,7 @@ test.group('Impersonation security', (group) => {
     await own.login(target)
     const browser = new Browser(client)
     await browser.login(admin)
-    await browser.expect('post', `/admin/users/${target.id}/impersonate`, 200)
+    await browser.expect('post', `/admin/users/${target.id}/impersonate`, 200, START)
 
     const profile = await browser.send('patch', '/account/profile', {
       body: { fullName: 'اسم غيّره المسؤول' },
@@ -490,7 +578,7 @@ test.group('Impersonation security', (group) => {
     const nextUser = await makeUser('next')
     const browser = new Browser(client)
     await browser.login(admin)
-    await browser.expect('post', `/admin/users/${target.id}/impersonate`, 200)
+    await browser.expect('post', `/admin/users/${target.id}/impersonate`, 200, START)
     await browser.expect('post', '/logout', 302)
     assert.isUndefined(browser.userId)
     const leftover = browser.values[IMPERSONATOR_KEY]
@@ -521,7 +609,7 @@ test.group('Impersonation security', (group) => {
     const target = await makeUser('target')
     const browser = new Browser(client)
     await browser.login(admin)
-    await browser.expect('post', `/admin/users/${target.id}/impersonate`, 200)
+    await browser.expect('post', `/admin/users/${target.id}/impersonate`, 200, START)
     await browser.expect('get', '/notifications?limit=1', 200)
 
     // A second administrator ends every session of the target, including this one.
@@ -551,7 +639,7 @@ test.group('Impersonation security', (group) => {
     const target = await makeUser('target')
     const browser = new Browser(client)
     await browser.login(admin)
-    await browser.expect('post', `/admin/users/${target.id}/impersonate`, 200)
+    await browser.expect('post', `/admin/users/${target.id}/impersonate`, 200, START)
     await knex()('users').where('id', target.id).update({ disabled_at: knex().fn.now() })
     await browser.expect('get', '/notifications?limit=1', 401)
     assert.isUndefined(browser.userId)
@@ -566,7 +654,7 @@ test.group('Impersonation security', (group) => {
     const disabledAdmin = await makeUser('disabled-admin', ADMIN)
     const first = new Browser(client)
     await first.login(disabledAdmin)
-    await first.expect('post', `/admin/users/${target.id}/impersonate`, 200)
+    await first.expect('post', `/admin/users/${target.id}/impersonate`, 200, START)
     await knex()('users').where('id', disabledAdmin.id).update({ disabled_at: knex().fn.now() })
     await first.send('post', '/impersonation/stop')
     await first.expect('get', '/admin/users', 401)
@@ -575,7 +663,7 @@ test.group('Impersonation security', (group) => {
     const demoted = await makeUser('demoted-admin', ADMIN)
     const second = new Browser(client)
     await second.login(demoted)
-    await second.expect('post', `/admin/users/${target.id}/impersonate`, 200)
+    await second.expect('post', `/admin/users/${target.id}/impersonate`, 200, START)
     await knex()('user_roles').where('user_id', demoted.id).delete()
     await second.expect('post', '/impersonation/stop', 200)
     assert.equal(second.userId, demoted.id)
@@ -589,7 +677,7 @@ test.group('Impersonation security', (group) => {
     const target = await makeUser('target')
     const browser = new Browser(client)
     await browser.login(admin)
-    await browser.expect('post', `/admin/users/${target.id}/impersonate`, 200)
+    await browser.expect('post', `/admin/users/${target.id}/impersonate`, 200, START)
     // Expiry removes the store entry; the cookie alone carries nothing.
     browser.values = {}
     await browser.expect('post', '/impersonation/stop', 401)

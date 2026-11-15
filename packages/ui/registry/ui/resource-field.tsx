@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import type { CalendarSystem, ResourceEditor, ResourceField as Field } from 'adula'
 import { Badge } from '~/components/ui/badge'
+import { UserAvatar } from '~/components/ui/user-avatar'
 import { Button } from '~/components/ui/button'
 import { Checkbox } from '~/components/ui/checkbox'
 import { Calendar } from '~/components/ui/calendar'
@@ -52,6 +53,7 @@ import {
 } from '~/components/ui/select'
 import {
   decimalScale,
+  foldedFilter,
   hiddenFields,
   listInput,
   listValue,
@@ -99,16 +101,10 @@ export type FieldProps = {
   /** Accessible name when the visible label lives elsewhere, e.g. inline rows. */
   label?: string
 }
-export function ResourceSelect({
-  value,
-  onChange,
-  options,
-  placeholder,
-  required,
-  disabled,
-  className = 'h-10 w-full',
-  ...trigger
-}: Pick<
+/** Above this many choices a select offers a search box that folds Arabic letters (#114). */
+export const SEARCHABLE_OPTIONS = 8
+
+type ResourceSelectProps = Pick<
   ComponentProps<typeof SelectTrigger>,
   'id' | 'aria-label' | 'aria-invalid' | 'aria-describedby'
 > & {
@@ -120,9 +116,23 @@ export function ResourceSelect({
   disabled?: boolean
   /** Trigger size and width; forms keep the default, toolbars pass a compact size. */
   className?: string
-}) {
+}
+
+export function ResourceSelect(props: ResourceSelectProps) {
+  const {
+    value,
+    onChange,
+    options,
+    placeholder,
+    required,
+    disabled,
+    className = 'h-10 w-full',
+    ...trigger
+  } = props
   const { t } = useMessages()
   const empty = placeholder ?? t('اختر قيمة')
+  const choices = options.filter((option) => String(option.value) !== '')
+  if (choices.length > SEARCHABLE_OPTIONS) return <SearchableSelect {...props} options={choices} />
   // Encode values so an empty selection cannot collide with a business lookup key.
   return (
     <Select
@@ -131,20 +141,123 @@ export function ResourceSelect({
       required={required}
       disabled={disabled}
     >
-      <SelectTrigger {...trigger} className={className} aria-required={required}>
+      <SelectTrigger
+        {...trigger}
+        className={className}
+        aria-required={required}
+        // Radix prevents the pointer's focus; without it, text typed next lands in the previous field.
+        onPointerDown={(event) => event.currentTarget.focus()}
+      >
         <SelectValue placeholder={empty} />
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="value:">{empty}</SelectItem>
-        {options
-          .filter((option) => String(option.value) !== '')
-          .map((option) => (
-            <SelectItem key={option.value} value={`value:${option.value}`}>
-              {option.label}
-            </SelectItem>
-          ))}
+        {choices.map((option) => (
+          <SelectItem key={option.value} value={`value:${option.value}`}>
+            {/* A code such as 12-3-ABC keeps its own order inside an RTL list (#113). */}
+            <span dir="auto">{option.label}</span>
+          </SelectItem>
+        ))}
       </SelectContent>
     </Select>
+  )
+}
+
+/** A long list of choices: a combobox whose filter folds Arabic letter variants (#114). */
+function SearchableSelect({
+  value,
+  onChange,
+  options,
+  placeholder,
+  required,
+  disabled,
+  className = 'h-10 w-full',
+  ...trigger
+}: ResourceSelectProps) {
+  const { t } = useMessages()
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const input = useRef<HTMLInputElement>(null)
+  const listId = useId()
+  const empty = placeholder ?? t('اختر قيمة')
+  const current = options.find((option) => String(option.value) === value)
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next)
+        if (!next) return
+        // Reopened during its closing animation, the popover keeps its content: it neither
+        // focuses the search box again nor clears the last search, so do both on every open.
+        setSearch('')
+        requestAnimationFrame(() => input.current?.focus())
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          {...trigger}
+          type="button"
+          role="combobox"
+          variant="outline"
+          aria-expanded={open}
+          aria-controls={listId}
+          aria-required={required}
+          disabled={disabled}
+          className={`justify-between font-normal ${current ? '' : 'text-muted-foreground'} ${className}`}
+        >
+          <span className="truncate" dir="auto">
+            {current?.label ?? empty}
+          </span>
+          <ChevronsUpDown className="opacity-50" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-(--radix-popover-trigger-width) min-w-56 p-0" align="start">
+        <Command filter={foldedFilter}>
+          <CommandInput
+            ref={input}
+            value={search}
+            onValueChange={setSearch}
+            placeholder={t('تصفية الخيارات')}
+            aria-label={t('تصفية الخيارات')}
+            dir="auto"
+          />
+          <CommandList id={listId}>
+            <CommandEmpty>{t('لا توجد خيارات مطابقة')}</CommandEmpty>
+            <CommandGroup>
+              {value && !required && (
+                <CommandItem
+                  value="__none__"
+                  keywords={[empty]}
+                  onSelect={() => {
+                    onChange('')
+                    setOpen(false)
+                  }}
+                >
+                  <X />
+                  {empty}
+                </CommandItem>
+              )}
+              {options.map((option) => (
+                <CommandItem
+                  key={option.value}
+                  value={`value:${option.value}`}
+                  keywords={[option.label]}
+                  onSelect={() => {
+                    onChange(String(option.value))
+                    setOpen(false)
+                  }}
+                >
+                  <Check
+                    className={String(option.value) === value ? 'opacity-100' : 'opacity-0'}
+                  />
+                  <span dir="auto">{option.label}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -264,6 +377,7 @@ export function FieldControl(props: FieldProps) {
       return (
         <Textarea
           {...shared}
+          dir="auto"
           rows={4}
           value={value}
           onChange={(event) => onChange(event.target.value)}
@@ -285,7 +399,8 @@ export function FieldControl(props: FieldProps) {
           step={1}
           inputMode="numeric"
           dir="ltr"
-          className="h-10"
+          // One side for every number: integers align like decimal and money (#113).
+          className="h-10 text-end tabular-nums"
           value={value}
           onChange={(event) => onChange(event.target.value)}
         />
@@ -295,6 +410,8 @@ export function FieldControl(props: FieldProps) {
     <Input
       {...shared}
       type="text"
+      // A Latin code such as 12-3-ABC keeps its order in an RTL form (#113).
+      dir="auto"
       className="h-10"
       value={value}
       onChange={(event) => onChange(event.target.value)}
@@ -513,7 +630,12 @@ function DateControl({ id, value, onChange, disabled, error, field, label }: Fie
           type="text"
           inputMode="numeric"
           dir="ltr"
-          placeholder={calendar === 'islamic-umalqura' ? '1447-09-01' : '2026-01-31'}
+          // No sample date: digits read as a stored value, and bidi reorders mixed text (#113).
+          placeholder={
+            calendar === 'islamic-umalqura'
+              ? t('اكتب التاريخ الهجري أو اختره')
+              : t('اكتب التاريخ أو اختره')
+          }
           className="h-10 tabular-nums"
           value={displayed}
           disabled={disabled}
@@ -735,7 +857,7 @@ function AttachmentControl({
         }}
       />
       {shown ? (
-        <div className="flex flex-wrap items-center gap-3 rounded-md border bg-white px-3 py-2 text-sm">
+        <div className="flex flex-wrap items-center gap-3 rounded-md border bg-card px-3 py-2 text-sm">
           <Paperclip size={15} className="text-muted-foreground" />
           <a
             href={shown.url}
@@ -942,7 +1064,7 @@ function MultipleAttachmentControl({
         }}
       />
       {ids.length > 0 && (
-        <ol className="divide-y rounded-md border bg-white text-sm" aria-label={name}>
+        <ol className="divide-y rounded-md border bg-card text-sm" aria-label={name}>
           {ids.map((fileId, index) => {
             const file = fileOf(fileId)
             const fileName = nameOf(fileId)
@@ -970,8 +1092,7 @@ function MultipleAttachmentControl({
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon"
-                    className="size-8"
+                    size="icon-sm"
                     disabled={busy || index === 0}
                     aria-label={t('تقديم {name}', { name: fileName })}
                     onClick={() => move(fileId, -1)}
@@ -981,8 +1102,7 @@ function MultipleAttachmentControl({
                   <Button
                     type="button"
                     variant="ghost"
-                    size="icon"
-                    className="size-8"
+                    size="icon-sm"
                     disabled={busy || index === ids.length - 1}
                     aria-label={t('تأخير {name}', { name: fileName })}
                     onClick={() => move(fileId, 1)}
@@ -1147,15 +1267,27 @@ function RelationCombobox({
           disabled={disabled}
           className={`h-10 w-full justify-between font-normal ${current ? '' : 'text-muted-foreground'}`}
         >
-          <span className="truncate">
-            {current?.label ??
-              (value ? `#${value}` : field.type === 'user' ? t('اختر مستخدماً') : t('اختر سجلاً'))}
+          <span className="flex min-w-0 items-center gap-2">
+            {field.type === 'user' && current && /^\d+$/.test(current.value) ? (
+              <UserAvatar
+                user={{
+                  id: Number(current.value),
+                  name: current.label,
+                  avatarUrl: current.avatarUrl,
+                }}
+                size="sm"
+              />
+            ) : null}
+            <span className="truncate" dir="auto">
+              {current?.label ??
+                (value ? `#${value}` : field.type === 'user' ? t('اختر مستخدماً') : t('اختر سجلاً'))}
+            </span>
           </span>
           <ChevronsUpDown className="opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-(--radix-popover-trigger-width) min-w-64 p-0" align="start">
-        <Command shouldFilter={!searchable}>
+        <Command shouldFilter={!searchable} filter={foldedFilter}>
           <CommandInput
             placeholder={
               field.type === 'user'
@@ -1196,7 +1328,17 @@ function RelationCombobox({
                   }}
                 >
                   <Check className={option.value === value ? 'opacity-100' : 'opacity-0'} />
-                  {option.label}
+                  {field.type === 'user' && /^\d+$/.test(option.value) ? (
+                    <UserAvatar
+                      user={{
+                        id: Number(option.value),
+                        name: option.label,
+                        avatarUrl: option.avatarUrl,
+                      }}
+                      size="xs"
+                    />
+                  ) : null}
+                  <span dir="auto">{option.label}</span>
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -1279,7 +1421,7 @@ function RelationMultiPicker({
               disabled={disabled}
               className={`h-10 w-full justify-between font-normal ${selected.length ? '' : 'text-muted-foreground'}`}
             >
-              <span className="truncate">
+              <span className="truncate" dir="auto">
                 {selected.length
                   ? t('{count} محدد', { count: selected.length })
                   : t('اختر سجلاً أو أكثر')}
@@ -1302,7 +1444,6 @@ function RelationMultiPicker({
                         type="button"
                         variant="ghost"
                         size="icon-xs"
-                        className="size-5"
                         disabled={disabled}
                         aria-label={t('إزالة {record}', { record: title })}
                         onClick={() => toggle(key)}
@@ -1318,7 +1459,7 @@ function RelationMultiPicker({
         </div>
       </PopoverAnchor>
       <PopoverContent className="w-(--radix-popper-anchor-width) min-w-64 p-0" align="start">
-        <Command shouldFilter={!searchable}>
+        <Command shouldFilter={!searchable} filter={foldedFilter}>
           <CommandInput
             placeholder={searchable ? t('ابحث في السجلات المرتبطة') : t('تصفية الخيارات')}
             aria-label={t('البحث في {field}', { field: name })}
@@ -1341,7 +1482,7 @@ function RelationMultiPicker({
                   <Check
                     className={selected.includes(option.value) ? 'opacity-100' : 'opacity-0'}
                   />
-                  {option.label}
+                  <span dir="auto">{option.label}</span>
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -1420,7 +1561,7 @@ export function InlineRows({
       ? undefined
       : inline.rows.find((entry) => String(entry.id) === String(row.id))?.[key]
   return (
-    <section aria-label={label(field.label)} className="rounded-xl border bg-white">
+    <section aria-label={label(field.label)} className="rounded-xl border bg-card">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b px-7 py-4">
         <div>
           <h2 className="text-sm font-semibold">{label(field.label)}</h2>

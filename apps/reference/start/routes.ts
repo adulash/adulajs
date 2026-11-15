@@ -16,9 +16,13 @@ import { Settings } from 'adula'
 import redis from '@adonisjs/redis/services/main'
 import {
   apiThrottle,
+  assistantTestThrottle,
+  mailTestThrottle,
+  assistantThrottle,
   channelChangeThrottle,
   channelCodeThrottle,
   channelTestThrottle,
+  backupThrottle,
   exportThrottle,
   healthThrottle,
   inboundThrottle,
@@ -28,6 +32,7 @@ import {
   oauthThrottle,
   passwordChangeThrottle,
   passwordThrottle,
+  preferenceThrottle,
   signupThrottle,
   twoFactorManageThrottle,
   twoFactorThrottle,
@@ -49,6 +54,7 @@ const UserInvitationsController = () => import('#controllers/user_invitations_co
 const OauthController = () => import('#controllers/oauth_controller')
 const ProfileController = () => import('#controllers/profile_controller')
 const LanguageController = () => import('#controllers/language_controller')
+const PreferencesController = () => import('#controllers/preferences_controller')
 const TwoFactorController = () => import('#controllers/two_factor_controller')
 const TwoFactorChallengeController = () => import('#controllers/two_factor_challenge_controller')
 const AccountSessionsController = () => import('#controllers/account_sessions_controller')
@@ -58,7 +64,12 @@ const AdminRolesController = () => import('#controllers/admin/roles_controller')
 const AdminOrgUnitsController = () => import('#controllers/admin/org_units_controller')
 const AdminActivityController = () => import('#controllers/admin/activity_controller')
 const AdminJobsController = () => import('#controllers/admin/jobs_controller')
+const AdminBackupsController = () => import('#controllers/admin/backups_controller')
 const AdminSettingsController = () => import('#controllers/admin/settings_controller')
+const AssistantController = () => import('#controllers/assistant_controller')
+const AdminAssistantController = () => import('#controllers/admin/assistant_controller')
+const AdminAppearanceController = () => import('#controllers/admin/appearance_controller')
+const AppearanceLogosController = () => import('#controllers/appearance_logos_controller')
 const AdminAuthenticationSettingsController = () =>
   import('#controllers/admin/authentication_settings_controller')
 const SetupController = () => import('#controllers/admin/setup_controller')
@@ -70,8 +81,12 @@ const AdminLookupsController = () => import('#controllers/admin/lookups_controll
 const AdminSequencesController = () => import('#controllers/admin/sequences_controller')
 const InboundWebhooksController = () => import('#controllers/inbound_webhooks_controller')
 const DashboardsController = () => import('#controllers/dashboards_controller')
+const AvatarsController = () => import('#controllers/avatars_controller')
 
-router.on('/').renderInertia('home', {}).as('home')
+const HomeController = () => import('#controllers/home_controller')
+
+// The personal overview for signed-in users (ADR 050); guests see the start page.
+router.get('/', [HomeController, 'show']).as('home')
 
 // Realtime notification signals: every Transmit route requires a signed-in user.
 transmit.registerRoutes((route) => {
@@ -93,6 +108,18 @@ transmit.registerRoutes((route) => {
 })
 
 router.mcp().use([middleware.auth(), apiThrottle, middleware.mcp()])
+
+// The built-in assistant (ADR 052): JSON only, CSRF on, the signed-in user's permissions.
+router
+  .group(() => {
+    router.post('notice', [AssistantController, 'acceptNotice'])
+    router.post('conversations', [AssistantController, 'startConversation'])
+    router.post('conversations/:conversation/turns', [AssistantController, 'turn'])
+    router.post('conversations/:conversation/actions/:id/confirm', [AssistantController, 'confirm'])
+    router.post('conversations/:conversation/actions/:id/reject', [AssistantController, 'reject'])
+  })
+  .prefix('assistant')
+  .use([middleware.auth(), middleware.assistant(), assistantThrottle])
 
 // Signed inbound webhooks: no session or CSRF; the source secret authenticates (#30).
 router
@@ -128,6 +155,8 @@ router
   .group(() => {
     router.get('/resources/:resource', [ResourcesController, 'index'])
     router.get('/resources/:resource/create', [ResourcesController, 'create'])
+    // The create form as JSON for the dialog opened over the list; before the :id patterns.
+    router.get('/resources/:resource/create/view', [RecordViewsController, 'create'])
     router.get('/resources/:resource/options/:field', [ResourcesController, 'options'])
     router.get('/resources/:resource/aggregate', [ResourcesController, 'aggregate'])
     // List layer (ADR 046): declared before the /resources/:resource/:id patterns.
@@ -168,6 +197,7 @@ router
     router.post('/my-tasks/:assignment/complete', [AssignmentsController, 'complete'])
     router.post('/my-tasks/:assignment/cancel', [AssignmentsController, 'cancel'])
     router.get('/resources/:resource/:id/view', [RecordViewsController, 'show'])
+    router.get('/resources/:resource/:id/row', [RecordViewsController, 'row'])
     router.get('/resources/:resource/:id/edit', [ResourcesController, 'edit'])
     router.get('/resources/:resource/:id', [ResourcesController, 'show'])
     router.post('/resources/:resource', [ResourcesController, 'store'])
@@ -213,6 +243,9 @@ router
   .as('api')
   .use([middleware.apiAuth(), apiThrottle])
 
+// Appearance logos (ADR 053) are public: the login and guest pages show them before sign-in.
+router.get('appearance/logos/:id', [AppearanceLogosController, 'show']).where('id', /^\d+$/)
+
 router
   .group(() => {
     router.get('signup', [controllers.NewAccount, 'create'])
@@ -249,10 +282,21 @@ router
     router.get('users/invite', [UserInvitationsController, 'create'])
     router.post('users/invite', [UserInvitationsController, 'store']).use(apiThrottle)
 
+    // Profile pictures (ADR 050): any signed-in user sees them; only the user changes their own.
+    router.get('users/:id/avatar', [AvatarsController, 'show']).where('id', /^\d+$/)
+    router.post('account/avatar', [AvatarsController, 'storeOwn']).use(apiThrottle)
+    router.delete('account/avatar', [AvatarsController, 'destroyOwn'])
     router.get('account/profile', [ProfileController, 'show'])
     router.patch('account/profile', [ProfileController, 'update'])
     router.post('account/password', [ProfileController, 'password']).use(passwordChangeThrottle)
     router.put('account/language', [LanguageController, 'update'])
+    // Per-user interface preferences (ADR 049): sidebar, layout, theme, arrangements.
+    router
+      .put('account/preferences/:key', [PreferencesController, 'update'])
+      .use(preferenceThrottle)
+    router
+      .delete('account/preferences/:key', [PreferencesController, 'destroy'])
+      .use(preferenceThrottle)
     router
       .put('account/notification-channels', [ProfileController, 'channels'])
       .use(channelChangeThrottle)
@@ -279,9 +323,6 @@ router
     router.get('account/delegations/candidates', [DelegationsController, 'candidates'])
     router.post('account/delegations', [DelegationsController, 'store'])
     router.delete('account/delegations/:id', [DelegationsController, 'destroy'])
-    router.get('account/tokens', [ApiTokensController, 'index'])
-    router.post('account/tokens', [ApiTokensController, 'store']).use(apiThrottle)
-    router.delete('account/tokens/:id', [ApiTokensController, 'destroy'])
     router.get('account/sessions', [AccountSessionsController, 'index'])
     router.delete('account/sessions', [AccountSessionsController, 'purge'])
     router.delete('account/sessions/:id', [AccountSessionsController, 'destroy'])
@@ -295,6 +336,21 @@ router
     router.delete('admin/sessions/:id', [AdminSessionsController, 'destroy'])
   })
   .use(middleware.auth())
+
+// The former account address of the API tokens: the administration check answers 403 to
+// everyone else; an administrator's old bookmark opens the settings tab, and a script's old
+// request keeps its method (308) on the new address.
+router
+  .get('account/tokens', ({ response }) => response.redirect('/admin/tokens'))
+  .use([middleware.auth(), middleware.admin()])
+router
+  .post('account/tokens', ({ response }) => response.redirect('/admin/tokens', false, 308))
+  .use([middleware.auth(), middleware.admin()])
+router
+  .delete('account/tokens/:id', ({ params, response }) =>
+    response.redirect(`/admin/tokens/${encodeURIComponent(params.id)}`, false, 308)
+  )
+  .use([middleware.auth(), middleware.admin()])
 
 router
   .group(() => {
@@ -325,6 +381,11 @@ router
     router.post('users/:id/revoke-tokens', [AdminUsersController, 'revokeTokens'])
     router.post('users/:id/reset-two-factor', [AdminUsersController, 'resetTwoFactor'])
     router.post('users/:id/impersonate', [AdminUsersController, 'impersonate'])
+    router
+      .post('users/:id/avatar', [AvatarsController, 'storeFor'])
+      .where('id', /^\d+$/)
+      .use(apiThrottle)
+    router.delete('users/:id/avatar', [AvatarsController, 'destroyFor']).where('id', /^\d+$/)
     router.get('roles', [AdminRolesController, 'index'])
     router.post('roles', [AdminRolesController, 'store'])
     router.get('roles/:id', [AdminRolesController, 'show'])
@@ -339,10 +400,21 @@ router
     router.delete('org-units/:id', [AdminOrgUnitsController, 'destroy'])
     router.get('activity', [AdminActivityController, 'index'])
     router.get('jobs', [AdminJobsController, 'index'])
+    // Downloadable and cloud backups (ADR 051); every handler re-checks manage all.
+    router.get('backups', [AdminBackupsController, 'index'])
+    router
+      .post('backups/connect/:provider', [AdminBackupsController, 'connect'])
+      .use(backupThrottle)
+    router.get('backups/oauth/:provider/callback', [AdminBackupsController, 'callback'])
+    router.delete('backups/connections/:provider', [AdminBackupsController, 'disconnect'])
+    router.put('backups/connections/:provider/schedule', [AdminBackupsController, 'schedule'])
+    router.post('backups/runs', [AdminBackupsController, 'run']).use(backupThrottle)
+    router.get('backups/runs/:id/download', [AdminBackupsController, 'download'])
     router.post('jobs/:id/retry', [AdminJobsController, 'retry'])
     router.post('jobs/sync/:name/run', [AdminJobsController, 'runSync'])
     router.get('jobs/sync/:name/runs', [AdminJobsController, 'syncRuns'])
     router.get('settings', [AdminSettingsController, 'index'])
+    router.get('settings/mail', [AdminSettingsController, 'mail'])
     router.get('templates', [AdminTemplatesController, 'index'])
     router.put('templates/:key', [AdminTemplatesController, 'update'])
     router.delete('templates/:key', [AdminTemplatesController, 'reset'])
@@ -380,8 +452,16 @@ router
     router.post('setup/check/:service', [SetupController, 'check'])
     router.post('setup/identity', [SetupController, 'confirmIdentity'])
     router.post('setup/notification', [SetupController, 'notification'])
-    router.post('settings/mail/test', [AdminSettingsController, 'testMail'])
+    router.post('settings/mail/test', [AdminSettingsController, 'testMail']).use(mailTestThrottle)
     router.post('settings/mail/confirm', [AdminSettingsController, 'confirmMail'])
+    // Each save resolves the host and writes an audited activity: bounded like the API.
+    router.put('settings/mail', [AdminSettingsController, 'updateMail']).use(apiThrottle)
+    router
+      .put('settings/mail/password', [AdminSettingsController, 'setMailPassword'])
+      .use(apiThrottle)
+    router
+      .delete('settings/mail/password', [AdminSettingsController, 'clearMailPassword'])
+      .use(apiThrottle)
     router.put('settings', [AdminSettingsController, 'upsert'])
     router.put('settings/authentication', [AdminAuthenticationSettingsController, 'update'])
     router.put('settings/channels', [AdminSettingsController, 'updateChannel'])
@@ -390,6 +470,26 @@ router
       .post('settings/channels/test', [AdminSettingsController, 'testChannel'])
       .use(channelTestThrottle)
     router.delete('settings/:id', [AdminSettingsController, 'destroy'])
+    // API tokens belong to administrators (owner decision, 2.3.0): a settings tab.
+    router.get('tokens', [ApiTokensController, 'index'])
+    router.post('tokens', [ApiTokensController, 'store']).use(apiThrottle)
+    router.delete('tokens/:id', [ApiTokensController, 'destroy'])
+    router.get('appearance', [AdminAppearanceController, 'index'])
+    router.put('appearance', [AdminAppearanceController, 'updateIdentity'])
+    router.delete('appearance', [AdminAppearanceController, 'resetIdentity'])
+    router.post('appearance/logos', [AdminAppearanceController, 'uploadLogo']).use(apiThrottle)
+    router.post('appearance/occasions', [AdminAppearanceController, 'storeOccasion'])
+    router
+      .put('appearance/occasions/:id', [AdminAppearanceController, 'updateOccasion'])
+      .where('id', /^\d+$/)
+    router
+      .delete('appearance/occasions/:id', [AdminAppearanceController, 'destroyOccasion'])
+      .where('id', /^\d+$/)
+    router.get('assistant', [AdminAssistantController, 'index'])
+    router.put('assistant', [AdminAssistantController, 'update'])
+    router.put('assistant/key', [AdminAssistantController, 'setKey'])
+    router.delete('assistant/key', [AdminAssistantController, 'clearKey'])
+    router.post('assistant/test', [AdminAssistantController, 'test']).use(assistantTestThrottle)
     router.get('lookups', [AdminLookupsController, 'index'])
     router.post('lookups', [AdminLookupsController, 'store'])
     router.put('lookups/groups/:group/order', [AdminLookupsController, 'reorder'])

@@ -13,14 +13,8 @@ import { Checkbox } from '~/components/ui/checkbox'
 import { useConfirmAction } from '~/components/ui/confirm-action'
 import { ResourceSelect } from '~/components/ui/resource-field'
 import { Alert, AlertDescription, AlertTitle } from '~/components/ui/alert'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '~/components/ui/dialog'
+import { Dialog, DialogClose } from '~/components/ui/dialog'
+import { LongDialogContent } from '~/components/ui/long-dialog'
 import {
   Table,
   TableBody,
@@ -44,6 +38,7 @@ export const ACTION_LABELS: Record<string, string> = {
   amend: 'تعديل معتمد',
   manage: 'إدارة كاملة',
   invite: 'دعوة مستخدم',
+  use: 'استخدام',
 }
 const OPERATORS: [string, string][] = [
   ['$eq', 'يساوي'],
@@ -139,19 +134,37 @@ function RuleEditor({
   }
   return (
     <>
-      <Dialog mode={editable ? 'edit' : 'view'} open onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="max-w-2xl">
-          <form onSubmit={save} className="space-y-6">
-            <DialogHeader>
-              <DialogTitle>
-                {rule.inverted ? 'منع' : 'سماح'}: {subject.label.ar} / {ACTION_LABELS[rule.action]}
-              </DialogTitle>
-              <DialogDescription>
-                {editable
-                  ? 'الشروط تُقيّد القاعدة بسجلات محددة، وقائمة الحقول تحصرها في حقول بعينها.'
-                  : 'الشروط والحقول تتطلب اختيار كيان محدد بدلاً من كل الكيانات.'}
-              </DialogDescription>
-            </DialogHeader>
+      <Dialog
+        mode={editable ? 'edit' : 'view'}
+        open
+        onOpenChange={(open) => !open && onClose()}
+        // The field list is a set: its order is no change.
+        value={{ predicates, fields: [...fields].sort() }}
+      >
+        <LongDialogContent
+          width="2xl"
+          title={`${rule.inverted ? 'منع' : 'سماح'}: ${subject.label.ar} / ${ACTION_LABELS[rule.action]}`}
+          description={
+            editable
+              ? 'الشروط تُقيّد القاعدة بسجلات محددة، وقائمة الحقول تحصرها في حقول بعينها.'
+              : 'الشروط والحقول تتطلب اختيار كيان محدد بدلاً من كل الكيانات.'
+          }
+          footer={
+            <>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  إلغاء
+                </Button>
+              </DialogClose>
+              {editable && (
+                <Button type="submit" form="role-rule-form">
+                  حفظ القاعدة
+                </Button>
+              )}
+            </>
+          }
+        >
+          <form id="role-rule-form" onSubmit={save} className="space-y-6">
             {editable && (
               <>
                 <fieldset className="space-y-3">
@@ -207,7 +220,9 @@ function RuleEditor({
                                 aria-pressed={current}
                                 aria-label={`المستخدم الحالي للشرط ${index + 1}`}
                                 title="المستخدم الحالي: يُستبدل بمعرّف من يستخدم النظام"
-                                onClick={() => update(index, { value: current ? '' : CURRENT_USER })}
+                                onClick={() =>
+                                  update(index, { value: current ? '' : CURRENT_USER })
+                                }
                               >
                                 <UserRound size={15} />
                               </Button>
@@ -263,14 +278,8 @@ function RuleEditor({
                 </fieldset>
               </>
             )}
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={onClose}>
-                إلغاء
-              </Button>
-              {editable && <Button type="submit">حفظ القاعدة</Button>}
-            </DialogFooter>
           </form>
-        </DialogContent>
+        </LongDialogContent>
       </Dialog>
       {confirmation}
     </>
@@ -282,6 +291,8 @@ export default function RoleShow({ role, matrix }: Props) {
   const [busy, setBusy] = useState(false)
   const [name, setName] = useState(role.name)
   const [key, setKey] = useState(role.key ?? '')
+  // adula:install still finds a bootstrap role without a key by its name (see RolesAdmin.rename).
+  const legacyBootstrap = role.name === 'administrator' && !role.key
   const [editing, setEditing] = useState<RoleRule | null>(null)
   const ruleFor = (subject: string, action: string, inverted: boolean) =>
     role.rules.find(
@@ -329,8 +340,8 @@ export default function RoleShow({ role, matrix }: Props) {
     `grid size-7 place-items-center rounded-md border transition-colors ${
       active
         ? kind === 'allow'
-          ? 'border-primary bg-primary text-white'
-          : 'border-destructive bg-destructive text-white'
+          ? 'border-primary bg-primary text-primary-foreground'
+          : 'border-destructive bg-destructive text-destructive-foreground'
         : 'border-border text-muted-foreground hover:bg-background'
     }`
   const editingSubject = editing
@@ -356,14 +367,14 @@ export default function RoleShow({ role, matrix }: Props) {
       </Alert>
       <form
         onSubmit={rename}
-        className="mb-6 grid gap-3 rounded-xl border border-border bg-white p-5 md:grid-cols-[1fr_160px_auto]"
+        className="mb-6 grid gap-3 rounded-xl border border-border bg-card p-5 md:grid-cols-[1fr_160px_auto]"
       >
         <div className="space-y-1">
           <Label htmlFor="role-name">اسم الدور</Label>
           <Input
             id="role-name"
             value={name}
-            disabled={role.name === 'administrator' || busy}
+            disabled={legacyBootstrap || busy}
             onChange={(event) => setName(event.target.value)}
             required
           />
@@ -377,7 +388,7 @@ export default function RoleShow({ role, matrix }: Props) {
             disabled={busy}
             options={Array.from({ length: 10 }, (_, level) => ({
               value: String(level),
-              label: String(level),
+              label: level > 0 ? `${level}: حقول محمية حتى هذا المستوى` : '0: الحقول العامة',
             }))}
             onChange={(value) =>
               confirm({
@@ -397,14 +408,14 @@ export default function RoleShow({ role, matrix }: Props) {
           type="submit"
           variant="outline"
           className="self-end"
-          disabled={role.name === 'administrator' || busy}
+          disabled={legacyBootstrap || busy}
         >
           حفظ الاسم
         </Button>
       </form>
       <form
         onSubmit={assignKey}
-        className="mb-6 grid gap-3 rounded-xl border border-border bg-white p-5 md:grid-cols-[1fr_auto]"
+        className="mb-6 grid gap-3 rounded-xl border border-border bg-card p-5 md:grid-cols-[1fr_auto]"
       >
         <div className="space-y-1">
           <Label htmlFor="role-key">المفتاح الثابت</Label>
@@ -430,18 +441,18 @@ export default function RoleShow({ role, matrix }: Props) {
           </Button>
         )}
       </form>
-      <section className="mb-8 overflow-hidden rounded-xl border border-border bg-white">
+      <section className="mb-8 overflow-hidden rounded-xl border border-border bg-card">
         <div className="flex items-center justify-between border-b border-border px-5 py-4">
           <h2 className="font-semibold">مصفوفة الصلاحيات</h2>
           <span className="flex items-center gap-4 text-xs text-muted-foreground">
             <span className="flex items-center gap-1">
-              <span className="grid size-4 place-items-center rounded bg-primary text-white">
+              <span className="grid size-4 place-items-center rounded bg-primary text-primary-foreground">
                 <Check size={10} />
               </span>
               سماح
             </span>
             <span className="flex items-center gap-1">
-              <span className="grid size-4 place-items-center rounded bg-destructive text-white">
+              <span className="grid size-4 place-items-center rounded bg-destructive text-destructive-foreground">
                 <X size={10} />
               </span>
               منع (يتقدم على السماح)
@@ -510,7 +521,7 @@ export default function RoleShow({ role, matrix }: Props) {
           </Table>
         </div>
       </section>
-      <section className="overflow-hidden rounded-xl border border-border bg-white">
+      <section className="overflow-hidden rounded-xl border border-border bg-card">
         <div className="border-b border-border px-5 py-4">
           <h2 className="font-semibold">القواعد وشروطها</h2>
           <p className="mt-1 text-xs text-muted-foreground">

@@ -9,6 +9,7 @@ import type {
   SerializedRecord,
 } from 'adula'
 import { Badge } from '~/components/ui/badge'
+import { UserAvatar } from '~/components/ui/user-avatar'
 import { Button } from '~/components/ui/button'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
 import { Can } from '~/components/ui/can'
@@ -16,10 +17,12 @@ import { arabicText, useMessages, type Translate } from '~/components/ui/message
 import { Skeleton } from '~/components/ui/skeleton'
 import { ResourceActions } from '~/components/ui/resource-actions'
 import { ResourceValue, formatDatetime, type LookupOptions } from '~/components/ui/resource-value'
+import { relationText } from '~/components/ui/field_values'
 import { RecordCollaboration } from '~/components/ui/record-collaboration'
 import { RecordAssignments } from '~/components/ui/record-assignments'
 import { RecordWorkflows } from '~/components/ui/record-workflows'
 import { RecordPrint } from '~/components/ui/record-print'
+import { RecordFooter, RecordFooterClose } from '~/components/ui/resource-surface'
 
 export type ResourceChildren = Children
 const meta = new Set(['id', 'version', 'docStatus', 'orgUnitId'])
@@ -77,7 +80,32 @@ export function ResourceShow({
     field ? label(field.label) : undefined
   return (
     <div className="max-w-5xl space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
+      {resource.submittable && (
+        <Badge
+          variant={result.data.docStatus === 1 ? 'default' : 'secondary'}
+          className={result.data.docStatus === 2 ? 'bg-destructive/10 text-destructive' : ''}
+        >
+          {documentStatus(result.data.docStatus, t)}
+        </Badge>
+      )}
+      <RecordFooter>
+        <div className="me-auto flex flex-wrap items-center gap-2">
+          <RecordPrint resource={resource.name} id={result.data.id as number} />
+          <ResourceActions
+            resource={resource.name}
+            id={result.data.id as number}
+            version={result.data.version ?? undefined}
+            permissions={result.permissions}
+            onDone={(action) =>
+              onAction
+                ? onAction(action)
+                : action === 'delete'
+                  ? router.visit(`/resources/${resource.name}`)
+                  : router.reload()
+            }
+          />
+        </div>
+        <RecordFooterClose />
         <Can permissions={result.permissions} action="update">
           {onEdit ? (
             <Button onClick={onEdit}>
@@ -86,37 +114,16 @@ export function ResourceShow({
             </Button>
           ) : (
             <Button asChild>
-              <Link href={`${base}/edit`}>
+              {/* The same dialog switches to the form: the record page stays mounted. */}
+              <Link href={`${base}/edit`} preserveState preserveScroll>
                 <Pencil size={15} />
                 {t('تعديل السجل')}
               </Link>
             </Button>
           )}
         </Can>
-        <RecordPrint resource={resource.name} id={result.data.id as number} />
-        <ResourceActions
-          resource={resource.name}
-          id={result.data.id as number}
-          version={result.data.version ?? undefined}
-          permissions={result.permissions}
-          onDone={(action) =>
-            onAction
-              ? onAction(action)
-              : action === 'delete'
-                ? router.visit(`/resources/${resource.name}`)
-                : router.reload()
-          }
-        />
-        {resource.submittable && (
-          <Badge
-            variant={result.data.docStatus === 1 ? 'default' : 'secondary'}
-            className={result.data.docStatus === 2 ? 'bg-red-50 text-red-800' : ''}
-          >
-            {documentStatus(result.data.docStatus, t)}
-          </Badge>
-        )}
-      </div>
-      <dl className="grid gap-7 rounded-xl border bg-white p-7 md:grid-cols-2">
+      </RecordFooter>
+      <dl className="grid gap-7 rounded-xl border bg-card p-7 md:grid-cols-2">
         {fields.map((field) => (
           <div
             key={field.key}
@@ -136,7 +143,16 @@ export function ResourceShow({
         {resource.scoped && result.data.orgUnitId !== undefined && (
           <div>
             <dt className="mb-2 text-xs text-muted-foreground">{t('الوحدة التنظيمية')}</dt>
-            <dd className="text-sm">#{String(result.data.orgUnitId)}</dd>
+            {/* The server sends the unit's name; without it the unit is labelled, never its id. */}
+            <dd className="text-sm">
+              {relationText(
+                result.related.orgUnitId?.find(
+                  (unit) => String(unit.id) === String(result.data.orgUnitId)
+                ),
+                result.data.orgUnitId,
+                t('وحدة غير متاحة')
+              )}
+            </dd>
           </div>
         )}
       </dl>
@@ -161,7 +177,7 @@ export function ResourceShow({
                 <section
                   key={field.key}
                   aria-label={label(field.label)}
-                  className="rounded-xl border bg-white"
+                  className="rounded-xl border bg-card"
                 >
                   <div className="flex items-center justify-between border-b px-7 py-4">
                     <h2 className="text-sm font-semibold">{label(field.label)}</h2>
@@ -227,7 +243,7 @@ export function ResourceShow({
       />
       <RecordCollaboration resource={resource} id={result.data.id as number} />
       <Deferred data="activity" fallback={<SectionSkeleton title={t('سجل النشاط')} rows={4} />}>
-        <section aria-label={t('سجل النشاط')} className="rounded-xl border bg-white">
+        <section aria-label={t('سجل النشاط')} className="rounded-xl border bg-card">
           <div className="flex items-center gap-2 border-b px-7 py-4">
             <History size={16} className="text-muted-foreground" />
             <h2 className="text-sm font-semibold">{t('سجل النشاط')}</h2>
@@ -245,7 +261,17 @@ export function ResourceShow({
                   <span className="font-medium">
                     {activityLabels[entry.action] ? t(activityLabels[entry.action]) : entry.action}
                   </span>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                    {entry.actorId ? (
+                      <UserAvatar
+                        user={{
+                          id: entry.actorId,
+                          name: entry.actorName,
+                          avatarUrl: entry.actorAvatarUrl,
+                        }}
+                        size="xs"
+                      />
+                    ) : null}
                     {entry.actorName ?? t('مستخدم #{id}', { id: String(entry.actorId) })}
                   </span>
                   <time
@@ -285,7 +311,7 @@ function SectionSkeleton({ title, rows }: { title: string; rows: number }) {
     <section
       role="status"
       aria-label={t('جارٍ تحميل {section}', { section: title })}
-      className="rounded-xl border bg-white"
+      className="rounded-xl border bg-card"
     >
       <div className="border-b px-7 py-4">
         <Skeleton className="h-4 w-32" />

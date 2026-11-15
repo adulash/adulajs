@@ -20,6 +20,13 @@ import {
 
 type Props = { roles: RoleSummary[] }
 
+const levelHelp = '0: الحقول العامة فقط. 1 فأعلى: الحقول المحمية حتى هذا المستوى أيضًا.'
+
+/** The permission level in words: which protected fields the role's users may read. */
+function levelLabel(level: number) {
+  return level > 0 ? `${level}: حقول محمية حتى هذا المستوى` : '0: الحقول العامة'
+}
+
 export default function RolesIndex({ roles }: Props) {
   const { confirm, confirmation } = useConfirmAction()
   const [name, setName] = useState('')
@@ -44,11 +51,11 @@ export default function RolesIndex({ roles }: Props) {
       <Head title="الأدوار" />
       <AdminHeader
         title="الأدوار والصلاحيات"
-        description="كل دور يملك مصفوفة كيانات × إجراءات تُكتب مباشرة كقواعد."
+        description="حدد لكل دور ما يستطيع مستخدموه عرضه وإنشاؤه وتعديله وحذفه في كل كيان."
       />
       <form
         onSubmit={create}
-        className="mb-6 grid gap-3 rounded-xl border border-border bg-white p-5 md:grid-cols-[1fr_1fr_140px_auto]"
+        className="mb-6 grid gap-3 rounded-xl border border-border bg-card p-5 md:grid-cols-[1fr_1fr_140px_auto]"
       >
         <div className="space-y-1">
           <Label htmlFor="role-name">اسم الدور</Label>
@@ -80,14 +87,18 @@ export default function RolesIndex({ roles }: Props) {
             max={9}
             value={level}
             onChange={(event) => setLevel(event.target.value)}
+            aria-describedby="role-level-help"
           />
+          <p id="role-level-help" className="text-xs text-muted-foreground">
+            {levelHelp}
+          </p>
         </div>
         <Button type="submit" className="self-end">
           <Plus size={16} />
           إنشاء دور
         </Button>
       </form>
-      <section className="overflow-hidden rounded-xl border border-border bg-white">
+      <section className="overflow-hidden rounded-xl border border-border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
@@ -110,7 +121,7 @@ export default function RolesIndex({ roles }: Props) {
                 <TableCell dir="ltr" className="text-end font-mono text-xs text-muted-foreground">
                   {role.key ?? '—'}
                 </TableCell>
-                <TableCell>{role.permissionLevel}</TableCell>
+                <TableCell>{levelLabel(role.permissionLevel)}</TableCell>
                 <TableCell>{role.rules}</TableCell>
                 <TableCell>{role.users}</TableCell>
                 <TableCell>

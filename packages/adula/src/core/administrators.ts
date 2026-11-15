@@ -111,6 +111,9 @@ export async function resolveInstallAdministrator(
   return { id: await create(), created: true }
 }
 
+/** The name a new installation gives the bootstrap role; its key stays `administrator`. */
+const BOOTSTRAP_ROLE_NAME = 'مدير النظام'
+
 /**
  * Idempotently installs the root unit, the bootstrap `administrator` role with its
  * `manage all` grant, and assigns it to the user. A transaction-scoped advisory
@@ -129,14 +132,30 @@ export async function grantInstallAdministrator(knex: Knex, userId: number, vers
         .update({ path: String(created.id) })
       root = created
     }
-    let role = await trx('roles').where('name', 'administrator').first()
+    // The bootstrap role is found by its fixed key, so administrators may rename it; a role
+    // installed before keys existed is found by its original name and keyed once.
+    let role =
+      (await trx('roles').where('key', 'administrator').first()) ??
+      (await trx('roles').where('name', 'administrator').whereNull('key').first())
     if (!role) {
+      // Role names are unique: a project role already named either way keeps its name.
+      const taken = new Set<string>(
+        await trx('roles').whereIn('name', [BOOTSTRAP_ROLE_NAME, 'administrator']).pluck('name')
+      )
+      const name = [
+        BOOTSTRAP_ROLE_NAME,
+        'administrator',
+        `${BOOTSTRAP_ROLE_NAME} (administrator)`,
+      ].find((candidate) => !taken.has(candidate))
       const [created] = await trx('roles')
-        .insert({ name: 'administrator', key: 'administrator', permission_level: 1 })
+        .insert({
+          name,
+          key: 'administrator',
+          permission_level: 1,
+        })
         .returning('*')
       role = created
-    } else if (!role.key && !(await trx('roles').where('key', 'administrator').first()))
-      await trx('roles').where('id', role.id).update({ key: 'administrator' })
+    } else if (!role.key) await trx('roles').where('id', role.id).update({ key: 'administrator' })
     // Repair a missing bootstrap grant even when the role already exists.
     if (
       !(await trx('role_rules')

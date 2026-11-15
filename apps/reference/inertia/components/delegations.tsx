@@ -4,6 +4,7 @@ import axios from 'axios'
 import { Check, ChevronsUpDown, Trash2, UserRoundCheck } from 'lucide-react'
 import type { ResourceField, WorkflowDelegation } from 'adula'
 import { Badge } from '~/components/ui/badge'
+import { UserAvatar } from '~/components/ui/user-avatar'
 import { Button } from '~/components/ui/button'
 import {
   Command,
@@ -12,14 +13,8 @@ import {
   CommandItem,
   CommandList,
 } from '~/components/ui/command'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '~/components/ui/dialog'
+import { Dialog, DialogClose } from '~/components/ui/dialog'
+import { LongDialogContent } from '~/components/ui/long-dialog'
 import { Label } from '~/components/ui/label'
 import { Popover, PopoverContent, PopoverTrigger } from '~/components/ui/popover'
 import {
@@ -37,7 +32,7 @@ import { calendarIso } from '~/components/ui/calendar_date'
 import { useConfirmAction } from '~/components/ui/confirm-action'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
 
-export type Candidate = { id: number; name: string }
+export type Candidate = { id: number; name: string; avatarUrl?: string | null }
 const json = { headers: { Accept: 'application/json' }, withXSRFToken: true }
 
 export const delegationStatusLabel: Record<WorkflowDelegation['status'], string> = {
@@ -118,7 +113,10 @@ export function UserPicker({
           aria-invalid={invalid || undefined}
           className="h-10 w-full justify-between font-normal"
         >
-          <span className={value ? '' : 'text-muted-foreground'}>{value?.name ?? placeholder}</span>
+          <span className={`flex min-w-0 items-center gap-2 ${value ? '' : 'text-muted-foreground'}`}>
+            {value && <UserAvatar user={value} size="sm" />}
+            <span className="truncate">{value?.name ?? placeholder}</span>
+          </span>
           <ChevronsUpDown size={14} className="text-muted-foreground" />
         </Button>
       </PopoverTrigger>
@@ -153,6 +151,7 @@ export function UserPicker({
                   className={value?.id === user.id ? 'opacity-100' : 'opacity-0'}
                   aria-hidden="true"
                 />
+                <UserAvatar user={user} size="xs" />
                 {user.name}
               </CommandItem>
             ))}
@@ -243,8 +242,11 @@ export function DelegationDialog({
         },
         json
       )
+      // The list refreshes before the dialog closes, so closing returns to the current rows.
+      await new Promise<void>((resolve) =>
+        router.reload({ only: ['delegations'], onFinish: () => resolve() })
+      )
       onOpenChange(false)
-      router.reload({ only: ['delegations'] })
     } catch (caught) {
       setError(errorMessage(caught, 'تعذر حفظ التفويض.'))
     } finally {
@@ -252,16 +254,38 @@ export function DelegationDialog({
     }
   }
   return (
-    <Dialog mode="edit" open={open} onOpenChange={onOpenChange}>
-      <DialogContent dir="rtl" className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{admin ? 'تفويض موافقات مستخدم' : 'تفويض موافقاتي'}</DialogTitle>
-          <DialogDescription>
-            تنتقل الموافقات التي تُطلب خلال المدة إلى المفوَّض إليه، ويقرر فيها نيابة عن صاحبها.
-            المهام اليدوية لا تُفوَّض.
-          </DialogDescription>
-        </DialogHeader>
-        <form id="delegation-form" className="space-y-4" noValidate onSubmit={submit}>
+    <Dialog
+      mode="edit"
+      open={open}
+      onOpenChange={onOpenChange}
+      // The dialog compares these with how it opened (after the reset above).
+      value={{ delegator: delegator?.id, delegate: delegate?.id, startsOn, endsOn, note }}
+    >
+      <LongDialogContent
+        dir="rtl"
+        width="lg"
+        title={admin ? 'تفويض موافقات مستخدم' : 'تفويض موافقاتي'}
+        description="تنتقل الموافقات التي تُطلب خلال المدة إلى المفوَّض إليه، ويقرر فيها نيابة عن صاحبها. المهام اليدوية لا تُفوَّض."
+        footer={
+          <>
+            <DialogClose asChild>
+              <Button type="button" variant="outline" disabled={busy}>
+                إلغاء
+              </Button>
+            </DialogClose>
+            <Button type="submit" form="delegation-form" disabled={busy}>
+              <UserRoundCheck size={15} />
+              حفظ التفويض
+            </Button>
+          </>
+        }
+      >
+        <form
+          id="delegation-form"
+          className="space-y-4"
+          noValidate
+          onSubmit={submit}
+        >
           {admin && (
             <div className="space-y-2">
               <Label htmlFor="delegation-delegator">صاحب الموافقات</Label>
@@ -322,21 +346,12 @@ export function DelegationDialog({
             />
           </div>
           {error && (
-            <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800">
+            <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
               {error}
             </p>
           )}
         </form>
-        <DialogFooter>
-          <Button type="button" variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>
-            إلغاء
-          </Button>
-          <Button type="submit" form="delegation-form" disabled={busy}>
-            <UserRoundCheck size={15} />
-            حفظ التفويض
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+      </LongDialogContent>
     </Dialog>
   )
 }
@@ -378,11 +393,11 @@ export function DelegationTable({
   return (
     <>
       {error && (
-        <p role="alert" className="mb-3 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800">
+        <p role="alert" className="mb-3 rounded-lg bg-destructive/10 px-4 py-3 text-sm text-destructive">
           {error}
         </p>
       )}
-      <div className="overflow-x-auto rounded-xl border bg-white">
+      <div className="overflow-x-auto rounded-xl border bg-card">
         <Table aria-label={caption} className="min-w-[680px]">
           <TableHeader>
             <TableRow>
@@ -402,10 +417,34 @@ export function DelegationTable({
             {delegations.map((item) => (
               <TableRow key={item.id}>
                 {columns.includes('delegator') && (
-                  <TableCell className="font-medium">{item.delegatorName ?? `#${item.delegatorId}`}</TableCell>
+                  <TableCell className="font-medium">
+                    <span className="inline-flex items-center gap-1.5">
+                      <UserAvatar
+                        user={{
+                          id: item.delegatorId,
+                          name: item.delegatorName,
+                          avatarUrl: item.delegatorAvatarUrl,
+                        }}
+                        size="xs"
+                      />
+                      {item.delegatorName ?? `#${item.delegatorId}`}
+                    </span>
+                  </TableCell>
                 )}
                 {columns.includes('delegate') && (
-                  <TableCell className="font-medium">{item.delegateName ?? `#${item.delegateId}`}</TableCell>
+                  <TableCell className="font-medium">
+                    <span className="inline-flex items-center gap-1.5">
+                      <UserAvatar
+                        user={{
+                          id: item.delegateId,
+                          name: item.delegateName,
+                          avatarUrl: item.delegateAvatarUrl,
+                        }}
+                        size="xs"
+                      />
+                      {item.delegateName ?? `#${item.delegateId}`}
+                    </span>
+                  </TableCell>
                 )}
                 <TableCell className="tabular-nums">
                   <bdi>{formatDate(item.startsOn, calendar)}</bdi> إلى{' '}

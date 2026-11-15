@@ -16,18 +16,30 @@ panel automatically.
 
 - Mentions and follower notifications only reach users who can read the record;
   mentioning anyone else is refused.
-- Tags require update permission; lists filter with `?tag=<name>`.
+- Deleting a comment replaces its text in the notifications it produced with a
+  neutral note and stops their pending e-mail and channel deliveries; editing one
+  replaces the earlier excerpt with a neutral note. Messages already sent by e-mail
+  or another channel cannot be recalled, and an open notification list shows the
+  change after it reloads.
+- Tags require update permission; lists filter with `?tag=<name>`. Tag suggestions
+  name only tags of records the user may view, and simultaneous saves of one
+  record's tags keep the last one.
 - Every update stores before/after values in `field_changes` inside the save
   transaction. Readers only see changes of fields they may read.
 - `followerListeners(registry, () => adula().collaboration)` notifies followers of
-  updates and document transitions.
+  updates and document transitions. Its access checks run on the event's
+  transaction; a custom actor loader should accept the connection passed as the
+  second argument of `load(id, db)`, as `ActorStore` does.
 
 ## Assignments and "my tasks"
 
 `Assignments` assigns work on a record (update permission required; the assignee
 must be able to read the record). `/my-tasks` lists the user's tasks; only the
 assignee completes and only the assigner cancels. Approval steps of workflows
-create assignments of kind `approval`.
+create assignments of kind `approval`. A due date must be a real calendar day
+(otherwise 422 `E_ASSIGNMENT_DUE`); an open task past its due date reports
+`sla: 'overdue'` after its last day in the system time zone. The open counts cover
+only items on records the user can still read.
 
 ## Notifications, templates, e-mail and realtime
 
@@ -88,7 +100,8 @@ The delivery log shows every stored delivery and can raise it again.
 
 ## API tokens and OpenAPI
 
-Users create read or read-write tokens under their account menu. `/api/v1`
+Administrators create read or read-write tokens under «الإعدادات ← رموز API»; a token
+whose owner is not an administrator is refused. `/api/v1`
 accepts `Authorization: Bearer <token>` only (no cookies, no CSRF) and exposes the
 same resource operations with the token owner's current permissions.
 `GET /api/v1/openapi.json` describes the resources and actions the caller may use, and
@@ -99,11 +112,15 @@ same resource operations with the token owner's current permissions.
 
 Generic index pages filter each filterable field by its type: «أيٌّ من» (several values)
 for lookups, texts and relations, «من / إلى» for numbers, amounts and dates, and
-«فارغ / غير فارغ» for every field. Saved views keep these filters. The URL form is
+«فارغ / غير فارغ» for every field. Saved views keep these filters. Sharing a view with
+every reader of the resource requires `update` on it; a colleague's shared view is listed
+only while its author may still share it and only when it queries fields the reader may
+query. The URL form is
 `filters[status][in]=open,closed`, `filters[total][gte]=1000`, `filters[notes][empty]=true`.
 
-«تصدير النتائج» downloads a CSV of every record matching the current search and filters,
-not just the loaded rows, with the columns the user may read. Exports above 5000 rows are
+«تصدير النتائج» offers «ملف Excel (xlsx)» or «ملف CSV» of every record matching the
+current search and filters, not just the loaded rows, with the columns the user may read.
+The workbook is right-to-left with typed numbers, amounts and dates. Exports above 5000 rows are
 refused with a request to narrow the filters.
 
 Selecting rows shows a bulk bar with the actions the user may take: delete, submit,
@@ -140,12 +157,11 @@ a widget over data the viewer cannot read is not shown.
 
 ## CSV import
 
-Generic index pages offer "استيراد CSV" to users who may create records. Columns
+Generic index pages offer «استيراد من ملف» (Excel or CSV) to users who may create records. Columns
 are matched to writable fields, the worker saves each row through
 `ResourceService` with the importer's permissions, and `/imports` shows progress
 and row errors. Templates, dry-run checks, upsert by a unique field, the import API and
-format adapters are described in [Integration](integration.md#imports). XLSX is not
-supported yet ([GAPS](../GAPS.md)).
+format adapters are described in [Integration](integration.md#imports).
 
 ## Printing
 
@@ -228,6 +244,10 @@ A user delegates their workflow approvals to a colleague for a date range in
 * the user's pending approvals appear in the delegate's My tasks and can be decided
   there;
 * the run's history names who decided and on whose behalf.
+
+A user picks a delegate on their own organization path (the same unit, an ancestor or a
+descendant); administrators may choose anyone. A user without an organization unit
+cannot delegate by themselves.
 
 Delegation never widens record access (the delegate's own rights still apply), never
 covers manual tasks, and never lets anyone approve a request they submitted. It ends at

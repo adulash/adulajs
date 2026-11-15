@@ -9,14 +9,9 @@ import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Switch } from '~/components/ui/switch'
 import { Textarea } from '~/components/ui/textarea'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '~/components/ui/dialog'
+import { Dialog, DialogClose } from '~/components/ui/dialog'
+import { LongDialogContent } from '~/components/ui/long-dialog'
+import { useDialogParam } from '~/components/ui/dialog_param'
 
 type Props = { templates: MessageTemplate[] }
 
@@ -27,17 +22,23 @@ function preview(text: string, variables: readonly string[]) {
 }
 
 export default function TemplatesIndex({ templates }: Props) {
-  const [editing, setEditing] = useState<MessageTemplate | null>(null)
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [mail, setMail] = useState(false)
   const [processing, setProcessing] = useState(false)
-  const open = (template: MessageTemplate) => {
-    setEditing(template)
-    setSubject(template.subject)
-    setBody(template.body)
-    setMail(template.mail)
-  }
+  // `?edit=<key>` opens the template's dialog (decision 30); an unknown key is dropped.
+  const dialog = useDialogParam(
+    'edit',
+    (key) => templates.find((template) => template.key === key),
+    {
+      onOpen: (template: MessageTemplate) => {
+        setSubject(template.subject)
+        setBody(template.body)
+        setMail(template.mail)
+      },
+    }
+  )
+  const editing = dialog.item
   const save = (event: React.FormEvent) => {
     event.preventDefault()
     if (!editing) return
@@ -46,10 +47,12 @@ export default function TemplatesIndex({ templates }: Props) {
       { subject, body, mail },
       {
         preserveScroll: true,
+        // The dialog stays mounted while the list refreshes, then closes over it.
+        preserveState: true,
         onStart: () => setProcessing(true),
         onFinish: () => setProcessing(false),
         onSuccess: (page) => {
-          if (!page.flash?.error) setEditing(null)
+          if (!page.flash?.error) dialog.close()
         },
       }
     )
@@ -63,7 +66,7 @@ export default function TemplatesIndex({ templates }: Props) {
           نصوص الإشعارات والبريد. التعديل محفوظ لهذا النشر، ويمكن إعادته إلى النص الافتراضي.
         </p>
       </div>
-      <div className="overflow-x-auto rounded-xl border bg-white">
+      <div className="relative overflow-x-auto rounded-xl border bg-card">
         <table className="w-full min-w-[720px] text-sm">
           <thead className="bg-muted text-xs text-muted-foreground">
             <tr>
@@ -96,7 +99,7 @@ export default function TemplatesIndex({ templates }: Props) {
                 <td className="px-5 py-3">{template.subject}</td>
                 <td className="px-5 py-3">
                   {template.mail ? (
-                    <span className="flex items-center gap-1 text-emerald-800">
+                    <span className="flex items-center gap-1 text-success">
                       <Mail size={14} /> يُرسل
                     </span>
                   ) : (
@@ -114,7 +117,7 @@ export default function TemplatesIndex({ templates }: Props) {
                       size="sm"
                       variant="outline"
                       aria-label={`تعديل ${template.label}`}
-                      onClick={() => open(template)}
+                      onClick={() => dialog.open(template.key)}
                     >
                       <Pencil size={14} />
                       تعديل
@@ -141,12 +144,29 @@ export default function TemplatesIndex({ templates }: Props) {
           </tbody>
         </table>
       </div>
-      <Dialog open={editing !== null} onOpenChange={(value) => !value && setEditing(null)}>
-        <DialogContent dir="rtl" className="sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>تعديل القالب</DialogTitle>
-            <DialogDescription>{editing?.label}</DialogDescription>
-          </DialogHeader>
+      <Dialog
+        open={editing !== null}
+        onOpenChange={(value) => !value && dialog.close()}
+        value={{ subject, body, mail }}
+      >
+        <LongDialogContent
+          dir="rtl"
+          width="2xl"
+          title="تعديل القالب"
+          description={editing?.label}
+          footer={
+            <>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  إلغاء
+                </Button>
+              </DialogClose>
+              <Button type="submit" form="template-form" disabled={processing}>
+                حفظ القالب
+              </Button>
+            </>
+          }
+        >
           {editing && (
             <form id="template-form" className="space-y-4" onSubmit={save}>
               <div className="space-y-2">
@@ -187,15 +207,7 @@ export default function TemplatesIndex({ templates }: Props) {
               </div>
             </form>
           )}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setEditing(null)}>
-              إلغاء
-            </Button>
-            <Button type="submit" form="template-form" disabled={processing}>
-              حفظ القالب
-            </Button>
-          </DialogFooter>
-        </DialogContent>
+        </LongDialogContent>
       </Dialog>
     </>
   )

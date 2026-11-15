@@ -1,4 +1,5 @@
 import { test } from '@japa/runner'
+import knex from 'knex'
 import { Assignments, ResourceService } from '../index.js'
 import { admin, db, reader, registry, setup } from './helpers.js'
 import { failure } from './helpers/failure.js'
@@ -126,6 +127,7 @@ test.group('Assignments', (group) => {
     )
     const recordList = await assignments().forRecord('orders', orderId, admin)
     assert.lengthOf(recordList, 1)
+    assert.equal(mine.open, 1)
   })
 
   test('workflow approval assignments cannot be completed as plain tasks', async ({ assert }) => {
@@ -251,5 +253,149 @@ test.group('Assignments', (group) => {
     await strict.complete(third.id, reader, 'cancelled', { note: 'لم تعد مطلوبة' })
     const cancelled = await db('assignments').where('id', third.id).first()
     assert.deepEqual([cancelled.status, cancelled.close_reason], ['cancelled', 'لم تعد مطلوبة'])
+  })
+
+  test('closing tasks needs no second pool connection while the row is locked', async ({
+    assert,
+  }) => {
+    const tasks = []
+    for (let i = 0; i < 6; i++)
+      tasks.push(
+        await assignments().assign('orders', orderId, reader, { assigneeId: 4, title: `مهمة ${i}` })
+      )
+    // Three times more concurrent closes than connections: a record check on the pool
+    // inside the locking transaction waits for a connection nobody releases.
+    const narrow = knex({
+      client: 'pg',
+      connection: db.client.config.connection,
+      searchPath: ['adula_test', 'public'],
+      pool: { min: 0, max: 2 },
+      acquireConnectionTimeout: 3000,
+    })
+    try {
+      const closing = new Assignments(narrow, new ResourceService(narrow, registry), {
+        load: async (id) => actors.get(id)!,
+      })
+      const results = await Promise.allSettled(
+        tasks.map((task) => closing.complete(task.id, viewer))
+      )
+      assert.deepEqual(
+        results.map((result) => result.status),
+        tasks.map(() => 'fulfilled')
+      )
+      const statuses = await db('assignments')
+        .whereIn(
+          'id',
+          tasks.map((task) => task.id)
+        )
+        .pluck('status')
+      assert.deepEqual(
+        statuses,
+        tasks.map(() => 'done')
+      )
+    } finally {
+      await narrow.destroy()
+    }
+  })
+
+  test('a task on a record the assignee lost reads as not found when closing', async ({
+    assert,
+  }) => {
+    const moved = await service().save('orders', admin, { notes: 'سينقل', orgUnitId: 2 })
+    const created = await assignments().assign('orders', Number(moved.id), reader, {
+      assigneeId: 4,
+      title: 'على سجل منقول',
+    })
+    await db('orders').where('id', Number(moved.id)).update({ org_unit_id: 3 })
+    const lost = await failure(() => assignments().complete(created.id, viewer))
+    assert.deepEqual([lost.status, lost.code], [404, 'E_ASSIGNMENT_NOT_FOUND'])
+    const row = await db('assignments').where('id', created.id).first()
+    assert.equal(row.status, 'open')
+  })
+
+  test('the open counts equal the listable items after a record leaves the unit', async ({
+    assert,
+  }) => {
+    const first = await service().save('orders', admin, { notes: 'أ', orgUnitId: 2 })
+    const second = await service().save('orders', admin, { notes: 'ب', orgUnitId: 2 })
+    for (const title of ['أولى', 'ثانية'])
+      await assignments().assign('orders', Number(first.id), reader, { assigneeId: 4, title })
+    await assignments().assign('orders', Number(second.id), reader, {
+      assigneeId: 4,
+      title: 'ثالثة',
+    })
+    await assignments().create(db, {
+      resource: 'orders',
+      recordId: Number(second.id),
+      assigneeId: 4,
+      assignedBy: null,
+      title: 'موافقة',
+      kind: 'approval',
+      workflowRunId: '00000000-0000-4000-8000-0000000000aa',
+      workflowStep: 'manager',
+    })
+    const before = await assignments().mine(viewer)
+    assert.deepEqual([before.open, before.approvals, before.data.length], [4, 1, 4])
+    // The «مهامي» badge reads openCounts: the same numbers as the list (#156).
+    assert.deepEqual(await assignments().openCounts(viewer), { open: 4, approvals: 1 })
+    await db('orders').where('id', Number(second.id)).update({ org_unit_id: 3 })
+    const after = await assignments().mine(viewer)
+    assert.deepEqual([after.open, after.approvals, after.data.length], [2, 0, 2])
+    assert.deepEqual(await assignments().openCounts(viewer), { open: 2, approvals: 0 })
+    const tasks = await assignments().mine(viewer, { kind: 'task' })
+    assert.equal(tasks.open, tasks.data.length)
+  })
+
+  test('a due date must be a real calendar day (#127)', async ({ assert }) => {
+    for (const dueOn of ['2026-02-30', '2026-04-31', '2026-02-29', '0000-01-01', '2026-1-01']) {
+      const refused = await failure(() =>
+        assignments().assign('orders', orderId, reader, { assigneeId: 4, title: 'x', dueOn })
+      )
+      assert.deepEqual([refused.status, refused.code], [422, 'E_ASSIGNMENT_DUE'], dueOn)
+    }
+    assert.lengthOf(await db('assignments'), 0)
+    const leap = await assignments().assign('orders', orderId, reader, {
+      assigneeId: 4,
+      title: 'يوم كبيس',
+      dueOn: '2028-02-29',
+    })
+    assert.equal(leap.dueOn, '2028-02-29')
+  })
+
+  test('an open task past its due date reports overdue (#128)', async ({ assert }) => {
+    const at = (now: string, timeZone?: string) =>
+      new Assignments(
+        db,
+        service(),
+        { load: async (id) => actors.get(id)! },
+        { now: () => new Date(now), timeZone }
+      )
+    const late = await at('2026-10-10T08:00:00Z').assign('orders', orderId, reader, {
+      assigneeId: 4,
+      title: 'متأخرة',
+      dueOn: '2026-10-09',
+    })
+    assert.equal(late.sla, 'overdue')
+    await at('2026-10-10T08:00:00Z').assign('orders', orderId, reader, {
+      assigneeId: 4,
+      title: 'اليوم',
+      dueOn: '2026-10-10',
+    })
+    await at('2026-10-10T08:00:00Z').assign('orders', orderId, reader, {
+      assigneeId: 4,
+      title: 'بلا تاريخ',
+    })
+    const page = await at('2026-10-10T08:00:00Z').mine(viewer)
+    const sla = Object.fromEntries(page.data.map((item) => [item.title, item.sla]))
+    assert.deepEqual(sla, { 'متأخرة': 'overdue', 'اليوم': 'on_time', 'بلا تاريخ': null })
+    // The last day ends in the system time zone: 22:30 UTC is already the next day in Riyadh.
+    const evening = '2026-10-09T22:30:00Z'
+    const utc = await at(evening).mine(viewer)
+    const riyadh = await at(evening, 'Asia/Riyadh').mine(viewer)
+    assert.equal(utc.data.find((item) => item.title === 'متأخرة')?.sla, 'on_time')
+    assert.equal(riyadh.data.find((item) => item.title === 'متأخرة')?.sla, 'overdue')
+    await assignments().complete(late.id, viewer)
+    const done = await at('2026-10-10T08:00:00Z').mine(viewer, { status: 'done' })
+    assert.isNull(done.data[0].sla)
   })
 })

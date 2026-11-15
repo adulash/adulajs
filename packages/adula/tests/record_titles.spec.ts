@@ -38,13 +38,34 @@ const ticket = defineResource({
   actions: ['view', 'create', 'update', 'delete'],
   validator: { validate: async (data) => data as RecordData },
 })
+// A claim needs its order: an actor with a single viewable order starts on it (#115).
+const claim = defineResource({
+  name: 'claims',
+  label: { ar: 'المطالبات', en: 'Claims' },
+  model: BaseModel,
+  scoped: true,
+  fields: {
+    code: { type: 'string', label: { ar: 'الرمز', en: 'Code' } },
+    orderId: {
+      type: 'belongsTo',
+      resource: 'orders',
+      required: true,
+      label: { ar: 'الطلب', en: 'Order' },
+    },
+  },
+  list: ['code', 'orderId'],
+  form: ['code', 'orderId'],
+  show: ['code', 'orderId'],
+  actions: ['view', 'create', 'update', 'delete'],
+  validator: { validate: async (data) => data as RecordData },
+})
 const registry = new ResourceRegistry().register([
   { name: 'customers', label: customer.label, dependsOn: [], resources: [customer] },
   {
     name: 'orders',
     label: order.label,
     dependsOn: ['customers'],
-    resources: [order, line, ticket],
+    resources: [order, line, ticket, claim],
   },
 ])
 const service = new ResourceService(db, registry)
@@ -177,6 +198,28 @@ test.group('Create form defaults (#48)', (group) => {
       defaults: { code: 'ignored' },
     })
     assert.deepEqual(editing.defaults, {}, 'defaults apply to create forms only')
+  })
+
+  test('a required relation with a single choice for the actor is preselected (#115)', async ({
+    assert,
+  }) => {
+    await createResourceTable(db, claim)
+    await db('org_units').insert({ id: 9, parent_id: 1, name: 'C', type: 'unit', path: '1.9' })
+    const single = ace({ orgPaths: ['1.9'] })
+    const only = await service.save('orders', admin, { notes: 'الطلب الوحيد', orgUnitId: 9 })
+    const editor = await service.editor('claims', single)
+    assert.deepEqual(editor.defaults, { orderId: Number(only.id) })
+    assert.deepEqual(
+      editor.options.orderId.map((option) => option.value),
+      [String(only.id)]
+    )
+    // Editing never preselects, and a choice among several is left to the actor.
+    const existing = await service.save('claims', admin, { orderId: only.id, orgUnitId: 9 })
+    const editing = await service.editor('claims', single, Number(existing.id))
+    assert.deepEqual(editing.defaults, {})
+    await service.save('orders', admin, { notes: 'طلب ثانٍ', orgUnitId: 9 })
+    const several = await service.editor('claims', single)
+    assert.deepEqual(several.defaults, {})
   })
 
   test('a default relation beyond the first option page is added with its title', async ({

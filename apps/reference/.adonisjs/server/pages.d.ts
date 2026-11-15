@@ -15,8 +15,10 @@ declare module '@adonisjs/inertia/types' {
     'account/delegations': ExtractProps<(typeof import('../../inertia/pages/account/delegations.tsx'))['default']>
     'account/profile': ExtractProps<(typeof import('../../inertia/pages/account/profile.tsx'))['default']>
     'account/sessions': ExtractProps<(typeof import('../../inertia/pages/account/sessions.tsx'))['default']>
-    'account/tokens': ExtractProps<(typeof import('../../inertia/pages/account/tokens.tsx'))['default']>
     'admin/activity/index': ExtractProps<(typeof import('../../inertia/pages/admin/activity/index.tsx'))['default']>
+    'admin/appearance/index': ExtractProps<(typeof import('../../inertia/pages/admin/appearance/index.tsx'))['default']>
+    'admin/assistant/index': ExtractProps<(typeof import('../../inertia/pages/admin/assistant/index.tsx'))['default']>
+    'admin/backups/index': ExtractProps<(typeof import('../../inertia/pages/admin/backups/index.tsx'))['default']>
     'admin/delegations/index': ExtractProps<(typeof import('../../inertia/pages/admin/delegations/index.tsx'))['default']>
     'admin/forbidden': ExtractProps<(typeof import('../../inertia/pages/admin/forbidden.tsx'))['default']>
     'admin/jobs/index': ExtractProps<(typeof import('../../inertia/pages/admin/jobs/index.tsx'))['default']>
@@ -29,8 +31,10 @@ declare module '@adonisjs/inertia/types' {
     'admin/sequences/index': ExtractProps<(typeof import('../../inertia/pages/admin/sequences/index.tsx'))['default']>
     'admin/sessions/index': ExtractProps<(typeof import('../../inertia/pages/admin/sessions/index.tsx'))['default']>
     'admin/settings/index': ExtractProps<(typeof import('../../inertia/pages/admin/settings/index.tsx'))['default']>
+    'admin/settings/mail': ExtractProps<(typeof import('../../inertia/pages/admin/settings/mail.tsx'))['default']>
     'admin/setup/index': ExtractProps<(typeof import('../../inertia/pages/admin/setup/index.tsx'))['default']>
     'admin/templates/index': ExtractProps<(typeof import('../../inertia/pages/admin/templates/index.tsx'))['default']>
+    'admin/tokens/index': ExtractProps<(typeof import('../../inertia/pages/admin/tokens/index.tsx'))['default']>
     'admin/users/index': ExtractProps<(typeof import('../../inertia/pages/admin/users/index.tsx'))['default']>
     'admin/users/show': ExtractProps<(typeof import('../../inertia/pages/admin/users/show.tsx'))['default']>
     'admin/webhooks/index': ExtractProps<(typeof import('../../inertia/pages/admin/webhooks/index.tsx'))['default']>

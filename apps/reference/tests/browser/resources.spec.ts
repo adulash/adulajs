@@ -2,7 +2,7 @@ import { test } from '@japa/runner'
 import { randomUUID } from 'node:crypto'
 import { join } from 'node:path'
 import db from '@adonisjs/lucid/services/db'
-import type { Page } from 'playwright'
+import type { Locator, Page } from 'playwright'
 import { adula } from '#services/adula'
 import {
   installSampleResources,
@@ -12,6 +12,19 @@ import {
   type UiActor,
 } from '#tests/helpers/ui_fixtures'
 
+/**
+ * Saving a new record returns to the list with the new row first and highlighted (owner,
+ * 2.3.0); the record's own page opens from that row.
+ */
+async function openCreatedRecord(page: Page, resource: string) {
+  await page.waitForURL(new RegExp(`/resources/${resource}$`))
+  const row = page.locator('main tr[data-created]')
+  await row.waitFor({ state: 'attached' })
+  const id = await row.getAttribute('data-row-id')
+  await page.goto(`/resources/${resource}/${id}`)
+  return id
+}
+
 // The server tsconfig omits the DOM lib; these run inside the page through evaluate().
 type Scrollable = {
   scrollTop: number
@@ -19,17 +32,48 @@ type Scrollable = {
   scrollWidth: number
   clientWidth: number
 }
+/**
+ * Scrolls whatever scrolls the list (the window, or a scrolling content column) to its end:
+ * the table has no scroller of its own (#109). Runs in the page; the server tsconfig has no DOM lib.
+ */
+const scrollListToEnd = `(() => {
+  let element = document.querySelector('[data-slot="table-scroll"]').closest('section').parentElement
+  while (element && element !== document.body) {
+    const { overflowY } = getComputedStyle(element)
+    if ((overflowY === 'auto' || overflowY === 'scroll') && element.scrollHeight > element.clientHeight) {
+      element.scrollTop = element.scrollHeight
+      return
+    }
+    element = element.parentElement
+  }
+  window.scrollTo(0, document.documentElement.scrollHeight)
+})()`
+/** Elements inside the list section that would scroll vertically on their own. */
+const innerScrollers = `[...document.querySelector('[data-slot="table-scroll"]').closest('section').querySelectorAll('*')]
+  .filter((element) => ['auto', 'scroll'].includes(getComputedStyle(element).overflowY))
+  .filter((element) => element.scrollHeight > element.clientHeight).length`
 
 const knex = () => db.connection().getWriteClient()
 async function service(actor: UiActor) {
   const runtime = adula()
   return { runtime, loaded: await runtime.actors.load(actor.user.id) }
 }
+/** Waits for a dialog's opening animation, so its box is the settled one. */
+async function settled(dialog: Locator) {
+  await dialog.evaluate(async (element: { getAnimations(): { finished: Promise<unknown> }[] }) => {
+    await Promise.all(element.getAnimations().map((animation) => animation.finished))
+  })
+}
+/**
+ * Loads every page through the «تحميل المزيد» button. The click is dispatched without scrolling:
+ * the list scrolls with the page (#109), so scrolling the button into view would itself start
+ * the automatic load of the next page and replace the button while Playwright clicks it.
+ */
 async function loadAll(page: Page) {
   for (let round = 0; round < 8; round++) {
     const more = page.getByRole('button', { name: 'تحميل المزيد', exact: true })
     if (!(await more.isVisible())) break
-    await more.click()
+    await more.dispatchEvent('click')
     await page.getByRole('status').waitFor({ state: 'hidden' })
   }
 }
@@ -74,7 +118,7 @@ test.group('Generic resource browser acceptance', (group) => {
     await page.getByLabel('اسم العميل', { exact: true }).fill(name)
     await page.getByLabel('البريد الإلكتروني', { exact: true }).fill('generic@example.test')
     await page.getByRole('button', { name: 'حفظ السجل', exact: true }).click()
-    await page.waitForURL(/\/resources\/customers\/\d+$/)
+    await openCreatedRecord(page, 'customers')
     await page.getByRole('heading', { name: 'تفاصيل · العملاء' }).waitFor()
     await page.getByRole('dialog', { name: 'تفاصيل · العملاء' }).waitFor()
     await page.assertVisible(page.getByText(name, { exact: true }))
@@ -123,7 +167,7 @@ test.group('Generic resource browser acceptance', (group) => {
     await page.screenshot({ path: join(shots, 'form-mobile.png'), fullPage: true })
     await page.setViewportSize({ width: 1280, height: 900 })
     await page.getByRole('button', { name: 'حفظ السجل', exact: true }).click()
-    await page.waitForURL(/\/resources\/tasks\/\d+$/)
+    await openCreatedRecord(page, 'tasks')
     await page.assertVisible(page.getByText(title, { exact: true }))
     await page.assertVisible(page.getByText(orderNumber, { exact: true }))
     await page.assertVisible(page.getByText('نعم', { exact: true }))
@@ -175,7 +219,7 @@ test.group('Generic resource browser acceptance', (group) => {
     await page.getByRole('heading', { name: 'إضافة عينة', exact: true }).waitFor()
     await page.getByRole('button', { name: 'حفظ السجل', exact: true }).click()
     await page.getByText('تمت إضافة عينة', { exact: true }).waitFor()
-    await page.waitForURL(/\/resources\/ui_samples\/\d+$/)
+    await openCreatedRecord(page, 'ui_samples')
     await page.getByRole('heading', { name: 'تفاصيل · عينات الواجهة' }).waitFor()
     await page.assertVisible(page.getByText('1,234.50'))
     await page.assertVisible(page.getByText('مفتوح', { exact: true }))
@@ -302,16 +346,36 @@ test.group('Generic resource browser acceptance', (group) => {
 
     // Change only the presentation prop of a real authorized Inertia response.
     // A project-owned page can pass this prop after the user requests a page.
+    // Wide enough to show the page's reading width, which the dialog does not use (#102).
+    await page.setViewportSize({ width: 1280, height: 900 })
     await page.route('**/resources/customers/create', async (route) => {
       const response = await route.fetch()
       const body = await response.json()
       body.props.presentation = 'page'
       await route.fulfill({ response, json: body })
     })
+    // «إضافة» reads the form as JSON for a dialog over the list; a page presentation there
+    // makes it visit the page instead.
+    await page.route('**/resources/customers/create/view', async (route) => {
+      const response = await route.fetch()
+      const body = await response.json()
+      body.presentation = 'page'
+      await route.fulfill({ response, json: body })
+    })
+    // The list fetches its create form ahead once idle: load it again, so that prefetch goes
+    // through the presentation above too.
+    await page.reload()
+    await page.getByRole('link', { name: 'إضافة سجل', exact: true }).waitFor()
+    await page.waitForLoadState('networkidle')
     await page.getByRole('link', { name: 'إضافة سجل', exact: true }).click()
+    // The page's own way back: the dialog shell shown on the click has given way to the page.
+    await page.getByRole('link', { name: 'العودة إلى القائمة', exact: true }).waitFor()
     await page.getByRole('heading', { name: 'إضافة · العملاء' }).waitFor()
     assert.equal(await page.getByRole('dialog').count(), 0)
     await page.assertVisible(page.getByLabel('اسم العميل', { exact: true }))
+    const width = (await page.locator('main form').first().boundingBox())!.width
+    assert.isAtMost(width, 896)
+    assert.isAbove(width, 880)
     await page.getByRole('link', { name: 'العودة إلى القائمة', exact: true }).click()
     await page.waitForURL(/\/resources\/customers$/)
   })
@@ -360,9 +424,15 @@ test.group('Generic resource browser acceptance', (group) => {
     )
     await sortQuantity.waitFor()
     assert.equal(await page.locator('th[aria-sort]').getAttribute('aria-sort'), 'ascending')
-    // The quantity is the first left-to-right (numeric) cell; the selection checkbox comes first.
+    // The quantity is the first left-to-right (numeric) value; the selection checkbox comes first.
+    // Cells keep the page direction and isolate their value in a `bdi` (#113).
     const firstQuantity = () =>
-      page.locator('tbody tr[aria-rowindex]').first().locator('td[dir="ltr"]').first().innerText()
+      page
+        .locator('tbody tr[aria-rowindex]')
+        .first()
+        .locator('td bdi[dir="ltr"]')
+        .first()
+        .innerText()
     assert.equal(await firstQuantity(), '1')
     await sortQuantity.click()
     await page.waitForURL(/sort=quantity&direction=desc/)
@@ -387,13 +457,26 @@ test.group('Generic resource browser acceptance', (group) => {
     await page.waitForURL(/filters%5Bstatus%5D%5Bin%5D=open%2Cclosed/)
     await page.assertElementsCount('tbody tr[aria-rowindex]', 2)
     await page.assertVisible(chips.getByText('مفتوح، مغلق'))
-    // Row actions stay pinned at the inline end of wide tables (#31).
-    assert.equal(
-      await page.evaluate<string>(
+    // Row actions stay pinned at the inline end of wide tables (#31), and only of tables whose
+    // columns do not fit, where the pinned column then carries a shadow (#109).
+    const actionsPosition = () =>
+      page.evaluate<string>(
         'getComputedStyle([...document.querySelectorAll("thead th")].at(-1)).position'
+      )
+    const viewport = page.viewportSize()!
+    const tableScroll = page.locator('[data-slot="table-scroll"]')
+    if ((await tableScroll.getAttribute('data-overflowing')) === null)
+      assert.equal(await actionsPosition(), 'static')
+    await page.setViewportSize({ width: 560, height: viewport.height })
+    await page.locator('[data-slot="table-scroll"][data-overflowing]').waitFor()
+    assert.equal(await actionsPosition(), 'sticky')
+    assert.notEqual(
+      await page.evaluate<string>(
+        'getComputedStyle([...document.querySelectorAll("thead th")].at(-1)).boxShadow'
       ),
-      'sticky'
+      'none'
     )
+    await page.setViewportSize(viewport)
     // Closing a record opened from a filtered list returns to that exact view (#31).
     const listUrl = page.url()
     const view = page.getByRole('link', { name: /عرض السجل/ }).first()
@@ -476,6 +559,12 @@ test.group('Generic resource browser acceptance', (group) => {
     await page.getByRole('button', { name: viewName, exact: true }).click()
     await page.waitForURL(/filters%5Bquantity%5D%5Bgte%5D=2/)
     await page.assertElementsCount('tbody tr[aria-rowindex]', 2)
+    // Its «×» is the registry's ghost icon button; it keeps its name and deletes the view.
+    const remove = page.getByRole('button', { name: `حذف العرض ${viewName}`, exact: true })
+    assert.equal(await remove.getAttribute('data-slot'), 'button')
+    assert.equal(await remove.getAttribute('data-variant'), 'ghost')
+    await remove.click()
+    await page.getByRole('button', { name: viewName, exact: true }).waitFor({ state: 'detached' })
 
     // The server export writes the whole filtered set, beyond the rows loaded into the page.
     const user = admin.user.id
@@ -497,6 +586,7 @@ test.group('Generic resource browser acceptance', (group) => {
     assert.equal(await page.getByText(`عينة التصدير 101 ${stamp}`).count(), 0)
     const download = page.waitForEvent('download')
     await page.getByRole('button', { name: 'تصدير النتائج', exact: true }).click()
+    await page.getByRole('menuitem', { name: 'ملف CSV' }).click()
     const file = await download
     assert.match(file.suggestedFilename(), /^عينات الواجهة-\d{4}-\d{2}-\d{2}\.csv$/)
     const chunks: Buffer[] = []
@@ -530,11 +620,21 @@ test.group('Generic resource browser acceptance', (group) => {
     await page.assertElementsCount('tbody tr[aria-rowindex]', 3)
     const listUrl = page.url()
     const recordRequests: string[] = []
+    const bulkRequests: string[] = []
     page.on('request', (request) => {
+      const pathname = new URL(request.url()).pathname
       // The record itself; its collaboration and assignment panels load separately.
-      if (/^\/resources\/ui_samples\/\d+(\/view)?$/.test(new URL(request.url()).pathname))
-        recordRequests.push(new URL(request.url()).pathname)
+      if (/^\/resources\/ui_samples\/\d+(\/view)?$/.test(pathname)) recordRequests.push(pathname)
+      if (pathname === '/resources/ui_samples/bulk') bulkRequests.push(pathname)
     })
+    // The list under the dialog is the same mounted page: same nodes, no page transition (#100).
+    await page.evaluate(
+      'window.__wrapper = document.querySelector("main > div"); window.__table = document.querySelector("main table"); window.__pageEnters = 0; document.addEventListener("animationstart", (event) => { if (event.animationName === "adula-page-enter") window.__pageEnters++ }, true)'
+    )
+    const sameList = () =>
+      page.evaluate<boolean>(
+        'window.__wrapper === document.querySelector("main > div") && window.__table === document.querySelector("main table") && window.__pageEnters === 0'
+      )
     const view = page.getByRole('link', { name: /عرض السجل/ }).first()
     const record = (await view.getAttribute('href'))!
     await view.click()
@@ -544,10 +644,12 @@ test.group('Generic resource browser acceptance', (group) => {
     // The list stays mounted under the dialog, and one request reads the record (#31).
     await page.assertElementsCount('tbody tr[aria-rowindex]', 3)
     assert.deepEqual(recordRequests, [`${record}/view`])
+    assert.isTrue(await sameList())
     await dialog.getByRole('button', { name: 'تعديل السجل', exact: true }).click()
     const form = page.getByRole('dialog', { name: 'تعديل عينة' })
     await form.waitFor()
     await page.waitForURL((url) => url.pathname === `${record}/edit`)
+    assert.isTrue(await sameList())
     await form.getByLabel('العنوان', { exact: true }).fill(`عينة معدلة ${stamp}`)
     await form.getByRole('button', { name: 'حفظ السجل', exact: true }).click()
     // Saving shows the details in the same dialog instead of closing and reopening it.
@@ -560,17 +662,327 @@ test.group('Generic resource browser acceptance', (group) => {
     // The list returns with its query and shows the saved change.
     await page.locator('tbody').getByText(`عينة معدلة ${stamp}`, { exact: true }).waitFor()
     await page.assertElementsCount('tbody tr[aria-rowindex]', 3)
+    // The rows refreshed in place: the list was not rebuilt and did not fetch its actions again (#105).
+    assert.isTrue(await sameList())
+    assert.deepEqual(bulkRequests, [])
     // Closing replaced the record's history entry: Back stays on the list (#31).
     await page.goBack()
     await page.waitForURL(listUrl)
     await page.waitForTimeout(300)
     assert.equal(await page.getByRole('dialog').count(), 0)
+    // Normal navigation still replaces the page and plays its transition.
+    await page.locator('aside').getByRole('link', { name: 'نظرة عامة' }).click()
+    await page.waitForURL((url) => url.pathname === '/')
+    assert.isFalse(
+      await page.evaluate<boolean>('window.__wrapper === document.querySelector("main > div")')
+    )
     // A direct link still opens the standalone record; its deferred sections share one request.
+    // The shell's «مهامي» count is deferred on every page and loads in its own request (#156).
+    const partials: string[] = []
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname === record)
+        partials.push(request.headers()['x-inertia-partial-data'] ?? 'page')
+    })
     recordRequests.length = 0
     await page.goto(record)
     await page.getByRole('dialog', { name: 'تفاصيل · عينات الواجهة' }).waitFor()
     await page.getByRole('region', { name: 'سجل النشاط' }).waitFor()
-    assert.deepEqual(recordRequests, [record, record])
+    await page.waitForLoadState('networkidle')
+    assert.sameMembers(partials, ['page', 'childrenData,activity', 'openTasks'])
+    assert.deepEqual(recordRequests, [record, record, record])
+  })
+
+  test('a record dialog moves nothing in the frame: the document itself never scrolls on a large screen', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(admin.user)
+    const page = await visit('/resources/ui_samples')
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.locator('#workspace-sidebar').waitFor()
+    // The page scrolls in its own region (owner decision 20), so the scroll lock a dialog
+    // applies finds no document scroll bar to compensate and shifts neither part (#101).
+    assert.isAtMost(
+      await page.evaluate<number>('document.documentElement.scrollHeight - window.innerHeight'),
+      0
+    )
+    const boxes = () =>
+      page.evaluate<number[]>(
+        '["[data-shell-header]", "#workspace-sidebar", "[data-page-scroll]"].flatMap((selector) => { const box = document.querySelector(selector).getBoundingClientRect(); return [box.left, box.right] })'
+      )
+    const before = await boxes()
+    await page
+      .getByRole('link', { name: /عرض السجل/ })
+      .first()
+      .click()
+    await page.getByRole('dialog', { name: 'تفاصيل · عينات الواجهة' }).waitFor()
+    assert.deepEqual(await boxes(), before)
+    await page.keyboard.press('Escape')
+    await page.getByRole('dialog').waitFor({ state: 'detached' })
+    assert.deepEqual(await boxes(), before)
+  })
+
+  test('record dialogs keep their top edge while late sections load, and forms fill the dialog', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    const { runtime, loaded } = await service(admin)
+    const stamp = randomUUID().slice(0, 8)
+    const saved = await runtime.resources.save('ui_samples', loaded, {
+      orgUnitId: admin.orgUnitId,
+      title: `عينة الموضع ${stamp}`,
+    })
+    await browserContext.loginAs(admin.user)
+    const page = await visit(`/resources/ui_samples?search=${stamp}`)
+    await page.setViewportSize({ width: 1440, height: 1400 })
+    // The collaboration and assignment sections arrive after the dialog has settled.
+    await page.route(
+      /\/resources\/ui_samples\/\d+\/(collaboration|assignments)$/,
+      async (route) => {
+        await new Promise((resolve) => setTimeout(resolve, 600))
+        await route.continue()
+      }
+    )
+    await page.getByRole('link', { name: `عرض السجل ${saved.id}`, exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'تفاصيل · عينات الواجهة' })
+    await dialog.waitFor()
+    await settled(dialog)
+    // The record body is the dialog's only scroller; its content height shows the late sections.
+    const content = () =>
+      page.evaluate<number>(
+        'document.querySelector("[data-slot=dialog-content] [data-slot=long-dialog-body]").scrollHeight'
+      )
+    const first = (await dialog.boundingBox())!
+    const before = await content()
+    await page
+      .getByRole('region', { name: 'التعاون حول السجل' })
+      .getByRole('button', { name: 'متابعة السجل' })
+      .waitFor()
+    await page
+      .getByRole('region', { name: 'المهام المسندة' })
+      .getByRole('button', { name: 'إسناد مهمة' })
+      .waitFor()
+    const last = (await dialog.boundingBox())!
+    // The sections did grow the record. The dialog may already open at its height cap (90dvh),
+    // so its box need not grow; it never shrinks and its top edge never moves (#103).
+    assert.isAbove((await content()) - before, 20)
+    assert.isAtLeast(last.height, first.height)
+    assert.isAtMost(Math.abs(last.y - first.y), 1)
+
+    await page.keyboard.press('Escape')
+    await dialog.waitFor({ state: 'hidden' })
+    await page.getByRole('link', { name: `تعديل السجل ${saved.id}`, exact: true }).click()
+    const editor = page.getByRole('dialog', { name: 'تعديل عينة' })
+    await editor.waitFor()
+    // Measure after the opening zoom: during it the dialog is scaled below its final width.
+    await settled(editor)
+    // The form meets the dialog body's padding on both sides: no page reading cap (#102).
+    // Measured inside the scroll area: the body keeps a stable gutter for its visible scrollbar.
+    const gaps = await page.evaluate<[number, number]>(`(() => {
+      const form = document.querySelector('[data-slot=dialog-content] form')
+      const body = form.closest('[data-slot=long-dialog-body]')
+      const style = getComputedStyle(body)
+      const outer = body.getBoundingClientRect()
+      const left = outer.left + body.clientLeft
+      const right = left + body.clientWidth
+      const inner = form.getBoundingClientRect()
+      return [inner.left - (left + parseFloat(style.paddingLeft)), right - parseFloat(style.paddingRight) - inner.right]
+    })()`)
+    assert.isAtMost(Math.abs(gaps[0]), 1)
+    assert.isAtMost(Math.abs(gaps[1]), 1)
+  })
+
+  test('an untouched edit dialog closes without asking; a change asks until it is reverted', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    const { runtime, loaded } = await service(admin)
+    const stamp = randomUUID().slice(0, 8)
+    const title = `عينة المسودة ${stamp}`
+    const saved = await runtime.resources.save('ui_samples', loaded, {
+      orgUnitId: admin.orgUnitId,
+      title,
+    })
+    await browserContext.loginAs(admin.user)
+    const page = await visit(`/resources/ui_samples?search=${stamp}`)
+    const listUrl = page.url()
+    const edit = page.getByRole('link', { name: `تعديل السجل ${saved.id}`, exact: true })
+    const dialog = page.getByRole('dialog', { name: 'تعديل عينة' })
+    const confirm = page.getByRole('dialog', { name: 'إغلاق النموذج؟' })
+    const closesWithoutAsking = async () => {
+      await page.keyboard.press('Escape')
+      await page.waitForURL(listUrl)
+      await dialog.waitFor({ state: 'hidden' })
+      assert.equal(await confirm.count(), 0)
+    }
+
+    await edit.click()
+    await dialog.waitFor()
+    await closesWithoutAsking()
+
+    await edit.click()
+    await dialog.waitFor()
+    const field = dialog.getByLabel('العنوان', { exact: true })
+    await field.fill(`${title} معدل`)
+    await page.keyboard.press('Escape')
+    await confirm.waitFor()
+    await page.getByRole('button', { name: 'متابعة التحرير', exact: true }).click()
+    await confirm.waitFor({ state: 'hidden' })
+    // Reverting the change makes the form clean again.
+    await field.fill(title)
+    await closesWithoutAsking()
+
+    // A change through a list control, not a text input, asks as well.
+    await edit.click()
+    await dialog.waitFor()
+    await dialog.getByRole('combobox', { name: 'الحالة', exact: true }).click()
+    await page.getByRole('option', { name: 'مفتوح', exact: true }).click()
+    // Escape goes to the dialog only once the option list has closed.
+    await page.getByRole('listbox').waitFor({ state: 'hidden' })
+    await page.keyboard.press('Escape')
+    await confirm.waitFor()
+    await page.getByRole('button', { name: 'إغلاق دون حفظ', exact: true }).click()
+    await page.waitForURL(listUrl)
+    const stored = await knex()('ui_samples').where({ id: saved.id }).first('title', 'status')
+    assert.equal(stored.title, title)
+    assert.isNull(stored.status)
+  })
+
+  test('a refused save keeps the dialog header in view and focuses the first invalid field', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(admin.user)
+    const page = await visit('/resources/ui_samples')
+    await page.setViewportSize({ width: 1280, height: 700 })
+    await page.getByRole('link', { name: 'إضافة عينة', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'إضافة عينة' })
+    await dialog.waitFor()
+    const state = () =>
+      page.evaluate<{
+        contentTop: number
+        title: boolean
+        inside: boolean
+        active: string
+      }>(`(() => {
+        const content = document.querySelector('[data-slot=dialog-content]')
+        const body = content.querySelector('form').closest('[data-slot=long-dialog-body]')
+        const heading = content.querySelector('[data-slot=dialog-title]').getBoundingClientRect()
+        const active = document.activeElement
+        const frame = body.getBoundingClientRect()
+        const box = active.getBoundingClientRect()
+        return {
+          contentTop: content.scrollTop,
+          title: heading.top >= content.getBoundingClientRect().top,
+          inside: box.top >= frame.top && box.bottom <= frame.bottom,
+          active: (active.id || active.tagName) + ':' + active.getAttribute('aria-invalid'),
+        }
+      })()`)
+    // The body scrolls on its own: start at its end, far from the first field.
+    await page.evaluate(
+      'const body = document.querySelector("[data-slot=dialog-content] form").closest("[data-slot=long-dialog-body]"); body.scrollTop = body.scrollHeight'
+    )
+    await dialog.getByRole('button', { name: 'حفظ السجل', exact: true }).click()
+    await page.assertVisible(dialog.getByText('تعذر الحفظ', { exact: true }))
+    assert.deepEqual(await state(), {
+      contentTop: 0,
+      title: true,
+      inside: true,
+      active: 'title:true',
+    })
+
+    // A refusal from the server moves focus the same way.
+    await page.route('**/resources/ui_samples', async (route) => {
+      if (route.request().method() !== 'POST') return route.continue()
+      await route.fulfill({
+        status: 422,
+        json: { errors: [{ field: 'quantity', message: 'قيمة غير مقبولة' }] },
+      })
+    })
+    await dialog
+      .getByLabel('العنوان', { exact: true })
+      .fill(`عينة مرفوضة ${randomUUID().slice(0, 8)}`)
+    await dialog.getByRole('button', { name: 'حفظ السجل', exact: true }).click()
+    await page.assertVisible(dialog.getByText('قيمة غير مقبولة'))
+    assert.deepEqual(await state(), {
+      contentTop: 0,
+      title: true,
+      inside: true,
+      active: 'quantity:true',
+    })
+  })
+
+  test('closing a record returns only to pages of this application', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    const { runtime, loaded } = await service(admin)
+    const one = await runtime.resources.save('ui_samples', loaded, {
+      orgUnitId: admin.orgUnitId,
+      title: `عينة العودة ${randomUUID().slice(0, 8)}`,
+    })
+    const other = await runtime.resources.save('ui_samples', loaded, {
+      orgUnitId: admin.orgUnitId,
+      title: `عينة أخرى ${randomUUID().slice(0, 8)}`,
+    })
+    const record = `/resources/ui_samples/${one.id}`
+    await browserContext.loginAs(admin.user)
+    const page = await visit('/resources/ui_samples')
+    const origin = new URL(page.url()).origin
+    const foreign: string[] = []
+    page.on('request', (request) => {
+      if (new URL(request.url()).origin !== origin) foreign.push(request.url())
+    })
+    await page.route(/evil\.example/, (route) => route.abort())
+    const closeWith = async (entry: { href: string; record: string }) => {
+      const value = JSON.stringify({ ...entry, scroll: 0 })
+      await page.evaluate(`sessionStorage.setItem('adula:list-return', ${JSON.stringify(value)})`)
+      await page.goto(record)
+      await page.getByRole('dialog', { name: 'تفاصيل · عينات الواجهة' }).waitFor()
+      await page.keyboard.press('Escape')
+      await page.getByRole('dialog').waitFor({ state: 'detached' })
+      // The return visit starts after the closing animation, which can outlast the dialog node.
+      await page.waitForURL((url) => url.pathname !== record)
+      await page.waitForLoadState('networkidle')
+      const url = new URL(page.url())
+      return { origin: url.origin, path: url.pathname + url.search }
+    }
+    for (const href of [
+      '//evil.example/resources/ui_samples',
+      'https://evil.example/resources/ui_samples',
+      '/\\evil.example/resources/ui_samples',
+      '/.//evil.example/resources/ui_samples',
+      '/resources/..//evil.example/resources/ui_samples',
+      'javascript:alert(1)',
+    ])
+      assert.deepEqual(await closeWith({ href, record }), {
+        origin,
+        path: '/resources/ui_samples',
+      })
+    assert.deepEqual(foreign, [])
+    // A page of this application that remembered itself for this record is returned to (#119).
+    assert.deepEqual(await closeWith({ href: '/my-tasks?tab=assigned', record }), {
+      origin,
+      path: '/my-tasks?tab=assigned',
+    })
+    // An entry left for another record is ignored.
+    assert.deepEqual(
+      await closeWith({
+        href: '/my-tasks?tab=assigned',
+        record: `/resources/ui_samples/${other.id}`,
+      }),
+      { origin, path: '/resources/ui_samples' }
+    )
+    // The list view itself is still returned to, with its query.
+    assert.deepEqual(await closeWith({ href: '/resources/ui_samples?search=x', record: '' }), {
+      origin,
+      path: '/resources/ui_samples?search=x',
+    })
   })
 
   test('250 tasks load through the scroll prop and render virtualized rows; mobile keeps no page overflow', async ({
@@ -596,24 +1008,64 @@ test.group('Generic resource browser acceptance', (group) => {
     await page.assertElementsCount('tbody tr[aria-rowindex]', 25)
     await loadAll(page)
     await page.getByText('نهاية السجلات', { exact: true }).waitFor()
-    const shown = await page.getByText(/\d+ معروض/).innerText()
-    assert.isAtLeast(Number.parseInt(shown, 10), 250)
+    const shown = await page.getByText(/^المعروض: \d+$/).innerText()
+    assert.isAtLeast(Number.parseInt(shown.replace(/\D+/g, ''), 10), 250)
+    // Every page is loaded, so the count is exact and its noun agrees with the number (#110).
+    await page.assertVisible(page.getByText(/^ضمن نطاقك: \d+ (سجلًا|سجلات|سجل)$/))
     const rendered = await page.locator('tbody tr[aria-rowindex]').count()
     assert.isBelow(rendered, 80)
-    await page.assertVisible(page.getByText(`مهمة افتراضية 1 ${stamp}`, { exact: true }))
-    const scroller = page.locator('[data-slot="table-scroll"]')
-    await scroller.evaluate((element: Scrollable) => {
-      element.scrollTop = element.scrollHeight
-    })
-    await page.getByText(`مهمة افتراضية 250 ${stamp}`, { exact: true }).waitFor()
+    // Newest first by default (decision 27): the last task created leads the list.
+    await page.assertVisible(page.getByText(`مهمة افتراضية 250 ${stamp}`, { exact: true }))
+    // The rows scroll with the page; the virtualizer follows the page scroller (#109).
+    assert.equal(await page.evaluate<number>(innerScrollers), 0)
+    await page.evaluate(scrollListToEnd)
+    await page.getByText(`مهمة افتراضية 1 ${stamp}`, { exact: true }).waitFor()
     assert.isBelow(await page.locator('tbody tr[aria-rowindex]').count(), 80)
     await page.setViewportSize({ width: 390, height: 844 })
     await page.assertVisible(page.getByRole('navigation', { name: 'التنقل على الجوال' }))
     assert.isAtMost(await page.evaluate<number>('document.documentElement.scrollWidth'), 390)
-    assert.isTrue(
-      await scroller.evaluate((element: Scrollable) => element.scrollWidth > element.clientWidth)
+    // Columns that do not fit scroll sideways inside the table, with the actions column pinned.
+    const scroller = page.locator('[data-slot="table-scroll"]')
+    const fits = await scroller.evaluate(
+      (element: Scrollable) => element.scrollWidth <= element.clientWidth
     )
+    if (!fits) {
+      assert.equal(await scroller.getAttribute('data-overflowing'), '')
+      assert.include((await page.locator('thead th').last().getAttribute('class')) ?? '', 'sticky')
+    }
     await page.screenshot({ path: join(shots, 'index-mobile.png'), fullPage: false })
+  })
+
+  test('at 1024 px a list and its trash fit without a fixed width or a nested scroller (#109)', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(admin.user)
+    for (const path of ['/resources/tasks', '/resources/tasks/trash']) {
+      const page = await visit(path)
+      await page.setViewportSize({ width: 1024, height: 768 })
+      await page.reload()
+      const scroller = page.locator('[data-slot="table-scroll"]')
+      await scroller.waitFor()
+      // No horizontal scroll unless the content needs it, and then never the page's.
+      assert.isTrue(
+        await scroller.evaluate(
+          (element: Scrollable) => element.scrollWidth <= element.clientWidth
+        ),
+        path
+      )
+      assert.isNull(await scroller.getAttribute('data-overflowing'), path)
+      assert.isAtMost(await page.evaluate<number>('document.documentElement.scrollWidth'), 1024)
+      // One vertical scroll bar: nothing inside the list scrolls on its own.
+      assert.equal(await page.evaluate<number>(innerScrollers), 0, path)
+      // Without overflow the actions column is an ordinary cell, so it covers no header.
+      assert.notInclude(
+        (await page.locator('thead th').last().getAttribute('class')) ?? '',
+        'sticky',
+        path
+      )
+    }
   })
 
   test('a create link with defaults opens the form already filled (#48)', async ({
@@ -695,7 +1147,7 @@ test.group('Generic resource browser acceptance', (group) => {
       await page.keyboard.press('Escape')
       assert.equal(await page.getByRole('dialog', { name: 'إغلاق النموذج؟' }).count(), 0)
       await page.getByRole('button', { name: 'حفظ السجل', exact: true }).click()
-      await page.waitForURL(/\/resources\/ui_samples\/\d+$/)
+      await openCreatedRecord(page, 'ui_samples')
       const stored = await knex()('ui_samples').where({ title }).first()
       assert.equal(new Date(stored.day).toISOString().slice(0, 10), '2017-10-14')
       await page
@@ -714,7 +1166,8 @@ test.group('Generic resource browser acceptance', (group) => {
       await knex()('settings')
         .where({ key: 'ui.preferences', scope: 'system', scope_id: '0' })
         .delete()
-      if (previous) await knex()('settings').insert(previous)
+      if (previous)
+        await knex()('settings').insert({ ...previous, value: JSON.stringify(previous.value) })
     }
   })
 })

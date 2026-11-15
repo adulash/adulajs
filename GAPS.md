@@ -1,6 +1,6 @@
 # AdulaJS gaps
 
-Open capability gaps for people building systems with AdulaJS, as of 2.2.0. What exists is
+Open capability gaps for people building systems with AdulaJS, as of 2.3.0. What exists is
 in [docs/implementation-status.md](docs/implementation-status.md); what changed is in
 [CHANGELOG.md](CHANGELOG.md). Report a new gap with the issue form in `.github/ISSUE_TEMPLATE`.
 
@@ -24,8 +24,19 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
   webhooks yet.
 * A resource-defined bulk action resubmits the stored form values, so it fails on a row
   whose lookup became inactive or whose related record the user can no longer view.
+* A shared saved view reaches every reader of the resource who may query its fields; it
+  cannot be limited to roles or organization units, and publishing one needs update
+  permission on the resource rather than a permission of its own (#147). The share option
+  is still offered to users who may not publish, who then get a 403 message.
+* A reader who may not view a related record sees «سجل غير متاح» instead of its title;
+  there is no opt-in to show a parent's title alone to such readers (#148).
 * Dashboards show counts, sums and grouped values as tiles and ranked bars; there are
   no time-series charts and no dashboard editor (dashboards are defined in code).
+  Users show, hide and order code-defined widgets on their own overview (ADR 050); they
+  cannot define new widgets.
+* Profile pictures are PNG or still WebP of at most 512 pixels, re-encoded on upload
+  (ADR 050). Every signed-in user may see every user's picture, and workflow history still
+  shows names without pictures.
 
 ## Notifications, printing and files
 
@@ -43,11 +54,24 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
 
 * SLA deadlines count wall-clock hours: there is no business calendar (working days,
   holidays), and an overdue step escalates once (no escalation chain).
-* Delegation covers workflow approvals only (not manual tasks), one hop.
+* Delegation covers workflow approvals only (not manual tasks), one hop. A user's own
+  delegation stays on their organization path; delegations created before 2.3.0 to
+  someone outside it are kept until they end or are revoked.
+* My tasks counts cover the newest 1000 records with open items.
 * Due dates and delegation days use one time zone per system (`timeZone`), not each
   user's zone.
 * `WorkflowDefinition.machine` and the `xstate` dependency remain until the next major
   version (ADR 044).
+
+## Workspace shell
+
+* Modules declare no icon in the framework: the collapsed sidebar takes it from the
+  project-owned `components/module_icons.ts` (a neutral shape when a module has no entry),
+  and the top layout shows the module's name (ADR 049).
+* The menu order and theme are per user, not per organization unit; there is no
+  administrator default for either beyond the layout.
+* Printed documents are always light; there is no dark print style.
+* The shell still scrolls the window behind the fixed sidebar (#106, 2.3.0).
 
 ## Security and integration
 
@@ -57,8 +81,20 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
 * SSO covers OAuth/OIDC sign-in through GitHub, Google and Microsoft Entra ID; there is
   no SAML and no SCIM provisioning.
 * The generated API client is TypeScript only; other languages use `/api/v1/openapi.json`.
-* XLSX import is pending the owner's approval of a parser; the `ImportAdapter`
-  registration point is ready and CSV import works (docs/integration.md).
+* The built-in assistant (ADR 052) has no streaming, talks to one OpenAI-compatible
+  provider (OpenRouter by default) and is not evaluated for answer quality. Its `core.ai`
+  permission works only through a deployment-wide role: `ActorStore` drops non-resource
+  rules from org-scoped role assignments.
+* Encrypted cloud backups (ADR 051) are verified only against local fakes of Google Drive and
+  Microsoft Graph; there is no restore from inside the application (recovery uses
+  `backup:open` and the restore commands) and no remote retention.
+* If the worker stops while a cloud backup runs, the unencrypted snapshot in its
+  `storage/backups/work-*` folder stays until `recoverStale` and `pruneExpired` remove it after
+  the run timeout (6 hours by default). The folder is 0700 inside the 0700 `storage/backups`, so
+  no other user or the web root can read it, but it is not removed at worker start-up.
+* Excel import (2.3.0, #161) reads the first sheet of an `.xlsx` file only; `.xls`,
+  `.ods`, password-protected workbooks and formulas (other than their cached values) are
+  not supported (docs/integration.md).
 
 ## Language and documentation
 

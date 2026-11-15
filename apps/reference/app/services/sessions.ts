@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto'
 import env from '#start/env'
 import db from '@adonisjs/lucid/services/db'
+import { avatarUrlFor, avatarVersionColumn } from 'adula'
 import type { HttpContext } from '@adonisjs/core/http'
 import { logAuthActivity, requestContext } from '#services/auth_activity'
 
@@ -15,7 +16,12 @@ export type UserSession = {
   lastSeenAt: string
   revokedAt: string | null
 }
-export type ActiveSession = UserSession & { email: string; fullName: string | null }
+export type ActiveSession = UserSession & {
+  email: string
+  fullName: string | null
+  /** The user's versioned picture URL, or null without one (ADR 050). */
+  avatarUrl: string | null
+}
 
 /** Presence is refreshed at most once per window to keep reads cheap. */
 const PRESENCE_WINDOW_MS = 5 * 60 * 1000
@@ -59,6 +65,91 @@ export async function endSession(sessionId: string) {
     .where({ id: sessionId })
     .whereNull('revoked_at')
     .update({ revoked_at: knex().fn.now() })
+}
+
+/**
+ * How long after a rotation a request with the replaced id is refused rather than served. Late
+ * answers arrive within seconds; past this, a browser that somehow kept the old cookie is
+ * treated as before (the old session is gone, so it is signed out) instead of refused forever.
+ * A request already in flight when its session rotates is caught whatever its length
+ * (rotationOf, compared before and after its handler).
+ */
+const ROTATION_GRACE_SECONDS = 60
+
+/**
+ * Records that a rotation replaced this session id with `successor` (see session_rotations):
+ * their handles, as user_sessions shows them, never the ids themselves. Rows older than ten
+ * minutes go on each write.
+ */
+export async function recordRotation(sessionId: string, successor: string) {
+  await knex()('session_rotations')
+    .insert({
+      id: sessionHandle(sessionId),
+      successor: sessionHandle(successor),
+      rotated_at: knex().fn.now(),
+    })
+    .onConflict('id')
+    .merge()
+  await knex()('session_rotations')
+    .where('rotated_at', '<', knex().raw(`now() - interval '10 minutes'`))
+    .delete()
+}
+
+/**
+ * The recorded rotation of this session id, if any: when it happened (as the database wrote
+ * it, so two readings compare without a clock) and whether that is within the grace period.
+ */
+export async function rotationOf(sessionId: string) {
+  const row = await knex()('session_rotations')
+    .where({ id: sessionHandle(sessionId) })
+    .first(
+      knex().raw('rotated_at::text as at'),
+      knex().raw(`rotated_at > now() - make_interval(secs => ?) as recent`, [
+        ROTATION_GRACE_SECONDS,
+      ])
+    )
+  return row ? { at: String(row.at), recent: Boolean(row.recent) } : null
+}
+
+/**
+ * Requests in which the user signed themselves out (the sign-out and «إنهاء» of the current
+ * session). Only these end a rotated session's successor: an automatic sign-out of a revoked
+ * or disabled session (the auth middleware) must not, since a rotation itself revokes the
+ * session it replaces before it is recorded.
+ */
+const signedOut = new WeakSet<HttpContext>()
+
+/** Marks this request as the user's own sign-out of their current session. */
+export function markSignedOut(ctx: HttpContext) {
+  signedOut.add(ctx)
+}
+
+/** Whether the user signed themselves out in this request. */
+export function signedOutIn(ctx: HttpContext) {
+  return signedOut.has(ctx)
+}
+
+/**
+ * Ends the live session that replaced this one, following later rotations: a sign-out sent
+ * with the old id and answered after the rotation would otherwise leave the browser signed in
+ * under the new one. Closed as a sign-out closes its own session (no "session_revoked"
+ * activity), with its store row removed as a revocation does; the auth middleware signs out
+ * the next request that carries it.
+ */
+export async function endSuccessor(sessionId: string) {
+  let handle = sessionHandle(sessionId)
+  // A chain of rotations within the last ten minutes, bounded against a cycle.
+  for (let hops = 0; hops < 10; hops++) {
+    const row = await knex()('session_rotations').where({ id: handle }).first('successor')
+    if (!row?.successor) break
+    handle = String(row.successor)
+  }
+  if (handle === sessionHandle(sessionId)) return null
+  const successor = await resolveSessionHandle(handle)
+  if (!successor) return null
+  await endSession(successor)
+  await knex()('sessions').where({ id: successor }).delete()
+  return successor
 }
 
 export type SessionState = { active: true } | { active: false; reason: 'disabled' | 'revoked' }
@@ -121,11 +212,17 @@ export async function listActiveSessions(): Promise<ActiveSession[]> {
     .join('users', 'users.id', 'user_sessions.user_id')
     .whereNull('user_sessions.revoked_at')
     .orderBy('user_sessions.last_seen_at', 'desc')
-    .select('user_sessions.*', 'users.email', 'users.full_name')
+    .select(
+      'user_sessions.*',
+      'users.email',
+      'users.full_name',
+      avatarVersionColumn(knex(), 'users.id')
+    )
   return rows.map((row) => ({
     ...toSession(row),
     email: String(row.email),
     fullName: (row.full_name as string | null) ?? null,
+    avatarUrl: avatarUrlFor(row.user_id, row.avatar_version),
   }))
 }
 

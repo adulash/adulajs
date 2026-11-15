@@ -114,6 +114,24 @@ export const englishMessages: Readonly<Record<string, string>> = Object.freeze({
   'errors.E_MAIL_TEST_COOLDOWN': 'Wait a moment before sending the test email again',
   'errors.E_MAIL_TEST_SEND':
     'The test email could not be sent. Check the mail settings and try again.',
+  'errors.E_MAIL_TEST_SEND.authentication':
+    'The mail server rejected the username or password. Check SMTP_USERNAME and SMTP_PASSWORD, and use an app password if your provider requires one.',
+  'errors.E_MAIL_TEST_SEND.connection':
+    'The mail server refused the connection. Check SMTP_HOST and SMTP_PORT, and make sure the firewall allows the port.',
+  'errors.E_MAIL_TEST_SEND.host_not_found':
+    'The mail server could not be found. Check the spelling of SMTP_HOST.',
+  'errors.E_MAIL_TEST_SEND.tls':
+    'The encrypted connection to the mail server failed. Use SMTP_SECURE=true with port 465, or SMTP_SECURE=false with port 587.',
+  'errors.E_MAIL_TEST_SEND.timeout':
+    'The connection to the mail server timed out. Check SMTP_HOST and SMTP_PORT, and make sure the server allows outgoing connections.',
+  'errors.E_MAIL_TEST_SEND.sender_rejected':
+    'The mail server rejected the sender address. Use an address verified with your provider in MAIL_FROM_ADDRESS.',
+  'errors.E_MAIL_TEST_SEND.recipient_rejected':
+    'The mail server rejected the recipient address. Check your account email and try again.',
+  'errors.E_MAIL_TEST_SEND.password_unreadable':
+    'The saved mail password cannot be opened, usually after APP_KEY changed. Enter the password again in the mail tab, then try again.',
+  'errors.E_MAIL_NOT_CONFIGURED':
+    'The mail configuration is incomplete. Open “Mail setup”, complete the missing variables, then restart the server.',
   'errors.E_MAIL_TEST_ANSWER': 'Choose whether the message arrived or not',
   'errors.E_MAIL_TEST_STALE': 'This test can no longer be confirmed. Send a new test message.',
   'errors.E_TEMPLATE_SUBJECT': 'The subject is required and must not exceed 200 characters',
@@ -258,6 +276,16 @@ export const englishMessages: Readonly<Record<string, string>> = Object.freeze({
   'errors.E_UPLOAD_LIMIT':
     'You have many uploaded files not yet saved to a record. Save the open records or wait until they are cleaned up.',
   'errors.E_FILE_REQUIRED': 'Choose a file to upload',
+  'errors.E_AVATAR_TYPE': 'The profile picture must be a PNG or WebP image',
+  'errors.E_AVATAR_TYPE.animated': 'The profile picture must be a still image',
+  'errors.E_AVATAR_CORRUPT': 'The image file is damaged or incomplete',
+  'errors.E_AVATAR_SIZE': 'The profile picture is larger than 1 MB',
+  'errors.E_AVATAR_DIMENSIONS':
+    'The profile picture must be between 32 and 512 pixels on each side',
+  'errors.E_AVATAR_REQUIRED': 'Choose an image to upload',
+  'errors.E_AVATAR_IMPERSONATING': 'The profile picture cannot be changed while impersonating',
+  'flash.avatar.updated': 'The profile picture was saved.',
+  'flash.avatar.removed': 'The profile picture was removed.',
   'errors.E_ATTACHMENT_FILE_MISSING': 'The attachment file is not available in storage',
   'flash.password_reset_controller.1':
     'If the email is registered with us, you will receive a message with a reset link within minutes.',
@@ -275,6 +303,7 @@ export const englishMessages: Readonly<Record<string, string>> = Object.freeze({
   'flash.user_invitations_controller.2':
     'Your account has been created. Sign in with your new password; the administrator assigns your work permissions.',
   'errors.E_BAD_CSRF_TOKEN': 'The request has expired. Refresh the page and try again.',
+  'errors.E_UNAUTHORIZED_ACCESS': 'Sign in to continue.',
   'errors.E_FORBIDDEN.8': 'This area is for administrators only',
   'errors.E_ACCOUNT_DISABLED': 'This account is disabled',
   'errors.E_TOKEN_SCOPE': 'The token scope does not allow this request',
@@ -291,6 +320,8 @@ export const englishMessages: Readonly<Record<string, string>> = Object.freeze({
   'errors.E_ROUTE_NOT_FOUND.1': 'Page not found',
   'errors.E_ROUTE_NOT_FOUND.2': 'Session not found',
   'errors.E_FORBIDDEN.9': 'You are not authorized to access this page',
+  'errors.parentView': 'Saving {child} requires permission to view {parent}',
+  'errors.E_FORBIDDEN.10': 'Sharing a view requires permission to edit this resource',
   'errors.E_TOO_MANY_REQUESTS': 'Too many attempts in a short time. Wait a minute and try again.',
   'errors.E_IMPORT_FILE.4': 'Choose a CSV file',
   'errors.E_NOT_FOUND.4': 'The identifier is invalid',
@@ -364,6 +395,7 @@ export const englishMessages: Readonly<Record<string, string>> = Object.freeze({
   'list.value.yes': 'Yes',
   'list.value.no': 'No',
   'list.value.none': 'Not set',
+  'list.value.unavailable': 'Record not available',
   'list.status.0': 'Draft',
   'list.status.1': 'Submitted',
   'list.status.2': 'Cancelled',

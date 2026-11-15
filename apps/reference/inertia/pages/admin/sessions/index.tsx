@@ -5,6 +5,7 @@ import { CircleCheck, OctagonX, ShieldCheck } from 'lucide-react'
 import type { ActiveSession } from '#services/sessions'
 import { Button } from '~/components/ui/button'
 import { Badge } from '~/components/ui/badge'
+import { UserAvatar } from '~/components/ui/user-avatar'
 import { Alert, AlertDescription } from '~/components/ui/alert'
 import {
   Table,
@@ -51,7 +52,7 @@ export default function AdminSessions({ sessions, currentSessionId }: Props) {
       )}
 
       <section
-        className="overflow-hidden rounded-xl border border-border bg-white shadow-[0_2px_10px_#1c302804]"
+        className="overflow-hidden rounded-xl border border-border bg-card shadow-[0_2px_10px_color-mix(in_oklab,var(--foreground)_2%,transparent)]"
         aria-label="قائمة الجلسات النشطة"
       >
         <div className="flex items-center gap-3 border-b border-border px-6 py-5">
@@ -76,9 +77,21 @@ export default function AdminSessions({ sessions, currentSessionId }: Props) {
               return (
                 <TableRow key={session.id}>
                   <TableCell>
-                    <span className="block font-medium">{session.fullName || '—'}</span>
-                    <span className="block text-xs text-muted-foreground" dir="ltr">
-                      {session.email}
+                    <span className="flex items-center gap-2">
+                      <UserAvatar
+                        user={{
+                          id: session.userId,
+                          name: session.fullName,
+                          avatarUrl: session.avatarUrl,
+                        }}
+                        size="xs"
+                      />
+                      <span className="min-w-0">
+                        <span className="block font-medium">{session.fullName || '—'}</span>
+                        <span className="block text-xs text-muted-foreground" dir="ltr">
+                          {session.email}
+                        </span>
+                      </span>
                     </span>
                   </TableCell>
                   <TableCell title={session.userAgent ?? undefined}>

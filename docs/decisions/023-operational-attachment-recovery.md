@@ -1,6 +1,6 @@
 # ADR 023: Operational snapshots and attachment recovery
 
-Status: implemented 2026-09-22. Supplements ADR 013; its local-only recovery limitation is superseded. Local Docker acceptance passed (docs/evidence/docker-backup-2026-09-22.json); staging and natural scheduling remain pending.
+Status: implemented 2026-09-22. Supplements ADR 013; its local-only recovery limitation is superseded. Local Docker acceptance passed (docs/evidence/docker-backup-2026-09-22.json); staging and natural scheduling remain pending. Supplemented by ADR 051: encrypted downloads and cloud uploads are an extra copy and never count as the offsite snapshot.
 
 `backup:create` exports one PostgreSQL repeatable-read snapshot to `pg_dump` and reads the attachment inventory from the same transaction. Every attachment row, including unbound and soft-deleted rows, contributes its original disk/path, size and SHA-256 digest to a versioned `attachments.json`. File bytes are read through Drive and archived as `<id>.bin`; disks can coexist without path collisions. Missing files fail the backup. Application attachment paths are immutable and storage migration retains the old objects; external mutation/deletion during a backup is not supported.
 

@@ -7,33 +7,219 @@ import { Button } from '~/components/ui/button'
 import { useMessages } from '~/components/ui/messages'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
 
-const DialogContentContext = React.createContext<React.RefObject<HTMLDivElement | null> | null>(
-  null
-)
+/**
+ * Clean close (ADR 016, decision 23 for 2.3.0): a dialog asks before closing only while
+ * something differs from how it opened, and a value changed and restored is clean. The dialog
+ * decides this itself; a dialog never computes its own dirty state.
+ *
+ * Two sources, one rule:
+ * - Declared state. A dialog whose state is not plain controls (a draft object, a list order,
+ *   switches, an image) declares it with the `value` prop of `Dialog`, or with
+ *   `useDialogValue(value)` from a component inside the dialog. Each declaration is captured
+ *   as it renders until the user first interacts with the dialog (so values reset on opening
+ *   or loaded just after it are the starting point), then compared on closing.
+ * - Plain controls. A dialog that declares nothing compares its inputs, text areas and
+ *   selects: the value each had before the user changed it against the value now.
+ *
+ * When a dialog declares state, the declarations are the whole truth for it and its controls
+ * are not compared one by one, so a dialog that declares a value declares its full state. A
+ * control that changed while no declaration did is reported once on the console.
+ */
+type Changes = { initial: Map<Element, string>; changed: Set<Element> }
+type Declared = { opened: string; current: string; settled: boolean }
+type DialogState = {
+  content: React.RefObject<HTMLDivElement | null>
+  changes: React.RefObject<Changes>
+  declared: React.RefObject<Map<symbol, Declared>>
+  mode: React.RefObject<'view' | 'edit' | 'confirm'>
+}
+const DialogContentContext = React.createContext<DialogState | null>(null)
+
+/**
+ * Which side the page's own scrollbar is on, as `data-root-scrollbar` on <html>. Locking page
+ * scrolling hides that scrollbar and pads the body by its width (theme.css pads the measured
+ * side). The direction does not decide it: Chromium keeps the page's scrollbar on the right in
+ * a right-to-left page while an element's moves left, and Firefox moves both. Measured while
+ * the scrollbar shows, again whenever the page's width changes (a scrollbar appearing).
+ */
+function watchPageScrollbar() {
+  if (typeof window === 'undefined' || typeof ResizeObserver === 'undefined') return
+  const root = document.documentElement
+  const measure = () => {
+    const gap = window.innerWidth - root.clientWidth
+    if (gap <= 0) return
+    const side = root.getBoundingClientRect().left >= gap - 0.5 ? 'left' : 'right'
+    if (root.dataset.rootScrollbar !== side) root.dataset.rootScrollbar = side
+  }
+  new ResizeObserver(measure).observe(root)
+  measure()
+}
+watchPageScrollbar()
+
+const CONTROLS = 'input, textarea, select'
+
+/** A comparable value of a form control (checked state, selected options, files or text). */
+function controlValue(element: Element) {
+  if (element instanceof HTMLInputElement) {
+    if (element.type === 'checkbox' || element.type === 'radio') return String(element.checked)
+    if (element.type === 'file')
+      return [...(element.files ?? [])].map((file) => `${file.name}:${file.size}`).join('|')
+    return element.value
+  }
+  if (element instanceof HTMLSelectElement)
+    return [...element.selectedOptions].map((option) => option.value).join('|')
+  if (element instanceof HTMLTextAreaElement) return element.value
+  return ''
+}
+
+/** True for a form control the dialog compares when nothing is declared. */
+function isControl(element: Element) {
+  return Boolean(element.matches?.(CONTROLS))
+}
+
+/**
+ * Remembers a control's value before the user changes it. On mount every control is recorded;
+ * taking focus records it again until it changes, so values loaded after opening count as the
+ * starting point.
+ */
+function remember(changes: Changes, element: Element, focus = false) {
+  if (!isControl(element) || changes.changed.has(element)) return
+  if (focus || !changes.initial.has(element)) changes.initial.set(element, controlValue(element))
+}
+
+/** A plain, ordered copy of a value: object keys sorted, files and dates as comparable data. */
+function normalize(value: unknown): unknown {
+  if (typeof value === 'function' || typeof value === 'symbol') return undefined
+  if (value === null || typeof value !== 'object') return value
+  if (value instanceof Date) return value.toISOString()
+  if (typeof File !== 'undefined' && value instanceof File)
+    return { file: value.name, size: value.size, modified: value.lastModified }
+  if (typeof Blob !== 'undefined' && value instanceof Blob)
+    return { blob: value.type, size: value.size }
+  if (value instanceof Map) return [...value.entries()].map(([key, item]) => [key, normalize(item)])
+  if (value instanceof Set) return [...value].map((item) => normalize(item) ?? null)
+  if (Array.isArray(value)) return value.map((item) => normalize(item) ?? null)
+  const plain: Record<string, unknown> = {}
+  for (const key of Object.keys(value).sort()) {
+    const item = normalize((value as Record<string, unknown>)[key])
+    if (item !== undefined) plain[key] = item
+  }
+  return plain
+}
+
+/** Stable text of a declared value: equal data gives equal text whatever the key order. */
+function serialize(value: unknown) {
+  return JSON.stringify(normalize(value)) ?? ''
+}
+
+const useIsomorphicLayoutEffect =
+  typeof window === 'undefined' ? React.useEffect : React.useLayoutEffect
+
+/** Records one declaration in a dialog while `active`; removes it when inactive or unmounted. */
+function useDeclaration(state: DialogState | null, value: unknown, active: boolean) {
+  const [key] = React.useState(() => Symbol('dialog-value'))
+  const text = active ? serialize(value) : ''
+  useIsomorphicLayoutEffect(() => {
+    const declared = state?.declared.current
+    if (!declared) return
+    if (!active) {
+      declared.delete(key)
+      return
+    }
+    const entry = declared.get(key)
+    if (!entry) declared.set(key, { opened: text, current: text, settled: false })
+    else {
+      entry.current = text
+      if (!entry.settled) entry.opened = text
+    }
+  })
+  useIsomorphicLayoutEffect(() => () => void state?.declared.current.delete(key), [state, key])
+}
+
+/**
+ * Declares state of the surrounding dialog that is not a plain control: the dialog compares it
+ * on closing with how it was when the dialog opened. Outside a dialog it does nothing, so a
+ * form shown both as a page and in a dialog can always call it.
+ */
+function useDialogValue(value: unknown) {
+  useDeclaration(React.useContext(DialogContentContext), value, true)
+}
+
+/**
+ * `useDialogValue` as an element, for state that starts afresh within one opening: give it a
+ * `key` that changes when a step is saved (an uploaded file becomes a mapping to review), and
+ * the new step is compared with how it began. Place it inside the dialog's content.
+ */
+function DialogValue({ value }: { value: unknown }) {
+  useDialogValue(value)
+  return null
+}
 
 function Dialog({
   mode,
+  value,
   onOpenChange,
   children,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Root> & { mode?: 'view' | 'edit' | 'confirm' }) {
+}: React.ComponentProps<typeof DialogPrimitive.Root> & {
+  mode?: 'view' | 'edit' | 'confirm'
+  /** The dialog's editable state when it is not plain controls (see useDialogValue). */
+  value?: unknown
+}) {
   const content = React.useRef<HTMLDivElement>(null)
+  const changes = React.useRef<Changes>({ initial: new Map(), changed: new Set() })
+  const declared = React.useRef(new Map<symbol, Declared>())
+  const modeRef = React.useRef<'view' | 'edit' | 'confirm'>(mode ?? 'edit')
+  modeRef.current = mode ?? 'edit'
+  const state = React.useMemo(() => ({ content, changes, declared, mode: modeRef }), [])
   const [confirming, setConfirming] = React.useState(false)
   const [uncontrolledOpen, setUncontrolledOpen] = React.useState(props.defaultOpen ?? false)
   const preferences = useUiPreferences()
   const { t, dir } = useMessages()
   const open = props.open ?? uncontrolledOpen
+  // The value prop is one more declaration, captured afresh at every opening.
+  useDeclaration(state, value, open && value !== undefined)
+  // Each opening starts clean (cleared on closing: the content records its values on mount).
+  React.useEffect(() => {
+    if (!open) changes.current = { initial: new Map(), changed: new Set() }
+  }, [open])
   const commit = (next: boolean) => {
     setUncontrolledOpen(next)
     onOpenChange?.(next)
   }
   const request = (next: boolean) => {
-    const editing = mode === 'edit' || (!mode && Boolean(content.current?.querySelector('form')))
+    // Ask only when there are unsaved changes; an untouched dialog closes at once.
+    const declarations = [...declared.current.values()]
+    const { initial, changed } = changes.current
+    const edited = [...changed].filter(
+      (element) =>
+        element.isConnected && isControl(element) && controlValue(element) !== initial.get(element)
+    )
+    const unsaved = declarations.length
+      ? declarations.some((entry) => entry.current !== entry.opened)
+      : edited.length > 0
+    // A visible control changed but no declaration did: the dialog declared only part of its
+    // state. (Hidden inputs mirror Radix switches, checkboxes and selects for form submission.)
+    const undeclared = edited.filter((element) => !element.closest('[aria-hidden="true"]'))
+    if (declarations.length && !unsaved && undeclared.length)
+      console.warn(
+        '[Dialog] A control changed while every declared value is unchanged; declare the full form state with `value` or useDialogValue (ADR 016):',
+        undeclared
+          .map(
+            (element) =>
+              element.id ||
+              element.getAttribute('name') ||
+              element.getAttribute('aria-label') ||
+              element.outerHTML.slice(0, 120)
+          )
+          .join(', ')
+      )
+    const editing = mode !== 'view' && mode !== 'confirm' && unsaved
     if (!next && editing && preferences.confirmDialogClose) setConfirming(true)
     else commit(next)
   }
   return (
-    <DialogContentContext.Provider value={content}>
+    <DialogContentContext.Provider value={state}>
       <DialogPrimitive.Root data-slot="dialog" {...props} open={open} onOpenChange={request}>
         {children}
       </DialogPrimitive.Root>
@@ -101,12 +287,34 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  onInputCapture,
+  onChangeCapture,
+  onFocusCapture,
+  onPointerDownCapture,
+  onKeyDownCapture,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean
 }) {
-  const content = React.useContext(DialogContentContext)
+  const dialog = React.useContext(DialogContentContext)
+  const content = dialog?.content
   const { t } = useMessages()
+  // Controls: their values on mount, or when they take focus before a change, are the
+  // baseline; a change marks them for comparison on closing.
+  React.useEffect(() => {
+    const node = content?.current
+    if (!dialog || !node) return
+    for (const element of node.querySelectorAll(CONTROLS)) remember(dialog.changes.current, element)
+  }, [dialog, content])
+  // The user's first interaction ends the opening: declared values are compared from here on.
+  const settle = () => {
+    for (const entry of dialog?.declared.current.values() ?? []) entry.settled = true
+  }
+  const touch = (target: EventTarget) => {
+    settle()
+    const element = target as Element
+    if (dialog && isControl(element)) dialog.changes.current.changed.add(element)
+  }
   return (
     <DialogPortal data-slot="dialog-portal">
       <DialogOverlay />
@@ -116,7 +324,29 @@ function DialogContent({
           if (typeof ref === 'function') return ref(node)
           if (ref) ref.current = node
         }}
+        onFocusCapture={(event) => {
+          if (dialog) remember(dialog.changes.current, event.target as Element, true)
+          onFocusCapture?.(event)
+        }}
+        onInputCapture={(event) => {
+          touch(event.target)
+          onInputCapture?.(event)
+        }}
+        onChangeCapture={(event) => {
+          touch(event.target)
+          onChangeCapture?.(event)
+        }}
+        onPointerDownCapture={(event) => {
+          settle()
+          onPointerDownCapture?.(event)
+        }}
+        onKeyDownCapture={(event) => {
+          settle()
+          onKeyDownCapture?.(event)
+        }}
         data-slot="dialog-content"
+        // Tools and tests tell a confirmation from an editor or a details view by this.
+        data-dialog-mode={dialog?.mode.current ?? 'edit'}
         className={cn(
           'fixed top-[50%] start-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] ltr:translate-x-[-50%] rtl:-translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border bg-background p-6 shadow-lg duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 sm:max-w-lg',
           className
@@ -207,4 +437,6 @@ export {
   DialogPortal,
   DialogTitle,
   DialogTrigger,
+  DialogValue,
+  useDialogValue,
 }

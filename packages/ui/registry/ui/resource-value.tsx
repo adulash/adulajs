@@ -6,6 +6,7 @@ import { useUiPreferences } from '~/components/ui/ui-preferences'
 import { arabicText, useMessages, type Translate } from '~/components/ui/messages'
 import { Badge } from '~/components/ui/badge'
 import { AttachmentPreviewButton } from '~/components/ui/attachment-preview'
+import { UserAvatar, type UserAvatarUser } from '~/components/ui/user-avatar'
 import {
   decimalDisplay,
   decimalInput,
@@ -16,13 +17,15 @@ import {
   orderedSelection,
   parseDecimal,
   phoneHref,
+  relationText,
   safeUrl,
   toLatinDigits,
 } from '~/components/ui/field_values'
 
 export { toLatinDigits } from '~/components/ui/field_values'
 
-export type Option = { value: string; label: string }
+/** A choice; a user choice also carries the person's picture (null without one, ADR 050). */
+export type Option = { value: string; label: string; avatarUrl?: string | null }
 export type LookupOptions = Record<string, Option[]>
 export type AttachmentValue = {
   id: number
@@ -42,7 +45,6 @@ export const CURRENCY_LABEL = 'ر.س'
 const locale = 'ar-u-nu-latn'
 const integerFormat = new Intl.NumberFormat(locale)
 const sizeFormat = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 })
-const meta = new Set(['id', 'version', 'docStatus', 'orgUnitId'])
 
 /** The percent sign after a percent value; translated interfaces map it (ui.value.percent). */
 export const PERCENT_LABEL = '٪'
@@ -64,18 +66,20 @@ export function fieldOptions(field: ResourceField, language = 'ar'): Option[] {
   }))
 }
 
-/** Linked records of a manyToMany value: id and title, #id when the reader cannot view it. */
+/** Linked records of a manyToMany value: id and title, a neutral label when the reader cannot view it. */
 export function linkedTitles(
   field: ResourceField,
   value: unknown,
-  related: Record<string, SerializedRecord[]> = {}
+  related: Record<string, SerializedRecord[]> = {},
+  unavailable?: string
 ) {
   if (!Array.isArray(value)) return []
   return value.map((id) => ({
     id: String(id),
     title: relationLabel(
       related[field.key]?.find((item) => String(item.id) === String(id)),
-      id
+      id,
+      unavailable
     ),
   }))
 }
@@ -149,23 +153,37 @@ export function formatDatetime(value: unknown, calendar: CalendarPreference = 'g
 /**
  * A related record is labelled by the title the server computed from the resource's
  * `title` fields (`_title`, #47). Older servers send none; then the first readable string
- * of the record is used.
+ * of the record is used. Without a related row the reader may not view the record, so it
+ * is labelled neutrally instead of by its id.
  */
-export function relationLabel(row: SerializedRecord | undefined, fallback: unknown) {
-  if (row && '_title' in row)
-    return typeof row._title === 'string' && row._title
-      ? row._title
-      : fallback === null || fallback === undefined
-        ? '—'
-        : `#${fallback}`
-  const label =
-    row &&
-    Object.entries(row).find(([key, entry]) => !meta.has(key) && typeof entry === 'string' && entry)
-  return label
-    ? String(label[1])
-    : fallback === null || fallback === undefined
-      ? '—'
-      : `#${fallback}`
+export function relationLabel(
+  row: SerializedRecord | undefined,
+  fallback: unknown,
+  unavailable?: string
+) {
+  return relationText(row, fallback, unavailable)
+}
+
+/**
+ * The person a `user` field points at, from the related row the server sent with its name and
+ * picture (ADR 050). Null when the reader may not see that user or the field is another type.
+ */
+export function relatedUser(
+  field: ResourceField,
+  row: SerializedRecord,
+  related: Record<string, SerializedRecord[]> | undefined
+): UserAvatarUser | null {
+  if (field.type !== 'user') return null
+  const value = row[field.key]
+  if (value === null || value === undefined || value === '') return null
+  const user = related?.[field.key]?.find((item) => String(item.id) === String(value))
+  if (!user) return null
+  return {
+    id: Number(user.id),
+    name: typeof user.fullName === 'string' ? user.fullName : null,
+    avatarUrl:
+      user.avatarUrl === null || typeof user.avatarUrl === 'string' ? user.avatarUrl : undefined,
+  }
 }
 
 export function inputValue(field: ResourceField, value: unknown) {
@@ -269,7 +287,7 @@ export function displayValue(
         ? value.map((entry) => optionLabel(field, String(entry), language)).join('، ')
         : String(value)
     case 'manyToMany':
-      return linkedTitles(field, value, related)
+      return linkedTitles(field, value, related, t('سجل غير متاح'))
         .map((entry) => entry.title)
         .join('، ')
     case 'money':
@@ -282,7 +300,8 @@ export function displayValue(
     case 'user':
       return relationLabel(
         related[field.key]?.find((item) => String(item.id) === String(value)),
-        value
+        value,
+        t('سجل غير متاح')
       )
     case 'lookup':
       return (
@@ -385,7 +404,7 @@ export function ResourceValue({
   if (field.type === 'manyToMany')
     return (
       <span className="flex flex-wrap gap-1">
-        {linkedTitles(field, value, related).map((entry) => (
+        {linkedTitles(field, value, related, t('سجل غير متاح')).map((entry) => (
           <Badge key={entry.id} variant="outline" className="font-normal">
             {entry.title}
           </Badge>
@@ -410,6 +429,15 @@ export function ResourceValue({
     )
   if (field.type === 'boolean')
     return <Badge variant={value ? 'default' : 'secondary'}>{value ? t('نعم') : t('لا')}</Badge>
+  const person = relatedUser(field, row, related)
+  if (person)
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <UserAvatar user={person} size="xs" />
+        {/* Its own element: the name reads alone, apart from the initials behind the picture. */}
+        <span>{displayValue(field, row, related, lookups, calendar, t, locale)}</span>
+      </span>
+    )
   if (field.type === 'money')
     return (
       <span className="tabular-nums" dir="ltr">

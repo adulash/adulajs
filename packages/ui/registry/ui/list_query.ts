@@ -230,11 +230,20 @@ export function fromSavedFilter(value: unknown): FieldFilter | null {
   return null
 }
 
-/** `GET /resources/:name/export` with the list's query (search, filters, tag, sort) but no cursor. */
-export function exportHref(resource: string, params: URLSearchParams) {
+/**
+ * `GET /resources/:name/export` with the list's query (search, filters, tag, sort) but no
+ * cursor; `format` 'xlsx' asks for an Excel workbook instead of CSV.
+ */
+export function exportHref(
+  resource: string,
+  params: URLSearchParams,
+  format: 'csv' | 'xlsx' = 'csv'
+) {
   const query = new URLSearchParams(params)
   query.delete('cursor')
   query.delete('limit')
+  query.delete('format')
+  if (format === 'xlsx') query.set('format', 'xlsx')
   const suffix = query.toString()
   return `/resources/${resource}/export${suffix ? `?${suffix}` : ''}`
 }
@@ -293,4 +302,12 @@ export function inclusiveDatetime(raw: string, side: 'gte' | 'lte') {
   if (!time) return `${day}T${side === 'gte' ? '00:00:00.000' : '23:59:59.999'}`
   if (/^\d{2}:\d{2}$/.test(time)) return `${day}T${time}${side === 'gte' ? ':00.000' : ':59.999'}`
   return value
+}
+
+/**
+ * The URL of the list itself. While a record dialog is open over the list, the page URL is the
+ * record's, so filters, sort and refresh read the list URL the dialog returns to instead (#104).
+ */
+export function listUrl(pageUrl: string, overlay?: { list?: unknown } | null) {
+  return typeof overlay?.list === 'string' && overlay.list ? overlay.list : pageUrl
 }

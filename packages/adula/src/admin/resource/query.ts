@@ -1,5 +1,11 @@
 import type { Knex } from 'knex'
-import type { Field, JsonValue, RecordData, Resource } from '../../resource/types.js'
+import type {
+  Field,
+  JsonValue,
+  RecordData,
+  Resource,
+  SerializedRecord,
+} from '../../resource/types.js'
 import { columnName } from '../../resource/define_resource.js'
 import { accessibleBy, authorizationSql, conditionSql } from '../../auth/sql.js'
 import { canRecord, type Actor, type AdulaAbility } from '../../auth/ability.js'
@@ -24,7 +30,7 @@ import {
   collectionFilter,
   withLinks,
 } from './shared.js'
-import { preload } from './read.js'
+import { preload, titler } from './read.js'
 
 /** Per-process cache of planner row estimates for identical list queries. */
 const estimates = new Map<string, { rows: number; at: number }>()
@@ -51,6 +57,14 @@ export type AggregateRow = {
 }
 const AGGREGATE_GROUP_LIMIT = 1000
 
+/**
+ * The default order's key: the creation time, newest first. Not a field, so a request cannot
+ * name it; a cursor carries it.
+ */
+const NEWEST = '_created'
+/** The column alias of the creation time's exact text in a list query. */
+const NEWEST_VALUE = '_created_at'
+
 export type ListOptions = {
   limit?: number
   cursor?: string
@@ -67,6 +81,11 @@ export type ListOptions = {
    * row's permissions carry `restore` (ADR 046).
    */
   trashed?: boolean
+  /**
+   * Only these records, under the same authorization as the whole list: the row a dialog just
+   * created, pinned at the top of the list it was created from.
+   */
+  ids?: number[]
 }
 
 /**
@@ -332,13 +351,26 @@ function listQuery(ctx: ResourceContext, name: string, actor: Actor, options: Li
   if (trashed) authorizeAction(ctx, resource, actor, 'delete')
   const queryable = (key: string) => canQueryField(resource, actor, ability, key)
   const limit = Math.max(1, Math.min(100, Math.floor(Number(options.limit) || 25)))
-  const sort = options.sort ?? 'id'
-  const direction = options.direction === 'desc' ? 'desc' : 'asc'
-  if (sort !== 'id' && !resource.fields[sort]?.sortable)
+  // The user's sort, else the resource's declared one, else newest first (owner, 2.3.0).
+  const chosen = options.sort ?? resource.defaultSort?.field
+  const sort = chosen ?? NEWEST
+  const direction =
+    options.direction === 'desc' || options.direction === 'asc'
+      ? options.direction
+      : options.sort
+        ? 'asc'
+        : chosen
+          ? (resource.defaultSort?.direction ?? 'asc')
+          : 'desc'
+  if (sort !== 'id' && sort !== NEWEST && !resource.fields[sort]?.sortable)
     throw new AdulaError(422, 'E_SORT', 'Unsupported sort field')
+  // The creation time orders the list only by default; it is not a field a request names.
+  if (options.sort === NEWEST) throw new AdulaError(422, 'E_SORT', 'Unsupported sort field')
   // Sorting/filtering private fields would otherwise reveal their values indirectly.
-  if (sort !== 'id' && !queryable(sort)) throw forbiddenField('Forbidden sort field')
-  const sortColumn = `r.${resource.fields[sort]?.column ?? columnName(sort)}`
+  if (sort !== 'id' && sort !== NEWEST && !queryable(sort))
+    throw forbiddenField('Forbidden sort field')
+  const sortColumn =
+    sort === NEWEST ? 'r.created_at' : `r.${resource.fields[sort]?.column ?? columnName(sort)}`
   const base = ctx.db(`${name} as r`)
   if (trashed) {
     base.whereNotNull('r.deleted_at')
@@ -346,8 +378,16 @@ function listQuery(ctx: ResourceContext, name: string, actor: Actor, options: Li
     const viewable = authorizationSql(ability, 'view', resource)
     base.whereRaw(viewable.text, viewable.bindings)
   } else base.whereNull('r.deleted_at')
+  if (options.ids) {
+    const ids = options.ids.filter((id) => Number.isSafeInteger(id) && id > 0)
+    if (ids.length === 0) base.whereRaw('false')
+    else base.whereIn('r.id', ids)
+  }
   const query = accessibleBy(base, ability, actor, trashed ? 'delete' : 'view', resource)
-  query.select(columns(resource, ability, false, [sort]))
+  query.select(columns(resource, ability, false, sort === NEWEST ? [] : [sort]))
+  // The creation time as PostgreSQL prints it, microseconds included: a page's cursor must
+  // compare exactly, which a JavaScript Date (milliseconds) would not.
+  if (sort === NEWEST) query.select(ctx.db.raw('r.created_at::text as ??', [NEWEST_VALUE]))
   if (resource.scoped) query.select('ou.path as org_path')
   if (options.search) applySearch(query, resource, options.search, queryable)
   applyFilters(query, resource, options.filters ?? {}, queryable)
@@ -386,6 +426,31 @@ export async function countUpTo(
   return Number(row.count)
 }
 
+/**
+ * Distinct tag names on records list() would return to the actor, for tag suggestions
+ * (RecordCollaboration.tagOptions): the same rules, organization scope and soft-delete
+ * filter apply, so a suggestion never names a tag found only on records the actor cannot see.
+ */
+export async function tagNames(
+  ctx: ResourceContext,
+  name: string,
+  actor: Actor,
+  limit: number
+): Promise<string[]> {
+  const { query } = listQuery(ctx, name, actor, {})
+  const ids = query.clearSelect().select('r.id')
+  const names = await ctx
+    .db('taggables as t')
+    .join('tags', 'tags.id', 't.tag_id')
+    .where('t.resource', name)
+    .whereIn('t.record_id', ids)
+    .distinct('tags.name')
+    .orderBy('tags.name')
+    .limit(limit)
+    .pluck('tags.name')
+  return names.map(String)
+}
+
 export async function list(
   ctx: ResourceContext,
   name: string,
@@ -401,6 +466,8 @@ export async function list(
   // Estimate the authorized, filtered query, never the deployment-wide table cardinality.
   // Only the first page pays for the extra planner round trip; later pages keep its figure.
   let estimatedTotal: number | undefined
+  // The authorized, filtered query before the cursor and the page limit narrow it.
+  const counted = query.clone()
   if (options.estimate !== false && !options.cursor) {
     estimatedTotal = await estimate(ctx.db, query)
   }
@@ -427,13 +494,23 @@ export async function list(
     .map((row: RecordData) => fromRow(row, resource))
   await withLinks(ctx.db, resource, records)
   const last = records.at(-1)
+  const lastRow = rows[Math.min(rows.length, limit) - 1] as Record<string, unknown> | undefined
   if (estimatedTotal !== undefined) {
     estimatedTotal =
-      !options.cursor && rows.length <= limit ? rows.length : Math.max(estimatedTotal, rows.length)
+      !options.cursor && rows.length <= limit
+        ? rows.length
+        : estimatedTotal < EXACT_COUNT_LIMIT
+          ? await exactCount(ctx.db, counted, Math.max(estimatedTotal, rows.length))
+          : Math.max(estimatedTotal, rows.length)
   }
   const hydrated = await hydrate(ctx.db, resource, records, ctx.attachments)
+  const title = await titler(ctx, resource)
   return {
-    data: hydrated.map((record) => serialize(resource, record, ability, actor)),
+    data: hydrated.map((record): SerializedRecord => {
+      const row = serialize(resource, record, ability, actor)
+      // Like related rows, list rows carry the title formatted from the visible values (#110).
+      return { ...row, _title: title(row) }
+    }),
     permissions: Object.fromEntries(
       records.map((record) => [
         String(record.id),
@@ -448,7 +525,12 @@ export async function list(
       nextCursor:
         rows.length > limit && last
           ? Buffer.from(
-              JSON.stringify({ id: last.id, value: last[sort] ?? null, sort, direction })
+              JSON.stringify({
+                id: last.id,
+                value: sort === NEWEST ? lastRow?.[NEWEST_VALUE] : (last[sort] ?? null),
+                sort,
+                direction,
+              })
             ).toString('base64url')
           : null,
     },
@@ -468,6 +550,24 @@ function trashedPermissions(
     view: canRecord(ability, actor, resource, 'view', record),
     restore: canRecord(ability, actor, resource, 'delete', record),
   }
+}
+
+/**
+ * Planner estimates are coarse for small tables and scoped filters (#111): below this figure the
+ * list counts exactly, so a figure under it is the real count of the authorized, filtered rows.
+ */
+const EXACT_COUNT_LIMIT = 1000
+
+/** The exact row count up to EXACT_COUNT_LIMIT; above it, an estimate known to exceed the limit. */
+async function exactCount(db: Knex, query: Knex.QueryBuilder, estimated: number) {
+  const bounded = query
+    .clearSelect()
+    .clearOrder()
+    .select('r.id')
+    .limit(EXACT_COUNT_LIMIT + 1)
+  const [row] = await db.from(bounded.as('bounded')).count<{ count: string }[]>('* as count')
+  const count = Number(row.count)
+  return count > EXACT_COUNT_LIMIT ? Math.max(estimated, EXACT_COUNT_LIMIT + 1) : count
 }
 
 /** The planner's row estimate of a list query, reused briefly for the identical query. */
@@ -509,7 +609,14 @@ function decodeCursor(resource: Resource, encoded: unknown, sort: string, direct
     throw invalidCursor()
   // The sort key must have the sort field's type, or PostgreSQL rejects the comparison.
   try {
-    if (sort === 'id') {
+    if (sort === NEWEST) {
+      // PostgreSQL's own text form of a timestamp with time zone, as the list printed it.
+      if (
+        typeof cursor.value !== 'string' ||
+        !/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d{1,6})?[+-]\d{2}(:\d{2})?$/.test(cursor.value)
+      )
+        throw new Error('Cursor time mismatch')
+    } else if (sort === 'id') {
       if (cursor.value !== cursor.id) throw new Error('Cursor id mismatch')
     } else cursor.value = fieldValue(resource.fields[sort], cursor.value)
   } catch {

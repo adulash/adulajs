@@ -3,7 +3,7 @@ import { loginValidator } from '#validators/user'
 import type { HttpContext } from '@adonisjs/core/http'
 import { errors as authErrors } from '@adonisjs/auth'
 import { logAuthActivity, requestContext } from '#services/auth_activity'
-import { endSession } from '#services/sessions'
+import { endSession, markSignedOut } from '#services/sessions'
 import { completeSignIn } from '#services/sign_in'
 import { socialProviders } from '#services/social_accounts'
 import {
@@ -12,7 +12,7 @@ import {
   loginLockoutLimiter,
   lockoutMinutes,
 } from '#start/limiter'
-import { endImpersonation } from '#services/impersonation'
+import { activeImpersonation, endImpersonation, logImpersonationEnd } from '#services/impersonation'
 
 export default class SessionController {
   async create({ inertia }: HttpContext) {
@@ -86,8 +86,11 @@ export default class SessionController {
     const { auth, response, session } = ctx
     const user = auth.getUserOrFail()
     const sessionId = session.sessionId
+    const impersonation = activeImpersonation(ctx)
     await auth.use('web').logout()
+    markSignedOut(ctx)
     endImpersonation(session)
+    if (impersonation) await logImpersonationEnd(impersonation, 'logout')
     await endSession(sessionId)
     await logAuthActivity({ userId: user.id, action: 'logout', changes: requestContext(ctx) })
     response.redirect().toRoute('session.create')

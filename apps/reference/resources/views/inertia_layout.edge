@@ -1,10 +1,25 @@
+@let(theme = ['light', 'dark', 'system'].includes(page?.props?.preferences?.['shell.theme']) ? page.props.preferences['shell.theme'] : 'light')
 <!DOCTYPE html>
-<html lang="{{ page?.props?.locale ?? 'ar' }}" dir="{{ page?.props?.dir ?? 'rtl' }}">
+<html lang="{{ page?.props?.locale ?? 'ar' }}" dir="{{ page?.props?.dir ?? 'rtl' }}" class="{{ theme === 'dark' ? 'dark' : '' }}" data-theme="{{ theme }}">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    {{-- The theme applies before the first paint (ADR 049); "system" follows the device. --}}
+    <script nonce="{{ cspNonce }}">
+      (function () {
+        var root = document.documentElement
+        if (root.dataset.theme !== 'system' || !window.matchMedia) return
+        var query = window.matchMedia('(prefers-color-scheme: dark)')
+        var apply = function () {
+          if (root.dataset.theme === 'system') root.classList.toggle('dark', query.matches)
+        }
+        apply()
+        query.addEventListener('change', apply)
+      })()
+    </script>
     <title data-inertia>
-      AdulaJS
+      أدولا
     </title>
 
     @viteReactRefresh({ nonce: cspNonce })

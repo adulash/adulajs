@@ -20,7 +20,7 @@ ids, or had to pick a parent record again that the page already knew.
    - relation option labels in forms and filters;
    - `recordTitle` in `Assignment` and `WorkflowRun` (the approver's view);
    - `ResourceService.titles(name, ids, actor)` for module pages.
-   `relationLabel` keeps its old first-string fallback for servers that send no `_title`.
+     `relationLabel` keeps its old first-string fallback for servers that send no `_title`.
 2. **Create defaults.** `ResourceService.editor(name, actor, undefined, { defaults })` and
    the create route's `?defaults[field]=value` return `defaults` with the form. Only
    fields visible in the actor's create form are kept. A lookup must be active, and a
@@ -28,6 +28,10 @@ ids, or had to pick a parent record again that the page already knew.
    added with its title. Invalid or unauthorized values are dropped silently: the page is
    a GET, and dropping reveals nothing about records the actor cannot see. Defaults are
    initial values only, and saving validates them as usual.
+   Since 2.3.0 (#115) a required `belongsTo` whose options hold exactly one record the
+   actor may view (the whole option list, not its first page) starts on that record when
+   neither a requested nor a declared default applies. It is an initial value like the others:
+   the record is one the actor can already see, and saving authorizes the reference.
 
 ## Consequences
 

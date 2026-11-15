@@ -64,10 +64,24 @@ export default class ImportsController {
     return ctx.response.created({ data: batch })
   }
 
-  /** A CSV header template (UTF-8 with BOM) of the fields the actor may import. */
+  /**
+   * A header template of the fields the actor may import: CSV (UTF-8 with BOM), or an Excel
+   * workbook with `?format=xlsx`.
+   */
   async template(ctx: HttpContext) {
     const name = resourceName(ctx)
     const mode = ctx.request.input('mode') === 'upsert' ? 'upsert' : 'create'
+    const format = ctx.request.input('format') ?? 'csv'
+    if (format !== 'csv' && format !== 'xlsx')
+      throw new AdulaError(422, 'E_IMPORT_FORMAT', 'صيغة القالب غير مدعومة')
+    if (format === 'xlsx') {
+      const workbook = await adula().imports.xlsxTemplate(name, await requestActor(ctx), mode)
+      return ctx.response
+        .header('Content-Type', workbook.mimeType)
+        .header('Content-Disposition', `attachment; filename="${workbook.fileName}"`)
+        .header('Cache-Control', 'no-store')
+        .send(Buffer.from(workbook.content))
+    }
     const template = adula().imports.template(name, await requestActor(ctx), mode)
     return ctx.response
       .header('Content-Type', 'text/csv; charset=utf-8')

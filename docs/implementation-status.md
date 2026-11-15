@@ -1,6 +1,6 @@
 # Implementation status
 
-Current state of AdulaJS 2.2.0 on 2026-10-30. [CHANGELOG.md](../CHANGELOG.md) is the
+Current state of AdulaJS 2.3.0 on 2026-11-14. [CHANGELOG.md](../CHANGELOG.md) is the
 chronology of what changed and when; [GAPS.md](../GAPS.md) lists what users still cannot
 do. This page describes what exists today.
 
@@ -48,13 +48,15 @@ All three share one version and are published together from a `v<version>` tag
   settings, sessions, impersonation with audit, activity log, runtime health, setup center.
 * Collaboration: comments with mentions, followers, tags, field history, assignments and
   one "My tasks" page for tasks and approvals.
+* Per-user interface preferences (ADR 049): `definePreference`/`UserPreferences` on the
+  settings table, `PUT`/`DELETE /account/preferences/:key`, shared `preferences` prop.
 * Notifications: message templates editable by administrators, in-app inbox with realtime
   SSE (one shared stream per browser), e-mail delivery by the worker, per-user channel
   preferences and a signed HTTP provider channel for SMS or WhatsApp.
 * Integrations: signed outgoing webhooks with retries, signed inbound webhooks with
   deduplication, API tokens with `/api/v1`, per-caller OpenAPI and a generated typed
   TypeScript client (`/api/v1/client.ts`, `adula:client`), imports through the worker with
-  format adapters (CSV built in), templates, dry run and upsert, scheduled sync jobs with
+  format adapters (CSV and guarded xlsx built in), CSV and Excel templates, dry run and upsert, scheduled sync jobs with
   run history, RTL print page with optional Gotenberg PDF, optional MCP tools (`adula/mcp`).
 * Workflows: versioned workflows with condition, update, notify, approval, decision,
   delay, http and end steps; row locks, bounded retries, failed-runs screen;
@@ -66,6 +68,19 @@ All three share one version and are published together from a `v<version>` tag
   job.
 * Attachments: private storage on Drive disks (filesystem or S3), authorized download,
   upload grants, `adula:storage:migrate`, upload pruning.
+* Built-in assistant (ADR 052): `Assistant`, `AssistantSettings` and `createChatClient`
+  over an OpenRouter key sealed in `ai.assistant`; reads through the shared resource tool
+  runner as the signed-in user, proposes writes that run only after the user confirms,
+  per-user rate and daily token limits, `core.ai` audit entries, `adula:assistant:prune`.
+* Appearance and occasions (ADR 053): `Appearance` with the base identity in
+  `appearance.identity`, WCAG AA colour checks for both themes, PNG/JPEG/WebP logos stored as
+  attachments, dated occasions without overlaps resolved per request in the system time zone,
+  the `appearance` shared prop and «المظهر والهوية». The guest and workspace shells show the
+  name, logo and banner after their 2.3.0 branches merge.
+* Encrypted backups (ADR 051): download by an administrator, Google Drive and OneDrive
+  uploads (manual or scheduled), `backup:seal` and `backup:open`. Real Drive and OneDrive
+  delivery is unverified until the owner's OAuth clients complete a connection; tests use
+  local fakes of both APIs.
 * Operations: outbox and jobs, scheduler/worker heartbeats, `backup:create`,
   `backup:verify`, `backup:restore-files`, `backup:restore-test`,
   `adula:restore:reconcile` (see [operations](operations.md)).
@@ -83,7 +98,9 @@ All three share one version and are published together from a `v<version>` tag
 
 The AdonisJS 7 + Inertia/React host whose application code the creator copies into new
 systems: authentication (password recovery, sessions, optional Google/GitHub sign-in),
-administration screens, workspace with module groups and generic resource pages with record
+administration screens, a workspace with module groups (sidebar expanded, icons or hidden, or
+a top layout; per-user order; light, dark or device theme; «مهامي» beside the bell;
+administration sections with sub-tabs, ADR 049) and generic resource pages with record
 dialogs. Its production Dockerfile, Compose files, Caddy and deploy scripts stay in
 `apps/reference` ([operations](operations.md)). The educational customers/orders/tasks
 modules exist only as test fixtures under `apps/reference/tests/fixtures` (ADR 017).
@@ -112,7 +129,7 @@ Japa and `node:test` run more cases than declarations where a helper registers t
 | Reference browser (`apps/reference/tests/browser`, Playwright) | 10 | 35 |
 | Reference helpers and opt-in S3 acceptance | 2 | 8 |
 | UI (`packages/ui/tests`) | 2 | 7 |
-| Creator (`packages/create-adulajs/tests`) | 7 | 45 |
+| Creator (`packages/create-adulajs/tests`) | 10 | 52 |
 | Release (`tests/release`) | 6 | 16 |
 | Medical consumer (`tests/medical-consumer`) | 1 | 3 |
 
@@ -121,10 +138,12 @@ Japa and `node:test` run more cases than declarations where a helper registers t
 * `adula:resource:migration` adds columns, join tables and unique indexes only; type
   changes and search-vector changes need a hand-written migration.
 * CSV import does not map multiSelect or manyToMany fields.
-* XLSX import and SAML SSO are not available. Two-factor authentication (TOTP) and
+* Excel import reads the first sheet only and does not evaluate formulas; SAML SSO is
+  not available. Two-factor authentication (TOTP) and
   OAuth/OIDC SSO are described in [authentication.md](authentication.md); the typed
   TypeScript API client in [integration.md](integration.md).
-* Exports are capped at 5000 rows; restore follows the delete permission (ADR 046).
+* Exports (CSV or Excel) are capped at 5000 rows; restore follows the delete permission
+  (ADR 046).
 * Arabic is the base language; English is optional for the framework's own strings
   ([languages.md](languages.md)).
 

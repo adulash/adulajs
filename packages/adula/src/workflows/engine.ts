@@ -25,6 +25,7 @@ import {
 } from './define_workflow.js'
 
 import { slaState, type SlaEvaluation, type WorkflowSlaStatus } from './sla.js'
+import { avatarUrlFor, avatarVersionColumn } from '../core/user_avatars.js'
 
 export { slaState } from './sla.js'
 export type { SlaEvaluation, SlaState, WorkflowSlaStatus } from './sla.js'
@@ -53,7 +54,11 @@ export type WorkflowRun = {
   history: {
     step: string | null
     event: string
+    /** The user who acted; null for system steps («النظام»). */
+    actorId?: number | null
     actorName: string | null
+    /** The actor's versioned picture URL, or null without one (ADR 050). */
+    actorAvatarUrl?: string | null
     /** Set when the actor decided as a delegate (ADR 044). */
     onBehalfOfName?: string | null
     detail: { [key: string]: JsonValue }
@@ -371,7 +376,7 @@ export class WorkflowEngine {
           const users = await this.recipients(trx, run, context, assignees)
           const eligible: number[] = []
           for (const userId of users)
-            if (await this.canView(run.resource, run.record_id, userId)) eligible.push(userId)
+            if (await this.canView(trx, run.resource, run.record_id, userId)) eligible.push(userId)
           // Waiting on nobody would hide the run for hours of retries; fail it where admins look.
           if (!eligible.length)
             throw new StepFailure(
@@ -461,7 +466,9 @@ export class WorkflowEngine {
     await this.db.transaction(async (trx) => {
       const run = await trx('workflow_runs').where('id', runId).forUpdate().first()
       if (!run) throw new AdulaError(404, 'E_WORKFLOW_NOT_FOUND', 'التدفق غير موجود')
-      if (!(await this.resources.permits(run.resource, Number(run.record_id), actor)))
+      // The record check runs on this transaction: a second pool connection while the run
+      // is locked would let concurrent decisions exhaust the pool.
+      if (!(await this.viewable(run, actor, trx)))
         throw new AdulaError(404, 'E_WORKFLOW_NOT_FOUND', 'التدفق غير موجود')
       // The actor's own approval first, then one they hold for a delegator (ADR 044).
       const assignment = await trx('assignments as a')
@@ -643,7 +650,7 @@ export class WorkflowEngine {
           if (
             !late.has(userId) &&
             userId !== Number(run.started_by) &&
-            (await this.canView(run.resource, run.record_id, userId))
+            (await this.canView(trx, run.resource, run.record_id, userId))
           )
             targets.push(userId)
       } catch (error) {
@@ -840,7 +847,7 @@ export class WorkflowEngine {
       .where('e.run_id', row.id)
       .orderBy('e.id')
       .limit(200)
-      .select('e.*', 'u.full_name as actor_name')
+      .select('e.*', 'u.full_name as actor_name', avatarVersionColumn(this.db, 'e.actor_id'))
     const mine = actor
       ? await this.db('assignments as a')
           .where({
@@ -889,7 +896,10 @@ export class WorkflowEngine {
       history: history.map((event) => ({
         step: event.step ?? null,
         event: String(event.event),
+        actorId:
+          event.actor_id === null || event.actor_id === undefined ? null : Number(event.actor_id),
         actorName: event.actor_name ? String(event.actor_name) : null,
+        actorAvatarUrl: avatarUrlFor(event.actor_id, event.avatar_version),
         onBehalfOfName:
           typeof event.detail?.onBehalfOfName === 'string' ? event.detail.onBehalfOfName : null,
         detail: (event.detail ?? {}) as { [key: string]: JsonValue },
@@ -1103,8 +1113,25 @@ export class WorkflowEngine {
     return byName ? Number(byName.id) : null
   }
 
-  private canView(resource: string, id: number, userId: number) {
-    return canView(this.db, this.resources, this.actors, resource, id, userId)
+  /** permits() on a given connection: denial (403/404) is false, other errors propagate. */
+  private async viewable(run: Record<string, any>, actor: Actor, db: Knex) {
+    try {
+      await this.resources.access(String(run.resource), Number(run.record_id), actor, 'view', db)
+      return true
+    } catch (error) {
+      if (error instanceof AdulaError && (error.status === 403 || error.status === 404))
+        return false
+      throw error
+    }
+  }
+
+  /**
+   * Whether a user may view the run's record, read on `db`. Callers inside a transaction
+   * pass it: a second pool connection while the run is locked lets concurrent decisions,
+   * submissions and worker passes exhaust the pool.
+   */
+  private canView(db: Knex, resource: string, id: number, userId: number) {
+    return canView(db, this.resources, this.actors, resource, id, userId)
   }
 
   private async log(
@@ -1238,7 +1265,7 @@ export class WorkflowEngine {
     const active = await this.#delegations.active(approver, db)
     if (!active || active.delegateId === Number(run.started_by)) return null
     if (await this.#delegations.active(active.delegateId, db)) return null
-    if (!(await this.canView(run.resource, run.record_id, active.delegateId))) return null
+    if (!(await this.canView(db, run.resource, run.record_id, active.delegateId))) return null
     return active
   }
 

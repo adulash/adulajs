@@ -115,6 +115,13 @@ export function ResourceDashboard({
   )
 }
 
+/** One widget of a DashboardResult on its own, as the personal overview shows it (ADR 050). */
+export function DashboardWidgetCard({ widget }: { widget: unknown }) {
+  const [tile] = normalizeDashboard({ widgets: [widget] }).widgets
+  if (!tile) return null
+  return tile.kind === 'total' ? <TotalTile widget={tile} /> : <GroupedCard widget={tile} />
+}
+
 /** The widget's label links to its resource list, where the same records can be reviewed. */
 function WidgetLabel({ label, href }: { label: string; href: string | null }) {
   const { t } = useMessages()
@@ -123,7 +130,7 @@ function WidgetLabel({ label, href }: { label: string; href: string | null }) {
     <Link
       href={href}
       className="hover:text-foreground hover:underline"
-      aria-label={t('فتح سجلات {label}', { label })}
+      aria-label={t('فتح القائمة: {label}', { label })}
     >
       {label}
     </Link>

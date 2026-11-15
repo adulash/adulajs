@@ -31,3 +31,45 @@ export const arabicText: Translate = createTranslator()
 export function localizedLabel(label: LocalizedLabel, locale: string) {
   return label[locale] || label.ar
 }
+
+/** The CLDR plural category of a count under Arabic rules (n % 100 decides from 100 on). */
+export type CountForm = 'zero' | 'one' | 'two' | 'few' | 'many' | 'other'
+const arabicPlurals = new Intl.PluralRules('ar')
+export function countForm(count: number): CountForm {
+  return arabicPlurals.select(count) as CountForm
+}
+
+/**
+ * «سجل واحد»، «سجلان»، «3 سجلات»، «11 سجلًا»، «100 سجل» (#110). Each form is its own catalog
+ * text, so translations choose their wording per form.
+ */
+export function recordCount(count: number, t: Translate = arabicText) {
+  switch (countForm(count)) {
+    case 'one':
+      return t('سجل واحد')
+    case 'two':
+      return t('سجلان')
+    case 'few':
+      return t('{count} سجلات', { count })
+    case 'many':
+      return t('{count} سجلًا', { count })
+    default:
+      return t('{count} سجل', { count })
+  }
+}
+
+/** «مستند واحد»، «مستندان»، «3 مستندات»، «11 مستندًا»، «100 مستند». */
+export function documentCount(count: number, t: Translate = arabicText) {
+  switch (countForm(count)) {
+    case 'one':
+      return t('مستند واحد')
+    case 'two':
+      return t('مستندان')
+    case 'few':
+      return t('{count} مستندات', { count })
+    case 'many':
+      return t('{count} مستندًا', { count })
+    default:
+      return t('{count} مستند', { count })
+  }
+}

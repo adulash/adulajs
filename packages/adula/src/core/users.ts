@@ -3,6 +3,7 @@ import { AdulaError } from '../admin/errors.js'
 import { logActivity, pageLimit } from './activity.js'
 import { administrationGuard } from './administration_guard.js'
 import { escapeLike } from './like.js'
+import { avatarUrlFor, avatarVersionColumn } from './user_avatars.js'
 
 export type UserRoleAssignment = {
   id: number
@@ -15,6 +16,8 @@ export type UserOrgUnit = { id: number; name: string; path: string }
 export type UserSummary = {
   id: number
   fullName: string | null
+  /** The user's versioned picture URL, or null without one (ADR 050). */
+  avatarUrl?: string | null
   email: string
   disabledAt: string | null
   roles: UserRoleAssignment[]
@@ -33,7 +36,7 @@ export class UsersAdmin {
   ): Promise<UserPage> {
     const limit = pageLimit(options.limit)
     const query = this.db('users')
-      .select('id', 'email', 'full_name', 'disabled_at')
+      .select('id', 'email', 'full_name', 'disabled_at', avatarVersionColumn(this.db, 'users.id'))
       .orderBy('id')
       .limit(limit + 1)
     const search = options.search?.trim()
@@ -168,7 +171,7 @@ export class UsersAdmin {
 
   private async find(db: Knex, id: number) {
     const user = await db('users')
-      .select('id', 'email', 'full_name', 'disabled_at')
+      .select('id', 'email', 'full_name', 'disabled_at', avatarVersionColumn(db, 'users.id'))
       .where('id', id)
       .first()
     if (!user) throw new AdulaError(404, 'E_USER_NOT_FOUND', 'المستخدم غير موجود')
@@ -199,6 +202,7 @@ export class UsersAdmin {
     return rows.map((row) => ({
       id: row.id as number,
       fullName: (row.full_name as string | null) ?? null,
+      avatarUrl: avatarUrlFor(row.id, row.avatar_version),
       email: row.email as string,
       disabledAt: row.disabled_at ? new Date(row.disabled_at as string).toISOString() : null,
       roles: roles

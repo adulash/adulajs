@@ -58,7 +58,13 @@ e-mail, phone, URL, decimal, percent, choice and many-to-many fields (GAPS.md). 
   they are not field writes by the actor. A manyToMany write syncs by difference inside
   the record's transaction; every newly linked record must be live and viewable, checked
   with one query per field (scope and role rules as SQL, 404 when any is not); links kept
-  unchanged are not re-checked. Amend-by-copy links the same records, on the document and
+  unchanged are not re-checked. Since 2.3.0 a belongsTo value follows the same rule: it is
+  checked on create and when it changes (after the hooks ran), so an unchanged link to a
+  record later deleted or moved out of the writer's scope never blocks an edit, and a
+  changed one is still 404 when its target is missing, deleted or unviewable. The parent
+  of an inherited scope (`scope.from`) is still loaded on every write. As for manyToMany, a
+  writer who may change a link it cannot read can tell its stored target from other
+  unviewable records; the link itself is never returned. Amend-by-copy links the same records, on the document and
   on its copied inline lines (a line's links follow the same field-permission filter as
   its other copied fields). Decimal and percent values sent as JSON numbers must be exact:
   a magnitude of `Number.MAX_SAFE_INTEGER` or more, or more than 15 significant digits, is

@@ -7,6 +7,7 @@ import { diagnoseAgentSkills } from '../src/commands/doctor.js'
 import { withAdulaDatabase } from '../src/database/configure.js'
 import {
   ActorStore,
+  RolesAdmin,
   Settings,
   administratorExists,
   buildAbility,
@@ -152,6 +153,15 @@ test.group('First administrator installation', (group) => {
     await grantInstallAdministrator(db, again.id, '9.9.9')
     assert.lengthOf(await db('user_roles').where({ user_id: first.id }), 1)
     assert.equal(creations, 1)
+
+    // The bootstrap role carries an Arabic name and is found again by its fixed key (#143).
+    const bootstrap = await db('roles').where('key', 'administrator').first()
+    assert.equal(bootstrap.name, 'مدير النظام')
+    await new RolesAdmin(db, registry).rename(first.id, bootstrap.id, 'إدارة النظام')
+    await grantInstallAdministrator(db, first.id, '9.9.9')
+    assert.lengthOf(await db('roles').where('key', 'administrator'), 1)
+    assert.lengthOf(await db('roles'), 1)
+    assert.lengthOf(await db('user_roles').where({ user_id: first.id }), 1)
 
     // Once an administrator exists, a mistyped address cannot mint another privileged user.
     await assert.rejects(

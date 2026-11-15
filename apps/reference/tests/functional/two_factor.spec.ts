@@ -260,7 +260,12 @@ test.group('Two-factor: enrolment and self-service', (group) => {
     const { secret } = await enrolTwoFactor(member.id, member.email)
     const browser = new Browser(client)
     await browser.password(admin)
-    await expectStatus(browser.send('post', `/admin/users/${member.id}/impersonate`), 200)
+    await expectStatus(
+      browser.send('post', `/admin/users/${member.id}/impersonate`, {
+        body: { reason: 'مراجعة إعدادات التحقق للمستخدم' },
+      }),
+      200
+    )
     assert.equal(browser.userId, member.id)
     for (const [method, url, body] of [
       ['post', '/account/two-factor/begin', {}],
@@ -531,7 +536,8 @@ test.group('Two-factor: administration', (group) => {
     assert,
   }) => {
     const admin = await makeAdmin('resetter')
-    const member = await makeUser('lost-device')
+    // An administrator, so that their API token works until the reset ends it.
+    const member = await makeAdmin('lost-device')
     const { secret } = await enrolTwoFactor(member.id, member.email)
     const memberBrowser = new Browser(client)
     await memberBrowser.password(member)
@@ -655,7 +661,12 @@ test.group('Two-factor: administration', (group) => {
     const browser = new Browser(client)
     await browser.password(admin)
     await expectStatus(browser.code(nextCode(secret)), 200)
-    await expectStatus(browser.send('post', `/admin/users/${member.id}/impersonate`), 200)
+    await expectStatus(
+      browser.send('post', `/admin/users/${member.id}/impersonate`, {
+        body: { reason: 'مراجعة إعدادات التحقق للمستخدم' },
+      }),
+      200
+    )
     assert.equal(browser.userId, member.id)
     // The impersonated member is checked as a member, not prompted to enrol.
     const admin403 = await browser.send('get', '/admin/users')
@@ -939,7 +950,7 @@ test.group('Two-factor: administrator power outside /admin', (group) => {
       .json({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
   const mint = (client: ApiClient, user: User, html = false) =>
     client
-      .post('/account/tokens')
+      .post('/admin/tokens')
       .withCsrfToken()
       .header('Accept', html ? 'text/html' : 'application/json')
       .redirects(0)
@@ -984,10 +995,15 @@ test.group('Two-factor: administrator power outside /admin', (group) => {
     tools.assertStatus(403)
     assert.equal(tools.body().error.code, 'E_TWO_FACTOR_REQUIRED')
 
-    // Members are not administrators: none of this applies to them.
+    // Members are not administrators: the requirement does not apply to them, and API tokens
+    // are not theirs to mint or use (owner decision, 2.3.0).
     const memberToken = await mint(client, member)
-    memberToken.assertStatus(201)
-    await expectStatus(bearer(client, memberToken.body().data.secret), 200)
+    memberToken.assertStatus(403)
+    assert.equal(memberToken.body().error.code, 'E_FORBIDDEN')
+    const memberEarlier = await User.accessTokens.create(member, ['read'], { name: 'قديم' })
+    const memberApi = await bearer(client, memberEarlier.value!.release())
+    memberApi.assertStatus(403)
+    assert.equal(memberApi.body().error.code, 'E_TOKEN_ADMIN_ONLY')
     await expectStatus(mcp(client, member), 200)
 
     // Enrolled, the same administrator passes every gate with the same token.

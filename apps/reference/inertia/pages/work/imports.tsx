@@ -7,14 +7,8 @@ import Workspace from '~/layouts/workspace'
 import { useDateTimeFormatter } from '~/components/admin-nav'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '~/components/ui/dialog'
+import { Dialog } from '~/components/ui/dialog'
+import { LongDialogContent } from '~/components/ui/long-dialog'
 import { ImportReport, ImportSummary } from '~/components/ui/resource-import'
 
 type Props = { batches: ImportBatch[] }
@@ -66,13 +60,22 @@ function ValidatedBatch({ id, onClose }: { id: number | null; onClose: () => voi
   }
   return (
     <Dialog open={id !== null} onOpenChange={(value) => !value && onClose()}>
-      <DialogContent dir="rtl" className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>تقرير التحقق {batch ? `— ${batch.fileName}` : ''}</DialogTitle>
-          <DialogDescription>
-            نتيجة كل صف كما سيُستورد. لم يُحفظ شيء بعد.
-          </DialogDescription>
-        </DialogHeader>
+      <LongDialogContent
+        dir="rtl"
+        width="3xl"
+        title={`تقرير التحقق ${batch ? `— ${batch.fileName}` : ''}`}
+        description="نتيجة كل صف كما سيُستورد. لم يُحفظ شيء بعد."
+        footer={
+          <>
+            <Button type="button" variant="outline" onClick={onClose}>
+              إغلاق
+            </Button>
+            <Button type="button" disabled={!batch || busy} onClick={() => void start()}>
+              بدء الاستيراد
+            </Button>
+          </>
+        }
+      >
         {batch ? (
           <div className="space-y-3">
             <ImportSummary batch={batch} />
@@ -82,19 +85,11 @@ function ValidatedBatch({ id, onClose }: { id: number | null; onClose: () => voi
           !error && <p className="text-sm text-muted-foreground">جارٍ تحميل التقرير…</p>
         )}
         {error && (
-          <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800">
+          <p role="alert" className="rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive">
             {error}
           </p>
         )}
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={onClose}>
-            إغلاق
-          </Button>
-          <Button type="button" disabled={!batch || busy} onClick={() => void start()}>
-            بدء الاستيراد
-          </Button>
-        </DialogFooter>
-      </DialogContent>
+      </LongDialogContent>
     </Dialog>
   )
 }
@@ -119,7 +114,7 @@ export default function Imports({ batches }: Props) {
       </div>
       <ul className="space-y-3">
         {batches.map((batch) => (
-          <li key={batch.id} className="space-y-2 rounded-xl border bg-white px-5 py-4">
+          <li key={batch.id} className="space-y-2 rounded-xl border bg-card px-5 py-4">
             <div className="flex flex-wrap items-center gap-2">
               <FileSpreadsheet size={16} className="text-muted-foreground" />
               <span className="font-semibold">{batch.fileName}</span>
@@ -168,7 +163,7 @@ export default function Imports({ batches }: Props) {
             )}
             {batch.errors.length > 0 && (
               <details className="text-sm">
-                <summary className="cursor-pointer text-red-800">
+                <summary className="cursor-pointer text-destructive">
                   أخطاء الصفوف ({batch.errors.length})
                 </summary>
                 <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto text-xs">

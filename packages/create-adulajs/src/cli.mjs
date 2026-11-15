@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Progress } from './progress.mjs'
 import { prepareDocker } from './prerequisites.mjs'
+import { askDetails, pipedQuestions, prompts } from './prompts.mjs'
 import { parseArgs } from 'node:util'
 import { createInterface } from 'node:readline/promises'
 import { randomBytes } from 'node:crypto'
@@ -42,13 +43,16 @@ export const help = `Create a new business system with AdonisJS and AdulaJS
 
   --company "Company name"     Company display name (Arabic supported)
   --admin-email email          Administrator email
-  --identity brand.json        Company logo, primaryColor, fontFamily and guidelines
+  --identity brand.json        Optional company logo, primaryColor, fontFamily and guidelines;
+                               without it the identity is recorded as pending
   --services docker|existing   Default: Docker; requires Docker Compose
   --connection local.json      PostgreSQL and Redis profile for existing services
   --database name              Fresh database name; existing databases are rejected
   --packages directory         Local core and UI archives for pre-publication testing
-  --yes                       Noninteractive; requires company and administrator email
-  --help                      Show help
+  --yes                        Noninteractive; requires company and administrator email
+  --help                       Show help
+
+Without --yes, missing values are asked for; piped input answers them, one line each.
 
 Requires Node.js 24+ and npm. Installs pnpm, AdonisJS, adula, the Arabic UI,
 databases, administrator and agent skills. External SMTP, OAuth and S3 require
@@ -167,8 +171,10 @@ export async function main(argv = process.argv.slice(2)) {
   let directory = positionals[0]
   let company = values.company
   let email = values['admin-email']
-  let identityFile = values.identity
-  const interactive = process.stdin.isTTY && !values.yes
+  // A terminal is asked; piped input without --yes answers the questions that the options
+  // did not (one line each), so scripts and tests drive the same interactive flow.
+  const interactive =
+    !values.yes && (process.stdin.isTTY || !directory || !company || !email)
   // Reject a supplied destination before collecting company details.
   if (directory) {
     projectName(resolve(directory))
@@ -179,12 +185,11 @@ export async function main(argv = process.argv.slice(2)) {
   // Host prerequisites must pass before prompts, package setup or project writes.
   let docker
   if (interactive) {
-    const prompt = createInterface({
-      input: process.stdin,
-      output: process.stdout,
-    })
+    const prompt = process.stdin.isTTY
+      ? createInterface({ input: process.stdin, output: process.stdout })
+      : pipedQuestions(process.stdin, process.stdout)
     try {
-      directory ||= await prompt.question('System directory: ')
+      directory ||= await prompt.question(prompts.directory)
       projectName(resolve(directory))
       await assertEmpty(resolve(directory))
       if (values.services === 'docker') {
@@ -207,11 +212,10 @@ export async function main(argv = process.argv.slice(2)) {
           console.log(`Docker is ready (${docker.display}). Continuing setup.`)
         }
       }
-      company ||= await prompt.question('Company name as it should appear in the system: ')
-      email ||= await prompt.question('Administrator email: ')
-      identityFile ||= await prompt.question(
-        'Company identity JSON (logo, colors, fonts, guidelines; Enter to record as pending): '
-      )
+      ;({ company, email } = await askDetails((message) => prompt.question(message), {
+        company,
+        email,
+      }))
     } finally {
       prompt.close()
     }
@@ -225,7 +229,7 @@ export async function main(argv = process.argv.slice(2)) {
   const target = resolve(directory)
   const name = projectName(target)
   await assertEmpty(target)
-  const identity = await readIdentity(identityFile || undefined, company)
+  const identity = await readIdentity(values.identity, company)
   const template = JSON.parse(await readFile(new URL('./template.json', import.meta.url), 'utf8'))
   const manager = await packageManager()
   const suffix = randomBytes(6).toString('hex')
@@ -364,7 +368,7 @@ export async function main(argv = process.argv.slice(2)) {
     await writeNew(
       target,
       'README.md',
-      `# ${name}\n\nCreated with create-adulajs ${template.version}. Node.js 24+ is required.\n\n## Local development\n\n\`\`\`sh\nnpm run dev\n\`\`\`\n\nOpen ${appEnv.APP_URL}. Administrator credentials are in ignored tmp/dev-admin.txt. After signing in, open /admin/setup and follow docs/initial-setup.md to review identity and verify service readiness.\nnpm run dev also runs the event worker (node ace adula:worker), which publishes the outbox to listeners and restarts when application code changes. In production run the worker and exactly one scheduler (node ace scheduler:run) as separate processes; node ace adula:outbox publishes one batch by hand. adula:doctor warns when outbox events wait longer than a minute.\n\n${values.services === 'docker' ? `PostgreSQL 17 and Redis 7 run in Docker. Start them with ${docker.display} compose up -d --wait; stop with ${docker.display} compose stop. The selected backend is saved in scripts/docker-backend.json. npm run dev, npm test and npm run ace -- migration:run start services through that same backend. npm run services attaches to services; npm run services:stop stops them. Only the WSL fallback keeps a WSL session open. Named volumes retain data; never use down -v unless deliberately deleting the local databases.` : 'PostgreSQL 17 and Redis use your existing services. Installation created fresh databases; keep .env and .env.test private.'}\n\n## Verification\n\nRun npm run typecheck, npm test, npm run lint and npm run build. Tests use the separate *_test database and a distinct Redis namespace.\n\n## Company identity\n\nRead docs/design-identity.md and the managed design skill before changing UI. Source files and shadcn components belong to this system.\n\n## External services and production\n\nLocal file storage is enabled. SMTP (including a local relay), OAuth provider credentials, S3, off-site backups, and production deployment need actual destination configuration. The creator does not enable unconfigured external services. Production requires backup variables validated in start/env.ts.\n\n## Incomplete installation\n\nReview the reported failing step; files and databases are retained. After resolving it, use npm exec --yes --package=pnpm@11.19.0 -- pnpm install, node ace migration:run, and node ace adula:setup. Setup reads tmp/dev-admin.txt; it refuses to promote an existing account with a different password. Then run node ace adula:doctor and npm run build. Never recreate over a nonempty directory.\n`
+      `# ${name}\n\nCreated with create-adulajs ${template.version}. Node.js 24+ is required.\n\n## Local development\n\n\`\`\`sh\nnpm run dev\n\`\`\`\n\nOpen ${appEnv.APP_URL}; use 127.0.0.1 rather than localhost, because the development server listens on IPv4 only and a browser that tries ::1 first waits before falling back. Administrator credentials are in ignored tmp/dev-admin.txt. After signing in, open /admin/setup and follow docs/initial-setup.md to review identity and verify service readiness.\nnpm run dev also runs the event worker (node ace adula:worker), which publishes the outbox to listeners and restarts when application code changes. In production run the worker and exactly one scheduler (node ace scheduler:run) as separate processes; node ace adula:outbox publishes one batch by hand. adula:doctor warns when outbox events wait longer than a minute.\n\n${values.services === 'docker' ? `PostgreSQL 17 and Redis 7 run in Docker. Start them with ${docker.display} compose up -d --wait; stop with ${docker.display} compose stop. The selected backend is saved in scripts/docker-backend.json. npm run dev, npm test and npm run ace -- migration:run start services through that same backend. npm run services attaches to services; npm run services:stop stops them. Only the WSL fallback keeps a WSL session open. Named volumes retain data; never use down -v unless deliberately deleting the local databases.` : 'PostgreSQL 17 and Redis use your existing services. Installation created fresh databases; keep .env and .env.test private.'}\n\n## Verification\n\nRun npm run typecheck, npm test, npm run lint and npm run build. Tests use the separate *_test database and a distinct Redis namespace.\n\n## Company identity\n\nRead docs/design-identity.md and the managed design skill before changing UI. Source files and shadcn components belong to this system.\n\n## External services and production\n\nLocal file storage is enabled. SMTP (including a local relay), OAuth provider credentials, S3, off-site backups, and production deployment need actual destination configuration. The creator does not enable unconfigured external services. Production requires backup variables validated in start/env.ts.\n\n## Incomplete installation\n\nReview the reported failing step; files and databases are retained. After resolving it, use npm exec --yes --package=pnpm@11.19.0 -- pnpm install, node ace migration:run, and node ace adula:setup. Setup reads tmp/dev-admin.txt; it refuses to promote an existing account with a different password. Then run node ace adula:doctor and npm run build. Never recreate over a nonempty directory.\n`
     )
     await writeNew(target, 'tmp/install.log', '', true)
     const options = {

@@ -11,6 +11,8 @@ import User from '#models/user'
 import mail from '@adonisjs/mail/services/main'
 import { SMTPTransport } from '@adonisjs/mail/transports/smtp'
 import { smtpSink } from '../helpers/smtp.js'
+import { mailPresets, mailReadiness, presetEnvLines, smtpOptions } from '#services/mail_setup'
+import { environmentMail } from '#services/mail_transport'
 
 test.group('Core administration screens', (group) => {
   let admin: User
@@ -129,13 +131,13 @@ test.group('Core administration screens', (group) => {
       }>('mail.delivery_test', 'user', String(admin.id))
       assert.equal(state?.recipient, admin.email)
       assert.equal(state?.status, 'pending')
-      const page = await asPage(client.get('/admin/settings').loginAs(admin))
+      const page = await asPage(client.get('/admin/settings/mail').loginAs(admin))
       assert.notProperty(page.body().props.mailTest, 'fingerprint')
       const confirmed = await asJson(
         client.post('/admin/settings/mail/confirm').loginAs(admin)
       ).json({ id: state!.id, received: true })
       confirmed.assertStatus(200)
-      const fresh = await asPage(client.get('/admin/settings').loginAs(admin))
+      const fresh = await asPage(client.get('/admin/settings/mail').loginAs(admin))
       assert.equal(fresh.body().props.mailTest.status, 'confirmed')
       const stale = await asJson(client.post('/admin/settings/mail/confirm').loginAs(admin)).json({
         id: state!.id,
@@ -146,6 +148,160 @@ test.group('Core administration screens', (group) => {
       await mail.close('smtp')
       mail.config.mailers.smtp = previous
       await sink.close()
+    }
+  })
+
+  test('mail readiness names gaps by variable and treats a local relay as a warning', ({
+    assert,
+  }) => {
+    const production = { NODE_ENV: 'production' }
+    assert.deepEqual(mailReadiness(production), {
+      configured: false,
+      missing: ['SMTP_HOST', 'MAIL_FROM_ADDRESS'],
+      invalid: [],
+      warnings: [],
+    })
+    const relay = mailReadiness({
+      ...production,
+      SMTP_HOST: '127.0.0.1',
+      SMTP_PORT: 25,
+      MAIL_FROM_ADDRESS: 'no-reply@example.test',
+    })
+    assert.isTrue(relay.configured)
+    assert.deepEqual(relay.warnings, ['loopback_in_production'])
+    const mismatch = mailReadiness({
+      SMTP_HOST: 'smtp.example.test',
+      SMTP_PORT: 465,
+      SMTP_SECURE: false,
+      SMTP_PASSWORD: 'only-a-password',
+      MAIL_FROM_ADDRESS: 'not-an-address',
+    })
+    assert.isFalse(mismatch.configured)
+    assert.deepEqual(mismatch.missing, ['SMTP_USERNAME'])
+    assert.deepEqual(mismatch.invalid, ['MAIL_FROM_ADDRESS'])
+    assert.deepEqual(mismatch.warnings, ['port_security_mismatch'])
+    assert.notInclude(JSON.stringify(mismatch), 'only-a-password')
+    assert.deepEqual(mailReadiness({}).warnings, ['development_default'])
+    for (const preset of mailPresets) {
+      const lines = presetEnvLines(preset)
+      assert.match(lines, /^SMTP_PASSWORD=$/m)
+      assert.include(lines, `SMTP_PORT=${preset.port}`)
+      assert.include(lines, `SMTP_SECURE=${preset.port === 465}`)
+    }
+    assert.notOk(mailPresets.some((preset) => /office365|outlook/i.test(preset.host)))
+  })
+
+  test('a preset configures mail, a wrong password reads as such and gaps are refused', async ({
+    client,
+    assert,
+  }) => {
+    const secret = 'preset-secret-4d9a'
+    const wrong = 'wrong-secret-7c21'
+    const sink = await smtpSink({ auth: { user: 'apikey', pass: secret } })
+    const keys = [
+      'SMTP_HOST',
+      'SMTP_PORT',
+      'SMTP_SECURE',
+      'SMTP_REQUIRE_TLS',
+      'SMTP_USERNAME',
+      'SMTP_PASSWORD',
+      'MAIL_FROM_ADDRESS',
+    ] as const
+    const saved = Object.fromEntries(keys.map((key) => [key, env.get(key)]))
+    // Env.set also writes process.env, which child processes of later tests inherit; keep the
+    // raw values so an unset variable is removed again rather than becoming "undefined".
+    const savedProcess = Object.fromEntries(keys.map((key) => [key, process.env[key]]))
+    const previous = mail.config.mailers.smtp
+    const preset = mailPresets.find((item) => item.id === 'sendgrid')!
+    // The administrator copies the preset's lines and fills the empty password and sender;
+    // only the host and port move to the local sink, and it offers no STARTTLS.
+    const lines = Object.fromEntries(
+      presetEnvLines(preset)
+        .split('\n')
+        .map((line) => line.split('=') as [string, string])
+    )
+    const apply = async (smtpPassword: string) => {
+      env.set('SMTP_HOST', '127.0.0.1')
+      env.set('SMTP_PORT', sink.port)
+      env.set('SMTP_SECURE', lines.SMTP_SECURE === 'true')
+      env.set('SMTP_REQUIRE_TLS', false)
+      env.set('SMTP_USERNAME', lines.SMTP_USERNAME)
+      env.set('SMTP_PASSWORD', smtpPassword)
+      env.set('MAIL_FROM_ADDRESS', 'no-reply@example.test')
+      await mail.close('smtp')
+      mail.config.mailers.smtp = () => new SMTPTransport(smtpOptions(environmentMail()))
+      await knex()('settings')
+        .where({ key: 'mail.delivery_test', scope: 'user', scope_id: String(admin.id) })
+        .delete()
+    }
+    try {
+      assert.equal(lines.SMTP_USERNAME, 'apikey')
+      assert.equal(lines.SMTP_PASSWORD, '')
+      await apply(secret)
+      const sent = await asJson(client.post('/admin/settings/mail/test').loginAs(admin))
+      sent.assertStatus(200)
+      assert.deepEqual(sink.logins, ['apikey'])
+      assert.lengthOf(sink.messages, 1)
+
+      await apply(wrong)
+      const refused = await asJson(client.post('/admin/settings/mail/test').loginAs(admin))
+      refused.assertStatus(502)
+      assert.equal(refused.body().error.code, 'E_MAIL_TEST_SEND')
+      assert.include(refused.body().error.message, 'SMTP_PASSWORD')
+      assert.include(refused.body().error.message, 'رفض خادم البريد اسم المستخدم')
+      const activity = await knex()('activities')
+        .where({ resource: 'core.mail', action: 'test_send_failed', record_id: admin.id })
+        .orderBy('id', 'desc')
+        .first()
+      assert.equal(activity.changes.reason, 'authentication')
+      const stored = await knex()('settings')
+        .where({ key: 'mail.delivery_test', scope: 'user', scope_id: String(admin.id) })
+        .first()
+      assert.equal(stored.value.status, 'failed')
+
+      env.set('SMTP_PASSWORD', '')
+      const incomplete = await asJson(client.post('/admin/settings/mail/test').loginAs(admin))
+      incomplete.assertStatus(422)
+      assert.equal(incomplete.body().error.code, 'E_MAIL_NOT_CONFIGURED')
+      assert.lengthOf(sink.messages, 1)
+      env.set('SMTP_PASSWORD', wrong)
+      const page = await asPage(client.get('/admin/setup').loginAs(admin))
+      const props = page.body().props
+      assert.isTrue(props.mailReadiness.configured)
+      assert.equal(
+        props.mailPresets.find((item: { id: string }) => item.id === 'sendgrid').env,
+        presetEnvLines(preset)
+      )
+      env.set('SMTP_USERNAME', '')
+      const missing = await asPage(client.get('/admin/settings/mail').loginAs(admin))
+      assert.deepEqual(missing.body().props.mailReadiness.missing, ['SMTP_USERNAME'])
+
+      const surfaces = [
+        JSON.stringify(refused.body()),
+        JSON.stringify(incomplete.body()),
+        JSON.stringify(props),
+        JSON.stringify(missing.body().props),
+        JSON.stringify(await knex()('activities').where('resource', 'core.mail')),
+        JSON.stringify(await knex()('settings').where('key', 'mail.delivery_test')),
+      ]
+      for (const surface of surfaces) {
+        assert.notInclude(surface, secret)
+        assert.notInclude(surface, wrong)
+      }
+    } finally {
+      for (const key of keys) {
+        env.set(key, saved[key] as never)
+        if (savedProcess[key] === undefined) delete process.env[key]
+        else process.env[key] = savedProcess[key]
+      }
+      await mail.close('smtp')
+      mail.config.mailers.smtp = previous
+      await sink.close()
+    }
+    for (const key of keys) {
+      assert.equal(process.env[key], savedProcess[key], key)
+      assert.notEqual(process.env[key], 'undefined', key)
+      assert.equal(env.get(key), saved[key], key)
     }
   })
 
@@ -163,6 +319,7 @@ test.group('Core administration screens', (group) => {
       '/admin/activity',
       '/admin/jobs',
       '/admin/settings',
+      '/admin/settings/mail',
       '/admin/setup',
     ]
     for (const path of pages) {
@@ -406,6 +563,15 @@ test.group('Core administration screens', (group) => {
       index.body().props.users.data.map((user: { id: number }) => user.id),
       [member.id]
     )
+    // `q` is the documented parameter shared with the other administration lists.
+    const byQ = await asJson(
+      client.get(`/admin/users?q=${encodeURIComponent(member.email)}`).loginAs(admin)
+    )
+    byQ.assertStatus(200)
+    assert.deepEqual(
+      byQ.body().data.map((user: { id: number }) => user.id),
+      [member.id]
+    )
     const assigned = await asJson(
       client.post(`/admin/users/${member.id}/roles`).loginAs(admin)
     ).json({ roleId: viewerRoleId, orgUnitId: rootId })
@@ -417,9 +583,19 @@ test.group('Core administration screens', (group) => {
     const show = await asPage(client.get(`/admin/users/${member.id}`).loginAs(admin))
     show.assertStatus(200)
     assert.equal(show.body().component, 'admin/users/show')
+    // The page shows the member as `target`; the shell keeps the signed-in administrator.
+    assert.equal(show.body().props.target.id, member.id)
+    assert.equal(show.body().props.account.id, admin.id)
+    // Roles that grant full administration are flagged for their own confirmation.
+    assert.include(show.body().props.privilegedRoleIds, adminRoleId)
+    assert.notInclude(show.body().props.privilegedRoleIds, viewerRoleId)
+    const showJson = await asJson(client.get(`/admin/users/${member.id}`).loginAs(admin))
+    showJson.assertStatus(200)
+    assert.equal(showJson.body().user.id, member.id)
+    assert.include(showJson.body().privilegedRoleIds, adminRoleId)
     const scopedAssignment = show
       .body()
-      .props.user.roles.find((role: { orgUnitId: number | null }) => role.orgUnitId === rootId)
+      .props.target.roles.find((role: { orgUnitId: number | null }) => role.orgUnitId === rootId)
     assert.equal(scopedAssignment.role, `viewer-${unique}`)
     assert.isArray(show.body().props.roles)
     assert.isArray(show.body().props.orgUnits)
@@ -460,7 +636,7 @@ test.group('Core administration screens', (group) => {
     selfImpersonation.assertStatus(422)
     const impersonated = await asJson(
       client.post(`/admin/users/${member.id}/impersonate`).loginAs(admin)
-    )
+    ).json({ reason: 'مراجعة طلب دعم فني للمستخدم' })
     impersonated.assertStatus(200)
     assert.exists(
       await knex()('activities')
@@ -621,6 +797,8 @@ test.group('Core administration screens', (group) => {
     await new Settings(knex()).set('backup.lastOffsite', new Date().toISOString())
     const fresh = await asPage(client.get('/').loginAs(admin))
     assert.isFalse(fresh.body().props.backupWarning)
+    // Leave no offsite backup behind: later suites (the browser shell) expect the warning.
+    await knex()('settings').where('key', 'backup.lastOffsite').delete()
   })
 
   test('activity page lists administrative mutations with filters and keyset paging', async ({
@@ -654,6 +832,122 @@ test.group('Core administration screens', (group) => {
       .loginAs(admin)
       .header('Accept', 'application/json')
     badDate.assertStatus(422)
+  })
+
+  test('activity rows read as names, titles and changed fields; the actor filter lists names', async ({
+    client,
+    assert,
+  }) => {
+    const name = `عميل السجل ${randomUUID()}`
+    const created = await asJson(client.post('/resources/customers').loginAs(admin)).json({
+      name,
+      email: `before-${unique}@example.test`,
+    })
+    created.assertStatus(201)
+    const id = created.body().data.id
+    // Both fields are submitted; only the e-mail changes.
+    const updated = await asJson(client.patch(`/resources/customers/${id}`).loginAs(admin)).json({
+      name,
+      email: `after-${unique}@example.test`,
+      version: created.body().data.version,
+    })
+    updated.assertStatus(200)
+
+    const page = await asPage(
+      client.get(`/admin/activity?resource=customers&actorId=${admin.id}`).loginAs(admin)
+    )
+    page.assertStatus(200)
+    type Row = {
+      recordId: number
+      action: string
+      changes: unknown
+      resourceLabel: string
+      actionLabel: string
+      recordTitle: string | null
+      actorName: string | null
+      fieldChanges: { field: string; label: string; before: string | null; after: string | null }[]
+    }
+    const rows: Row[] = page.body().props.activity.data
+    const update = rows.find((row) => row.recordId === id && row.action === 'update')!
+    assert.exists(update)
+    assert.property(update, 'changes', 'stored keys stay for JSON clients')
+    assert.equal(update.resourceLabel, 'العملاء')
+    assert.equal(update.actionLabel, 'تعديل')
+    assert.equal(update.recordTitle, name)
+    assert.equal(update.actorName, 'مدير الإدارة')
+    assert.deepEqual(update.fieldChanges, [
+      {
+        field: 'email',
+        label: 'البريد الإلكتروني',
+        before: `before-${unique}@example.test`,
+        after: `after-${unique}@example.test`,
+      },
+    ])
+    const facets = page.body().props.facets
+    assert.deepInclude(facets.actors, { id: admin.id, name: 'مدير الإدارة' })
+    assert.equal(facets.labels.resources['core.users'], 'المستخدمون')
+    assert.equal(facets.labels.actions['assign_role'], 'إسناد دور')
+
+    // Core subjects and actions have Arabic names; user records are titled by name.
+    await knex()('activities').insert({
+      resource: 'core.users',
+      record_id: member.id,
+      actor_id: admin.id,
+      action: 'assign_role',
+      changes: JSON.stringify({ roleId: viewerRoleId }),
+    })
+    const core = await client
+      .get(`/admin/activity?resource=core.users&action=assign_role&limit=1`)
+      .loginAs(admin)
+      .header('Accept', 'application/json')
+    core.assertStatus(200)
+    assert.include(core.body().data[0], {
+      resourceLabel: 'المستخدمون',
+      actionLabel: 'إسناد دور',
+      recordTitle: 'عضو عادي',
+    })
+
+    // Option values show their labels; a field no longer defined is withheld.
+    const [entry] = await knex()('activities')
+      .insert({
+        resource: 'suppliers',
+        record_id: 2147483000,
+        actor_id: admin.id,
+        action: 'update',
+        changes: JSON.stringify({ fields: ['kind', 'removed'] }),
+      })
+      .returning('id')
+    await knex()('field_changes').insert([
+      {
+        activity_id: entry.id,
+        resource: 'suppliers',
+        record_id: 2147483000,
+        field: 'kind',
+        before: JSON.stringify('local'),
+        after: JSON.stringify('international'),
+      },
+      {
+        activity_id: entry.id,
+        resource: 'suppliers',
+        record_id: 2147483000,
+        field: 'removed',
+        before: JSON.stringify('secret-before'),
+        after: JSON.stringify('secret-after'),
+      },
+    ])
+    const supplier = await client
+      .get(`/admin/activity?resource=suppliers&limit=1`)
+      .loginAs(admin)
+      .header('Accept', 'application/json')
+    supplier.assertStatus(200)
+    const [row] = supplier.body().data
+    assert.equal(row.id, String(entry.id))
+    assert.isNull(row.recordTitle)
+    assert.deepEqual(row.fieldChanges, [
+      { field: 'kind', label: 'نوع المورد', before: 'محلي', after: 'دولي' },
+      { field: 'removed', label: 'removed', before: null, after: null, withheld: true },
+    ])
+    assert.notInclude(JSON.stringify(row.fieldChanges), 'secret')
   })
 
   test('jobs page shows heartbeats, outbox backlog and retries a failed queue job', async ({

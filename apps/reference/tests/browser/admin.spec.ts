@@ -3,10 +3,23 @@ import mail from '@adonisjs/mail/services/main'
 import { randomUUID } from 'node:crypto'
 import db from '@adonisjs/lucid/services/db'
 import User from '#models/user'
+import env from '#start/env'
 import { UserInvitations } from 'adula'
 import UserInvitationNotification from '#mails/user_invitation_notification'
 import app from '@adonisjs/core/services/app'
 import { mkdir } from 'node:fs/promises'
+import { join } from 'node:path'
+import { screenshotDir } from '#tests/helpers/ui_fixtures'
+
+/** The browser global read inside page.evaluate (the test project has no DOM types). */
+type Styled = { getComputedStyle: (element: unknown) => { listStyleType: string } }
+type Shaped = {
+  getComputedStyle: (element: unknown) => { borderTopLeftRadius: string; whiteSpace: string }
+}
+type Measured = {
+  getBoundingClientRect: () => { height: number; left: number; right: number }
+  firstElementChild: { scrollWidth: number; clientWidth: number } | null
+}
 
 test.group('Administration screens in the browser', (group) => {
   let admin: User
@@ -75,8 +88,29 @@ test.group('Administration screens in the browser', (group) => {
     try {
       await browserContext.loginAs(admin)
       const page = await visit('/admin/users')
-      await page.getByRole('link', { name: 'إضافة مستخدم', exact: true }).click()
-      const dialog = page.getByRole('dialog')
+      // The users page offers the invitation as its primary action.
+      const invite = page.locator('main').getByRole('link', { name: 'دعوة مستخدم', exact: true })
+      assert.equal(await invite.getAttribute('data-variant'), 'default')
+      await invite.click()
+      const dialog = page.getByRole('dialog', { name: 'دعوة مستخدم' })
+      await dialog.waitFor()
+      // Over the users list, with an address that opens it again.
+      await page.waitForURL('**/admin/users?invite=1')
+      // The dialog hides the page from assistive technology, so the list is found by its markup.
+      assert.isTrue(await page.locator('main table').first().isVisible())
+      assert.include(await page.locator('main h1').first().innerText(), 'المستخدمون')
+      // The long dialog pattern: fixed header and footer around a scrolling body.
+      assert.equal(await dialog.getAttribute('data-long-dialog'), '')
+      assert.equal(await dialog.locator('[data-slot="long-dialog-footer"]').count(), 1)
+      // Unchanged, «إلغاء» closes at once and the address returns to the list.
+      await dialog.getByRole('button', { name: 'إلغاء', exact: true }).click()
+      await dialog.waitFor({ state: 'hidden' })
+      assert.equal(await page.getByRole('dialog', { name: 'إغلاق النموذج؟' }).count(), 0)
+      await page.waitForURL('**/admin/users')
+      // The direct address opens the same dialog over the list.
+      await page.goto(page.url().replace(/\/admin\/users.*$/, '/users/invite'))
+      await page.waitForURL('**/admin/users?invite=1')
+      await dialog.waitFor()
       await dialog.getByLabel('الاسم الكامل').fill('مستخدم الدعوة')
       await dialog.getByLabel('البريد الإلكتروني').fill(member.email)
       await dialog.getByRole('button', { name: 'إرسال الدعوة', exact: true }).click()
@@ -199,6 +233,177 @@ test.group('Administration screens in the browser', (group) => {
     await page.getByText('اعتمد المدير الهوية الحالية', { exact: true }).waitFor()
   })
 
+  test('storage setup guide lists ordered steps and copies its environment lines', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(admin)
+    const page = await visit('/admin/setup')
+    await page.evaluate(() => {
+      const copied: string[] = []
+      ;(globalThis as unknown as { copied: string[] }).copied = copied
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText: async (text: string) => void copied.push(text) },
+      })
+    })
+    await page.getByRole('button', { name: 'إعداد التخزين', exact: true }).click()
+    const dialog = page.getByRole('dialog')
+    await dialog.getByRole('heading', { name: 'إعداد الملفات' }).waitFor()
+    const steps = dialog.getByTestId('setup-guide-steps').locator(':scope > li')
+    assert.equal(await steps.count(), 4)
+    // Steps are numbered ١. ٢. ٣. like the page's section titles, still as an ordered list.
+    for (let index = 0; index < 4; index++)
+      assert.equal(
+        await steps
+          .nth(index)
+          .evaluate(
+            (item) => (globalThis as unknown as Styled).getComputedStyle(item).listStyleType
+          ),
+        'arabic-indic'
+      )
+    assert.include(await steps.nth(0).innerText(), 'أضف المتغيرات التالية')
+    assert.include(await steps.nth(2).innerText(), 'فحص التخزين')
+    assert.include(await steps.nth(3).innerText(), 'node ace adula:storage:migrate local s3')
+    // The same copy pattern as the mail setup: environment lines in one block, copied at once;
+    // the optional endpoint is commented out so an empty value never fails validation.
+    const lines = [
+      'DRIVE_DISK=s3',
+      'AWS_ACCESS_KEY_ID=',
+      'AWS_SECRET_ACCESS_KEY=',
+      'AWS_REGION=',
+      'S3_BUCKET=',
+      '# AWS_ENDPOINT=',
+    ].join('\n')
+    assert.equal(await steps.nth(0).getByTestId('setup-guide-env-lines').innerText(), lines)
+    const variables = steps.nth(0).getByRole('list', { name: 'المتغيرات' }).getByRole('listitem')
+    assert.equal(await variables.count(), 6)
+    assert.include(await variables.last().innerText(), 'AWS_ENDPOINT')
+    assert.include(await variables.last().innerText(), 'اختياري')
+    await steps.nth(0).getByRole('button', { name: 'نسخ الأسطر', exact: true }).click()
+    await steps.nth(0).getByRole('button', { name: 'تم النسخ', exact: true }).waitFor()
+    await dialog
+      .getByRole('button', { name: 'نسخ node ace adula:storage:migrate local s3', exact: true })
+      .click()
+    assert.deepEqual(
+      await page.evaluate(() => (globalThis as unknown as { copied: string[] }).copied),
+      [lines, 'node ace adula:storage:migrate local s3']
+    )
+    assert.include(await dialog.getByRole('alert').innerText(), 'لا ينقل الملفات القائمة')
+  })
+
+  test('mail settings are saved from the dialog, and the password is write-only', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    const secret = `smtp-browser-${randomUUID()}`
+    const allowPrivate = {
+      raw: process.env.WEBHOOKS_ALLOW_PRIVATE,
+      value: env.get('WEBHOOKS_ALLOW_PRIVATE'),
+    }
+    // The form saves a loopback relay, which only the explicit opt-in allows.
+    env.set('WEBHOOKS_ALLOW_PRIVATE', true)
+    try {
+      await browserContext.loginAs(admin)
+      const page = await visit('/admin/settings/mail')
+      // A tab of the horizontal «الإعدادات» row (owner decision 22), selected on its own address.
+      const tab = page.getByRole('tab', { name: 'البريد' })
+      assert.equal(await tab.getAttribute('aria-selected'), 'true')
+      assert.include(await page.locator('main').innerText(), 'لا إعداد محفوظ بعد')
+      await page.evaluate(() => {
+        const copied: string[] = []
+        ;(globalThis as unknown as { copied: string[] }).copied = copied
+        Object.defineProperty(navigator, 'clipboard', {
+          configurable: true,
+          value: { writeText: async (text: string) => void copied.push(text) },
+        })
+      })
+      await page.getByRole('button', { name: 'إعداد البريد', exact: true }).click()
+      const dialog = page.getByRole('dialog', { name: 'إعداد البريد' })
+      await dialog.waitFor()
+      const field = (name: string) => dialog.getByLabel(name, { exact: true })
+      assert.equal(await field('خادم SMTP').inputValue(), 'smtp.gmail.com')
+      assert.equal(await field('المنفذ').inputValue(), '465')
+
+      // A provider fills the server, port, security and fixed username.
+      await dialog.getByRole('combobox', { name: 'مزود البريد' }).click()
+      await page.getByRole('option', { name: 'SendGrid', exact: true }).click()
+      await page.getByRole('listbox').waitFor({ state: 'detached' })
+      assert.equal(await field('خادم SMTP').inputValue(), 'smtp.sendgrid.net')
+      assert.equal(await field('المنفذ').inputValue(), '587')
+      assert.equal(await field('اسم المستخدم').inputValue(), 'apikey')
+      assert.include(
+        await dialog.getByRole('combobox', { name: 'نوع الأمان' }).innerText(),
+        'STARTTLS'
+      )
+      assert.include(await dialog.innerText(), 'مفتاح API من SendGrid')
+      // The environment lines stay available as the alternative.
+      const lines = await dialog.getByTestId('mail-env-lines').innerText()
+      assert.include(lines, 'SMTP_HOST=smtp.sendgrid.net')
+      assert.match(lines, /^SMTP_PASSWORD=$/m)
+      await dialog.getByRole('button', { name: 'نسخ الأسطر', exact: true }).click()
+      const copied = await page.evaluate(
+        () => (globalThis as unknown as { copied: string[] }).copied
+      )
+      assert.deepEqual(copied, [lines.trim()])
+
+      await field('خادم SMTP').fill('127.0.0.1')
+      await field('المنفذ').fill('2525')
+      await field('كلمة المرور').fill(secret)
+      await field('اسم المرسل').fill('نظام الاختبار')
+      await field('عنوان المرسل').fill('no-reply@example.test')
+      await dialog.getByRole('button', { name: 'حفظ', exact: true }).click()
+      await dialog.waitFor({ state: 'hidden' })
+      await page.getByText('تم حفظ إعداد البريد').waitFor()
+      const stored = await knex()('settings').where('key', 'mail.smtp').first()
+      assert.equal(stored.value.host, '127.0.0.1')
+      assert.equal(stored.value.port, 2525)
+      assert.equal(stored.value.preset, 'sendgrid')
+      assert.isString(stored.value.secret)
+      assert.notInclude(JSON.stringify(stored.value), secret)
+      // The tab now shows the saved settings in force, the password only as a state. The page
+      // reloads its props after the success message, so wait for the new summary first.
+      await page
+        .locator('main')
+        .getByText('يرسل النظام بالإعداد المحفوظ هنا.', { exact: false })
+        .waitFor()
+      const summary = await page.locator('main').innerText()
+      assert.include(summary, 'يرسل النظام بالإعداد المحفوظ هنا.')
+      assert.include(summary, '127.0.0.1:2525')
+      assert.include(summary, 'محفوظة')
+      assert.notInclude(await page.content(), secret)
+
+      // Reopened, the password is a saved state with «تغيير» and «حذف», never a value.
+      await page.getByRole('button', { name: 'إعداد البريد', exact: true }).click()
+      await dialog.waitFor()
+      const passwordGroup = dialog.getByRole('group', { name: 'كلمة المرور' })
+      await passwordGroup.getByText('كلمة مرور محفوظة').waitFor()
+      assert.equal(await dialog.locator('input[type="password"]').count(), 0)
+      assert.notInclude(await page.content(), secret)
+      await passwordGroup.getByRole('button', { name: 'تغيير', exact: true }).click()
+      assert.equal(await field('كلمة المرور').inputValue(), '')
+      await page.keyboard.press('Escape')
+      await dialog.waitFor({ state: 'hidden' })
+
+      await page.getByRole('button', { name: 'إعداد البريد', exact: true }).click()
+      await dialog.waitFor()
+      await passwordGroup.getByRole('button', { name: 'حذف', exact: true }).click()
+      const confirmation = page.getByRole('dialog', { name: 'حذف كلمة مرور البريد؟' })
+      await confirmation.getByRole('button', { name: 'حذف كلمة المرور', exact: true }).click()
+      await page.getByText('تم حذف كلمة مرور البريد.').waitFor()
+      await field('كلمة المرور').waitFor()
+      const cleared = await knex()('settings').where('key', 'mail.smtp').first()
+      assert.notProperty(cleared.value, 'secret')
+    } finally {
+      env.set('WEBHOOKS_ALLOW_PRIVATE', allowPrivate.value as never)
+      if (allowPrivate.raw === undefined) delete process.env.WEBHOOKS_ALLOW_PRIVATE
+      else process.env.WEBHOOKS_ALLOW_PRIVATE = allowPrivate.raw
+      await knex()('settings').where('key', 'mail.smtp').delete()
+    }
+  })
+
   test('toggling a matrix cell writes the rule and the page reflects it', async ({
     browserContext,
     visit,
@@ -232,9 +437,9 @@ test.group('Administration screens in the browser', (group) => {
         .where({ role_id: roleId, subject: 'tasks', action: 'view', inverted: true })
         .first()
     )
-    // One row per registered resource subject; the suppliers fixture adds two (ADR 045)
-    // and the order_documents fixture one (ADR 047).
-    await page.assertElementsCount('tbody tr', 2 + 8 + 1 + 1 + 2 + 1)
+    // all, core.users and core.ai (ADR 052), then one row per registered resource subject;
+    // the suppliers fixture adds two (ADR 045) and the order_documents fixture one (ADR 047).
+    await page.assertElementsCount('tbody tr', 3 + 8 + 1 + 1 + 2 + 1)
     await allow.click()
     await page.getByRole('button', { name: 'تأكيد حذف الصلاحية', exact: true }).click()
     await page.locator('button[aria-label="سماح: المهام / عرض"][aria-pressed="false"]').waitFor()
@@ -325,7 +530,8 @@ test.group('Administration screens in the browser', (group) => {
         .where({ role_id: assignment.role_id, subject: 'all', action: 'manage', inverted: false })
         .first()
     )
-    await page.getByRole('link', { name: 'المستخدمون', exact: true }).click()
+    // Back to the users through the section's tab (ADR 049).
+    await page.getByRole('tab', { name: 'المستخدمون', exact: true }).click()
     await page.getByRole('heading', { name: 'المستخدمون', exact: true }).waitFor()
   })
 
@@ -338,11 +544,15 @@ test.group('Administration screens in the browser', (group) => {
     const page = await visit('/')
     await page.locator('[data-workspace-shell]').waitFor()
     await page.evaluate('window.__testShell = document.querySelector("[data-workspace-shell]")')
+    // A section entry, then its page as a tab (ADR 049): the shell stays mounted throughout.
     await page
-      .locator('aside')
-      .getByRole('link', { name: /^الإدارة/ })
+      .getByRole('navigation', { name: 'التنقل الإداري' })
+      .getByRole('link', { name: 'الأشخاص والصلاحيات' })
       .click()
-    await page.getByRole('link', { name: 'الأدوار والصلاحيات', exact: true }).click()
+    await page
+      .getByRole('tablist', { name: 'صفحات القسم: الأشخاص والصلاحيات' })
+      .getByRole('tab', { name: 'الأدوار والصلاحيات', exact: true })
+      .click()
     await page.getByRole('heading', { name: 'الأدوار والصلاحيات', exact: true }).waitFor()
     assert.isTrue(
       await page.evaluate<boolean>(
@@ -378,24 +588,53 @@ test.group('Administration screens in the browser', (group) => {
       await browserContext.loginAs(admin)
       const page = await visit('/')
       const main = page.getByRole('navigation', { name: 'التنقل الرئيسي' })
-      await main.getByRole('link', { name: 'مهامي' }).waitFor()
+      await main.getByRole('link', { name: 'نظرة عامة' }).waitFor()
+      // «مهامي» moved beside the notification bell (#156).
+      assert.equal(await main.getByRole('link', { name: /مهامي/ }).count(), 0)
+      await page.getByTestId('my-tasks-button').waitFor()
       // Approvals merged into My tasks; the overview has no duplicate home link.
       assert.equal(await page.getByRole('link', { name: 'صندوق الموافقات' }).count(), 0)
       assert.equal(await page.getByRole('link', { name: 'الصفحة الرئيسية' }).count(), 0)
-      // Administration is one entry outside the admin area, with a badge for failures.
+      // Administration is exactly two entries, inside and outside the admin area (owner's
+      // review, ADR 049), with no sub-items; the alerts count sits on «الإعدادات».
       assert.equal(await page.getByRole('link', { name: 'الأدوار والصلاحيات' }).count(), 0)
-      const entry = page.locator('aside').getByRole('link', { name: /^الإدارة/ })
-      await page.assertVisible(entry.getByLabel(/تنبيه إداري/))
-      await entry.click()
       const areas = page.getByRole('navigation', { name: 'التنقل الإداري' })
-      for (const category of ['الأشخاص والصلاحيات', 'الإعدادات', 'المراقبة والتشغيل'])
-        await areas.getByRole('group', { name: category }).waitFor()
-      await areas
-        .getByRole('group', { name: 'المراقبة والتشغيل' })
-        .getByRole('link', {
-          name: 'تدفقات فاشلة',
-        })
-        .waitFor()
+      const titles = async () => {
+        await areas.getByRole('link').first().waitFor()
+        const texts = await areas.getByRole('link').allInnerTexts()
+        return texts.map((text) => text.replace(/\d+/g, '').trim())
+      }
+      assert.deepEqual(await titles(), ['الأشخاص والصلاحيات', 'الإعدادات'])
+      const settings = areas.getByRole('link', { name: /^الإعدادات/ })
+      await page.assertVisible(settings.getByLabel(/تنبيه إداري/))
+      await settings.click()
+      await page.waitForURL(/\/admin\/(setup|settings)$/)
+      assert.deepEqual(await titles(), ['الأشخاص والصلاحيات', 'الإعدادات'])
+      // The failed workflow's count is on its own tab, which opens the failures.
+      const failures = page
+        .getByRole('tablist', { name: 'صفحات القسم: الإعدادات' })
+        .getByRole('tab', { name: /^تدفقات فاشلة/ })
+      await page.assertVisible(failures.getByLabel(/تنبيه إداري/))
+      // A count badge, not a coloured frame around the tab (owner decision 22).
+      assert.equal(await failures.locator('[data-slot=badge]').count(), 1)
+      // At 1440 the wrapped tabs keep «تدفقات فاشلة» and its badge whole inside the window.
+      await page.setViewportSize({ width: 1440, height: 900 })
+      for (const part of [failures, failures.locator('[data-slot=badge]')]) {
+        const box = (await part.boundingBox())!
+        assert.isAtLeast(box.x, 0)
+        assert.isAtMost(box.x + box.width, 1440)
+        assert.isAtLeast(box.y, 0)
+        assert.isAtMost(box.y + box.height, 900)
+      }
+      assert.notEqual(
+        await failures.evaluate('(element) => getComputedStyle(element).borderTopColor'),
+        await page.evaluate<string>(
+          `(() => { const probe = document.createElement('span'); probe.className = 'border-destructive'; document.body.append(probe); const value = getComputedStyle(probe).borderTopColor; probe.remove(); return value })()`
+        )
+      )
+      await failures.click()
+      await page.waitForURL((url) => url.pathname === '/admin/workflows')
+      assert.equal(await failures.getAttribute('aria-selected'), 'true')
 
       // A member without create rights sees neither imports nor administration.
       await browserContext.clearCookies()
@@ -403,13 +642,8 @@ test.group('Administration screens in the browser', (group) => {
       const plain = await visit('/')
       await plain.getByRole('navigation', { name: 'التنقل الرئيسي' }).waitFor()
       assert.equal(await plain.getByRole('link', { name: 'الاستيراد' }).count(), 0)
-      assert.equal(
-        await plain
-          .locator('aside')
-          .getByRole('link', { name: /^الإدارة/ })
-          .count(),
-        0
-      )
+      assert.equal(await plain.getByRole('navigation', { name: 'التنقل الإداري' }).count(), 0)
+      assert.equal(await plain.getByRole('link', { name: /^الإعدادات/ }).count(), 0)
     } finally {
       await knex()('workflow_runs').where('id', failed.id).delete()
     }
@@ -457,6 +691,93 @@ test.group('Administration screens in the browser', (group) => {
     assert.lengthOf(unread, 0)
   })
 
+  test('the user page starts with no role and asks a dedicated confirmation for full administration', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    const [ordinary] = await knex()('roles')
+      .insert({ name: `browser-ordinary-${unique}` })
+      .returning('id')
+    const privileged = await knex()('user_roles').where('user_id', admin.id).first()
+    const [privilegedRole] = await knex()('roles').where('id', privileged.role_id).select('name')
+    await browserContext.loginAs(admin)
+    const page = await visit(`/admin/users/${member.id}`)
+    // The shell names the signed-in administrator, not the account the page shows.
+    await page
+      .getByRole('button', { name: 'قائمة الحساب', exact: true })
+      .getByText(admin.fullName!)
+      .waitFor()
+    const role = page.getByRole('combobox', { name: 'الدور', exact: true })
+    assert.include(await role.textContent(), 'اختر دوراً')
+    const form = page.locator('form').filter({ has: role })
+    const submit = form.getByRole('button', { name: 'إسناد الدور', exact: true })
+    assert.isTrue(await submit.isDisabled())
+
+    await role.click()
+    await page
+      .getByRole('option', { name: `${privilegedRole.name} (إدارة كاملة)`, exact: true })
+      .click()
+    await submit.click()
+    const grant = page.getByRole('dialog', { name: 'منح الإدارة الكاملة؟' })
+    await grant.waitFor()
+    await grant.getByRole('button', { name: 'تراجع', exact: true }).click()
+    await grant.waitFor({ state: 'hidden' })
+    assert.notExists(
+      await knex()('user_roles').where({ user_id: member.id, role_id: privileged.role_id }).first()
+    )
+
+    await role.click()
+    await page.getByRole('option', { name: `browser-ordinary-${unique}`, exact: true }).click()
+    await submit.click()
+    const ordinaryDialog = page.getByRole('dialog', { name: 'إسناد الدور؟' })
+    await ordinaryDialog.getByRole('button', { name: 'إسناد الدور', exact: true }).click()
+    await ordinaryDialog.waitFor({ state: 'hidden' })
+    await page.getByRole('cell', { name: `browser-ordinary-${unique}`, exact: true }).waitFor()
+    assert.exists(
+      await knex()('user_roles').where({ user_id: member.id, role_id: ordinary.id }).first()
+    )
+
+    // Access-ending actions sit in their own section, apart from the header.
+    const danger = page.locator('[data-slot="card"]').filter({ hasText: 'إجراءات حساسة' })
+    for (const name of ['تعطيل الحساب', 'إنهاء الجلسات', 'إلغاء جميع الرموز', 'انتحال الحساب'])
+      assert.equal(await danger.getByRole('button', { name, exact: true }).count(), 1, name)
+  })
+
+  test('the activity log filters by actor name and reads changed fields', async ({
+    browserContext,
+    visit,
+  }) => {
+    const [entry] = await knex()('activities')
+      .insert({
+        resource: 'customers',
+        record_id: 2147483001,
+        actor_id: admin.id,
+        action: 'update',
+        changes: JSON.stringify({ fields: ['name', 'email'] }),
+      })
+      .returning('id')
+    await knex()('field_changes').insert({
+      activity_id: entry.id,
+      resource: 'customers',
+      record_id: 2147483001,
+      field: 'email',
+      before: JSON.stringify(`old-${unique}@example.test`),
+      after: JSON.stringify(`new-${unique}@example.test`),
+    })
+    await browserContext.loginAs(admin)
+    const page = await visit('/admin/activity')
+    await page.getByRole('combobox', { name: 'المنفّذ', exact: true }).click()
+    await page.getByRole('option', { name: admin.fullName!, exact: true }).click()
+    await page.getByRole('button', { name: 'تصفية', exact: true }).click()
+    await page.waitForURL((url) => url.searchParams.get('actorId') === String(admin.id))
+    const row = page.getByRole('row').filter({ hasText: `new-${unique}@example.test` })
+    await row.getByText('البريد الإلكتروني:', { exact: true }).waitFor()
+    await row.getByText(`old-${unique}@example.test`, { exact: true }).waitFor()
+    await row.getByText('العملاء', { exact: true }).waitFor()
+    await row.getByText('تعديل', { exact: true }).waitFor()
+  })
+
   test('impersonation switches the session and can be ended', async ({
     browserContext,
     visit,
@@ -465,6 +786,24 @@ test.group('Administration screens in the browser', (group) => {
     await browserContext.loginAs(admin)
     const page = await visit(`/admin/users/${member.id}`)
     await page.getByRole('button', { name: 'انتحال الحساب', exact: true }).click()
+    // Starting asks for a written reason in a dialog; nothing starts before it is given.
+    const dialog = page.getByRole('dialog', { name: `انتحال حساب ${member.fullName}` })
+    await dialog.waitFor()
+    const start = dialog.getByRole('button', { name: 'بدء الانتحال', exact: true })
+    assert.isTrue(await start.isDisabled())
+    await dialog.getByLabel('سبب الانتحال', { exact: true }).fill('قصير')
+    assert.isTrue(await start.isDisabled())
+    assert.lengthOf(
+      await knex()('activities').where({
+        resource: 'core.users',
+        record_id: member.id,
+        action: 'impersonate',
+      }),
+      0
+    )
+    const reason = 'مراجعة مشكلة في عرض الطلبات أبلغ عنها المستخدم'
+    await dialog.getByLabel('سبب الانتحال', { exact: true }).fill(reason)
+    await start.click()
     await page.getByText(`أنت تتصفح باسم ${member.fullName}`).waitFor()
     assert.equal(await page.getByRole('link', { name: 'المستخدمون', exact: true }).count(), 0)
     await page.getByRole('button', { name: 'إنهاء الانتحال', exact: true }).click()
@@ -474,6 +813,391 @@ test.group('Administration screens in the browser', (group) => {
     const log = await knex()('activities')
       .where({ resource: 'core.users', record_id: member.id })
       .whereIn('action', ['impersonate', 'stop_impersonation'])
-    assert.lengthOf(log, 2)
+      .orderBy('id')
+    assert.deepEqual(
+      log.map((row) => row.action),
+      ['impersonate', 'stop_impersonation']
+    )
+    assert.equal(log[0].changes.reason, reason)
+    assert.isNumber(log[1].changes.durationSeconds)
+  })
+
+  test('the users table keeps long values inside its frame at 1440×900 in light and dark', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    const long = `${unique}-${'a'.repeat(48)}`
+    const wide = await User.create({
+      fullName: `مستخدم باسم طويل جدًا لاختبار التفاف الجدول ${unique}`,
+      email: `very-long-address-for-the-users-table-${long}@example.test`,
+      password: 'browser-test-only-password',
+    })
+    const [role] = await knex()('roles')
+      .insert({ name: `role-with-a-very-long-name-${long}` })
+      .returning('id')
+    const [unit] = await knex()('org_units')
+      .insert({
+        name: `وحدة باسم طويل ${long}`,
+        type: 'department',
+        path: `${rootPath}.w${unique}`,
+      })
+      .returning('id')
+    await knex()('user_roles').insert({ user_id: wide.id, role_id: role.id })
+    await knex()('user_org_units').insert({ user_id: wide.id, org_unit_id: unit.id })
+    const theme = (value: string) => ({
+      key: 'preference.shell.theme',
+      scope: 'user',
+      scope_id: String(admin.id),
+      value: JSON.stringify(value),
+    })
+    try {
+      // The full sidebar is the default and narrows the workspace the most.
+      await knex()('settings')
+        .whereIn('key', ['preference.shell.sidebar', 'preference.shell.theme'])
+        .where({ scope: 'user', scope_id: String(admin.id) })
+        .delete()
+      await browserContext.loginAs(admin)
+      for (const mode of ['light', 'dark'] as const) {
+        await knex()('settings')
+          .insert(theme(mode))
+          .onConflict(['key', 'scope', 'scope_id'])
+          .merge()
+        const page = await visit(`/admin/users?q=${unique}-`)
+        await page.setViewportSize({ width: 1440, height: 900 })
+        assert.equal(
+          await page.evaluate<boolean>('document.documentElement.classList.contains("dark")'),
+          mode === 'dark'
+        )
+        await page.locator('[data-workspace-shell][data-sidebar="expanded"]').waitFor()
+        const row = page.getByRole('row').filter({ hasText: wide.email })
+        await row.getByRole('link', { name: 'تفاصيل' }).waitFor()
+        const sizes = await page.evaluate<{
+          page: [number, number]
+          table: [number, number]
+          frame: [number, number]
+          cells: [number, number][]
+        }>(`(() => {
+          const span = (el) => { const r = el.getBoundingClientRect(); return [r.left, r.right] }
+          const table = document.querySelector('main table')
+          const frame = table.closest('section')
+          return {
+            page: [document.documentElement.scrollWidth, document.documentElement.clientWidth],
+            table: [table.parentElement.scrollWidth, table.parentElement.clientWidth],
+            frame: span(frame),
+            cells: [...table.querySelectorAll('th, td')].map(span),
+          }
+        })()`)
+        assert.isAtMost(sizes.page[0], sizes.page[1], `${mode}: the page scrolls sideways`)
+        assert.isAtMost(
+          sizes.table[0],
+          sizes.table[1],
+          `${mode}: the table is wider than its frame`
+        )
+        for (const [left, right] of sizes.cells) {
+          assert.isAtLeast(left, sizes.frame[0] - 1, `${mode}: a cell starts outside the frame`)
+          assert.isAtMost(right, sizes.frame[1] + 1, `${mode}: a cell ends outside the frame`)
+        }
+        // A name longer than its cell keeps the standard pill Badge: one line, fully rounded,
+        // cut with an ellipsis inside the frame, and shown in full in a Tooltip.
+        const roleName = `role-with-a-very-long-name-${long}`
+        const badge = row
+          // TooltipTrigger replaces the Badge's data-slot; its variant attribute remains.
+          .locator('[data-variant="secondary"]')
+          .filter({ hasText: 'role-with-a-very-long-name' })
+        const shape = await badge.evaluate((element) => {
+          const style = (globalThis as unknown as Shaped).getComputedStyle(element)
+          const box = (element as unknown as Measured).getBoundingClientRect()
+          const text = (element as unknown as Measured).firstElementChild!
+          return {
+            radius: Number.parseFloat(style.borderTopLeftRadius),
+            whiteSpace: style.whiteSpace,
+            height: box.height,
+            left: box.left,
+            right: box.right,
+            cut: text.scrollWidth > text.clientWidth,
+          }
+        })
+        assert.isAtLeast(shape.radius, shape.height / 2, `${mode}: the badge stays rounded-full`)
+        assert.equal(shape.whiteSpace, 'nowrap')
+        assert.isTrue(shape.cut, `${mode}: the long name is cut inside its badge`)
+        assert.isAtLeast(shape.left, sizes.frame[0] - 1, `${mode}: the badge starts inside`)
+        assert.isAtMost(shape.right, sizes.frame[1] + 1, `${mode}: the badge ends inside`)
+        await badge.hover()
+        const tooltip = page.getByRole('tooltip')
+        await tooltip.waitFor({ state: 'attached' })
+        const tip = await tooltip.textContent()
+        assert.equal(tip?.trim(), roleName)
+        await mkdir(app.makePath('../../.work/screenshots'), { recursive: true })
+        await page.screenshot({
+          path: app.makePath(`../../.work/screenshots/admin-users-long-values-${mode}.png`),
+        })
+        await page.close()
+      }
+    } finally {
+      await knex()('settings')
+        .where({ key: 'preference.shell.theme', scope: 'user', scope_id: String(admin.id) })
+        .delete()
+      await knex()('user_roles').where('user_id', wide.id).delete()
+      await knex()('user_org_units').where('user_id', wide.id).delete()
+      await knex()('users').where('id', wide.id).delete()
+      await knex()('roles').where('id', role.id).delete()
+      await knex()('org_units').where('id', unit.id).delete()
+    }
+  })
+
+  test('long dialogs keep the header and footer fixed while the body scrolls with a visible scrollbar', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    type Box = {
+      scrollTop: number
+      scrollHeight: number
+      clientHeight: number
+      offsetWidth: number
+      clientWidth: number
+    }
+    const theme = (value: string) => ({
+      key: 'preference.shell.theme',
+      scope: 'user',
+      scope_id: String(admin.id),
+      value: JSON.stringify(value),
+    })
+    const viewports = [
+      { name: 'desktop', width: 1440, height: 900 },
+      { name: 'mobile', width: 375, height: 812 },
+    ]
+    try {
+      await browserContext.loginAs(admin)
+      for (const mode of ['light', 'dark'] as const) {
+        await knex()('settings')
+          .insert(theme(mode))
+          .onConflict(['key', 'scope', 'scope_id'])
+          .merge()
+        for (const viewport of viewports) {
+          const label = `${mode} ${viewport.name}`
+          const page = await visit('/admin/setup')
+          await page.setViewportSize({ width: viewport.width, height: viewport.height })
+          assert.equal(
+            await page.evaluate<boolean>('document.documentElement.classList.contains("dark")'),
+            mode === 'dark'
+          )
+          const surfaces = [
+            { open: 'إعداد الدخول الخارجي', title: 'الدخول الخارجي — اختياري', close: 'إغلاق' },
+            { open: 'إعداد البريد', title: 'إعداد البريد', close: 'إلغاء' },
+          ]
+          for (const surface of surfaces) {
+            await page.getByRole('button', { name: surface.open, exact: true }).click()
+            const dialog = page.getByRole('dialog', { name: surface.title })
+            await dialog.waitFor()
+            const body = dialog.locator('[data-slot="long-dialog-body"]')
+            const header = dialog.getByRole('heading', { name: surface.title })
+            const footer = dialog.locator('[data-slot="long-dialog-footer"]')
+            const metrics = () =>
+              body.evaluate((element) => {
+                const box = element as unknown as Box
+                return {
+                  scrollTop: box.scrollTop,
+                  scrollHeight: box.scrollHeight,
+                  clientHeight: box.clientHeight,
+                  offsetWidth: box.offsetWidth,
+                  clientWidth: box.clientWidth,
+                }
+              })
+            const before = await metrics()
+            // The scrollbar is laid out (not an idle overlay) in both themes.
+            assert.isAbove(before.offsetWidth - before.clientWidth, 0, `${label}: scrollbar width`)
+            // Measure after the opening animation: the box stops changing between frames.
+            const settled = async (locator: typeof header) => {
+              let previous = JSON.stringify(await locator.boundingBox())
+              for (let attempt = 0; attempt < 50; attempt++) {
+                await page.waitForTimeout(50)
+                const next = JSON.stringify(await locator.boundingBox())
+                if (next === previous)
+                  return JSON.parse(next) as NonNullable<
+                    Awaited<ReturnType<typeof locator.boundingBox>>
+                  >
+                previous = next
+              }
+              throw new Error(`${label}: the dialog kept moving`)
+            }
+            const headerBefore = await settled(header)
+            const footerBefore = await settled(footer)
+            assert.isAtMost(
+              footerBefore.y + footerBefore.height,
+              viewport.height,
+              `${label}: footer on screen`
+            )
+            assert.isAtLeast(headerBefore.y, 0, `${label}: header on screen`)
+            if (surface.open === 'إعداد الدخول الخارجي') {
+              // This guide is taller than the dialog on both screens: only the body moves.
+              assert.isAbove(
+                before.scrollHeight,
+                before.clientHeight,
+                `${label}: ${surface.title} overflows`
+              )
+              await body.hover()
+              await page.mouse.wheel(0, 2000)
+              let after = await metrics()
+              for (let attempt = 0; attempt < 20 && after.scrollTop === 0; attempt++) {
+                await page.waitForTimeout(50)
+                after = await metrics()
+              }
+              assert.isAbove(after.scrollTop, 0, `${label}: body scrolled`)
+              assert.deepEqual(await header.boundingBox(), headerBefore, `${label}: header stayed`)
+              assert.deepEqual(await footer.boundingBox(), footerBefore, `${label}: footer stayed`)
+            }
+            await footer.getByRole('button', { name: surface.close, exact: true }).click()
+            await dialog.waitFor({ state: 'hidden' })
+          }
+          await page.close()
+        }
+      }
+    } finally {
+      await knex()('settings')
+        .where({ key: 'preference.shell.theme', scope: 'user', scope_id: String(admin.id) })
+        .delete()
+    }
+  })
+
+  test('the mail settings dialog closes at once until a value differs from the saved one', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(admin)
+    for (const size of [
+      { width: 1440, height: 900 },
+      { width: 375, height: 812 },
+    ]) {
+      const page = await visit('/admin/settings/mail')
+      await page.setViewportSize(size)
+      const dialog = page.getByRole('dialog', { name: 'إعداد البريد' })
+      const confirmClose = page.getByRole('dialog', { name: 'إغلاق النموذج؟' })
+      const provider = dialog.getByRole('combobox', { name: 'مزود البريد' })
+      const theme = await page.evaluate<string>(
+        'document.documentElement.classList.contains("dark") ? "dark" : "light"'
+      )
+      const shot = async (name: string) =>
+        page.screenshot({
+          path: join(await screenshotDir(), `mail-${name}-${size.width}-${theme}.png`),
+          fullPage: true,
+        })
+      // No horizontal scroll on the tab, phones included.
+      assert.isAtMost(
+        await page.evaluate<number>(
+          'document.documentElement.scrollWidth - document.documentElement.clientWidth'
+        ),
+        0
+      )
+      await shot('tab')
+      const host = dialog.getByLabel('خادم SMTP', { exact: true })
+      const password = dialog.getByLabel('كلمة المرور', { exact: true })
+      const open = async () => {
+        await page.getByRole('button', { name: 'إعداد البريد', exact: true }).click()
+        await dialog.waitFor()
+      }
+      const choose = async (name: string) => {
+        await provider.click()
+        await page.getByRole('option', { name, exact: true }).click()
+        // Let the list close first, or it takes the next Escape for itself.
+        await page.getByRole('listbox').waitFor({ state: 'detached' })
+        const chosen = await provider.textContent()
+        assert.equal(chosen?.trim(), name)
+      }
+      const closesAtOnce = async () => {
+        await page.keyboard.press('Escape')
+        await dialog.waitFor({ state: 'hidden' })
+        assert.equal(await confirmClose.count(), 0)
+      }
+      const asksFirst = async () => {
+        await page.keyboard.press('Escape')
+        await confirmClose.waitFor()
+        await confirmClose.getByRole('button', { name: 'متابعة التحرير' }).click()
+        await confirmClose.waitFor({ state: 'hidden' })
+      }
+      await open()
+      await dialog.evaluate(
+        async (element: { getAnimations(): { finished: Promise<unknown> }[] }) => {
+          await Promise.all(element.getAnimations().map((animation) => animation.finished))
+        }
+      )
+      await shot('dialog')
+      const first = (await provider.textContent())!.trim()
+      // Unchanged: the footer's «إلغاء» closes at once.
+      await dialog
+        .locator('[data-slot="long-dialog-footer"]')
+        .getByRole('button', { name: 'إلغاء', exact: true })
+        .click()
+      await dialog.waitFor({ state: 'hidden' })
+      assert.equal(await confirmClose.count(), 0)
+      // Another provider asks; going back to the first provider is clean again.
+      await open()
+      await choose('SendGrid')
+      await asksFirst()
+      await choose(first)
+      await closesAtOnce()
+      // Typing and restoring a value is clean; a typed password is a change.
+      await open()
+      const original = await host.inputValue()
+      await host.fill('smtp.example.com')
+      await asksFirst()
+      await host.fill(original)
+      await closesAtOnce()
+      await open()
+      await password.fill('x')
+      await asksFirst()
+      await password.fill('')
+      await closesAtOnce()
+      await page.close()
+    }
+  })
+
+  test('a dialog that saves and stays open compares with what it saved', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    await browserContext.loginAs(admin)
+    const page = await visit('/admin/settings/mail')
+    await page.setViewportSize({ width: 1440, height: 900 })
+    // The settings are stored and the password is refused: the dialog stays open, the error
+    // names what was kept. (Answered here so the test needs no reachable mail server.)
+    await page.route('**/admin/settings/mail', (route) =>
+      route.request().method() === 'PUT'
+        ? route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
+        : route.fallback()
+    )
+    await page.route('**/admin/settings/mail/password', (route) =>
+      route.fulfill({
+        status: 422,
+        contentType: 'application/json',
+        body: JSON.stringify({ errors: [{ message: 'كلمة مرور مرفوضة في الاختبار.' }] }),
+      })
+    )
+    const dialog = page.getByRole('dialog', { name: 'إعداد البريد' })
+    const confirmClose = page.getByRole('dialog', { name: 'إغلاق النموذج؟' })
+    await page.getByRole('button', { name: 'إعداد البريد', exact: true }).click()
+    await dialog.waitFor()
+    const host = dialog.getByLabel('خادم SMTP', { exact: true })
+    const password = dialog.getByLabel('كلمة المرور', { exact: true })
+    await host.fill('smtp.saved-in-dialog.test')
+    await dialog.getByLabel('اسم المرسل', { exact: true }).fill('نظام الاختبار')
+    await dialog.getByLabel('عنوان المرسل', { exact: true }).fill('no-reply@example.test')
+    await password.fill('refused-password')
+    await dialog.getByRole('button', { name: 'حفظ', exact: true }).click()
+    await dialog.getByText('حُفظ الإعداد، وتعذر حفظ كلمة المرور', { exact: false }).waitFor()
+    // The typed password is still unsaved, so closing asks.
+    await page.keyboard.press('Escape')
+    await confirmClose.waitFor()
+    await confirmClose.getByRole('button', { name: 'متابعة التحرير' }).click()
+    await confirmClose.waitFor({ state: 'hidden' })
+    // Without the password, what remains is the host just saved: closing does not ask.
+    await password.fill('')
+    assert.equal(await host.inputValue(), 'smtp.saved-in-dialog.test')
+    await page.keyboard.press('Escape')
+    await dialog.waitFor({ state: 'hidden' })
+    assert.equal(await confirmClose.count(), 0)
   })
 })

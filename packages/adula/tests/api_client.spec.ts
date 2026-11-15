@@ -99,6 +99,7 @@ export async function main() {
   const validated: boolean = checked.status === 'validated'
   const batches = await api.imports.list()
   const csv: string = await api.imports.template('orders')
+  const workbook: ArrayBuffer = await api.imports.xlsxTemplate('orders')
   await api.imports.template('customers', { mode: 'upsert' })
   try {
     await api.resources.customers.show(999)
@@ -109,7 +110,7 @@ export async function main() {
       return [code, status]
     }
   }
-  return { total, next, state, amended, counted, input, batches, csv, outcome, action, counts, unique, validated }
+  return { total, next, state, amended, counted, input, batches, csv, workbook, outcome, action, counts, unique, validated }
 }
 `
 
@@ -282,6 +283,7 @@ test.group('Typed API client', () => {
           status: reply.status,
           statusText: 'Status',
           text: async () => reply.body,
+          arrayBuffer: async () => new TextEncoder().encode(reply.body).buffer,
         }
       }
       const api = generated.createAdulaClient({
@@ -333,6 +335,14 @@ test.group('Typed API client', () => {
       await api.imports.start(9, { mapping: { 0: 'name' }, dryRun: true })
       assert.equal(calls[5].url, 'https://erp.example.test/api/v1/imports/9/start')
       assert.equal(calls[5].body, '{"mapping":{"0":"name"},"dryRun":true}')
+      replies.push({ status: 200, body: 'PK' })
+      const workbook = await api.imports.xlsxTemplate('customers', { mode: 'upsert' })
+      assert.deepEqual([...new Uint8Array(workbook)], [0x50, 0x4b])
+      assert.equal(
+        calls[6].url,
+        'https://erp.example.test/api/v1/resources/customers/imports/template?mode=upsert&format=xlsx'
+      )
+      assert.include(calls[6].headers.Accept, 'spreadsheetml')
 
       // Operations the document does not describe do not exist at runtime either.
       assert.isUndefined(api.resources.customers.submit)

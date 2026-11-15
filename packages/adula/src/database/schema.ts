@@ -1193,3 +1193,206 @@ $$ LANGUAGE plpgsql`)
     'CREATE TRIGGER print_template_versions_immutable BEFORE UPDATE OR DELETE ON print_template_versions FOR EACH ROW EXECUTE FUNCTION adula_print_template_versions_immutable()'
   )
 }
+
+/** Template keys of the notifications that quote a comment's text. */
+export const COMMENT_NOTIFICATION_KEYS = ['comment.mentioned', 'comment.created'] as const
+export const DELETED_COMMENT_TITLE = 'تعليق محذوف'
+export const DELETED_COMMENT_BODY = 'حُذف هذا التعليق.'
+
+/**
+ * Ids and template keys of the notifications that quote a comment: those naming it
+ * (comment_id, 2.3.0) and those written before notifications named their comment. A
+ * comment's notifications were inserted in its own transaction, so their created_at equals
+ * the comment's (both now()), and they quote its text from the start: the first 100
+ * characters are matched, which the 200-unit excerpt always contains. Read before a
+ * comment's body changes. `comment` is one comment id, or 'deleted' for every deleted one.
+ */
+export async function commentNotifications(
+  db: Knex,
+  comment: number | 'deleted'
+): Promise<{ id: number; key: string }[]> {
+  const result = await db.raw(
+    `SELECT DISTINCT n.id, n.template_key FROM notifications n JOIN comments c
+       ON n.comment_id = c.id OR (
+         n.comment_id IS NULL AND n.template_key IN (?, ?) AND n.created_at = c.created_at
+         AND (n.resource IS NULL OR (n.resource = c.resource AND n.record_id = c.record_id))
+         AND (strpos(n.body, left(c.body, 100)) > 0 OR strpos(n.title, left(c.body, 100)) > 0))
+     WHERE ${comment === 'deleted' ? 'c.deleted_at IS NOT NULL' : 'c.id = ?'}`,
+    [...COMMENT_NOTIFICATION_KEYS, ...(comment === 'deleted' ? [] : [comment])]
+  )
+  return result.rows.map((row: { id: number; template_key: string | null }) => ({
+    id: Number(row.id),
+    key: String(row.template_key ?? ''),
+  }))
+}
+
+/**
+ * Stops what has not been sent yet of the given notifications: pending e-mail is skipped
+ * and pending channel deliveries are withdrawn (a channel worker re-checks the pending
+ * state before it sends, so a claimed delivery is not sent either).
+ */
+export async function withdrawNotificationDelivery(db: Knex, ids: number[]) {
+  if (!ids.length) return
+  await db('notifications').whereIn('id', ids).where('mail_state', 'pending').update({
+    mail_state: 'skipped',
+  })
+  await db('notification_deliveries')
+    .whereIn('notification_id', ids)
+    .where('state', 'pending')
+    .update({ state: 'skipped', error_category: 'withdrawn' })
+}
+
+/**
+ * Comment notifications name their comment (2.3.0), so deleting or editing the comment
+ * withdraws the quoted text. Notifications of comments deleted before this migration are
+ * found by their transaction time and quoted text, and withdrawn here.
+ */
+export async function createCommentNotificationsSchema(db: Knex) {
+  await db.schema.alterTable('notifications', (t) => {
+    t.bigInteger('comment_id').references('id').inTable('comments').onDelete('SET NULL')
+  })
+  await db.raw(
+    'CREATE INDEX notifications_comment_id ON notifications (comment_id) WHERE comment_id IS NOT NULL'
+  )
+  await withdrawDeletedCommentNotifications(db)
+}
+
+/** Replaces the quoted text of every deleted comment's notifications with a neutral note. */
+export async function withdrawDeletedCommentNotifications(db: Knex) {
+  const rows = await commentNotifications(db, 'deleted')
+  const ids = rows.map((row) => row.id)
+  for (let start = 0; start < ids.length; start += 1000) {
+    const chunk = ids.slice(start, start + 1000)
+    await db('notifications')
+      .whereIn('id', chunk)
+      .update({ title: DELETED_COMMENT_TITLE, body: DELETED_COMMENT_BODY })
+    await withdrawNotificationDelivery(db, chunk)
+  }
+}
+
+/**
+ * The built-in assistant (ADR 052): conversation metadata (never message text), pending
+ * write proposals awaiting the user's confirmation, and per-user daily token usage.
+ */
+export async function createAssistantSchema(db: Knex) {
+  await db.schema.createTable('ai_conversations', (t) => {
+    // Integer: the id is the record_id of the conversation's activity entries.
+    t.increments('id')
+    t.integer('user_id').notNullable().references('id').inTable('users').onDelete('CASCADE')
+    t.integer('impersonator_id').references('id').inTable('users').onDelete('SET NULL')
+    t.integer('turns').notNullable().defaultTo(0)
+    t.integer('tokens').notNullable().defaultTo(0)
+    t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+    t.timestamp('last_turn_at', { useTz: true })
+    t.index(['user_id', 'created_at'])
+  })
+  await db.schema.createTable('ai_pending_actions', (t) => {
+    t.uuid('id').primary()
+    t.integer('conversation_id')
+      .notNullable()
+      .references('id')
+      .inTable('ai_conversations')
+      .onDelete('CASCADE')
+    t.integer('user_id').notNullable().references('id').inTable('users').onDelete('CASCADE')
+    t.integer('impersonator_id')
+    t.string('resource').notNullable()
+    t.string('action').notNullable()
+    t.integer('record_id')
+    t.jsonb('input')
+    t.integer('version')
+    t.timestamp('expires_at', { useTz: true }).notNullable()
+    t.timestamp('consumed_at', { useTz: true })
+    t.string('outcome', 20)
+    t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+    t.index(['user_id', 'consumed_at'])
+    t.index(['expires_at'])
+  })
+  await db.schema.createTable('ai_usage', (t) => {
+    t.integer('user_id').notNullable().references('id').inTable('users').onDelete('CASCADE')
+    t.date('day').notNullable()
+    t.integer('prompt_tokens').notNullable().defaultTo(0)
+    t.integer('completion_tokens').notNullable().defaultTo(0)
+    t.integer('reserved').notNullable().defaultTo(0)
+    t.integer('requests').notNullable().defaultTo(0)
+    t.primary(['user_id', 'day'])
+  })
+}
+
+/**
+ * Cloud and downloadable backups (ADR 051): one connection per destination with its refresh
+ * token sealed by the host's SecretBox, and one row per backup run.
+ */
+export async function createCloudBackupsSchema(db: Knex) {
+  await db.schema.createTable('backup_connections', (t) => {
+    t.increments('id')
+    t.string('provider', 20).notNullable().unique()
+    t.string('status', 20).notNullable().defaultTo('connected')
+    t.string('account_label', 320)
+    t.text('refresh_token').notNullable()
+    t.string('schedule', 10).notNullable().defaultTo('off')
+    t.integer('connected_by').notNullable().references('id').inTable('users').onDelete('RESTRICT')
+    t.timestamp('connected_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+    t.timestamp('updated_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+  })
+  await db.raw(`ALTER TABLE backup_connections
+    ADD CONSTRAINT backup_connections_provider CHECK (provider IN ('google', 'onedrive')),
+    ADD CONSTRAINT backup_connections_status CHECK (status IN ('connected', 'revoked')),
+    ADD CONSTRAINT backup_connections_schedule CHECK (schedule IN ('off', 'daily', 'weekly'))`)
+  await db.schema.createTable('backup_runs', (t) => {
+    t.bigIncrements('id')
+    t.string('kind', 20).notNullable()
+    t.integer('connection_id').references('id').inTable('backup_connections').onDelete('SET NULL')
+    t.string('trigger', 10).notNullable().defaultTo('manual')
+    t.string('status', 20).notNullable().defaultTo('queued')
+    t.integer('requested_by').notNullable().references('id').inTable('users').onDelete('RESTRICT')
+    t.string('file_name', 200)
+    t.bigInteger('size_bytes')
+    t.string('sha256', 64)
+    t.string('remote_id', 500)
+    t.timestamp('expires_at', { useTz: true })
+    t.string('error_category', 40)
+    t.string('error_message', 500)
+    t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+    t.timestamp('started_at', { useTz: true })
+    t.timestamp('finished_at', { useTz: true })
+  })
+  await db.raw(`ALTER TABLE backup_runs
+    ADD CONSTRAINT backup_runs_kind CHECK (kind IN ('download', 'google', 'onedrive')),
+    ADD CONSTRAINT backup_runs_trigger CHECK (trigger IN ('manual', 'schedule')),
+    ADD CONSTRAINT backup_runs_status
+      CHECK (status IN ('queued', 'running', 'succeeded', 'failed', 'expired'))`)
+  await db.raw(
+    `CREATE UNIQUE INDEX backup_runs_active ON backup_runs (kind) WHERE status IN ('queued', 'running')`
+  )
+  await db.raw('CREATE INDEX backup_runs_kind_created ON backup_runs (kind, created_at DESC)')
+}
+
+/**
+ * Appearance occasions (ADR 053): dated overrides of the base identity, which is the system
+ * setting `appearance.identity`. Logos are `attachments` rows, so only the id is kept here.
+ * Overlapping ranges are refused by the service under a table lock.
+ */
+export async function createAppearanceSchema(db: Knex) {
+  await db.schema.createTable('appearance_occasions', (t) => {
+    t.increments('id')
+    t.string('name', 80).notNullable()
+    t.date('starts_on').notNullable()
+    t.date('ends_on').notNullable()
+    t.string('primary_color', 7)
+    t.integer('logo_id')
+    t.string('banner', 160)
+    t.string('login_title', 120)
+    t.string('login_description', 300)
+    t.integer('created_by').references('id').inTable('users').onDelete('SET NULL')
+    t.integer('updated_by').references('id').inTable('users').onDelete('SET NULL')
+    t.timestamp('created_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+    t.timestamp('updated_at', { useTz: true }).notNullable().defaultTo(db.fn.now())
+    t.index(['starts_on', 'ends_on'])
+  })
+  await db.raw(
+    'ALTER TABLE appearance_occasions ADD CONSTRAINT appearance_occasions_dates CHECK (ends_on >= starts_on)'
+  )
+  await db.raw(
+    "ALTER TABLE appearance_occasions ADD CONSTRAINT appearance_occasions_color CHECK (primary_color IS NULL OR primary_color ~ '^#[0-9a-f]{6}$')"
+  )
+}

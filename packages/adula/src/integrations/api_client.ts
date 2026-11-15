@@ -259,6 +259,8 @@ function typesSection(document: ApiClientDocument) {
     `  status: number`,
     `  statusText: string`,
     `  text(): Promise<string>`,
+    `  /** Needed only for binary downloads such as imports.xlsxTemplate(). */`,
+    `  arrayBuffer?(): Promise<ArrayBuffer>`,
     `}`,
     `/** The global fetch, or any compatible implementation (tests, proxies, retries). */`,
     `export type AdulaFetch = (`,
@@ -408,6 +410,8 @@ function typesSection(document: ApiClientDocument) {
       `  start(id: number, input: AdulaImportStartInput): Promise<AdulaImportBatch>`,
       `  /** The CSV header row (UTF-8 with BOM) of the fields the caller may import. */`,
       `  template<R extends AdulaImportableResource>(resource: R, options?: { mode?: AdulaImportModes[R] }): Promise<string>`,
+      `  /** The same header row as an Excel workbook (.xlsx bytes). */`,
+      `  xlsxTemplate<R extends AdulaImportableResource>(resource: R, options?: { mode?: AdulaImportModes[R] }): Promise<ArrayBuffer>`,
       `}`
     )
   }
@@ -476,11 +480,15 @@ export function createAdulaClient(options: AdulaClientOptions): AdulaClient {
   async function call(
     method: string,
     path: string,
-    init: { query?: Record<string, unknown>; body?: unknown; text?: boolean } = {}
+    init: { query?: Record<string, unknown>; body?: unknown; text?: boolean; binary?: boolean } = {}
   ): Promise<unknown> {
     const headers: Record<string, string> = {
       Authorization: 'Bearer ' + options.token,
-      Accept: init.text ? 'text/csv, text/plain, */*' : 'application/json',
+      Accept: init.binary
+        ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/json'
+        : init.text
+          ? 'text/csv, text/plain, */*'
+          : 'application/json',
     }
     if (init.body !== undefined) headers['Content-Type'] = 'application/json'
     const response = await fetcher!(root + path + adulaQuery(init.query), {
@@ -488,6 +496,10 @@ export function createAdulaClient(options: AdulaClientOptions): AdulaClient {
       headers,
       ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
     })
+    if (init.binary && response.ok) {
+      if (!response.arrayBuffer) throw new Error('The fetch implementation cannot read binary responses')
+      return response.arrayBuffer()
+    }
     const raw = await response.text()
     if (!response.ok) {
       let parsed: unknown
@@ -551,6 +563,11 @@ export function createAdulaClient(options: AdulaClientOptions): AdulaClient {
         call('GET', '/resources/' + segment(resource) + '/imports/template', {
           query: options,
           text: true,
+        }),
+      xlsxTemplate: (resource: string, options?: { mode?: string }) =>
+        call('GET', '/resources/' + segment(resource) + '/imports/template', {
+          query: { ...options, format: 'xlsx' },
+          binary: true,
         }),
     }
   return client as unknown as AdulaClient

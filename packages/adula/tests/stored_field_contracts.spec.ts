@@ -218,10 +218,13 @@ test.group('Stored field contracts', (group) => {
     for (const key of ['internalMemo', 'reviewCode', 'display_title', 'createdBy', 'lines'])
       assert.notProperty(shown.data, key)
     const listed = await service.list(resource.name, admin)
-    assert.deepEqual(
-      listed.data.find((entry) => entry.id === saved.id),
-      saved
-    )
+    // A list row is the saved record plus the title that names it, like related rows (#110):
+    // the sequence number and the first text field read through their custom columns.
+    const { _title: listedTitle, ...listedRecord } = listed.data.find(
+      (entry) => entry.id === saved.id
+    )!
+    assert.equal(listedTitle, `${saved.number} · ${saved.title}`)
+    assert.deepEqual(listedRecord, saved)
     const editor = await service.editor(resource.name, admin, Number(saved.id))
     assert.deepEqual(editor.record, saved)
     assert.equal(editor.inline.lines.rows[0].title, 'بند العقد')

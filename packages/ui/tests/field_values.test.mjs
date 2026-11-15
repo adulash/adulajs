@@ -7,6 +7,8 @@ import {
   canonicalValue,
   emailHref,
   fieldApplies,
+  foldArabic,
+  foldedFilter,
   hiddenFields,
   toLatinDigits,
   listInput,
@@ -14,8 +16,20 @@ import {
   orderedSelection,
   parseDecimal,
   phoneHref,
+  relationText,
   safeUrl,
 } from '../registry/ui/field_values.ts'
+
+test('Arabic search folds hamza, taa marbuta, alef maqsura, harakat and tatweel (#114)', () => {
+  assert.equal(foldArabic('إسكان'), foldArabic('اسكان'))
+  assert.equal(foldArabic('إرادة'), foldArabic('اراده'))
+  assert.equal(foldArabic('مستشفى'), foldArabic('مستشفي'))
+  assert.equal(foldArabic('آمِنَـــة'), foldArabic('امنه'))
+  assert.equal(foldArabic(' ABC  ١٢ '), 'abc 12')
+  assert.equal(foldedFilter('housing', 'اسكان', ['الإسكان والتعمير']), 1)
+  assert.equal(foldedFilter('health', 'اسكان', ['الصحة']), 0)
+  assert.equal(foldedFilter('any', '  '), 1)
+})
 
 test('decimal entry accepts Arabic-Indic digits and the Arabic separator, padded to the scale', () => {
   assert.equal(parseDecimal('١٢٫٥', 2), '12.50')
@@ -166,4 +180,16 @@ test('commas count only as thousands grouping', () => {
   assert.equal(parseDecimal('1,234.5', 2), '1234.50')
   for (const invalid of ['1,5', '12,34', '1,2345', ',123', '1,,234'])
     assert.throws(() => parseDecimal(invalid, 2), /رقماً عشرياً/, invalid)
+})
+
+test('a relation the reader cannot view is labelled neutrally, never by its id', () => {
+  // No related row: the server withheld it (no view permission, or the target was deleted).
+  assert.equal(relationText(undefined, 42), 'سجل غير متاح')
+  assert.equal(relationText(undefined, 42, 'Record not available'), 'Record not available')
+  assert.equal(relationText(undefined, null), '—')
+  // A viewable row is named by its title, or by its first text, else (it is viewable) its id.
+  assert.equal(relationText({ id: 42, _title: 'الرياض' }, 42), 'الرياض')
+  assert.equal(relationText({ id: 42, _title: null }, 42), '#42')
+  assert.equal(relationText({ id: 7, fullName: 'سلمى' }, 7), 'سلمى')
+  assert.equal(relationText({ id: 7, version: 'x' }, 7), '#7')
 })

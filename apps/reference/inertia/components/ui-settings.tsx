@@ -1,6 +1,11 @@
 import { useState } from 'react'
 import { router } from '@inertiajs/react'
-import type { UiPreferences, CalendarPreference, DigitsPreference } from 'adula'
+import type {
+  UiPreferences,
+  CalendarPreference,
+  DigitsPreference,
+  NavigationLayout,
+} from 'adula'
 import { Card, CardContent, CardHeader, CardTitle } from '~/components/ui/card'
 import { Button } from '~/components/ui/button'
 import { Label } from '~/components/ui/label'
@@ -65,6 +70,35 @@ export function UiSettings({ initial }: { initial: UiPreferences }) {
             id="confirm-dialog-close"
             checked={value.confirmDialogClose}
             onCheckedChange={(confirmDialogClose) => setValue({ ...value, confirmDialogClose })}
+          />
+        </div>
+        <div className="max-w-md space-y-2">
+          <Label htmlFor="navigation-layout">تخطيط التنقل الافتراضي</Label>
+          <ResourceSelect
+            id="navigation-layout"
+            aria-label="تخطيط التنقل الافتراضي"
+            value={value.layout ?? 'sidebar'}
+            options={[
+              { value: 'sidebar', label: 'قائمة جانبية' },
+              { value: 'top', label: 'قائمة علوية' },
+            ]}
+            onChange={(layout) => setValue({ ...value, layout: layout as NavigationLayout })}
+          />
+          <p className="text-xs text-muted-foreground">
+            القائمة العلوية تعرض كل تطبيق قائمةً منسدلة أعلى الصفحة، فتمنح الجداول عرضًا أكبر.
+          </p>
+        </div>
+        <div className="flex items-center justify-between gap-6">
+          <div>
+            <Label htmlFor="layout-user-choice">السماح لكل مستخدم باختيار تخطيطه</Label>
+            <p className="mt-1 text-xs text-muted-foreground">
+              يظهر الاختيار في قائمة الحساب، ويبقى التخطيط الافتراضي لمن لم يختر.
+            </p>
+          </div>
+          <Switch
+            id="layout-user-choice"
+            checked={value.layoutUserChoice ?? false}
+            onCheckedChange={(layoutUserChoice) => setValue({ ...value, layoutUserChoice })}
           />
         </div>
         <div className="flex items-center justify-between gap-6">

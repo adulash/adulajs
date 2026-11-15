@@ -1,6 +1,28 @@
 import env from '#start/env'
 import app from '@adonisjs/core/services/app'
 import { defineConfig, stores } from '@adonisjs/session'
+import type { SessionData, SessionStoreContract } from '@adonisjs/session/types'
+
+/**
+ * The memory store of the tests, holding copies like every real store (Redis, cookie,
+ * database): a request's changes reach the store only when it writes the session. AdonisJS's
+ * own memory store hands out the stored object itself, so a request that takes a flash message
+ * without writing the session would still remove it, unlike production.
+ */
+export class CopyingMemoryStore implements SessionStoreContract {
+  static sessions = new Map<string, SessionData>()
+  read(sessionId: string) {
+    const data = CopyingMemoryStore.sessions.get(sessionId)
+    return data ? structuredClone(data) : null
+  }
+  write(sessionId: string, data: SessionData) {
+    CopyingMemoryStore.sessions.set(sessionId, structuredClone(data))
+  }
+  destroy(sessionId: string) {
+    CopyingMemoryStore.sessions.delete(sessionId)
+  }
+  touch() {}
+}
 
 const sessionConfig = defineConfig({
   /**
@@ -64,6 +86,9 @@ const sessionConfig = defineConfig({
    * list of available stores and their config.
    */
   stores: {
+    /** The tests' store (the Japa session clients use it too). */
+    memory: () => new CopyingMemoryStore(),
+
     /**
      * Store session data inside encrypted cookies.
      */

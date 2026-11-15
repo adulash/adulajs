@@ -1,5 +1,6 @@
 import type { ResourceDescription } from '../admin/presentation.js'
 import type { JsonValue, SerializedRecord } from '../resource/types.js'
+import { translate } from '../languages/catalog.js'
 
 /**
  * `logoUrl` must be a base64 image data URI (see imageDataUri). Any other URL is
@@ -49,12 +50,13 @@ const RELATION_META = new Set(['id', 'version', 'docStatus', 'orgUnitId'])
 
 /**
  * The label of a related record, as the UI's relationLabel: the server's `_title`, else
- * (user rows) the first non-meta text value, else `#id`.
+ * (user rows) the first non-meta text value, else `#id`. A record the reader may not view
+ * has no related row and is printed with a neutral label, never its id.
  */
 export function relationTitle(rows: SerializedRecord[] | undefined, value: JsonValue | undefined) {
   const fallback = value === null || value === undefined ? '—' : `#${String(value)}`
   const row = rows?.find((entry) => String(entry.id) === String(value))
-  if (!row) return fallback
+  if (!row) return fallback === '—' ? fallback : translate('list.value.unavailable')
   if ('_title' in row) return typeof row._title === 'string' && row._title ? row._title : fallback
   const label = Object.entries(row).find(
     ([key, entry]) => !RELATION_META.has(key) && typeof entry === 'string' && entry
@@ -154,12 +156,14 @@ export function renderPrintHtml(input: PrintInput) {
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8">
+<meta name="color-scheme" content="light">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:">
 <title>${escapeHtml(input.resource.label)} #${escapeHtml(String(input.record.id))}</title>
 <style>
 @page { size: A4; margin: 18mm 16mm; }
 * { box-sizing: border-box; }
-body { font-family: "Noto Sans Arabic", "Segoe UI", Tahoma, sans-serif; color: #1c1917; font-size: 12pt; margin: 0; }
+:root { color-scheme: light; }
+body { font-family: "Noto Sans Arabic", "Segoe UI", Tahoma, sans-serif; color: #1c1917; background: #fff; font-size: 12pt; margin: 0; }
 header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #1c1917; padding-bottom: 8mm; margin-bottom: 8mm; }
 header h1 { font-size: 18pt; margin: 0; }
 header p { margin: 2mm 0 0; color: #57534e; font-size: 10pt; }

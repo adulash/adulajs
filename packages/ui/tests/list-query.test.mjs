@@ -9,6 +9,7 @@ import {
   filterMode,
   fromSavedFilter,
   inclusiveDatetime,
+  listUrl,
   normalizeFilter,
   readFilters,
   selectionState,
@@ -127,6 +128,15 @@ test('the server export keeps the list query without its cursor or page size', (
     '/resources/invoices/export?search=a&filters[total][gte]=10&sort=total'
   )
   assert.equal(exportHref('invoices', new URLSearchParams()), '/resources/invoices/export')
+  // xlsx is a query parameter; csv stays the default and a stale format is dropped.
+  assert.equal(
+    exportHref('invoices', new URLSearchParams('sort=total'), 'xlsx'),
+    '/resources/invoices/export?sort=total&format=xlsx'
+  )
+  assert.equal(
+    exportHref('invoices', new URLSearchParams('format=xlsx&sort=total')),
+    '/resources/invoices/export?sort=total'
+  )
   // The caller's parameters are not modified.
   assert.equal(params.get('cursor'), 'xyz')
 })
@@ -383,4 +393,20 @@ test('decimal and percent dashboard sums keep their fraction', () => {
       ['percent', '12.5'],
     ]
   )
+})
+
+test('a list under an open record dialog reads its query from the list URL (#104)', () => {
+  const list = '/resources/tasks?search=report&sort=title&direction=desc&filters[done]=true'
+  const record = '/resources/tasks/12'
+  assert.equal(listUrl(record, { list }), list)
+  // Filters, sort and refresh therefore keep the list's query, not the record's empty one.
+  const query = new URL(listUrl(record, { list }), 'http://localhost').searchParams
+  assert.equal(query.get('search'), 'report')
+  assert.equal(query.get('sort'), 'title')
+  assert.deepEqual(readFilters(query, ['done']), { done: { op: 'eq', value: 'true' } })
+  // Without a dialog, or with a malformed overlay, the page URL is the list.
+  assert.equal(listUrl(list), list)
+  assert.equal(listUrl(list, null), list)
+  assert.equal(listUrl(list, { list: '' }), list)
+  assert.equal(listUrl(list, { list: 42 }), list)
 })

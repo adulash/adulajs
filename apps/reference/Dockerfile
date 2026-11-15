@@ -41,7 +41,7 @@ COPY --from=builder --chown=node:node /app/apps/reference/.agents ./.agents
 COPY --from=builder --chown=node:node /app/apps/reference/inertia/components/ui ./inertia/components/ui
 COPY --from=builder --chown=node:node /app/apps/reference/inertia/pages ./inertia/pages
 COPY --from=builder --chown=node:node /app/apps/reference/deploy ./deploy
-RUN mkdir -p storage/uploads && chown node:node storage storage/uploads
+RUN mkdir -p storage/uploads storage/backups && chown node:node storage storage/uploads storage/backups && chmod 700 storage/backups
 RUN node -e "const fs=require('node:fs'); for (const name of ['adula','@adula/ui']) { if (!fs.realpathSync('node_modules/'+name).startsWith(process.cwd()+'/')) throw new Error('Non-portable workspace dependency: '+name) }"     && node --input-type=module -e "await import('adula'); await import('@adula/ui/package.json', {with:{type:'json'}})"
 USER node
 EXPOSE 3333

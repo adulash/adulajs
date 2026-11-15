@@ -6,9 +6,11 @@ import {
   diagnoseResourceSchemas,
   diagnoseOutbox,
   diagnoseWorkflowRoles,
+  diagnoseScopeParentRoles,
 } from '../src/commands/doctor.js'
 import { runtimeHealth } from '../src/core/health.js'
 import { diagnoseAttachments } from '../src/attachments/doctor.js'
+import { diagnoseCloudBackups } from '../src/backups/doctor.js'
 import { Settings } from '../src/services/settings.js'
 import { MigrationRunner } from '@adonisjs/lucid/migration'
 import { readFile } from 'node:fs/promises'
@@ -28,6 +30,7 @@ export default class Doctor extends BaseCommand {
     )
     findings.push(await diagnoseAttachments(db.connection().getWriteClient()))
     findings.push(diagnoseOutbox(await runtimeHealth(db.connection().getWriteClient())))
+    findings.push(...diagnoseCloudBackups(process.env))
     const migrations = await new MigrationRunner(db, this.app, { direction: 'up' }).getList()
     const missing = migrations.filter((entry) => entry.status === 'corrupt')
     const pending = migrations.filter((entry) => entry.status === 'pending')
@@ -66,6 +69,26 @@ export default class Doctor extends BaseCommand {
             key: role.key ? String(role.key) : null,
             name: String(role.name),
           }))
+        )
+      )
+      const rules = await db
+        .from('role_rules as rr')
+        .join('roles as r', 'r.id', 'rr.role_id')
+        .select('r.name', 'rr.subject', 'rr.action', 'rr.inverted')
+      const byRole = new Map<string, { subject: string; action: string; inverted: boolean }[]>()
+      for (const rule of rules)
+        byRole.set(String(rule.name), [
+          ...(byRole.get(String(rule.name)) ?? []),
+          {
+            subject: String(rule.subject),
+            action: String(rule.action),
+            inverted: Boolean(rule.inverted),
+          },
+        ])
+      findings.push(
+        diagnoseScopeParentRoles(
+          registry.all(),
+          [...byRole].map(([name, roleRules]) => ({ name, rules: roleRules }))
         )
       )
     }

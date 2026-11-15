@@ -115,6 +115,23 @@ export const arabicMessages: Readonly<Record<string, string>> = Object.freeze({
     'لا يمكنك إزالة صلاحية إدارة النظام من حسابك الحالي. اطلب من مدير آخر تعديلها.',
   'errors.E_MAIL_TEST_COOLDOWN': 'انتظر قليلًا قبل إعادة إرسال البريد التجريبي',
   'errors.E_MAIL_TEST_SEND': 'تعذّر إرسال البريد التجريبي. راجع إعدادات البريد ثم أعد المحاولة.',
+  'errors.E_MAIL_TEST_SEND.authentication':
+    'رفض خادم البريد اسم المستخدم أو كلمة المرور. راجع SMTP_USERNAME وSMTP_PASSWORD، واستخدم كلمة مرور التطبيق إن طلبها مزودك.',
+  'errors.E_MAIL_TEST_SEND.connection':
+    'رفض خادم البريد الاتصال. راجع SMTP_HOST وSMTP_PORT، وتأكد أن الجدار الناري يسمح بالمنفذ.',
+  'errors.E_MAIL_TEST_SEND.host_not_found': 'تعذّر العثور على خادم البريد. راجع كتابة SMTP_HOST.',
+  'errors.E_MAIL_TEST_SEND.tls':
+    'فشل الاتصال المشفّر بخادم البريد. استخدم SMTP_SECURE=true مع المنفذ 465، أو SMTP_SECURE=false مع المنفذ 587.',
+  'errors.E_MAIL_TEST_SEND.timeout':
+    'انتهت مهلة الاتصال بخادم البريد. راجع SMTP_HOST وSMTP_PORT، وتأكد أن الخادم يسمح بالاتصال الصادر.',
+  'errors.E_MAIL_TEST_SEND.sender_rejected':
+    'رفض خادم البريد عنوان المرسل. استخدم في MAIL_FROM_ADDRESS عنوانًا موثّقًا لدى مزودك.',
+  'errors.E_MAIL_TEST_SEND.recipient_rejected':
+    'رفض خادم البريد عنوان المستلم. راجع بريد حسابك ثم أعد المحاولة.',
+  'errors.E_MAIL_TEST_SEND.password_unreadable':
+    'تعذّر فتح كلمة مرور البريد المحفوظة، غالبًا بعد تغيير APP_KEY. أدخل كلمة المرور من جديد في تبويب «البريد»، ثم أعد المحاولة.',
+  'errors.E_MAIL_NOT_CONFIGURED':
+    'إعداد البريد غير مكتمل. افتح «إعداد البريد» وأكمل المتغيرات الناقصة، ثم أعد تشغيل الخادم.',
   'errors.E_MAIL_TEST_ANSWER': 'اختر هل وصلت الرسالة أم لم تصل',
   'errors.E_MAIL_TEST_STALE': 'هذه التجربة لم تعد قابلة للتأكيد. أرسل رسالة تجريبية جديدة.',
   'errors.E_TEMPLATE_SUBJECT': 'العنوان مطلوب ولا يتجاوز 200 حرف',
@@ -229,6 +246,15 @@ export const arabicMessages: Readonly<Record<string, string>> = Object.freeze({
   'errors.E_UPLOAD_LIMIT':
     'لديك ملفات مرفوعة كثيرة لم تُحفظ في سجل. احفظ السجلات المفتوحة أو انتظر حتى تُنظَّف.',
   'errors.E_FILE_REQUIRED': 'اختر ملفاً للرفع',
+  'errors.E_AVATAR_TYPE': 'الصورة الشخصية يجب أن تكون بصيغة PNG أو WebP',
+  'errors.E_AVATAR_TYPE.animated': 'الصورة الشخصية يجب أن تكون صورة ثابتة',
+  'errors.E_AVATAR_CORRUPT': 'ملف الصورة تالف أو غير مكتمل',
+  'errors.E_AVATAR_SIZE': 'حجم الصورة الشخصية يتجاوز ١ ميغابايت',
+  'errors.E_AVATAR_DIMENSIONS': 'أبعاد الصورة الشخصية يجب أن تكون بين ٣٢ و٥١٢ بكسل',
+  'errors.E_AVATAR_REQUIRED': 'اختر صورة للرفع',
+  'errors.E_AVATAR_IMPERSONATING': 'لا يمكن تغيير الصورة الشخصية أثناء انتحال الهوية',
+  'flash.avatar.updated': 'تم حفظ الصورة الشخصية.',
+  'flash.avatar.removed': 'تمت إزالة الصورة الشخصية.',
   'errors.E_ATTACHMENT_FILE_MISSING': 'ملف المرفق غير متاح على وحدة التخزين',
   'flash.password_reset_controller.1':
     'إن كان البريد مسجلاً لدينا فستصلك رسالة تحوي رابط إعادة التعيين خلال دقائق.',
@@ -244,6 +270,7 @@ export const arabicMessages: Readonly<Record<string, string>> = Object.freeze({
   'flash.user_invitations_controller.2':
     'تم إنشاء حسابك. سجّل الدخول بكلمة مرورك الجديدة؛ يعيّن المسؤول صلاحيات العمل.',
   'errors.E_BAD_CSRF_TOKEN': 'انتهت صلاحية الطلب. حدّث الصفحة وحاول مجدداً.',
+  'errors.E_UNAUTHORIZED_ACCESS': 'سجّل الدخول للمتابعة.',
   'errors.E_FORBIDDEN.8': 'هذه المنطقة للمديرين فقط',
   'errors.E_ACCOUNT_DISABLED': 'هذا الحساب معطّل',
   'errors.E_TOKEN_SCOPE': 'صلاحية الرمز لا تسمح بهذا الطلب',
@@ -260,6 +287,8 @@ export const arabicMessages: Readonly<Record<string, string>> = Object.freeze({
   'errors.E_ROUTE_NOT_FOUND.1': 'الصفحة غير موجودة',
   'errors.E_ROUTE_NOT_FOUND.2': 'الجلسة غير موجودة',
   'errors.E_FORBIDDEN.9': 'غير مصرح لك بالوصول إلى هذه الصفحة',
+  'errors.parentView': 'حفظ {child} يتطلب صلاحية عرض {parent}',
+  'errors.E_FORBIDDEN.10': 'مشاركة العرض تتطلب صلاحية تعديل هذا الكيان',
   'errors.E_TOO_MANY_REQUESTS': 'محاولات كثيرة في وقت قصير. انتظر دقيقة ثم حاول مجدداً.',
   'errors.E_IMPORT_FILE.4': 'اختر ملف CSV',
   'errors.E_NOT_FOUND.4': 'المعرّف غير صالح',
@@ -331,6 +360,7 @@ export const arabicMessages: Readonly<Record<string, string>> = Object.freeze({
   'list.value.yes': 'نعم',
   'list.value.no': 'لا',
   'list.value.none': 'غير محدد',
+  'list.value.unavailable': 'سجل غير متاح',
   'list.status.0': 'مسودة',
   'list.status.1': 'معتمد',
   'list.status.2': 'ملغي',

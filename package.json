@@ -1,6 +1,6 @@
 {
   "name": "adulajs",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "private": true,
   "type": "module",
   "license": "MIT",
@@ -13,6 +13,7 @@
     "typecheck": "pnpm --filter adula build && node scripts/ui-registry.mjs reference && pnpm -r typecheck",
     "test": "pnpm --filter adula test && node scripts/ui-registry.mjs reference && pnpm --filter @adula/ui test && pnpm --filter @adula/reference test && pnpm --filter create-adulajs test",
     "test:core": "pnpm --filter adula test",
+    "test:browser:dark": "node scripts/test-browser-dark.mjs",
     "test:consumer": "node scripts/test-consumer.mjs",
     "test:medical": "node scripts/test-medical-consumer.mjs",
     "test:create": "node scripts/test-create.mjs",

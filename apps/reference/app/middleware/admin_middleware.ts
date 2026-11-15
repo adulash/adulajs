@@ -1,8 +1,9 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import type { NextFn } from '@adonisjs/core/types/http'
+import logger from '@adonisjs/core/services/logger'
 import db from '@adonisjs/lucid/services/db'
 import { NotificationsAdmin, UserInvitations, buildAbility, isBackupStale } from 'adula'
-import { IMPERSONATOR_KEY, adula } from '#services/adula'
+import { IMPERSONATOR_KEY, adula, requestActor } from '#services/adula'
 import { activeImpersonation } from '#services/impersonation'
 import { setupPending } from '#services/initial_setup'
 import { refuseTwoFactorRequired, twoFactorRequirementUnmet } from '#services/two_factor'
@@ -18,6 +19,24 @@ export async function isAdministrator(userId: number) {
 async function countRows(table: string, where: Record<string, string | number>) {
   const [row] = await db.connection().getWriteClient()(table).where(where).count('* as count')
   return Number(row?.count ?? 0)
+}
+
+/**
+ * The «مهامي» badge. A failing record check (a resource whose table is missing, a database
+ * error) hides the badge instead of failing every page, and never falls back to a raw count:
+ * the count is null, so the badge stays hidden and the overview offers to try again.
+ */
+async function openTasks(userId: number): Promise<number | null> {
+  const runtime = adula()
+  try {
+    const actor = await runtime.actors.load(userId)
+    // The counting code of the «مهامي» list, without loading a page of rows (#156).
+    const { open } = await runtime.assignments.openCounts(actor)
+    return open
+  } catch (error) {
+    logger.error({ err: error, userId }, 'my tasks badge count failed')
+    return null
+  }
 }
 
 /** Whether the actor can create any resource, which is what importing needs. */
@@ -44,9 +63,11 @@ export async function sharedAdminProps(ctx: HttpContext) {
     adminAlerts: ctx.inertia.always(failedRuns + (backupStale ? 1 : 0)),
     setupPending: ctx.inertia.always(isAdmin && (await setupPending())),
     canImport: ctx.inertia.always(userId ? await canImport(userId) : false),
-    openTasks: ctx.inertia.always(
-      userId ? await countRows('assignments', { assignee_id: userId, status: 'open' }) : 0
-    ),
+    // The same count as «مهامي»: items the user may act on today, after the record check,
+    // so the badge never counts work on records the user can no longer open. It costs one
+    // grouped query plus one record check per record (up to 1000), so it is deferred: the
+    // page renders first, and partial reloads compute it only when they ask for it (#156).
+    openTasks: ctx.inertia.defer(async () => (userId ? await openTasks(userId) : 0)),
     canInviteUsers: ctx.inertia.always(
       userId ? await new UserInvitations(knex).canInvite(userId) : false
     ),
@@ -55,6 +76,12 @@ export async function sharedAdminProps(ctx: HttpContext) {
       userId ? await new NotificationsAdmin(knex).unreadCount(userId) : 0
     ),
     impersonating: ctx.inertia.always(Boolean(activeImpersonation({ session, auth }))),
+    // Whether the assistant panel shows (ADR 052); no settings or key reach the browser.
+    assistant: ctx.inertia.always(
+      userId
+        ? await adula().assistant.status(await requestActor(ctx))
+        : { available: false, noticeAccepted: false }
+    ),
   }
 }
 

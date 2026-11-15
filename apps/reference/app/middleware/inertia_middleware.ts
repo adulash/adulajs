@@ -4,15 +4,30 @@ import UserTransformer from '#transformers/user_transformer'
 import BaseInertiaMiddleware from '@adonisjs/inertia/inertia_middleware'
 import { adula } from '#services/adula'
 import { sharedAdminProps } from '#middleware/admin_middleware'
-import { clientMessages, localizeText, runWithLanguage, uiPreferences } from 'adula'
+import {
+  UserAvatars,
+  avatarUrl,
+  clientMessages,
+  localizeText,
+  runWithLanguage,
+  uiPreferences,
+} from 'adula'
 import db from '@adonisjs/lucid/services/db'
 import { signupEnabled } from '#services/signup'
+import { sharedAppearance } from '#services/appearance'
+import { preferences as preferenceDefinitions } from '#start/preferences'
 import {
   availableLanguages,
   localLabel,
   requestDirection,
   requestLanguage,
 } from '#services/languages'
+
+function defaultPreferences() {
+  return Object.fromEntries(
+    preferenceDefinitions.map((definition) => [definition.key, definition.default])
+  )
+}
 
 export default class InertiaMiddleware extends BaseInertiaMiddleware {
   async share(ctx: HttpContext) {
@@ -27,6 +42,11 @@ export default class InertiaMiddleware extends BaseInertiaMiddleware {
     const { auth } = ctx as Partial<HttpContext>
     const language = requestLanguage(ctx)
     const actor = auth?.user ? await adula().actors.load(auth.user.id) : undefined
+    if (auth?.user) {
+      const avatar = await new UserAvatars(db.connection().getWriteClient()).find(auth.user.id)
+      auth.user.$extras.avatarUrl = avatar ? avatarUrl(auth.user.id, avatar.version) : null
+    }
+    const account = auth?.user ? UserTransformer.transform(auth.user) : undefined
 
     /**
      * Data shared with all Inertia pages. Make sure you are using
@@ -35,7 +55,16 @@ export default class InertiaMiddleware extends BaseInertiaMiddleware {
     return {
       errors: ctx.inertia.always(this.getValidationErrors(ctx)),
       uiPreferences: ctx.inertia.always(await uiPreferences(db.connection().getWriteClient())),
-      user: ctx.inertia.always(auth?.user ? UserTransformer.transform(auth.user) : undefined),
+      // The signed-in account under a name pages do not use for their own data: Inertia
+      // merges page props over shared ones, so a page sending `user` (the account it shows)
+      // would otherwise replace the signed-in account in the shell.
+      account: ctx.inertia.always(account),
+      // The user's interface preferences (ADR 049); guests get the defaults.
+      preferences: ctx.inertia.always(
+        auth?.user ? await adula().preferences.all(auth.user.id) : defaultPreferences()
+      ),
+      /** @deprecated Read `account`; a page prop named `user` replaces this one. */
+      user: ctx.inertia.always(account),
       navigation: ctx.inertia.always(
         actor ? this.#localizedNavigation(adula().resources.navigation(actor), language) : []
       ),
@@ -52,6 +81,9 @@ export default class InertiaMiddleware extends BaseInertiaMiddleware {
       messages: clientMessages(language),
       // Guests see the signup link only while the signup routes answer.
       signupEnabled: ctx.inertia.always(auth?.user ? false : await signupEnabled()),
+      // The company name, logo, texts and colour for this request, with the active occasion
+      // applied (ADR 053). Guests get it too: the login and guest pages use it.
+      appearance: ctx.inertia.always(await sharedAppearance()),
       ...(await sharedAdminProps(ctx)),
     }
   }

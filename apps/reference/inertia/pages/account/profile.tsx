@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from '~/components/ui/alert'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
 import Workspace from '~/layouts/workspace'
 import { LanguageSetting } from '~/components/language-setting'
+import { AvatarCard } from '~/components/account/avatar-card'
 import { TwoFactorCard, type TwoFactorProps } from '~/components/account/two-factor-card'
 import {
   ConnectedAccountsCard,
@@ -32,8 +33,11 @@ export default function Profile({
   csrfToken,
   notificationChannels,
 }: Props) {
-  const { props, flash } = usePage<{ user?: { fullName: string | null; email: string } }>()
-  const user = props.user
+  const { props, flash } = usePage<{
+    account?: { id: number; fullName: string | null; email: string; avatarUrl: string | null }
+    impersonating?: boolean
+  }>()
+  const user = props.account
   return (
     <>
       <Head title="الملف الشخصي" />
@@ -62,6 +66,14 @@ export default function Profile({
       )}
 
       <div className="grid gap-6 lg:grid-cols-2">
+        {user && (
+          <AvatarCard
+            user={{ id: user.id, name: user.fullName || user.email, avatarUrl: user.avatarUrl }}
+            action="/account/avatar"
+            own
+            locked={Boolean(props.impersonating)}
+          />
+        )}
         <Card>
           <CardHeader>
             <CardTitle>البيانات الأساسية</CardTitle>

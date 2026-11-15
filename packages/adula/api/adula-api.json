@@ -100,6 +100,34 @@
       "kind": "FunctionDeclaration",
       "type": "(document: ApiClientDocument, options?: ApiClientOptions | undefined) => string"
     },
+    "Appearance": {
+      "kind": "ClassDeclaration",
+      "type": "typeof Appearance"
+    },
+    "APPEARANCE_LOGO_OWNER": {
+      "kind": "VariableDeclaration",
+      "type": "Readonly<{ resource: \"core_appearance\"; field: \"logo\"; }>"
+    },
+    "APPEARANCE_SETTING_KEY": {
+      "kind": "VariableDeclaration",
+      "type": "\"appearance.identity\""
+    },
+    "APPEARANCE_TEXT_LIMITS": {
+      "kind": "VariableDeclaration",
+      "type": "Readonly<{ company: 120; loginTitle: 120; loginDescription: 300; guestTitle: 120; guestDescription: 300; name: 80; banner: 160; }>"
+    },
+    "AppearanceIdentity": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ company: string | null; logoId: number | null; loginTitle: string | null; loginDescription: string | null; guestTitle: string | null; guestDescription: string | null; primaryColor: string | null; }"
+    },
+    "AppearanceLogo": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ id: number; disk: string; path: string; mimeType: string; size: number; recordId: number | null; }"
+    },
+    "AppearanceOccasion": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ id: number; name: string; startsOn: string; endsOn: string; primaryColor: string | null; logoId: number | null; banner: string | null; loginTitle: string | null; loginDescription: string | null; }"
+    },
     "applyVisibility": {
       "kind": "FunctionDeclaration",
       "type": "(resource: Pick<Resource, \"fields\">, record: RecordData, options?: { existing?: RecordData | undefined; writable?: ((key: string) => boolean) | undefined; } | undefined) => Set<string>"
@@ -114,7 +142,7 @@
     },
     "Assignment": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ id: number; resource: string; resourceLabel: string; recordId: number; recordTitle: string | null; assigneeId: number; assigneeName: string | null; assignedBy: number | null; assignedByName: string | null; kind: string; title: string; note: string | null; dueOn: string | null; status: AssignmentStatus; outcome: string | null; createdAt: string; completedAt: string | null; workflowRunId: string | null; managed: boolean; closeNote: CloseNotePolicy; closeReason: string | null; canComplete: boolean; canCancel: boolean; canDecide?: boolean | undefined; onBehalfOf?: { id: number; name: string | null; } | null | undefined; dueAt?: string | null | undefined; sla?: SlaState | null | undefined; }"
+      "type": "{ id: number; resource: string; resourceLabel: string; recordId: number; recordTitle: string | null; assigneeId: number; assigneeName: string | null; assigneeAvatarUrl?: string | null | undefined; assignedBy: number | null; assignedByName: string | null; assignedByAvatarUrl?: string | null | undefined; kind: string; title: string; note: string | null; dueOn: string | null; status: AssignmentStatus; outcome: string | null; createdAt: string; completedAt: string | null; workflowRunId: string | null; managed: boolean; closeNote: CloseNotePolicy; closeReason: string | null; canComplete: boolean; canCancel: boolean; canDecide?: boolean | undefined; onBehalfOf?: { id: number; name: string | null; } | null | undefined; dueAt?: string | null | undefined; sla?: SlaState | null | undefined; }"
     },
     "AssignmentOptions": {
       "kind": "TypeAliasDeclaration",
@@ -131,6 +159,42 @@
     "AssignmentStatus": {
       "kind": "TypeAliasDeclaration",
       "type": "\"cancelled\" | \"done\" | \"open\""
+    },
+    "Assistant": {
+      "kind": "ClassDeclaration",
+      "type": "typeof Assistant"
+    },
+    "ASSISTANT_LIMITS": {
+      "kind": "VariableDeclaration",
+      "type": "{ readonly maxOutputTokens: readonly [1024, 64, 4096]; readonly dailyTokenBudget: readonly [50000, 1000, 2000000]; readonly requestsPerMinute: readonly [10, 1, 60]; readonly maxToolIterations: readonly [4, 0, 8]; readonly timeoutSeconds: readonly [30, 5, 60]; }"
+    },
+    "AssistantError": {
+      "kind": "ClassDeclaration",
+      "type": "typeof AssistantError"
+    },
+    "AssistantProposal": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ id: string; resource: string; resourceLabel: string; action: string; recordId: number | null; recordTitle: string | null; input: Record<string, unknown> | null; before: Record<string, unknown> | null; version: number | null; expiresAt: string; }"
+    },
+    "AssistantSettings": {
+      "kind": "ClassDeclaration",
+      "type": "typeof AssistantSettings"
+    },
+    "AssistantSettingsInput": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ model?: string | undefined; maxOutputTokens?: number | undefined; dailyTokenBudget?: number | undefined; requestsPerMinute?: number | undefined; maxToolIterations?: number | undefined; timeoutSeconds?: number | undefined; enabled?: boolean | undefined; baseUrl?: string | undefined; systemPrompt?: string | undefined; allowWriteProposals?: boolean | undefined; }"
+    },
+    "AssistantSettingsView": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ enabled: boolean; baseUrl: string; model: string; systemPrompt: string; allowWriteProposals: boolean; hasKey: boolean; updatedAt: string | null; } & Record<\"maxOutputTokens\" | \"dailyTokenBudget\" | \"requestsPerMinute\" | \"maxToolIterations\" | \"timeoutSeconds\", number>"
+    },
+    "AssistantStatus": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ available: boolean; noticeAccepted: boolean; }"
+    },
+    "AssistantTurnResult": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ reply: string; proposals: AssistantProposal[]; usage: { remainingToday: number; }; }"
     },
     "attachmentHeaders": {
       "kind": "FunctionDeclaration",
@@ -172,13 +236,101 @@
       "kind": "FunctionDeclaration",
       "type": "(ability: AdulaAbility, action: string, resource: Resource, field?: string | undefined) => Sql"
     },
+    "AVATAR_LIMITS": {
+      "kind": "VariableDeclaration",
+      "type": "Readonly<{ maxBytes: number; minSide: 32; maxSide: 512; }>"
+    },
+    "avatarHeaders": {
+      "kind": "FunctionDeclaration",
+      "type": "(avatar: AvatarRecord, options?: { immutable?: boolean | undefined; } | undefined) => Record<string, string>"
+    },
+    "AvatarImage": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ type: \"png\" | \"webp\"; mimeType: \"image/png\" | \"image/webp\"; extname: \"png\" | \"webp\"; width: number; height: number; bytes: Buffer<ArrayBufferLike>; }"
+    },
+    "AvatarRecord": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ userId: number; version: number; disk: string; path: string; size: number; mimeType: string; width: number; height: number; }"
+    },
+    "avatarUrl": {
+      "kind": "FunctionDeclaration",
+      "type": "(userId: number, version?: number | null | undefined) => string"
+    },
+    "avatarUrlFor": {
+      "kind": "FunctionDeclaration",
+      "type": "(userId: unknown, version: unknown) => string | null"
+    },
+    "avatarVersionColumn": {
+      "kind": "FunctionDeclaration",
+      "type": "(db: Knex<any, any[]>, userColumn: string, alias?: string | undefined) => Raw<any>"
+    },
+    "BACKUP_ARCHIVE_EXTENSION": {
+      "kind": "VariableDeclaration",
+      "type": "\".adulabackup\""
+    },
+    "BACKUP_ARCHIVE_FILES": {
+      "kind": "VariableDeclaration",
+      "type": "readonly [\"database.dump\", \"uploads.tar.gz\", \"attachments.json\", \"SHA256SUMS\", \"COMPLETE\"]"
+    },
+    "BACKUP_FAILURE_MESSAGES": {
+      "kind": "VariableDeclaration",
+      "type": "Record<string, string>"
+    },
     "BACKUP_MAX_AGE_MS": {
       "kind": "VariableDeclaration",
       "type": "number"
     },
+    "BackupArchiveError": {
+      "kind": "ClassDeclaration",
+      "type": "typeof BackupArchiveError"
+    },
+    "BackupArchiveErrorCode": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"E_BACKUP_KEY_INVALID\" | \"E_BACKUP_FORMAT\" | \"E_BACKUP_KEY\" | \"E_BACKUP_TAMPERED\" | \"E_BACKUP_TRUNCATED\" | \"E_BACKUP_CONTENT\" | \"E_BACKUP_TARGET\""
+    },
+    "BackupConnection": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ provider: BackupProvider; status: \"revoked\" | \"connected\"; accountLabel: string | null; schedule: BackupSchedule; connectedBy: number; connectedAt: string; }"
+    },
+    "BackupKind": {
+      "kind": "TypeAliasDeclaration",
+      "type": "BackupProvider | \"download\""
+    },
     "BackupObject": {
       "kind": "TypeAliasDeclaration",
       "type": "{ key: string; size: number; modifiedAt: string; }"
+    },
+    "BackupProvider": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"google\" | \"onedrive\""
+    },
+    "BackupProviderClient": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ provider: BackupProvider; authorizeUrl(input: { state: string; codeChallenge: string; redirectUri: string; }): string; exchange(input: { code: string; verifier: string; redirectUri: string; }): Promise<{ refreshToken: string; accountLabel: string | null; }>; refresh(refreshToken: string): Promise<{ accessToken: string; refreshToken?: string | undefined; }>; upload(input: { file: string; name: string; size: number; sha256: string; accessToken: string; signal?: AbortSignal | undefined; }): Promise<{ remoteId: string; size: number; }>; revoke?(refreshToken: string): Promise<void>; }"
+    },
+    "BackupProviderError": {
+      "kind": "ClassDeclaration",
+      "type": "typeof BackupProviderError"
+    },
+    "BackupProviderErrorCategory": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"revoked\" | \"dns\" | \"connect\" | \"tls\" | \"timeout\" | \"blocked-target\" | \"secret\" | `http-status:${number}` | \"auth\" | \"quota\" | \"integrity\" | \"response\""
+    },
+    "BackupProviderOptions": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ clientId: string; clientSecret: string; outbound?: OutboundOptions | undefined; chunkSize?: number | undefined; timeoutMs?: number | undefined; retries?: number | undefined; }"
+    },
+    "BackupRun": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ id: number; kind: BackupKind; trigger: SyncTrigger; status: BackupRunStatus; requestedBy: number; fileName: string | null; size: number | null; sha256: string | null; expiresAt: string | null; errorCategory: string | null; error: string | null; createdAt: string; startedAt: string | null; finishedAt: string | null; }"
+    },
+    "BackupRunStatus": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"running\" | \"failed\" | \"queued\" | \"succeeded\" | \"expired\""
+    },
+    "BackupSchedule": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"off\" | \"daily\" | \"weekly\""
     },
     "backupStale": {
       "kind": "FunctionDeclaration",
@@ -188,9 +340,17 @@
       "kind": "TypeAliasDeclaration",
       "type": "{ healthy: boolean; reason: string; checkedAt: string; }"
     },
+    "BackupTrigger": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"schedule\" | \"manual\""
+    },
     "BASE_LANGUAGE": {
       "kind": "VariableDeclaration",
       "type": "\"ar\""
+    },
+    "BASE_LOGO_RECORD": {
+      "kind": "VariableDeclaration",
+      "type": "0"
     },
     "buildAbility": {
       "kind": "FunctionDeclaration",
@@ -308,6 +468,22 @@
       "kind": "TypeAliasDeclaration",
       "type": "{ userId: number; email: string; name: string | null; address: string | null; }"
     },
+    "ChatClient": {
+      "kind": "TypeAliasDeclaration",
+      "type": "(request: ChatRequest) => Promise<ChatCompletion>"
+    },
+    "ChatCompletion": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ content: string | null; toolCalls: AssistantToolCall[]; usage: { prompt: number; completion: number; } | null; }"
+    },
+    "ChatRequest": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ baseUrl: string; key: string; body: Record<string, unknown>; signal: AbortSignal; }"
+    },
+    "checkPrimaryColor": {
+      "kind": "FunctionDeclaration",
+      "type": "(value: unknown) => ContrastCheck"
+    },
     "claimAttachment": {
       "kind": "FunctionDeclaration",
       "type": "(trx: Transaction<any, any[]>, input: ClaimInput) => Promise<AttachmentRecord>"
@@ -316,6 +492,10 @@
       "kind": "TypeAliasDeclaration",
       "type": "{ attachmentId: number; actor: { id: number; }; resource: string; field: string; recordId?: number | undefined; orgUnitId?: number | null | undefined; scoped: boolean; }"
     },
+    "classifyMailFailure": {
+      "kind": "FunctionDeclaration",
+      "type": "(error: unknown) => MailFailure"
+    },
     "clientMessages": {
       "kind": "FunctionDeclaration",
       "type": "(language: string, prefix?: string | undefined) => Record<string, string>"
@@ -323,6 +503,18 @@
     "CloseNotePolicy": {
       "kind": "TypeAliasDeclaration",
       "type": "\"optional\" | \"required\""
+    },
+    "CloudBackups": {
+      "kind": "ClassDeclaration",
+      "type": "typeof CloudBackups"
+    },
+    "CloudBackupsOptions": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ box: SecretBox; key: Buffer<ArrayBufferLike> | null; directory: string; createSnapshot(directory: string, options: { workDirectory: string; }): Promise<void>; providers: Partial<Record<BackupProvider, BackupProviderClient>>; isAdministrator(userId: number): Promise<boolean>; downloadTtlMs?: number | undefined; timeoutMs?: number | undefined; now?: (() => Date) | undefined; }"
+    },
+    "CloudBackupStatus": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ configured: boolean; destinations: { kind: BackupKind; configured: boolean; connection: BackupConnection | null; lastRun: BackupRun | null; }[]; downloads: BackupRun[]; active: BackupRun[]; }"
     },
     "codeTemplateVersion": {
       "kind": "FunctionDeclaration",
@@ -334,7 +526,7 @@
     },
     "CommentEntry": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ id: number; body: string; authorId: number; authorName: string | null; mentions: { id: number; name: string; }[]; createdAt: string; editedAt: string | null; own: boolean; }"
+      "type": "{ id: number; body: string; authorId: number; authorName: string | null; authorAvatarUrl?: string | null | undefined; mentions: { id: number; name: string; }[]; createdAt: string; editedAt: string | null; own: boolean; }"
     },
     "conditionSql": {
       "kind": "FunctionDeclaration",
@@ -348,6 +540,14 @@
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>, listener: Listener, event: DomainEvent) => Promise<boolean>"
     },
+    "contrast": {
+      "kind": "FunctionDeclaration",
+      "type": "(first: string, second: string) => number"
+    },
+    "ContrastCheck": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ ok: true; theme: DerivedTheme; } | { ok: false; reason: string; light: number; dark: number; }"
+    },
     "createAssignmentsSchema": {
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>) => Promise<void>"
@@ -359,6 +559,10 @@
     "createChannelConfirmationsSchema": {
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>) => Promise<void>"
+    },
+    "createChatClient": {
+      "kind": "FunctionDeclaration",
+      "type": "(options?: OutboundOptions | undefined) => ChatClient"
     },
     "createCollaborationSchema": {
       "kind": "FunctionDeclaration",
@@ -400,9 +604,17 @@
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>) => Promise<void>"
     },
+    "createOpenStream": {
+      "kind": "FunctionDeclaration",
+      "type": "(master: Buffer<ArrayBufferLike>) => Transform"
+    },
     "createOutboundPoster": {
       "kind": "FunctionDeclaration",
       "type": "(options?: OutboundOptions | undefined) => (value: string, init: OutboundRequest) => Promise<{ status: number; }>"
+    },
+    "createOutboundRequester": {
+      "kind": "FunctionDeclaration",
+      "type": "(options?: OutboundOptions | undefined) => (value: string, init: OutboundRequest & { maxResponseBytes: number; }) => Promise<PinnedResponse>"
     },
     "createPrintTemplatesSchema": {
       "kind": "FunctionDeclaration",
@@ -410,7 +622,7 @@
     },
     "createResourceController": {
       "kind": "FunctionDeclaration",
-      "type": "(resolveRuntime: (ctx: HttpContext) => Promise<ResourceRuntime>, renderList?: ((ctx: HttpContext, resource: Resource, result: { data: SerializedRecord[]; permissions: { [k: string]: Partial<Record<Action | \"restore\", boolean>>; }; meta: { limit: number; estimatedTotal: number | undefined; nextCursor: string | null; }; related: Record<string, SerializedRecord[]>; }) => unknown) | undefined, renderForm?: ((ctx: HttpContext, resource: Resource, editor: { mode: string; name: string; label: string; recordLabel: string | null; fields: ResourceField[]; defaults: SerializedRecord; inline: Record<string, { rows: SerializedRecord[]; hasMore: boolean; canCreate: boolean; permissions: Record<string, { update: boolean; delete: boolean; }>; fields: ResourceField[]; createFields: string[]; updateFields: Record<string, string[]>; }>; options: Record<string, { value: string; label: string; }[]>; relationSearch: Record<string, boolean>; orgUnits: { value: string; label: string; }[]; scoped: boolean; scopeFrom: string | null; record: SerializedRecord | null; }) => unknown) | undefined, renderShow?: ((ctx: HttpContext, resource: Resource, result: { data: SerializedRecord; permissions: Partial<Record<Action | \"restore\", boolean>>; related: Record<string, SerializedRecord[]>; }) => unknown) | undefined, renderTrash?: ((ctx: HttpContext, resource: Resource, result: { data: SerializedRecord[]; permissions: { [k: string]: Partial<Record<Action | \"restore\", boolean>>; }; meta: { limit: number; estimatedTotal: number | undefined; nextCursor: string | null; }; related: Record<string, SerializedRecord[]>; }) => unknown) | undefined) => new () => ResourceController"
+      "type": "(resolveRuntime: (ctx: HttpContext) => Promise<ResourceRuntime>, renderList?: ((ctx: HttpContext, resource: Resource, result: { data: SerializedRecord[]; permissions: { [k: string]: Partial<Record<Action | \"restore\", boolean>>; }; meta: { limit: number; estimatedTotal: number | undefined; nextCursor: string | null; }; related: Record<string, SerializedRecord[]>; }) => unknown) | undefined, renderForm?: ((ctx: HttpContext, resource: Resource, editor: { mode: string; name: string; label: string; recordLabel: string | null; fields: ResourceField[]; defaults: SerializedRecord; inline: Record<string, { rows: SerializedRecord[]; hasMore: boolean; canCreate: boolean; permissions: Record<string, { update: boolean; delete: boolean; }>; fields: ResourceField[]; createFields: string[]; updateFields: Record<string, string[]>; }>; options: Record<string, { value: string; label: string; avatarUrl?: string | null | undefined; }[]>; relationSearch: Record<string, boolean>; orgUnits: { value: string; label: string; }[]; scoped: boolean; scopeFrom: string | null; record: SerializedRecord | null; }) => unknown) | undefined, renderShow?: ((ctx: HttpContext, resource: Resource, result: { data: SerializedRecord; permissions: Partial<Record<Action | \"restore\", boolean>>; related: Record<string, SerializedRecord[]>; }) => unknown) | undefined, renderTrash?: ((ctx: HttpContext, resource: Resource, result: { data: SerializedRecord[]; permissions: { [k: string]: Partial<Record<Action | \"restore\", boolean>>; }; meta: { limit: number; estimatedTotal: number | undefined; nextCursor: string | null; }; related: Record<string, SerializedRecord[]>; }) => unknown) | undefined) => new () => ResourceController"
     },
     "createResourceTable": {
       "kind": "FunctionDeclaration",
@@ -423,6 +635,10 @@
     "createSavedViewsSchema": {
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>) => Promise<void>"
+    },
+    "createSealStream": {
+      "kind": "FunctionDeclaration",
+      "type": "(master: Buffer<ArrayBufferLike>, options?: { chunkSize?: number | undefined; } | undefined) => Transform"
     },
     "createSyncJobsSchema": {
       "kind": "FunctionDeclaration",
@@ -490,11 +706,15 @@
     },
     "DashboardWidgetDefinition": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ key: string; label: Label; resource: string; measure: DashboardMeasure; groupBy?: string | undefined; filters?: Record<string, unknown> | undefined; where?: Conditions | undefined; }"
+      "type": "{ key: string; label: Label; resource: string; measure: DashboardMeasure; groupBy?: string | undefined; filters?: Record<string, unknown> | undefined; where?: Conditions | undefined; overview?: boolean | undefined; }"
     },
     "DashboardWidgetResult": {
       "kind": "TypeAliasDeclaration",
       "type": "{ key: string; label: string; resource: string; href: string; measure: DashboardMeasure; format: DashboardFormat; kind: \"total\" | \"grouped\"; groupBy: string | null; value?: string | number | null | undefined; rows?: DashboardGroupRow[] | undefined; truncated: boolean; }"
+    },
+    "dateIn": {
+      "kind": "FunctionDeclaration",
+      "type": "(timeZone: string, now: Date) => string"
     },
     "decimalShape": {
       "kind": "FunctionDeclaration",
@@ -528,6 +748,10 @@
       "kind": "FunctionDeclaration",
       "type": "(definition: DashboardDefinition) => DashboardDefinition"
     },
+    "definePreference": {
+      "kind": "FunctionDeclaration",
+      "type": "<T extends JsonValue>(definition: PreferenceDefinition<T>) => PreferenceDefinition<T>"
+    },
     "defineResource": {
       "kind": "FunctionDeclaration",
       "type": "<const F extends Record<string, Field>>(input: ResourceInput<F>) => Omit<Resource, \"fields\" | \"list\" | \"form\" | \"show\" | \"hidden\" | \"serialize\" | \"title\" | \"unique\"> & { fields: F; unique?: readonly (readonly (\"orgUnitId\" | (keyof F & string))[])[] | undefined; list: readonly (keyof F & string)[]; form: readonly (keyof F & string)[]; show: readonly (keyof F & string)[]; hidden?: readonly (keyof F & string)[] | undefined; serialize?: readonly (keyof F & string)[] | undefined; title?: readonly (keyof F & string)[] | undefined; } & Resource"
@@ -552,9 +776,21 @@
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>, send: MailSender, limit?: number | undefined) => Promise<{ sent: number; failed: number; }>"
     },
+    "DerivedTheme": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ light: ThemeColors; dark: ThemeColors; }"
+    },
+    "derivePrimaryTheme": {
+      "kind": "FunctionDeclaration",
+      "type": "(value: unknown) => DerivedTheme"
+    },
     "describeDrift": {
       "kind": "FunctionDeclaration",
       "type": "(drift: SchemaDrift) => string[]"
+    },
+    "detectLogoType": {
+      "kind": "FunctionDeclaration",
+      "type": "(bytes: Uint8Array<ArrayBufferLike>) => LogoType | null"
     },
     "diagnoseAttachments": {
       "kind": "FunctionDeclaration",
@@ -586,7 +822,7 @@
     },
     "ExportOptions": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ search?: string | undefined; sort?: string | undefined; direction?: \"asc\" | \"desc\" | undefined; filters?: Record<string, unknown> | undefined; tag?: string | undefined; trashed?: boolean | undefined; }"
+      "type": "{ search?: string | undefined; sort?: string | undefined; direction?: \"asc\" | \"desc\" | undefined; filters?: Record<string, unknown> | undefined; tag?: string | undefined; trashed?: boolean | undefined; ids?: number[] | undefined; }"
     },
     "FailedJob": {
       "kind": "TypeAliasDeclaration",
@@ -606,7 +842,7 @@
     },
     "FieldChangeEntry": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ id: number; field: string; before: JsonValue; after: JsonValue; actorName: string | null; createdAt: string; }"
+      "type": "{ id: number; field: string; before: JsonValue; after: JsonValue; actorId?: number | null | undefined; actorName: string | null; actorAvatarUrl?: string | null | undefined; createdAt: string; }"
     },
     "fieldColumnType": {
       "kind": "FunctionDeclaration",
@@ -636,6 +872,14 @@
       "kind": "FunctionDeclaration",
       "type": "(key: string, value: string | number | bigint) => string"
     },
+    "GoogleDriveEndpoints": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ auth: string; token: string; api: string; upload: string; revoke: string; }"
+    },
+    "googleDriveProvider": {
+      "kind": "FunctionDeclaration",
+      "type": "(options: BackupProviderOptions & { endpoints?: Partial<GoogleDriveEndpoints> | undefined; }) => BackupProviderClient"
+    },
     "grantInstallAdministrator": {
       "kind": "FunctionDeclaration",
       "type": "(knex: Knex<any, any[]>, userId: number, version: string) => Promise<void>"
@@ -643,6 +887,18 @@
     "grantUpload": {
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>, registry: Pick<ResourceRegistry, \"all\" | \"get\">, input: UploadGrantInput) => Promise<UploadGrant>"
+    },
+    "GuardedXlsx": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ sheetPath: string; sharedStrings: number; maxRow: number; maxColumn: number; archive: Uint8Array<ArrayBufferLike>; }"
+    },
+    "guardFormula": {
+      "kind": "FunctionDeclaration",
+      "type": "(text: string) => string"
+    },
+    "guardXlsx": {
+      "kind": "FunctionDeclaration",
+      "type": "(bytes: Uint8Array<ArrayBufferLike>, limits?: XlsxLimits | undefined) => GuardedXlsx"
     },
     "heartbeat": {
       "kind": "FunctionDeclaration",
@@ -848,6 +1104,10 @@
       "kind": "FunctionDeclaration",
       "type": "(field: Field | undefined) => boolean"
     },
+    "isPreferenceSetting": {
+      "kind": "FunctionDeclaration",
+      "type": "(key: string) => boolean"
+    },
     "isProtectedSetting": {
       "kind": "FunctionDeclaration",
       "type": "(key: string) => boolean"
@@ -914,7 +1174,7 @@
     },
     "ListOptions": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ limit?: number | undefined; cursor?: string | undefined; search?: string | undefined; sort?: string | undefined; direction?: \"asc\" | \"desc\" | undefined; filters?: Record<string, unknown> | undefined; tag?: string | undefined; estimate?: boolean | undefined; trashed?: boolean | undefined; }"
+      "type": "{ limit?: number | undefined; cursor?: string | undefined; search?: string | undefined; sort?: string | undefined; direction?: \"asc\" | \"desc\" | undefined; filters?: Record<string, unknown> | undefined; tag?: string | undefined; estimate?: boolean | undefined; trashed?: boolean | undefined; ids?: number[] | undefined; }"
     },
     "loadAttachments": {
       "kind": "FunctionDeclaration",
@@ -927,6 +1187,22 @@
     "logActivity": {
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>, entry: ActivityEntry) => Promise<void>"
+    },
+    "LOGO_LIMITS": {
+      "kind": "VariableDeclaration",
+      "type": "Readonly<{ maxBytes: number; maxInputSide: 4096; maxWidth: 1024; maxHeight: 512; minSide: 16; }>"
+    },
+    "logoHeaders": {
+      "kind": "FunctionDeclaration",
+      "type": "(logo: { mimeType: string; size: number; id: number; }) => Record<string, string>"
+    },
+    "LogoImage": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ type: LogoType; mimeType: \"image/png\" | \"image/webp\" | \"image/jpeg\"; extname: \"png\" | \"webp\" | \"jpg\"; width: number; height: number; bytes: Buffer<ArrayBufferLike>; }"
+    },
+    "LogoType": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"png\" | \"webp\" | \"jpeg\""
     },
     "LookupFieldUse": {
       "kind": "TypeAliasDeclaration",
@@ -956,6 +1232,10 @@
       "kind": "VariableDeclaration",
       "type": "\"mail\""
     },
+    "MAIL_SETTINGS_KEY": {
+      "kind": "VariableDeclaration",
+      "type": "\"mail.smtp\""
+    },
     "MAIL_TEST_KEY": {
       "kind": "VariableDeclaration",
       "type": "\"mail.delivery_test\""
@@ -968,9 +1248,37 @@
       "kind": "ClassDeclaration",
       "type": "typeof MailDeliveryTest"
     },
+    "MailFailure": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ reason: MailFailureReason; code?: string | undefined; responseCode?: number | undefined; command?: string | undefined; }"
+    },
+    "MailFailureReason": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"tls\" | \"timeout\" | \"authentication\" | \"connection\" | \"host_not_found\" | \"sender_rejected\" | \"recipient_rejected\" | \"password_unreadable\" | \"unknown\""
+    },
+    "MailRuntime": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ host: string; port: number; security: MailSecurity; username: string; password: string | null; fromName: string; fromAddress: string; }"
+    },
+    "MailSecurity": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"tls\" | \"starttls\" | \"none\""
+    },
     "MailSender": {
       "kind": "TypeAliasDeclaration",
       "type": "(message: { to: string; name: string | null; subject: string; text: string; target?: NotificationTarget | null | undefined; }) => Promise<void>"
+    },
+    "MailSettings": {
+      "kind": "ClassDeclaration",
+      "type": "typeof MailSettings"
+    },
+    "MailSettingsInput": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ preset?: string | undefined; host?: string | undefined; port?: number | undefined; security?: MailSecurity | undefined; username?: string | undefined; fromName?: string | undefined; fromAddress?: string | undefined; }"
+    },
+    "MailSettingsView": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ configured: boolean; preset: string; host: string; port: number; security: MailSecurity; username: string; hasPassword: boolean; passwordUnreadable: boolean; fromName: string; fromAddress: string; updatedAt: string | null; }"
     },
     "MailTestState": {
       "kind": "TypeAliasDeclaration",
@@ -1040,9 +1348,17 @@
       "kind": "VariableDeclaration",
       "type": "100"
     },
+    "NavigationLayout": {
+      "kind": "TypeAliasDeclaration",
+      "type": "\"sidebar\" | \"top\""
+    },
     "nextStep": {
       "kind": "FunctionDeclaration",
       "type": "(definition: WorkflowDefinition, current: string, event: WorkflowEvent) => string"
+    },
+    "normalizeColor": {
+      "kind": "FunctionDeclaration",
+      "type": "(value: unknown) => string | null"
     },
     "normalizeRecoveryCode": {
       "kind": "FunctionDeclaration",
@@ -1088,9 +1404,21 @@
       "kind": "TypeAliasDeclaration",
       "type": "{ min?: string | number | undefined; max?: string | number | undefined; }"
     },
+    "OneDriveEndpoints": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ authority: string; graph: string; }"
+    },
+    "oneDriveProvider": {
+      "kind": "FunctionDeclaration",
+      "type": "(options: BackupProviderOptions & { tenant?: string | undefined; endpoints?: Partial<OneDriveEndpoints> | undefined; }) => BackupProviderClient"
+    },
     "openApiDocument": {
       "kind": "FunctionDeclaration",
       "type": "(registry: ResourceRegistry, options: { title: string; version: string; serverUrl: string; basePath?: string | undefined; actor?: Actor | undefined; }) => { openapi: string; info: { title: string; version: string; }; servers: { url: string; }[]; security: { bearer: never[]; }[]; paths: Record<string, Schema>; components: { schemas: Record<string, Schema>; securitySchemes: { bearer: { type: string; scheme: string; description: string; }; }; }; }"
+    },
+    "openBackupArchive": {
+      "kind": "FunctionDeclaration",
+      "type": "(file: string, targetDirectory: string, master: Buffer<ArrayBufferLike>) => Promise<void>"
     },
     "OrgUnitNode": {
       "kind": "TypeAliasDeclaration",
@@ -1116,13 +1444,41 @@
       "kind": "TypeAliasDeclaration",
       "type": "{ headers: Record<string, string>; body: string; signal: AbortSignal; target?: OutboundTarget | undefined; }"
     },
+    "OutboundResponseTooLargeError": {
+      "kind": "ClassDeclaration",
+      "type": "typeof OutboundResponseTooLargeError"
+    },
     "OutboundTarget": {
       "kind": "TypeAliasDeclaration",
       "type": "{ address: string; family: 4 | 6; }"
     },
+    "OverviewBuiltin": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ id: string; label: string; }"
+    },
+    "OverviewLayout": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ order?: readonly string[] | undefined; hidden?: readonly string[] | undefined; }"
+    },
+    "OverviewState": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ widgets: OverviewWidget[]; customized: boolean; }"
+    },
+    "OverviewWidget": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ id: string; kind: \"builtin\"; label: string; hidden: boolean; } | { id: string; kind: \"dashboard\"; label: string; hidden: boolean; dashboard: string; data: DashboardWidgetResult | null; }"
+    },
     "packedResourceRules": {
       "kind": "FunctionDeclaration",
       "type": "(resource: Resource, actor: Actor) => PackRule<SubjectRawRule<string, any, Conditions>>[]"
+    },
+    "parseBackupKey": {
+      "kind": "FunctionDeclaration",
+      "type": "(value: string) => Buffer<ArrayBufferLike>"
+    },
+    "parseResourceToolArgs": {
+      "kind": "FunctionDeclaration",
+      "type": "(runtime: Pick<ResourceRuntime, \"registry\">, value: unknown, write: boolean) => ResourceToolCall"
     },
     "parseSettingValue": {
       "kind": "FunctionDeclaration",
@@ -1143,6 +1499,26 @@
     "phoneAddress": {
       "kind": "FunctionDeclaration",
       "type": "(value: unknown) => string"
+    },
+    "PREFERENCE_MAX_BYTES": {
+      "kind": "VariableDeclaration",
+      "type": "4096"
+    },
+    "PREFERENCE_PREFIX": {
+      "kind": "VariableDeclaration",
+      "type": "\"preference.\""
+    },
+    "PreferenceDefinition": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ key: string; default: T; validate: (value: unknown) => T; }"
+    },
+    "prepareAvatarImage": {
+      "kind": "FunctionDeclaration",
+      "type": "(input: Uint8Array<ArrayBufferLike>) => Promise<AvatarImage>"
+    },
+    "prepareLogoImage": {
+      "kind": "FunctionDeclaration",
+      "type": "(input: Uint8Array<ArrayBufferLike>) => Promise<LogoImage>"
     },
     "PRINT_HELPERS": {
       "kind": "VariableDeclaration",
@@ -1260,6 +1636,10 @@
       "kind": "TypeAliasDeclaration",
       "type": "{ name: string; counts: QueueCounts; failed: FailedJob[]; }"
     },
+    "readXlsxTable": {
+      "kind": "FunctionDeclaration",
+      "type": "(bytes: Uint8Array<ArrayBufferLike>, limits?: XlsxLimits | undefined) => Promise<ImportTable>"
+    },
     "Recipients": {
       "kind": "TypeAliasDeclaration",
       "type": "\"creator\" | \"submitter\" | { role: string; } | { users: number[]; } | ((context: StepContext) => number[] | Promise<number[]>)"
@@ -1312,6 +1692,14 @@
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>, id: number) => Promise<boolean>"
     },
+    "RemovedAvatarFile": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ disk: string; path: string; }"
+    },
+    "RemovedLogoFile": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ disk: string; path: string; }"
+    },
     "RenderedMessage": {
       "kind": "TypeAliasDeclaration",
       "type": "{ subject: string; body: string; mail: boolean; }"
@@ -1332,6 +1720,10 @@
       "kind": "FunctionDeclaration",
       "type": "(conditions: Conditions | undefined, actorId: number, accepts?: ((field: string) => boolean) | undefined) => Conditions | undefined"
     },
+    "ResolvedAppearance": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ company: string | null; logoId: number | null; login: { title: string | null; description: string | null; }; guestHome: { title: string | null; description: string | null; }; banner: string | null; occasion: { id: number; name: string; startsOn: string; endsOn: string; } | null; theme: DerivedTheme | null; }"
+    },
     "resolveInstallAdministrator": {
       "kind": "FunctionDeclaration",
       "type": "(knex: Knex<any, any[]>, email: string, create: () => Promise<number>, options?: { rotatePassword?: ((userId: number) => Promise<void>) | undefined; } | undefined) => Promise<{ id: number; created: boolean; rotated?: InstallAccountRotation | undefined; }>"
@@ -1342,11 +1734,19 @@
     },
     "Resource": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ name: string; label: Label; recordLabel?: Label | undefined; createLabel?: Label | undefined; model?: LucidModel | undefined; scoped: boolean; scope?: { from: string; } | undefined; submittable?: boolean | undefined; version?: boolean | undefined; fields: Record<string, Field>; list: readonly string[]; form: readonly string[]; show: readonly string[]; serialize?: readonly string[] | undefined; hidden?: readonly string[] | undefined; title?: readonly string[] | undefined; actions: readonly Action[]; unique?: readonly (readonly string[])[] | undefined; validator?: { validate(data: unknown): Promise<RecordData>; } | undefined; printTemplates?: readonly PrintTemplate[] | undefined; hooks?: { beforeSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; afterSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; } | undefined; }"
+      "type": "{ name: string; label: Label; recordLabel?: Label | undefined; createLabel?: Label | undefined; model?: LucidModel | undefined; scoped: boolean; scope?: { from: string; } | undefined; submittable?: boolean | undefined; version?: boolean | undefined; fields: Record<string, Field>; list: readonly string[]; defaultSort?: { field: string; direction?: \"asc\" | \"desc\" | undefined; } | undefined; form: readonly string[]; show: readonly string[]; serialize?: readonly string[] | undefined; hidden?: readonly string[] | undefined; title?: readonly string[] | undefined; actions: readonly Action[]; unique?: readonly (readonly string[])[] | undefined; validator?: { validate(data: unknown): Promise<RecordData>; } | undefined; printTemplates?: readonly PrintTemplate[] | undefined; hooks?: { beforeSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; afterSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; } | undefined; }"
+    },
+    "RESOURCE_READ_SCHEMA": {
+      "kind": "VariableDeclaration",
+      "type": "{ readonly type: \"object\"; readonly additionalProperties: false; readonly properties: { readonly resource: { readonly type: \"string\"; }; readonly action: { readonly type: \"string\"; readonly enum: readonly [\"list\", \"show\", \"editor\"]; }; readonly id: { readonly type: \"integer\"; readonly minimum: 1; }; readonly options: { readonly type: \"object\"; readonly properties: { readonly limit: { readonly type: \"integer\"; readonly minimum: 1; readonly maximum: 100; }; readonly cursor: { readonly type: \"string\"; }; readonly search: { readonly type: \"string\"; }; readonly sort: { readonly type: \"string\"; }; readonly direction: { readonly type: \"string\"; readonly enum: readonly [\"asc\", \"desc\"]; }; readonly filters: { readonly type: \"object\"; readonly properties: {}; readonly additionalProperties: true; }; readonly estimate: { readonly type: \"boolean\"; }; }; readonly additionalProperties: false; }; }; readonly required: readonly [\"resource\", \"action\"]; }"
+    },
+    "RESOURCE_WRITE_SCHEMA": {
+      "kind": "VariableDeclaration",
+      "type": "{ readonly type: \"object\"; readonly additionalProperties: false; readonly properties: { readonly resource: { readonly type: \"string\"; }; readonly action: { readonly type: \"string\"; readonly enum: readonly [\"create\", \"update\", \"delete\", \"submit\", \"cancel\"]; }; readonly id: { readonly type: \"integer\"; readonly minimum: 1; }; readonly input: { readonly type: \"object\"; readonly properties: {}; readonly additionalProperties: true; }; readonly version: { readonly type: \"integer\"; readonly minimum: 1; }; }; readonly required: readonly [\"resource\", \"action\"]; }"
     },
     "ResourceActivity": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ id: number; action: Action; fields: string[]; actorId: number; actorName: string | null; actorEmail: string | null; createdAt: string; }[]"
+      "type": "{ id: number; action: Action; fields: string[]; actorId: number; actorName: string | null; actorAvatarUrl: string | null; actorEmail: string | null; createdAt: string; }[]"
     },
     "resourceAddition": {
       "kind": "FunctionDeclaration",
@@ -1370,7 +1770,7 @@
     },
     "ResourceEditor": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ mode: string; name: string; label: string; recordLabel: string | null; fields: ResourceField[]; defaults: SerializedRecord; inline: Record<string, { rows: SerializedRecord[]; hasMore: boolean; canCreate: boolean; permissions: Record<string, { update: boolean; delete: boolean; }>; fields: ResourceField[]; createFields: string[]; updateFields: Record<string, string[]>; }>; options: Record<string, { value: string; label: string; }[]>; relationSearch: Record<string, boolean>; orgUnits: { value: string; label: string; }[]; scoped: boolean; scopeFrom: string | null; record: SerializedRecord | null; }"
+      "type": "{ mode: string; name: string; label: string; recordLabel: string | null; fields: ResourceField[]; defaults: SerializedRecord; inline: Record<string, { rows: SerializedRecord[]; hasMore: boolean; canCreate: boolean; permissions: Record<string, { update: boolean; delete: boolean; }>; fields: ResourceField[]; createFields: string[]; updateFields: Record<string, string[]>; }>; options: Record<string, { value: string; label: string; avatarUrl?: string | null | undefined; }[]>; relationSearch: Record<string, boolean>; orgUnits: { value: string; label: string; }[]; scoped: boolean; scopeFrom: string | null; record: SerializedRecord | null; }"
     },
     "ResourceField": {
       "kind": "TypeAliasDeclaration",
@@ -1424,6 +1824,18 @@
       "kind": "TypeAliasDeclaration",
       "type": "Pick<Resource, \"fields\" | \"name\" | \"scoped\" | \"submittable\" | \"version\"> & { unique?: readonly (readonly string[])[] | undefined; }"
     },
+    "ResourceToolCall": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ write: boolean; resource: string; action: ResourceToolAction; id?: number | undefined; options?: ListOptions | undefined; input?: Record<string, unknown> | undefined; version?: unknown; }"
+    },
+    "resourceToolError": {
+      "kind": "FunctionDeclaration",
+      "type": "(error: unknown) => ResourceToolError"
+    },
+    "ResourceToolError": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ status: number; code: string; message?: string | undefined; messages?: unknown; }"
+    },
     "ResourceUniqueIndex": {
       "kind": "TypeAliasDeclaration",
       "type": "{ name: string; columns: string[]; fields: string[]; excludeCancelled: boolean; }"
@@ -1459,6 +1871,10 @@
     "RuleInput": {
       "kind": "TypeAliasDeclaration",
       "type": "{ subject: string; action: string; inverted?: boolean | undefined; conditions?: Conditions | null | undefined; fields?: string[] | null | undefined; }"
+    },
+    "runResourceTool": {
+      "kind": "FunctionDeclaration",
+      "type": "(runtime: ResourceRuntime, call: ResourceToolCall) => Promise<unknown>"
     },
     "runtimeHealth": {
       "kind": "FunctionDeclaration",
@@ -1499,6 +1915,10 @@
     "SchemaDrift": {
       "kind": "TypeAliasDeclaration",
       "type": "{ table: string; missingTable: boolean; missingColumns: ResourceColumn[]; wrongTypes: { column: string; expected: string; actual: string; }[]; notNullColumns: string[]; missingUnique: ResourceUniqueIndex[]; staleUnique: { index: string; expected: ResourceUniqueIndex; }[]; missingJoinTables: ResourceJoinTable[]; }"
+    },
+    "sealBackupArchive": {
+      "kind": "FunctionDeclaration",
+      "type": "(snapshotDirectory: string, outFile: string, master: Buffer<ArrayBufferLike>, options?: { chunkSize?: number | undefined; } | undefined) => Promise<{ size: number; sha256: string; }>"
     },
     "SecretBox": {
       "kind": "TypeAliasDeclaration",
@@ -1692,6 +2112,10 @@
       "kind": "TypeAliasDeclaration",
       "type": "\"rtl\" | \"ltr\""
     },
+    "ThemeColors": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ '--primary': string; '--primary-foreground': string; }"
+    },
     "translate": {
       "kind": "FunctionDeclaration",
       "type": "(key: string, language?: string | undefined, params?: Readonly<Record<string, string | number>> | undefined) => string"
@@ -1746,7 +2170,7 @@
     },
     "UiPreferences": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ calendar: CalendarPreference; confirmDialogClose: boolean; pageTransitions: boolean; digits?: DigitsPreference | undefined; }"
+      "type": "{ calendar: CalendarPreference; confirmDialogClose: boolean; pageTransitions: boolean; digits?: DigitsPreference | undefined; layout?: NavigationLayout | undefined; layoutUserChoice?: boolean | undefined; }"
     },
     "UNBOUND_UPLOAD_TTL_MS": {
       "kind": "VariableDeclaration",
@@ -1768,6 +2192,10 @@
       "kind": "TypeAliasDeclaration",
       "type": "{ disk: string; path: string; name: string; originalName: string; size: number; mimeType: string; extname: string; data: Record<string, unknown>; uploadedBy: number; impersonatorId?: number | null | undefined; orgUnitId?: number | null | undefined; resource?: string | null | undefined; field?: string | null | undefined; grant?: { id: number; resource: string; recordId: number; field: string; orgUnitId: number | null; } | null | undefined; }"
     },
+    "UserAvatars": {
+      "kind": "ClassDeclaration",
+      "type": "typeof UserAvatars"
+    },
     "UserInvitations": {
       "kind": "ClassDeclaration",
       "type": "typeof UserInvitations"
@@ -1780,6 +2208,10 @@
       "kind": "TypeAliasDeclaration",
       "type": "{ data: UserSummary[]; nextCursor: number | null; }"
     },
+    "UserPreferences": {
+      "kind": "ClassDeclaration",
+      "type": "typeof UserPreferences"
+    },
     "UserRoleAssignment": {
       "kind": "TypeAliasDeclaration",
       "type": "{ id: number; roleId: number; role: string; orgUnitId: number | null; orgUnit: string | null; }"
@@ -1790,7 +2222,7 @@
     },
     "UserSummary": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ id: number; fullName: string | null; email: string; disabledAt: string | null; roles: UserRoleAssignment[]; orgUnits: UserOrgUnit[]; }"
+      "type": "{ id: number; fullName: string | null; avatarUrl?: string | null | undefined; email: string; disabledAt: string | null; roles: UserRoleAssignment[]; orgUnits: UserOrgUnit[]; }"
     },
     "validateUiPreferences": {
       "kind": "FunctionDeclaration",
@@ -1799,6 +2231,10 @@
     "verifyBackup": {
       "kind": "FunctionDeclaration",
       "type": "(db: Knex<any, any[]>, inspect: () => Promise<BackupObject[]>, now?: number | undefined, prefix?: string | undefined) => Promise<BackupStatus>"
+    },
+    "WCAG_AA": {
+      "kind": "VariableDeclaration",
+      "type": "4.5"
     },
     "Webhook": {
       "kind": "TypeAliasDeclaration",
@@ -1838,7 +2274,7 @@
     },
     "WorkflowDelegation": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ id: number; delegatorId: number; delegatorName: string | null; delegateId: number; delegateName: string | null; startsOn: string; endsOn: string; note: string | null; status: \"scheduled\" | \"active\" | \"ended\" | \"revoked\"; createdBy: number | null; createdAt: string; revokedAt: string | null; }"
+      "type": "{ id: number; delegatorId: number; delegatorName: string | null; delegatorAvatarUrl?: string | null | undefined; delegateId: number; delegateName: string | null; delegateAvatarUrl?: string | null | undefined; startsOn: string; endsOn: string; note: string | null; status: \"scheduled\" | \"active\" | \"ended\" | \"revoked\"; createdBy: number | null; createdAt: string; revokedAt: string | null; }"
     },
     "WorkflowDelegationInput": {
       "kind": "TypeAliasDeclaration",
@@ -1874,7 +2310,7 @@
     },
     "WorkflowRun": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ id: string; resource: string; resourceLabel: string; recordId: number; recordTitle: string | null; definition: string; label: string; version: number; status: WorkflowRunStatus; step: string | null; stepLabel: string | null; outcome: string | null; attempts: number; lastError: string | null; wakeAt: string | null; createdAt: string; completedAt: string | null; history: { step: string | null; event: string; actorName: string | null; onBehalfOfName?: string | null | undefined; detail: { [key: string]: JsonValue; }; at: string; }[]; myApproval: { assignmentId: number; title: string; decision?: WorkflowDecisionForm | undefined; onBehalfOf?: { id: number; name: string | null; } | null | undefined; } | null; sla?: WorkflowSlaStatus | null | undefined; }"
+      "type": "{ id: string; resource: string; resourceLabel: string; recordId: number; recordTitle: string | null; definition: string; label: string; version: number; status: WorkflowRunStatus; step: string | null; stepLabel: string | null; outcome: string | null; attempts: number; lastError: string | null; wakeAt: string | null; createdAt: string; completedAt: string | null; history: { step: string | null; event: string; actorId?: number | null | undefined; actorName: string | null; actorAvatarUrl?: string | null | undefined; onBehalfOfName?: string | null | undefined; detail: { [key: string]: JsonValue; }; at: string; }[]; myApproval: { assignmentId: number; title: string; decision?: WorkflowDecisionForm | undefined; onBehalfOf?: { id: number; name: string | null; } | null | undefined; } | null; sla?: WorkflowSlaStatus | null | undefined; }"
     },
     "WorkflowRunStatus": {
       "kind": "TypeAliasDeclaration",
@@ -1891,6 +2327,26 @@
     "writableInput": {
       "kind": "FunctionDeclaration",
       "type": "(resource: Resource, input: RecordData) => { [k: string]: unknown; }"
+    },
+    "XLSX_LIMITS": {
+      "kind": "VariableDeclaration",
+      "type": "Readonly<{ compressed: number; decompressedTotal: number; decompressedEntry: number; entries: 200; sharedStrings: 500000; rows: 5001; columns: 100; }>"
+    },
+    "XLSX_MIME_TYPE": {
+      "kind": "VariableDeclaration",
+      "type": "\"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet\""
+    },
+    "XlsxExport": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ content: Uint8Array<ArrayBufferLike>; filename: string; asciiFilename: string; rows: number; }"
+    },
+    "xlsxImportAdapter": {
+      "kind": "VariableDeclaration",
+      "type": "ImportAdapter"
+    },
+    "XlsxLimits": {
+      "kind": "TypeAliasDeclaration",
+      "type": "{ readonly compressed: number; readonly decompressedTotal: number; readonly decompressedEntry: number; readonly entries: number; readonly sharedStrings: number; readonly rows: number; readonly columns: number; }"
     }
   },
   "./auth": {
@@ -1990,7 +2446,7 @@
     },
     "Resource": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ name: string; label: Label; recordLabel?: Label | undefined; createLabel?: Label | undefined; model?: LucidModel | undefined; scoped: boolean; scope?: { from: string; } | undefined; submittable?: boolean | undefined; version?: boolean | undefined; fields: Record<string, Field>; list: readonly string[]; form: readonly string[]; show: readonly string[]; serialize?: readonly string[] | undefined; hidden?: readonly string[] | undefined; title?: readonly string[] | undefined; actions: readonly Action[]; unique?: readonly (readonly string[])[] | undefined; validator?: { validate(data: unknown): Promise<RecordData>; } | undefined; printTemplates?: readonly PrintTemplate[] | undefined; hooks?: { beforeSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; afterSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; } | undefined; }"
+      "type": "{ name: string; label: Label; recordLabel?: Label | undefined; createLabel?: Label | undefined; model?: LucidModel | undefined; scoped: boolean; scope?: { from: string; } | undefined; submittable?: boolean | undefined; version?: boolean | undefined; fields: Record<string, Field>; list: readonly string[]; defaultSort?: { field: string; direction?: \"asc\" | \"desc\" | undefined; } | undefined; form: readonly string[]; show: readonly string[]; serialize?: readonly string[] | undefined; hidden?: readonly string[] | undefined; title?: readonly string[] | undefined; actions: readonly Action[]; unique?: readonly (readonly string[])[] | undefined; validator?: { validate(data: unknown): Promise<RecordData>; } | undefined; printTemplates?: readonly PrintTemplate[] | undefined; hooks?: { beforeSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; afterSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; } | undefined; }"
     },
     "ResourceInput": {
       "kind": "TypeAliasDeclaration",

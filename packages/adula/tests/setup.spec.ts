@@ -6,6 +6,7 @@ import {
   Settings,
   SettingsAdmin,
   AdulaError,
+  classifyMailFailure,
 } from '../index.js'
 import { db, setup } from './helpers.js'
 
@@ -71,6 +72,59 @@ test.group('Initial setup evidence', (group) => {
     assert.notInclude(JSON.stringify(state), 'private')
     await rejects(() => mail.answer(1, email, 'a', state.id, true), 'E_MAIL_TEST_STALE')
     await rejects(() => mail.send(1, email, 'a', async () => {}), 'E_MAIL_TEST_COOLDOWN')
+  })
+  test('transport failures are classified into fixed, translatable reasons', ({ assert }) => {
+    const smtp = (props: Record<string, unknown>, message = 'server said: secret-token') =>
+      Object.assign(new Error(message), props)
+    const cases: [unknown, string][] = [
+      [smtp({ code: 'EAUTH', responseCode: 535, command: 'AUTH PLAIN' }), 'authentication'],
+      [smtp({ responseCode: 535 }), 'authentication'],
+      [smtp({ code: 'ECONNECTION' }, 'connect ECONNREFUSED'), 'connection'],
+      [smtp({ code: 'ESOCKET', cause: smtp({ code: 'ECONNREFUSED' }) }), 'connection'],
+      [smtp({ code: 'EDNS' }), 'host_not_found'],
+      [smtp({ code: 'ESOCKET', cause: smtp({ code: 'ENOTFOUND' }) }), 'host_not_found'],
+      [smtp({ code: 'ESOCKET' }, 'ssl3_get_record:wrong version number'), 'tls'],
+      [smtp({ code: 'ERR_SSL_WRONG_VERSION_NUMBER' }), 'tls'],
+      [smtp({ code: 'ETIMEDOUT' }), 'timeout'],
+      [smtp({ code: 'EENVELOPE', responseCode: 550, command: 'MAIL FROM' }), 'sender_rejected'],
+      [smtp({ code: 'EENVELOPE', responseCode: 550, command: 'RCPT TO' }), 'recipient_rejected'],
+      [new Error('anything'), 'unknown'],
+      ['not an error', 'unknown'],
+    ]
+    for (const [error, reason] of cases)
+      assert.equal(classifyMailFailure(error).reason, reason, JSON.stringify(error))
+    const failure = classifyMailFailure(
+      smtp({ code: 'EAUTH', responseCode: 535, command: 'AUTH secret-payload' })
+    )
+    assert.deepEqual(failure, { reason: 'authentication', code: 'EAUTH', responseCode: 535 })
+    assert.notInclude(JSON.stringify(failure), 'secret')
+  })
+  test('a classified failure reaches the administrator as a catalog sentence', async ({
+    assert,
+  }) => {
+    let caught: unknown
+    try {
+      await mail.send(1, email, 'a', async () => {
+        throw Object.assign(new Error('535 bad credentials for private-user'), {
+          code: 'EAUTH',
+          responseCode: 535,
+          command: 'AUTH LOGIN',
+        })
+      })
+    } catch (error) {
+      caught = error
+    }
+    assert.instanceOf(caught, AdulaError)
+    const error = caught as AdulaError
+    assert.equal(error.status, 502)
+    assert.equal(error.code, 'E_MAIL_TEST_SEND')
+    assert.equal(error.messageKey, 'errors.E_MAIL_TEST_SEND.authentication')
+    assert.include(error.message, 'SMTP_PASSWORD')
+    assert.notInclude(error.message, 'private-user')
+    const activity = await db('activities').where('action', 'test_send_failed').first()
+    assert.equal(activity.changes.reason, 'authentication')
+    assert.equal(activity.changes.command, 'AUTH LOGIN')
+    assert.notInclude(JSON.stringify(activity.changes), 'private-user')
   })
   test('concurrent requests send only once and stale confirmations expire', async ({ assert }) => {
     let sends = 0

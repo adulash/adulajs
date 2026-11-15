@@ -21,15 +21,17 @@ they do in the user interface. The design is recorded in
 
 ### Authentication
 
-Each user creates **personal API tokens** under the account menu (`/account/tokens`).
+Administrators create **personal API tokens** under **Administration → Settings → رموز API**
+(`/admin/tokens`); a token whose owner is not an administrator is refused with
+`403 E_TOKEN_ADMIN_ONLY` ([Authentication](authentication.md#api-tokens)).
 A token has an access level (read, or read-write) and an expiry date. Send it as
 `Authorization: Bearer adula_…` to `/api/v1`. That API takes no cookies and needs no CSRF.
 
 * Every call is authorized with the token owner's **current** roles, field rules, row
   conditions and organisation units. Revoking a role takes effect immediately.
 * Read tokens are limited to `GET`.
-* For a machine integration, create a dedicated user (for example «تكامل المحاسبة»).
-  Give it only the roles it needs, and create its token while signed in as that user.
+* For a machine integration, create a dedicated administrator (for example «تكامل المحاسبة»)
+  and create its token while signed in as that user.
 * Administrators can revoke all of a user's tokens from the user's admin page.
 
 ### Getting the client
@@ -88,7 +90,9 @@ try {
 ```
 
 * Methods return the record itself, with `data` unwrapped. The exceptions are `list`
-  (`{ data, meta }`), `aggregate` and `imports.template` (the CSV text).
+  (`{ data, meta }`), `aggregate`, `imports.template` (the CSV text) and
+  `imports.xlsxTemplate` (the workbook as an `ArrayBuffer`; a custom `fetch` must then
+  return `arrayBuffer()`).
 * Value types:
   * money is a decimal string in minor units (`'1050'` = 10.50);
   * dates and datetimes are ISO strings;
@@ -108,16 +112,20 @@ try {
 
 ### From the interface
 
-Index pages show «استيراد CSV» to users who may create records. The steps are:
+Index pages show «استيراد من ملف» to users who may create records. The file is an Excel
+workbook (`.xlsx`, first sheet only) or a UTF-8 CSV. The steps are:
 
-1. **Template.** «تنزيل قالب CSV» downloads one header row. It lists the fields the user
-   may import, labelled in Arabic, with required columns marked ` *`. The file starts with
-   a UTF-8 BOM so Excel shows Arabic correctly. Columns of a filled template map automatically.
+1. **Template.** «تنزيل قالب Excel» and «تنزيل قالب CSV» download one header row. It lists
+   the fields the user may import, labelled in Arabic, with required columns marked ` *`.
+   The CSV starts with a UTF-8 BOM so Excel shows Arabic correctly; the workbook is
+   right-to-left with a bold header. Columns of a filled template map automatically.
 2. **Upload and mapping.** Columns are matched to fields by key or Arabic label, and the
    user corrects the mapping.
 3. **Mode.** Choose «إضافة فقط» or «إضافة أو تحديث» (upsert). Upsert matches existing
    records by one field. That field must be marked `unique` in the definition and mapped
-   to a column, and upsert also needs the update permission. An empty cell in a matched
+   to a column, and upsert also needs the update permission. Only records the importer may
+   update are matched; a value held by a record outside that reach is treated as a new
+   row, so it fails as a duplicate exactly as in «إضافة فقط». An empty cell in a matched
    row keeps the stored value.
 4. **«تحقق دون حفظ» (dry run).** The worker runs every row through the real save, then
    rolls it back:
@@ -151,7 +159,7 @@ The routes are listed below. `POST` needs a read-write token.
 * `POST /api/v1/imports/:id/start`
 * `GET /api/v1/imports`
 * `GET /api/v1/imports/:id`
-* `GET /api/v1/resources/:resource/imports/template`
+* `GET /api/v1/resources/:resource/imports/template` (`?format=xlsx` for a workbook)
 
 Each file has the same limits as in the interface: 5 MB, 100 columns and 5,000 rows.
 
@@ -170,15 +178,30 @@ interface ImportAdapter {
 }
 ```
 
-* **Built in.** CSV (`csvImportAdapter`) is the only built-in format.
+* **Built in.** CSV (`csvImportAdapter`) and Excel (`xlsxImportAdapter`, `.xlsx`, binary).
 * **Registering another format.** Pass `new ImportBatches(…, { adapters: [adapter] })` or
   call `imports.registerAdapter(adapter)` in `app/services/adula.ts`. The upload screen
   then accepts the adapter's extensions.
 * **How a file finds its adapter.** A named `format` wins. Otherwise the file extension
   decides, then `detect()`.
-* **XLSX.** No XLSX parser is bundled yet: one needs the owner's approval (see
-  [GAPS](../GAPS.md)). Once a parser is approved, an XLSX adapter is a single file
-  registered this way.
+* **Excel (xlsx).** Only the first sheet is read; its first row holds the headers.
+  `guardXlsx` checks every file before the parser sees it:
+  * a password-protected or legacy `.xls` file is refused with «الملف محمي بكلمة مرور أو
+    بصيغة Excel قديمة (xls)…»;
+  * the zip structure must be consistent: each entry listed once, local headers matching
+    the directory, nothing hidden between entries, CRCs correct;
+  * every entry is inflated with its real size counted: at most 48 MiB per entry, 64 MiB
+    in all and 200 entries. A zip bomb stops at the limit with «حجم محتوى الملف بعد فك
+    الضغط يتجاوز الحد المسموح»;
+  * XML parts must be UTF-8 without a DOCTYPE or entities;
+  * rows and cells are counted, with or without cell references, before parsing: 5000 data
+    rows, 100 columns and 500,000 shared strings at most;
+  * the parser then reads a rebuilt archive that holds only the checked parts.
+
+  Cells become text: numbers without exponent, dates as `YYYY-MM-DD` (or an ISO time when
+  they have one), booleans as «نعم»/«لا». Formulas are not evaluated; a formula cell gives
+  its cached value. A corrupt file is refused with «تعذر قراءة ملف Excel: الملف تالف أو ليس
+  بصيغة xlsx», never with the parser's text.
 
 ## Sync jobs
 
@@ -295,6 +318,50 @@ worker then delivers it through each channel the recipient has enabled:
   If the worker cannot read the provider setting, the messages wait and are sent once it
   can. A message still waiting after 24 hours is dropped as `expired`.
 
+### E-mail server (SMTP)
+
+An administrator configures mail in the «البريد» tab of «الإعدادات» (`/admin/settings/mail`,
+and in the setup center). The tab shows the settings in force, «إعداد البريد» opens the form,
+and «إرسال بريد تجريبي» checks delivery. The form offers presets for Gmail or Google
+Workspace, Zoho, Amazon SES, Mailgun, SendGrid and a custom server. There is no Microsoft 365
+preset, because Microsoft is retiring password sign-in for SMTP. Each preset fills the host, port, security and,
+for SendGrid, the fixed username `apikey`. The administrator completes the username, the
+password and the sender, saves, then uses «إرسال بريد تجريبي». The change applies to the next
+message in the web process and the worker, with no restart.
+
+* **Password.** Write-only. It is sealed with `APP_KEY`, shown only as «كلمة مرور محفوظة» with
+  «تغيير» and «حذف», and never returned, flashed or logged. Changing the host clears it.
+  **Rotating `APP_KEY` makes it unreadable** unless the old key stays in `config/encryption.ts`:
+  the «البريد» tab then asks for the password again, and mail is refused (category
+  `password_unreadable`) rather than sent without signing in. Re-enter the password after a
+  rotation.
+* **Storage.** The system setting `mail.smtp`. The generic settings editor shows it read-only
+  without the sealed value.
+* **Host.** A bare name or address (no scheme, port or path). Private, loopback and metadata
+  addresses are refused unless `WEBHOOKS_ALLOW_PRIVATE=true` (the same opt-in as webhooks, so
+  it affects mail too), and the connection uses the checked address with the certificate
+  verified against the name. Link-local addresses (169.254.0.0/16, `fe80::/10` and their
+  IPv4-mapped forms, including the cloud metadata address) stay refused even with the opt-in.
+  Every message checks the address again, so a name that later resolves inside is refused
+  before connecting.
+* **Security.** TLS, STARTTLS or none. None is accepted only for an internal relay (a private
+  address, which itself needs the opt-in), at saving and again at sending, so the password and
+  the messages never cross the internet in clear text.
+* **Test message.** «إرسال بريد تجريبي» goes to the administrator's own address, with a fixed
+  subject and body. It waits one minute between tests and allows five per 15 minutes for each
+  administrator.
+* **Sender.** One plain address; the name is one line without `<`, `>` or `"`.
+* **Audit.** Each change is an activity in `core.mail` that names the changed fields, never
+  their values.
+* **Environment.** While nothing is saved, the `SMTP_*` and `MAIL_FROM_*` variables apply, and
+  changing them still needs a restart. `MAIL_SETTINGS_SOURCE=environment` makes the variables
+  win over saved settings; the form then says so.
+
+The JSON endpoints are `PUT /admin/settings/mail` (everything except the password),
+`PUT /admin/settings/mail/password` and `DELETE /admin/settings/mail/password`. All three
+require the administration permission, like the tab itself, and share the API limit of 300
+requests a minute per administrator.
+
 ### Text-message provider
 
 AdulaJS ships no SMS or WhatsApp vendor SDK. It posts each message to a provider URL.
@@ -352,6 +419,54 @@ A channel implements `NotificationChannel`, defined in `core/notification_channe
 An `opt-in` channel needs `address()` and gets the confirmation-code flow automatically.
 Register it in `app/services/notification_channels.ts`, and pass `retired` keys only
 from a successful configuration read.
+
+## AI assistant
+
+An optional assistant answers questions inside the system through an OpenAI-compatible
+chat-completions provider, OpenRouter by default (ADR 052). It reads records with the
+signed-in user's permissions through the same tool runner as MCP, and it can only propose
+changes; a change runs when the user confirms it in a review dialog.
+
+### What the deployment provides
+
+* An OpenRouter API key from the organisation's own OpenRouter account. An administrator
+  enters it as the first field of «الإدارة ← المساعد الذكي ← إعداد المساعد»; it is sealed
+  with `APP_KEY` and never shown again, and the same dialog replaces or deletes it. Rotating `APP_KEY` without keeping the old key in the key list makes the stored
+  key unreadable: enter it again.
+* The model identifier as OpenRouter lists it (for example `openai/gpt-4o-mini`), an
+  optional persona, and the limits: questions per minute per user, a daily token budget
+  per user, the longest reply, tool steps per question and the provider timeout.
+* Nothing for the provider address: it is `https://openrouter.ai/api/v1` and is not on
+  the administration form. Only a deployment behind an OpenAI-compatible proxy sets it,
+  from server code (for example `node ace repl`) with
+  `adula().assistantSettings.save(actor, { baseUrl })`. Changing it clears the stored key.
+  Private or plain-HTTP addresses need `WEBHOOKS_ALLOW_PRIVATE=true`.
+* `core.ai / use` in a role assigned to users across the whole deployment (not limited to
+  a unit), and «السماح باقتراح التعديلات» if users may have the assistant propose changes.
+* The provider's own retention and data-use settings, which are the deployment's
+  responsibility. The notice every user accepts lists what is sent: the question and
+  conversation, the records the user may read (without hidden fields), and resource names.
+
+### Operations
+
+`adula:assistant:prune` runs daily from the scheduler. Every tool call is in the activity
+log under `core.ai` with the conversation number, without record contents.
+
+## Appearance and occasions
+
+«الإدارة ← الإعدادات ← المظهر والهوية» sets the company name, logo, login and guest home
+texts and the primary colour, and dated occasions that override them (ADR 053).
+
+* The colour is `#rrggbb` only and must reach WCAG AA in the light and dark themes; the
+  dark theme uses a lighter tint of it. A failing colour is refused with the ratio.
+* Logos are PNG, JPEG or WebP up to 1 MiB, re-encoded without metadata and stored as
+  attachments; SVG is refused. A saved logo is public at `/appearance/logos/:id`.
+* An occasion runs from the start of its first day to the end of its last day in
+  `adula.timeZone`. Overlapping occasions are refused, and the base identity returns by
+  itself after the end date: nothing is scheduled.
+* Pages read the result from the `appearance` shared prop (`company`, `logoUrl`, `login`,
+  `guestHome`, `banner`, `occasion`, `theme`); a null text keeps the page's own wording.
+  Printed documents use the saved name and logo through `identity()`.
 
 ## Webhooks
 

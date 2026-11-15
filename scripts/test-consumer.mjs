@@ -254,7 +254,7 @@ const repairDb = new Client({ connectionString: testUrl.href })
 await repairDb.connect()
 try {
   await repairDb.query(
-    "DELETE FROM role_rules WHERE role_id = (SELECT id FROM roles WHERE name = 'administrator') AND subject = 'all' AND action = 'manage' AND inverted = false"
+    "DELETE FROM role_rules WHERE role_id = (SELECT id FROM roles WHERE key = 'administrator') AND subject = 'all' AND action = 'manage' AND inverted = false"
   )
 } finally {
   await repairDb.end()
@@ -265,7 +265,7 @@ const verifyRepairDb = new Client({ connectionString: testUrl.href })
 await verifyRepairDb.connect()
 try {
   const repaired = await verifyRepairDb.query(
-    "SELECT count(*)::int AS count FROM role_rules WHERE role_id = (SELECT id FROM roles WHERE name = 'administrator') AND subject = 'all' AND action = 'manage' AND inverted = false AND conditions IS NULL AND fields IS NULL"
+    "SELECT count(*)::int AS count FROM role_rules WHERE role_id = (SELECT id FROM roles WHERE key = 'administrator') AND subject = 'all' AND action = 'manage' AND inverted = false AND conditions IS NULL AND fields IS NULL"
   )
   assert.equal(repaired.rows[0].count, 1, 'Install must repair exactly one missing bootstrap grant')
 } finally {

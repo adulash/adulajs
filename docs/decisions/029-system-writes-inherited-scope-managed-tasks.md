@@ -71,3 +71,10 @@ would let a user write past the unified authorization. The owner approved a guar
   configuration and new applications enable it;
 - managed AGENTS rule 10 states that these calls belong in listeners and module
   services after an explicit authorization.
+
+## Addendum (2.3.0): naming the missing parent rule
+
+Creating or updating a `scope.from` child still requires `view` on its parent. The refusal
+now names both resources («حفظ <child> يتطلب صلاحية عرض <parent>»), and `adula:doctor` and
+`adula:install` warn about roles that may create or update such a child without any view
+rule on its parent (#140). A parent outside the actor's scope stays 404.

@@ -5,19 +5,24 @@ import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '~/components/ui/card'
 import { useMessages } from '~/components/ui/messages'
+import { useAppearance } from '~/components/appearance'
 
 type Props = { socialProviders: { name: string; label: string }[]; signupEnabled: boolean }
 
 export default function Login({ socialProviders, signupEnabled }: Props) {
   const { t, dir } = useMessages()
+  // The texts set in «المظهر والهوية» (ADR 053), else the default wording.
+  const login = useAppearance()?.login
   return (
     <>
       <Head title={t('تسجيل الدخول')} />
       <div dir={dir} className="mx-auto w-full max-w-md py-10">
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl">{t('تسجيل الدخول')}</CardTitle>
-            <CardDescription>{t('أدخل بيانات حسابك للمتابعة إلى مساحة العمل')}</CardDescription>
+            <CardTitle>{login?.title ?? t('تسجيل الدخول')}</CardTitle>
+            <CardDescription>
+              {login?.description ?? t('أدخل بيانات حسابك للمتابعة إلى مساحة العمل')}
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <Form route="session.store" className="space-y-5">

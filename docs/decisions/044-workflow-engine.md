@@ -65,8 +65,9 @@ Measured on `packages/adula` at 4ca707e:
 3. **Delegation (out-of-office).**
    * **Table.** `workflow_delegations` stores delegator, delegate, inclusive
      dates (calendar days of the system time zone), a note, the creator and the revocation. `WorkflowDelegations` creates and
-     revokes delegations. It refuses delegating to oneself, a disabled delegate,
-     overlapping ranges (under a lock on both user rows), ranges that ended and ranges
+     revokes delegations. It refuses delegating to oneself, a disabled delegate, a
+     user's own delegation to someone outside their organization path (2.3.0; an
+     administrator acting for the user may choose anyone), overlapping ranges (under a lock on both user rows), ranges that ended and ranges
      longer than a year. It records `delegation_created` and `delegation_revoked` in
      the activity log and notifies the delegate (`workflow.delegated`).
    * **New approvals.** While a delegation is in force, a new approval for the
@@ -96,7 +97,15 @@ Measured on `packages/adula` at 4ca707e:
      policy left with nobody falls back to marking the approval overdue.
    * **The delegate picker.** It searches active users by name (two characters or
      more), or by an exact e-mail address. It returns only the id and the display
-     name, so it cannot list the user directory.
+     name, so it cannot list the user directory. Since 2.3.0 a user's own picker offers
+     only users on their organization path (the same unit, an ancestor or a
+     descendant), by name and by e-mail alike; a user without a unit finds nobody. The
+     administrators' picker searches every active user. The out-of-path refusal answers
+     like an unknown user, so it cannot reveal names. Delegations created before 2.3.0
+     are kept as they are.
+   * **Counts.** The My tasks counts (`open`, `approvals`) apply the list's record
+     check to the user's own items as well as delegated ones (2.3.0), so they equal
+     what the user can list.
    * **Audit.** `assignments.completed_by` is the user who acted. The run's history
      event records `onBehalfOf` and `onBehalfOfName`, and pages show «نيابة عن ...».
 4. **SLA and escalation.**

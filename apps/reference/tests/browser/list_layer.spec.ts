@@ -36,6 +36,76 @@ test.group('List layer browser acceptance', (group) => {
     return ids
   }
 
+  test('the selection column arrives with the first rows, without a bulk request (#108)', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    const stamp = randomUUID().slice(0, 8)
+    await createTasks(admin, [`مهمة أول عرض ${stamp}`, `مهمة أول عرض ثانية ${stamp}`])
+    await browserContext.loginAs(admin.user)
+    const bulkRequests: string[] = []
+    browserContext.on('request', (request) => {
+      if (/\/resources\/tasks\/bulk(\?|$)/.test(new URL(request.url()).pathname))
+        bulkRequests.push(request.url())
+    })
+    // Records, per mutation batch, whether rows and their checkboxes were in the DOM.
+    await browserContext.addInitScript(`{
+      window.__batches = []
+      new MutationObserver(() => {
+        const rows = document.querySelectorAll('tbody tr[aria-rowindex]').length
+        if (!rows) return
+        const boxes = document.querySelectorAll('tbody tr[aria-rowindex] [role="checkbox"]').length
+        const cell = document.querySelector('tbody tr[aria-rowindex] td:not(:has([role="checkbox"]))')
+        window.__batches.push({ rows, boxes, edge: cell ? Math.round(cell.getBoundingClientRect().right) : null })
+      }).observe(document, { childList: true, subtree: true })
+    }`)
+    const page = await visit(`/resources/tasks?search=${stamp}`)
+    await page.assertElementsCount('tbody tr[aria-rowindex]', 2)
+    await page.waitForTimeout(500)
+    const batches = (await page.evaluate('window.__batches')) as {
+      rows: number
+      boxes: number
+      edge: number | null
+    }[]
+    assert.isAbove(batches.length, 0)
+    // From the first batch that shows rows, every row has its checkbox and no cell moves.
+    assert.isTrue(batches.every((batch) => batch.boxes === batch.rows))
+    assert.lengthOf([...new Set(batches.map((batch) => batch.edge))], 1)
+    assert.deepEqual(bulkRequests, [])
+  })
+
+  test('a row delete names the record, says it can be restored and «تراجع» restores it (#110)', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    const stamp = randomUUID().slice(0, 8)
+    const title = `مهمة للتراجع ${stamp}`
+    const [id] = await createTasks(admin, [title])
+    await browserContext.loginAs(admin.user)
+    const page = await visit(`/resources/tasks?search=${stamp}`)
+    await page.assertElementsCount('tbody tr[aria-rowindex]', 1)
+    // The accessible name is a verb with the record's title, not «حذف السجل السجل 12».
+    await page.getByRole('button', { name: `حذف ${title}`, exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'حذف السجل', exact: true })
+    await dialog.waitFor()
+    await page.assertVisible(
+      dialog.getByText(/سيُنقل السجل إلى «المحذوفات»، ويمكن استعادته منها\./)
+    )
+    await dialog.getByRole('button', { name: 'تأكيد', exact: true }).click()
+    await page.assertElementsCount('tbody tr[aria-rowindex]', 0)
+    const deleted = await knex()('tasks').where('id', id).first()
+    assert.isNotNull(deleted.deleted_at)
+    await page.getByRole('button', { name: 'تراجع', exact: true }).click()
+    await page.assertVisible(page.getByText('تمت استعادة السجل', { exact: true }))
+    await page.assertElementsCount('tbody tr[aria-rowindex]', 1)
+    const restored = await knex()('tasks').where('id', id).first()
+    assert.isNull(restored.deleted_at)
+    for (const text of ['حذف السجل السجل', '1 سجل', 'سجل المهام'])
+      assert.equal(await page.getByText(text).count(), 0, text)
+  })
+
   test('selected rows run a bulk action; a row changed meanwhile is reported, the rest succeed', async ({
     browserContext,
     visit,
@@ -65,8 +135,8 @@ test.group('List layer browser acceptance', (group) => {
     await dialog.waitFor()
     await page.assertVisible(dialog.getByText('تعليم المهام المحددة كمنجزة؟'))
     await dialog.getByRole('button', { name: 'تأكيد', exact: true }).click()
-    await page.assertVisible(dialog.getByText('نُفذ على 1 سجل'))
-    await page.assertVisible(dialog.getByText('تعذر تنفيذ الإجراء على 1 سجل'))
+    await page.assertVisible(dialog.getByText('نُفذ الإجراء: سجل واحد'))
+    await page.assertVisible(dialog.getByText('تعذر التنفيذ: سجل واحد'))
     const failure = dialog.locator('ul > li')
     assert.equal(await failure.count(), 1)
     assert.include(await failure.innerText(), titles[1])
@@ -74,7 +144,7 @@ test.group('List layer browser acceptance', (group) => {
     // The per-row reason is the server's Arabic message.
     assert.match(await failure.innerText(), /[؀-ۿ]{3,}.*[؀-ۿ]{3,}$/)
     await dialog
-      .locator('[data-slot="dialog-footer"]')
+      .locator('[data-slot="long-dialog-footer"]')
       .getByRole('button', { name: 'إغلاق' })
       .click()
     // The list refreshed: the deleted task left it.
@@ -97,9 +167,9 @@ test.group('List layer browser acceptance', (group) => {
       'bg-destructive'
     )
     await removal.getByRole('button', { name: 'تأكيد', exact: true }).click()
-    await page.assertVisible(removal.getByText('نُفذ على 2 سجل'))
+    await page.assertVisible(removal.getByText('نُفذ الإجراء: سجلان'))
     await removal
-      .locator('[data-slot="dialog-footer"]')
+      .locator('[data-slot="long-dialog-footer"]')
       .getByRole('button', { name: 'إغلاق' })
       .click()
     await page.assertVisible(page.getByText('لا توجد سجلات مطابقة'))
@@ -129,7 +199,7 @@ test.group('List layer browser acceptance', (group) => {
     // Trashed rows offer restore only: no create, view, edit or row delete; no saved views.
     assert.equal(await page.getByRole('link', { name: 'مهمة جديدة', exact: true }).count(), 0)
     assert.equal(await page.getByRole('link', { name: /عرض السجل/ }).count(), 0)
-    assert.equal(await page.getByRole('button', { name: /^حذف السجل/ }).count(), 0)
+    assert.equal(await page.getByRole('button', { name: /^حذف/ }).count(), 0)
     assert.equal(await page.getByRole('button', { name: 'حفظ العرض الحالي' }).count(), 0)
     assert.equal(await page.getByRole('button', { name: 'تصدير النتائج' }).count(), 0)
     await page.getByLabel('البحث في المهام').fill(stamp)
@@ -156,8 +226,11 @@ test.group('List layer browser acceptance', (group) => {
     await region.getByRole('button', { name: 'استعادة', exact: true }).click()
     const bulk = page.getByRole('dialog', { name: 'استعادة' })
     await bulk.getByRole('button', { name: 'تأكيد', exact: true }).click()
-    await page.assertVisible(bulk.getByText('نُفذ على 2 سجل'))
-    await bulk.locator('[data-slot="dialog-footer"]').getByRole('button', { name: 'إغلاق' }).click()
+    await page.assertVisible(bulk.getByText('نُفذ الإجراء: سجلان'))
+    await bulk
+      .locator('[data-slot="long-dialog-footer"]')
+      .getByRole('button', { name: 'إغلاق' })
+      .click()
     await page.assertVisible(page.getByText('لا توجد سجلات مطابقة'))
     const live = await knex()('tasks').whereIn('id', ids).whereNull('deleted_at')
     assert.lengthOf(live, 3)
@@ -223,7 +296,7 @@ test.group('List layer browser acceptance', (group) => {
     // Each widget links to its resource list.
     assert.equal(
       await page
-        .getByRole('link', { name: 'فتح سجلات عدد الطلبات', exact: true })
+        .getByRole('link', { name: 'فتح القائمة: عدد الطلبات', exact: true })
         .getAttribute('href'),
       '/resources/orders'
     )

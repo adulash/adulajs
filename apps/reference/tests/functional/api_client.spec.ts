@@ -7,7 +7,7 @@ import ts from 'typescript'
 import db from '@adonisjs/lucid/services/db'
 import env from '#start/env'
 import { adula } from '#services/adula'
-import { seedActor, type UiActor } from '#tests/helpers/ui_fixtures'
+import { seedApiAdministrator, type UiActor } from '#tests/helpers/ui_fixtures'
 
 const json = { Accept: 'application/json' }
 const knex = () => db.connection().getWriteClient()
@@ -17,7 +17,8 @@ test.group('Generated API client', (group) => {
   let secret: string | undefined
   group.setup(async () => {
     // Level 0: the money total (level 1) and the hidden internal note are not readable.
-    owner = await seedActor([{ subject: 'orders', action: 'manage' }], {
+    // API tokens belong to administrators, so the owner is one limited to orders.
+    owner = await seedApiAdministrator(['orders'], {
       fullName: 'مالك العميل البرمجي',
       level: 0,
     })
@@ -25,7 +26,7 @@ test.group('Generated API client', (group) => {
 
   async function token(client: any) {
     const response = await client
-      .post('/account/tokens')
+      .post('/admin/tokens')
       .loginAs(owner.user)
       .withCsrfToken()
       .headers(json)

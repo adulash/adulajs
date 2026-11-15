@@ -1,4 +1,5 @@
 import { test } from '@japa/runner'
+import knex from 'knex'
 import {
   Assignments,
   ResourceService,
@@ -43,8 +44,20 @@ const peer: Actor = {
 }
 /** A disabled account. */
 const retired: Actor = { id: 7, orgPaths: ['1.2'], permissionLevel: 0, rules: [] }
+/** A user of the child unit 1.2.4, below the manager's unit: never reads unit 1.2 orders. */
+const child: Actor = {
+  id: 8,
+  orgPaths: ['1.2.4'],
+  permissionLevel: 1,
+  rules: [{ subject: 'orders', action: 'view' }],
+}
+/** A user without an organization unit. */
+const unplaced: Actor = { id: 9, orgPaths: [], permissionLevel: 1, rules: [] }
 const actors = new Map(
-  [admin, reader, manager, deputy, stranger, peer, retired].map((actor) => [actor.id, actor])
+  [admin, reader, manager, deputy, stranger, peer, retired, child, unplaced].map((actor) => [
+    actor.id,
+    actor,
+  ])
 )
 
 /** One approval step; orders whose notes say "peer" go to the peer instead of the manager. */
@@ -91,6 +104,16 @@ test.group('Workflow approval delegation', (group) => {
     await seedActor(stranger, { email: 'stranger@example.test', fullName: 'موظف فرع آخر' })
     await seedActor(peer, { email: 'peer@example.test', fullName: 'زميل' })
     await seedActor(retired, { email: 'retired@example.test', fullName: 'متقاعد', disabled: true })
+    await seedActor(admin, { email: 'admin@example.test', fullName: 'مدير النظام' })
+    await seedActor(child, { email: 'child@example.test', fullName: 'موظف الوحدة الفرعية' })
+    await seedActor(unplaced, { email: 'unplaced@example.test', fullName: 'موظف بلا وحدة' })
+    // Memberships mirror each actor's organization paths (units 1, 1.2, 1.3 and 1.2.4).
+    const unit: Record<string, number> = { '1': 1, '1.2': 2, '1.3': 3, '1.2.4': 4 }
+    await db('user_org_units').insert(
+      [...actors.values()].flatMap((actor) =>
+        actor.orgPaths.map((path) => ({ user_id: actor.id, org_unit_id: unit[path] }))
+      )
+    )
   })
   group.each.setup(async () => {
     now = START
@@ -382,6 +405,8 @@ test.group('Workflow approval delegation', (group) => {
     const page = await assignments().mine(deputy)
     assert.equal(page.open, 1)
     assert.equal(page.approvals, 1)
+    // The delegate's «مهامي» badge counts the approval held for the manager (#156).
+    assert.deepEqual(await assignments().openCounts(deputy), { open: 1, approvals: 1 })
     assert.lengthOf(page.data, 1)
     assert.include(page.data[0], {
       id: Number(pending.id),
@@ -438,8 +463,9 @@ test.group('Workflow approval delegation', (group) => {
   test('a delegation never widens what the delegate may read', async ({ assert }) => {
     const workflows = engine()
     const before = await submitted(workflows)
-    await delegate(manager.id, stranger.id, '2026-10-10', '2026-10-12')
-    // The stranger cannot read unit 1.2 orders, so a new approval stays with the manager.
+    // The child-unit user is on the manager's organization path but reads only unit 1.2.4.
+    await delegate(manager.id, child.id, '2026-10-10', '2026-10-12')
+    // The delegate cannot read unit 1.2 orders, so a new approval stays with the manager.
     const after = await submitted(workflows)
     const [routed] = await db('assignments').where({ workflow_run_id: after })
     assert.include(routed, { assignee_id: manager.id, on_behalf_of: null, delegation_id: null })
@@ -448,15 +474,15 @@ test.group('Workflow approval delegation', (group) => {
       .first()
     assert.deepEqual(requested.detail, { approvers: [manager.id] })
 
-    assert.lengthOf(await workflows.inbox(stranger), 0)
-    const page = await assignments().mine(stranger)
+    assert.lengthOf(await workflows.inbox(child), 0)
+    const page = await assignments().mine(child)
     assert.lengthOf(page.data, 0)
     // The My tasks badge must not reveal approvals on records the delegate cannot open.
     assert.deepEqual([page.open, page.approvals], [0, 0])
     for (const runId of [before, after]) {
-      const decided = await failure(() => workflows.decide(runId, stranger, 'approve'))
+      const decided = await failure(() => workflows.decide(runId, child, 'approve'))
       assert.deepEqual([decided.status, decided.code], [404, 'E_WORKFLOW_NOT_FOUND'])
-      const shown = await failure(() => workflows.run(runId, stranger))
+      const shown = await failure(() => workflows.run(runId, child))
       assert.equal(shown.status, 404)
     }
     assert.lengthOf(await db('assignments').where({ status: 'open' }), 2)
@@ -665,6 +691,189 @@ test.group('Workflow approval delegation', (group) => {
     assert.throws(
       () => new WorkflowDelegations(db, { timeZone: 'Nowhere/City' }),
       /Unknown time zone/
+    )
+  })
+
+  test("the delegate picker offers only users on the delegator's organization path", async ({
+    assert,
+  }) => {
+    const found = async (search: string, exceptId: number) => {
+      const users = await delegations().candidates(search, exceptId)
+      return users.map((user) => user.id).sort()
+    }
+    // The same unit, a descendant (1.2.4) and an ancestor (root) are on the path; the
+    // sibling unit 1.3 is not, by name or by exact e-mail.
+    assert.includeMembers(await found('موظف', manager.id), [child.id])
+    assert.notInclude(await found('موظف', manager.id), stranger.id)
+    assert.deepEqual(await found('stranger@example.test', manager.id), [])
+    assert.deepEqual(await found('deputy@example.test', manager.id), [deputy.id])
+    assert.deepEqual(await found('مدير النظام', manager.id), [admin.id])
+    assert.deepEqual(await found('مدير القسم', child.id), [manager.id])
+    assert.deepEqual(await found('نائب', stranger.id), [])
+    assert.deepEqual(await found('deputy@example.test', stranger.id), [])
+    // A user without a unit shares a path with nobody.
+    assert.deepEqual(await found('مدير', unplaced.id), [])
+    assert.notInclude(await found('موظف', manager.id), unplaced.id)
+    // Administrators (exceptId 0) search every active user.
+    assert.deepEqual(await found('موظف فرع آخر', 0), [stranger.id])
+    assert.deepEqual(await found('stranger@example.test', 0), [stranger.id])
+    assert.deepEqual(await found('متقاعد', 0), [])
+    assert.deepEqual(await found('retired@example.test', manager.id), [])
+  })
+
+  test("a user's own delegation refuses a delegate outside their organization path", async ({
+    assert,
+  }) => {
+    const outside = await failure(() =>
+      delegate(manager.id, stranger.id, '2026-10-10', '2026-10-12')
+    )
+    // The same answer as an unknown user, so the endpoint cannot reveal names.
+    const unknown = await failure(() => delegate(manager.id, 999, '2026-10-10', '2026-10-12'))
+    assert.deepEqual([outside.status, outside.code], [422, 'E_DELEGATE'])
+    assert.deepEqual([outside.message, outside.code], [unknown.message, unknown.code])
+    const unplacedRefused = await failure(() =>
+      delegate(unplaced.id, deputy.id, '2026-10-10', '2026-10-12')
+    )
+    assert.equal(unplacedRefused.code, 'E_DELEGATE')
+    assert.lengthOf(await db('workflow_delegations'), 0)
+    assert.lengthOf(await db('notifications').where('user_id', stranger.id), 0)
+
+    const down = await delegate(manager.id, child.id, '2026-10-10', '2026-10-12')
+    assert.equal(down.delegateId, child.id)
+    const up = await delegate(child.id, manager.id, '2026-10-10', '2026-10-12')
+    assert.equal(up.delegateId, manager.id)
+    await delegations().revoke(down.id, manager.id)
+    const byAdmin = await delegations().create(
+      {
+        delegatorId: manager.id,
+        delegateId: stranger.id,
+        startsOn: '2026-10-10',
+        endsOn: '2026-10-12',
+      },
+      admin.id
+    )
+    assert.equal(byAdmin.delegateId, stranger.id)
+    assert.lengthOf(await db('notifications').where('user_id', stranger.id), 1)
+  })
+
+  test('concurrent decisions need no second pool connection while the run is locked', async ({
+    assert,
+  }) => {
+    const runs = []
+    for (let i = 0; i < 6; i++) runs.push(await submitted(engine()))
+    // Three times more concurrent decisions than connections.
+    const narrow = knex({
+      client: 'pg',
+      connection: db.client.config.connection,
+      searchPath: ['adula_test', 'public'],
+      pool: { min: 0, max: 2 },
+      acquireConnectionTimeout: 5000,
+    })
+    try {
+      const resources = new ResourceService(narrow, registry)
+      const tasks = new Assignments(narrow, resources, loader, { now: clock })
+      const deciding = new WorkflowEngine(
+        narrow,
+        registry,
+        resources,
+        loader,
+        tasks,
+        [approval()],
+        {
+          now: clock,
+        }
+      )
+      const results = await Promise.allSettled(
+        runs.map((runId) => deciding.decide(runId, manager, 'approve'))
+      )
+      assert.deepEqual(
+        results.map((result) => (result.status === 'rejected' ? String(result.reason) : 'ok')),
+        runs.map(() => 'ok')
+      )
+    } finally {
+      await narrow.destroy()
+    }
+    const decided = await db('assignments').whereIn('workflow_run_id', runs).pluck('status')
+    assert.deepEqual(
+      decided,
+      runs.map(() => 'done')
+    )
+  })
+
+  test('a decision that opens the next approval checks its approvers on the locked run', async ({
+    assert,
+  }) => {
+    // The second step goes to the peer, whose approvals are delegated to the deputy: opening
+    // it checks the peer and the deputy can view the record, both inside the decision.
+    const twoStage = defineWorkflow({
+      name: 'two_stage_approval',
+      version: 1,
+      resource: 'orders',
+      label: 'اعتماد على مرحلتين',
+      start: 'review',
+      steps: {
+        review: {
+          type: 'approval',
+          label: 'موافقة المدير',
+          assignees: () => [manager.id],
+          approve: 'confirm',
+          reject: 'rejected',
+        },
+        confirm: {
+          type: 'approval',
+          label: 'تأكيد الزميل',
+          assignees: () => [peer.id],
+          approve: 'approved',
+          reject: 'rejected',
+        },
+        approved: { type: 'end', outcome: 'approved' },
+        rejected: { type: 'end', outcome: 'rejected' },
+      },
+    })
+    const starting = new WorkflowEngine(
+      db,
+      registry,
+      service(),
+      loader,
+      assignments(),
+      [twoStage],
+      {
+        now: clock,
+      }
+    )
+    const delegation = await delegate(peer.id, deputy.id, '2026-10-10', '2026-10-12')
+    const runs = []
+    for (let i = 0; i < 6; i++) runs.push(await submitted(starting))
+    const narrow = knex({
+      client: 'pg',
+      connection: db.client.config.connection,
+      searchPath: ['adula_test', 'public'],
+      pool: { min: 0, max: 2 },
+      acquireConnectionTimeout: 5000,
+    })
+    try {
+      const resources = new ResourceService(narrow, registry)
+      const tasks = new Assignments(narrow, resources, loader, { now: clock })
+      const deciding = new WorkflowEngine(narrow, registry, resources, loader, tasks, [twoStage], {
+        now: clock,
+      })
+      const results = await Promise.allSettled(
+        runs.map((runId) => deciding.decide(runId, manager, 'approve'))
+      )
+      assert.deepEqual(
+        results.map((result) => (result.status === 'rejected' ? String(result.reason) : 'ok')),
+        runs.map(() => 'ok')
+      )
+    } finally {
+      await narrow.destroy()
+    }
+    const next = await db('assignments')
+      .whereIn('workflow_run_id', runs)
+      .where('status', 'open')
+      .select('assignee_id', 'on_behalf_of', 'delegation_id')
+    assert.deepEqual(
+      next.map((row) => [row.assignee_id, row.on_behalf_of, row.delegation_id]),
+      runs.map(() => [deputy.id, peer.id, delegation.id])
     )
   })
 })

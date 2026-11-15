@@ -50,7 +50,7 @@ test.group('Core administration services', (group) => {
     const matrix = roles.matrix()
     assert.deepEqual(
       matrix.subjects.map((subject) => subject.name),
-      ['all', 'core.users', ...registry.all().map((resource) => resource.name)]
+      ['all', 'core.users', 'core.ai', ...registry.all().map((resource) => resource.name)]
     )
     assert.deepEqual(matrix.actions, [
       'view',
@@ -61,6 +61,7 @@ test.group('Core administration services', (group) => {
       'cancel',
       'amend',
       'invite',
+      'use',
       'manage',
     ])
     const orders = matrix.subjects.find((subject) => subject.name === 'orders')!

@@ -25,11 +25,21 @@ import cache from '@adonisjs/cache/services/main'
 import type { Actor } from 'adula'
 import type { HttpContext } from '@adonisjs/core/http'
 import { activeImpersonation } from '#services/impersonation'
-import { HttpChannelSettings } from 'adula'
+import {
+  HttpChannelSettings,
+  Assistant,
+  AssistantSettings,
+  MailSettings,
+  createChatClient,
+} from 'adula'
 import { SyncJobs } from 'adula'
 import { syncJobDefinitions } from '#start/sync_jobs'
+import { UserPreferences, Appearance } from 'adula'
+import { preferences } from '#start/preferences'
 
 export { IMPERSONATOR_KEY } from '#services/impersonation'
+
+let appearanceService: Appearance | undefined
 
 export function adula() {
   const knex = db.connection().getWriteClient()
@@ -46,9 +56,38 @@ export function adula() {
     closeNote: 'optional',
     timeZone,
   })
+  // The built-in assistant (ADR 052): the provider key is sealed like webhook secrets.
+  const assistantSettings = new AssistantSettings(
+    knex,
+    {
+      seal: (value) => encryption.encrypt(value),
+      open: (value) => encryption.decrypt<string>(value),
+    },
+    outboundPolicy()
+  )
   return {
     registry,
     resources,
+    assistantSettings,
+    // In-app SMTP settings (ADR 020 amendment): the password is sealed like the assistant key.
+    mailSettings: new MailSettings(
+      knex,
+      {
+        seal: (value) => encryption.encrypt(value),
+        open: (value) => encryption.decrypt<string>(value),
+      },
+      outboundPolicy()
+    ),
+    // Identity and occasion themes (ADR 053), resolved per request in the system time zone.
+    // One instance per process: it keeps the short cache, and tests set its clock.
+    appearance: (appearanceService ??= new Appearance(knex, { timeZone })),
+    assistant: new Assistant(
+      knex,
+      registry,
+      resources,
+      assistantSettings,
+      createChatClient(outboundPolicy())
+    ),
     savedViews: new SavedViews(knex, registry),
     bulk: new BulkActions(registry, resources, bulkActions, {
       report: (error, context) =>
@@ -68,6 +107,10 @@ export function adula() {
       { post: createOutboundPoster(outboundPolicy()), timeZone }
     ),
     delegations: new WorkflowDelegations(knex, { timeZone }),
+    // Declared in start/preferences.ts (ADR 049); each user reads and writes only their own.
+    preferences: new UserPreferences(knex, preferences, (key, error) =>
+      logger.warn({ err: error, key }, 'stored preference no longer validates')
+    ),
     imports: new ImportBatches(knex, registry, resources, actors),
     // Declared in start/sync_jobs.ts; the scheduler queues them and the worker runs them.
     syncJobs: new SyncJobs(knex, resources, syncJobDefinitions, {

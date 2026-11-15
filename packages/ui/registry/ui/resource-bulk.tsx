@@ -7,14 +7,16 @@ import { Alert, AlertDescription, AlertTitle } from '~/components/ui/alert'
 import { Button } from '~/components/ui/button'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '~/components/ui/dialog'
+import { LongDialogContent } from '~/components/ui/long-dialog'
 import { failureMessage } from '~/components/ui/resource-actions'
-import { useMessages } from '~/components/ui/messages'
+import { documentCount, recordCount, useMessages } from '~/components/ui/messages'
 import { relationLabel } from '~/components/ui/resource-value'
 import { BULK_LIMIT, bulkPayload } from '~/components/ui/list_query'
 
@@ -44,11 +46,12 @@ const builtInLabels: Record<string, string> = {
   submit: 'اعتماد',
   cancel: 'إلغاء المستند',
 }
+// `{records}`/`{documents}` are counted phrases («سجلان»، «11 سجلًا»), never «{count} سجل» (#110).
 const builtInDescriptions: Record<string, string> = {
-  delete: 'سيُحذف {count} سجل محدد ويُخفى من القوائم.',
-  restore: 'سيُستعاد {count} سجل محذوف إلى السجلات النشطة.',
-  submit: 'سيُعتمد {count} مستند محدد ولن يمكن تعديله بعد الاعتماد.',
-  cancel: 'سيُلغى اعتماد {count} مستند محدد ولن يُحتسب.',
+  delete: 'سيُحذف {records} من القوائم، وتبقى الاستعادة ممكنة من «المحذوفات».',
+  restore: 'سيُستعاد {records} من «المحذوفات» إلى السجلات النشطة.',
+  submit: 'سيُعتمد {documents}، ولا يمكن التعديل بعد الاعتماد.',
+  cancel: 'سيُلغى الاعتماد. المحدد: {documents}. لا يُحتسب المستند الملغى.',
 }
 
 const asList = (data: unknown): BulkAction[] => {
@@ -66,13 +69,24 @@ export function actionScope(action: BulkAction) {
   return action.scope ?? (action.key === 'restore' ? 'trash' : 'records')
 }
 
-/** Loads the bulk actions the actor may offer; refusals and failures mean none. */
-export function useBulkActions(resource: string, enabled = true) {
-  const [actions, setActions] = useState<BulkAction[]>([])
+/**
+ * The bulk actions the actor may offer; refusals and failures mean none. `initial` comes with
+ * the page props of the generic list (#108), so the selection column renders with the first rows;
+ * pages that pass nothing load them from `GET /resources/:name/bulk`.
+ */
+export function useBulkActions(resource: string, enabled = true, initial?: BulkAction[]) {
+  const given = initial === undefined ? undefined : asList(initial)
+  // A new array holding the same actions (every page visit) is not a change.
+  const seed = given === undefined ? null : JSON.stringify(given)
+  const [actions, setActions] = useState<BulkAction[]>(() => (enabled ? (given ?? []) : []))
   useEffect(() => {
     let live = true
     if (!enabled) {
       setActions([])
+      return
+    }
+    if (given) {
+      setActions(given)
       return
     }
     axios
@@ -84,7 +98,7 @@ export function useBulkActions(resource: string, enabled = true) {
     return () => {
       live = false
     }
-  }, [resource, enabled])
+  }, [resource, enabled, seed])
   return actions
 }
 
@@ -120,10 +134,13 @@ export function BulkBar({
     action.confirm
       ? action.confirm
       : builtInDescriptions[action.key]
-        ? t(builtInDescriptions[action.key], { count })
-        : t('سيُنفذ الإجراء «{action}» على {count} سجل محدد.', {
+        ? t(builtInDescriptions[action.key], {
+            records: recordCount(count, t),
+            documents: documentCount(count, t),
+          })
+        : t('سيُنفذ الإجراء «{action}». المحدد: {records}.', {
             action: name(action),
-            count,
+            records: recordCount(count, t),
           })
   const destructive = (action: BulkAction) => action.destructive ?? action.key === 'delete'
   const titles = new Map(rows.map((row) => [String(row.id), relationLabel(row, row.id)]))
@@ -140,7 +157,7 @@ export function BulkBar({
       const outcome = response.data.data
       setResult(outcome)
       if (!outcome.failed.length)
-        toast.success(t('نُفذ على {count} سجل', { count: outcome.succeeded.length }))
+        toast.success(t('نُفذ الإجراء: {records}', { records: recordCount(outcome.succeeded.length, t) }))
     } catch (error) {
       setFailure(failureMessage(error, t('تعذر تنفيذ الإجراء. تحقق من صلاحياتك وحاول مجدداً.'), t))
     } finally {
@@ -168,15 +185,15 @@ export function BulkBar({
           <span className="font-medium tabular-nums">
             {t('تم تحديد {count}', { count: selected.length })}
           </span>
-          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={onClear}>
+          <Button variant="ghost" size="xs" onClick={onClear}>
             <X size={13} />
             {t('إلغاء التحديد')}
           </Button>
           <span className="ms-auto flex flex-wrap items-center gap-2">
             {over && (
               <span className="text-xs text-destructive">
-                {t('يمكن تنفيذ الإجراء على {count} سجل كحد أقصى في كل مرة.', {
-                  count: BULK_LIMIT,
+                {t('الحد الأقصى في كل مرة: {records}.', {
+                  records: recordCount(BULK_LIMIT, t),
                 })}
               </span>
             )}
@@ -202,22 +219,47 @@ export function BulkBar({
         </div>
       )}
       <Dialog open={pending !== null} onOpenChange={(open) => !open && close()}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{pending ? name(pending) : ''}</DialogTitle>
-            <DialogDescription>
+        <LongDialogContent
+          width="lg"
+          title={pending ? name(pending) : ''}
+          description={
+            <>
               {pending ? describe(pending, ids.length) : ''}{' '}
               {!result && t('يُتحقق من صلاحيتك لكل سجل على حدة.')}
-            </DialogDescription>
-          </DialogHeader>
+            </>
+          }
+          footer={
+            result ? (
+              <Button type="button" onClick={close}>
+                {t('إغلاق')}
+              </Button>
+            ) : (
+              <>
+                <DialogClose asChild>
+                  <Button type="button" variant="outline" disabled={busy}>
+                    {t('إلغاء')}
+                  </Button>
+                </DialogClose>
+                <Button
+                  type="button"
+                  variant={pending && destructive(pending) ? 'destructive' : 'default'}
+                  disabled={busy}
+                  onClick={() => void execute()}
+                >
+                  {busy ? t('جارٍ التنفيذ...') : t('تأكيد')}
+                </Button>
+              </>
+            )
+          }
+        >
           {result && (
             <div className="grid gap-3">
               {result.succeeded.length > 0 && (
                 <Alert>
                   <CircleCheck />
                   <AlertTitle>
-                    {t('نُفذ على {count} سجل', {
-                      count: result.succeeded.length,
+                    {t('نُفذ الإجراء: {records}', {
+                      records: recordCount(result.succeeded.length, t),
                     })}
                   </AlertTitle>
                 </Alert>
@@ -226,12 +268,12 @@ export function BulkBar({
                 <Alert variant="destructive">
                   <CircleAlert />
                   <AlertTitle>
-                    {t('تعذر تنفيذ الإجراء على {count} سجل', {
-                      count: result.failed.length,
+                    {t('تعذر التنفيذ: {records}', {
+                      records: recordCount(result.failed.length, t),
                     })}
                   </AlertTitle>
                   <AlertDescription>
-                    <ul className="max-h-48 w-full space-y-1 overflow-y-auto text-xs">
+                    <ul className="w-full space-y-1 text-xs">
                       {result.failed.map((entry) => (
                         <li key={String(entry.id)}>
                           <span className="font-medium">
@@ -255,28 +297,7 @@ export function BulkBar({
               {failure}
             </p>
           )}
-          <DialogFooter>
-            {result ? (
-              <Button type="button" onClick={close}>
-                {t('إغلاق')}
-              </Button>
-            ) : (
-              <>
-                <Button type="button" variant="outline" disabled={busy} onClick={close}>
-                  {t('تراجع')}
-                </Button>
-                <Button
-                  type="button"
-                  variant={pending && destructive(pending) ? 'destructive' : 'default'}
-                  disabled={busy}
-                  onClick={() => void execute()}
-                >
-                  {busy ? t('جارٍ التنفيذ...') : t('تأكيد')}
-                </Button>
-              </>
-            )}
-          </DialogFooter>
-        </DialogContent>
+        </LongDialogContent>
       </Dialog>
     </>
   )

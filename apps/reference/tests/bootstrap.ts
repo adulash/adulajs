@@ -63,12 +63,13 @@ export const runnerHooks: Required<Pick<Config, 'setup' | 'teardown'>> = {
     async () => {
       if (!env.get('DB_DATABASE').endsWith('_test') || !app.inTest)
         throw new Error('HTTP tests require a dedicated *_test database')
-      // Both stores use the explicit adula-reference-test prefix and Redis DB 15.
+      // Both stores use Redis DB 15 with the adula-reference-test:<test database> prefix,
+      // so clearing them touches only this run's database, never another checkout's run.
       await queue.clear(['events'])
       await cache.clear()
       await testUtils.db().migrate()
       await db.rawQuery(
-        'TRUNCATE users, user_sessions, password_reset_tokens, social_accounts, org_units, roles, settings, lookups, sequences, activities, outbox, processed_events, notifications, workflow_runs, attachments, saved_views, tags, taggables, assignments, message_templates, webhooks, auth_access_tokens, import_batches, workflow_events, user_two_factor, user_two_factor_recovery_codes RESTART IDENTITY CASCADE'
+        'TRUNCATE users, user_sessions, password_reset_tokens, social_accounts, org_units, roles, settings, lookups, sequences, activities, outbox, processed_events, notifications, workflow_runs, attachments, saved_views, tags, taggables, assignments, message_templates, webhooks, auth_access_tokens, import_batches, workflow_events, user_two_factor, user_two_factor_recovery_codes, ai_conversations, ai_pending_actions, ai_usage RESTART IDENTITY CASCADE'
       )
       // Suites create administrators without a second factor. Enforcement is switched off
       // here; tests/functional/two_factor.spec.ts restores the default (required) and covers it.

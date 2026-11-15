@@ -40,8 +40,9 @@ const env = await Env.create(new URL('../', import.meta.url), {
   // Reverse proxies whose X-Forwarded-For is believed (comma-separated loopback,
   // linklocal, uniquelocal, addresses or CIDRs). Unset trusts loopback only.
   TRUSTED_PROXIES: Env.schema.string.optional(),
-  // Lets outgoing webhooks and workflow HTTP steps reach http:// and private or loopback
-  // addresses. Never enable it where administrators must not reach the internal network.
+  // Lets outgoing webhooks, workflow HTTP steps and the in-app SMTP server reach http:// and
+  // private or loopback addresses (link-local stays refused for mail). Never enable it where
+  // administrators must not reach the internal network.
   WEBHOOKS_ALLOW_PRIVATE: Env.schema.boolean.optional(),
   REDIS_HOST: Env.schema.string(),
   REDIS_PORT: Env.schema.number(),
@@ -53,6 +54,17 @@ const env = await Env.create(new URL('../', import.meta.url), {
   BACKUP_S3_REGION: Env.schema.string.optional(),
   BACKUP_S3_ACCESS_KEY_ID: Env.schema.string.optional(),
   BACKUP_S3_SECRET_ACCESS_KEY: Env.schema.string.optional(),
+  // Encrypted downloadable and cloud backups (ADR 051): base64 of 32 random bytes. Keep an
+  // offline copy: an archive cannot be opened without it.
+  BACKUP_ENCRYPTION_KEY: Env.schema.string.optional(),
+  // Google Drive (scope drive.file) and OneDrive (Files.ReadWrite.AppFolder) destinations;
+  // each is offered only when both of its values are present.
+  BACKUP_GOOGLE_CLIENT_ID: Env.schema.string.optional(),
+  BACKUP_GOOGLE_CLIENT_SECRET: Env.schema.string.optional(),
+  BACKUP_MICROSOFT_CLIENT_ID: Env.schema.string.optional(),
+  BACKUP_MICROSOFT_CLIENT_SECRET: Env.schema.string.optional(),
+  // common (work and personal accounts), consumers, organizations or a tenant id.
+  BACKUP_MICROSOFT_TENANT: Env.schema.string.optional(),
 
   /*
   |----------------------------------------------------------
@@ -75,6 +87,8 @@ const env = await Env.create(new URL('../', import.meta.url), {
   SMTP_REQUIRE_TLS: Env.schema.boolean.optional(),
   SMTP_USERNAME: Env.schema.string.optional(),
   SMTP_PASSWORD: Env.schema.string.optional(),
+  // 'environment' ignores the SMTP settings saved in the administration (ADR 020 amendment).
+  MAIL_SETTINGS_SOURCE: Env.schema.enum.optional(['settings', 'environment'] as const),
 
   /*
   |----------------------------------------------------------
@@ -102,6 +116,14 @@ const env = await Env.create(new URL('../', import.meta.url), {
   AWS_ENDPOINT: Env.schema.string.optional(),
   S3_BUCKET: Env.schema.string.optional(),
 })
+
+// A malformed key fails at boot instead of at the first backup.
+const backupEncryptionKey = env.get('BACKUP_ENCRYPTION_KEY')
+if (backupEncryptionKey) {
+  const decoded = Buffer.from(backupEncryptionKey.trim(), 'base64')
+  if (decoded.length !== 32 || decoded.toString('base64') !== backupEncryptionKey.trim())
+    throw new Error('BACKUP_ENCRYPTION_KEY must be the base64 encoding of exactly 32 bytes')
+}
 
 if (env.get('NODE_ENV') === 'production') {
   for (const key of [

@@ -212,37 +212,59 @@ export async function renderProject(target, template, { name, identity, packageF
   const brand = { company: identity.company, logo: identity.logoPath ?? null }
   files['company-identity.json'] = JSON.stringify(brand, null, 2) + '\n'
   files['inertia/brand.ts'] = `export const brand = ${JSON.stringify(brand, null, 2)}\n`
+  // The guest and workspace shells share the company mark; without it the new system would
+  // show the reference company's letter, so a template that lacks it is refused.
+  if (files['inertia/components/brand-mark.tsx'] === undefined)
+    throw new Error('The template has no inertia/components/brand-mark.tsx (the company mark)')
+  // The shells declare names of their own (the saved appearance is a local `brand`), so the
+  // creator's identity enters under a name no template file uses.
+  const alias = 'companyBrand'
+  // Each rewrite must land: a template that lost an anchor would keep the reference brand.
+  const rewrite = (path, source, anchor, replacement) => {
+    const hit = typeof anchor === 'string' ? source.includes(anchor) : anchor.test(source)
+    if (!hit) throw new Error(`The template's ${path} has no brand anchor ${anchor}`)
+    return typeof anchor === 'string'
+      ? source.replaceAll(anchor, replacement)
+      : source.replace(anchor, replacement)
+  }
   for (const path of [
     'inertia/layouts/default.tsx',
     'inertia/layouts/workspace.tsx',
-    'inertia/pages/home.tsx',
+    'inertia/components/brand-mark.tsx',
   ]) {
-    files[path] = `import { brand } from '~/brand'\n` + files[path]
+    if (new RegExp(`\\b${alias}\\b`).test(files[path]))
+      throw new Error(`The template's ${path} already uses the name ${alias}`)
+    // The fallback name, shown while no appearance identity is saved; a saved one still wins.
+    files[path] =
+      `import { brand as ${alias} } from '~/brand'\n` +
+      (path === 'inertia/components/brand-mark.tsx'
+        ? // The company mark's letter, whatever its indentation (tests/brand-anchors.test.mjs).
+          rewrite(
+            path,
+            files[path],
+            /^([ \t]*)أ$/m,
+            `$1{${alias}.logo ? <img src={${alias}.logo} alt="" className="size-full object-contain" /> : ${alias}.company.charAt(0)}`
+          )
+        : rewrite(path, files[path], '>أدولا<', `>{${alias}.company}<`))
   }
-  files['inertia/layouts/default.tsx'] = files['inertia/layouts/default.tsx']
-    .replace('aria-label="AdulaJS — الرئيسية"', 'aria-label={brand.company}')
-    .replace(
-      '<strong dir="ltr">AdulaJS</strong>',
-      '<strong>{brand.logo && <img src={brand.logo} alt="" className="inline-block size-8 object-contain" />} {brand.company}</strong>'
-    )
-  files['inertia/layouts/workspace.tsx'] = files['inertia/layouts/workspace.tsx']
-    .replaceAll('>عدولة<', '>{brand.company}<')
-    .replace('التطبيق المرجعي', '{brand.company}')
-    .replace(
-      '            ع\n',
-      '            {brand.logo ? <img src={brand.logo} alt="" className="size-10 object-contain" /> : brand.company.charAt(0)}\n'
-    )
-    .replace('text-white', 'text-primary-foreground')
-  files['inertia/pages/home.tsx'] = files['inertia/pages/home.tsx'].replace(
-    "{ app: 'AdulaJS' }",
-    '{ app: brand.company }'
-  )
   files['inertia/app.tsx'] =
-    `import { brand } from './brand'\n` +
-    files['inertia/app.tsx'].replace(
-      "import.meta.env.VITE_APP_NAME || 'AdulaJS'",
-      'brand.company'
+    `import { brand as ${alias} } from './brand'\n` +
+    rewrite(
+      'inertia/app.tsx',
+      files['inertia/app.tsx'],
+      "import.meta.env.VITE_APP_NAME || 'أدولا'",
+      `${alias}.company`
     )
+  // The tab title before a page sets its own shows the company, never the framework. The
+  // name is free text: as character references it cannot open markup, an Edge tag or
+  // interpolation, nor a replacement pattern in the rewrite below.
+  const titleText = identity.company.replace(/[&<>"'{}@$\\`]/g, (c) => `&#${c.charCodeAt(0)};`)
+  files['resources/views/inertia_layout.edge'] = rewrite(
+    'resources/views/inertia_layout.edge',
+    files['resources/views/inertia_layout.edge'] ?? '',
+    /(<title data-inertia>\s*)أدولا(\s*<\/title>)/,
+    `$1${titleText}$2`
+  )
   files['docs/design-identity.md'] =
     `# Company identity\n\nSource: project creator, supplied during installation.\n\n- Company: ${identity.company}\n- Logo: ${identity.logoPath ?? 'Pending; request it before further visual design.'}\n- Primary color: ${identity.primaryColor ?? 'Pending; existing AdulaJS colors are provisional.'}\n- Font: ${identity.fontFamily ?? 'Pending; IBM Plex Sans Arabic is provisional.'}\n- Guidelines: ${identity.guidelines ?? 'Pending; request the company brand guide.'}\n\nUse the bundled adula-frontend-design skill for business interfaces. Keep shadcn/ui and Dialog defaults. A specified font must be licensed and installed locally or added as a project-owned asset; do not fetch unprovided fonts or branding.\n`
   files['AGENTS.md'] =

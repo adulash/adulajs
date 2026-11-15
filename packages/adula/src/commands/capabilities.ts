@@ -113,6 +113,7 @@ export const SERVICES: Record<string, string[]> = {
     'openApiDocument',
     'apiClientSource',
     'ImportBatches',
+    'xlsxImportAdapter',
     'renderPrintHtml',
     'htmlToPdf',
   ],
@@ -150,7 +151,6 @@ export const OUTSIDE_ADULAJS = [
   'Runtime plugins',
   'A visual workflow editor',
   'Multi-tenant SaaS in one database (one deployment per organization)',
-  'XLSX import until a maintained parser passes the dependency rule (GAP-006)',
 ]
 
 /** The capability catalog read by idea-review: generated, never hand-edited. */

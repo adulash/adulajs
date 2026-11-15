@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { router } from '@inertiajs/react'
 import { Link } from '@adonisjs/inertia/react'
 import axios from 'axios'
@@ -15,9 +15,11 @@ import {
   type InlineRow,
 } from '~/components/ui/resource-field'
 import { Label } from '~/components/ui/label'
+import { useDialogValue } from '~/components/ui/dialog'
 import { useMessages } from '~/components/ui/messages'
 import { inputValue, isAttachment, parseValue } from '~/components/ui/resource-value'
 import { hiddenFields, listInput } from '~/components/ui/field_values'
+import { RecordFooter, openRecord, pinCreated } from '~/components/ui/resource-surface'
 
 type Failure = { message: string; conflict: boolean }
 type RowErrors = Record<string, Record<string, Record<string, string>>>
@@ -28,10 +30,41 @@ function initialValue(field: Field, value: unknown) {
   return inputValue(field, value)
 }
 
+const entries = (record: Record<string, string>) =>
+  Object.keys(record)
+    .sort()
+    .map((key) => [key, record[key]])
+
+/** What the form would submit, independent of key order, for the unsaved-changes check. */
+function snapshot(values: Record<string, string>, rows: Record<string, InlineRow[]>, unit: string) {
+  return JSON.stringify([
+    entries(values),
+    Object.keys(rows)
+      .sort()
+      .map((key) => [
+        key,
+        rows[key]
+          // A row added and removed again changes nothing.
+          .filter((row) => !(row.id === undefined && row.deleted))
+          .map((row) => [row.id ?? null, Boolean(row.deleted), entries(row.values)]),
+      ]),
+    unit,
+  ])
+}
+
+/** The first control to focus for an invalid field: the field itself or its first focusable part. */
+function focusable(element: HTMLElement): HTMLElement | null {
+  if (element.tabIndex >= 0 && !element.hasAttribute('disabled')) return element
+  return element.querySelector<HTMLElement>(
+    'input:not([disabled]):not([type=hidden]), button:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  )
+}
+
 export function ResourceForm({
   editor,
   permissions = {},
   onSaved,
+  createdAction,
   onCancel,
   onAction,
 }: {
@@ -39,6 +72,8 @@ export function ResourceForm({
   permissions?: RecordPermissions
   /** Called with the saved record id instead of visiting its page (record dialogs). */
   onSaved?: (id: number) => void
+  /** An action offered in the toast after a create, for example «عرض» the new record. */
+  createdAction?: { label: string; onClick: (id: number) => void }
   /** Replaces the cancel link (record dialogs return to the details). */
   onCancel?: () => void
   /** Called after a record action (submit, delete...) instead of visiting a page. */
@@ -46,6 +81,11 @@ export function ResourceForm({
 }) {
   const { t, label } = useMessages()
   const base = `/resources/${editor.name}`
+  // «عرض» in the toast after a create opens the new record over the list.
+  const created = createdAction ?? {
+    label: t('عرض'),
+    onClick: (id: number) => void openRecord(editor.name, id, 'show'),
+  }
   const scalar = editor.fields.filter((field) => field.type !== 'hasMany')
   const inlineFields = editor.fields.filter(
     (field) => field.type === 'hasMany' && field.inline && editor.inline[field.key]
@@ -85,6 +125,23 @@ export function ResourceForm({
   const [rowErrors, setRowErrors] = useState<RowErrors>({})
   const [sectionErrors, setSectionErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
+  // In a dialog, the dialog compares this with how the form opened (nothing on a page).
+  useDialogValue(snapshot(values, rows, unit))
+  const form = useRef<HTMLFormElement>(null)
+  // The save button sits in the dialog's fixed footer, outside the form's markup.
+  const formId = useId()
+  // Counts refused submits, so focus moves to the first invalid field after the errors render.
+  const [refused, setRefused] = useState(0)
+  useEffect(() => {
+    if (!refused || !form.current) return
+    const invalid = [...form.current.querySelectorAll<HTMLElement>('[aria-invalid="true"]')]
+    const target =
+      invalid.map(focusable).find((element) => element !== null) ??
+      form.current.querySelector<HTMLElement>(':scope > [data-slot="alert"]')
+    target?.focus({ preventScroll: true })
+    // The nearest scroller: the dialog body in a dialog, the window on a page.
+    target?.scrollIntoView({ block: 'nearest' })
+  }, [refused])
   const multiValued = new Set(
     editor.fields
       .filter((field) => field.type === 'multiSelect' || field.type === 'manyToMany')
@@ -209,6 +266,7 @@ export function ResourceForm({
       setErrors(fieldErrors)
       setRowErrors(collected)
       setFailure({ message: t('راجع الحقول المحددة ثم أعد المحاولة.'), conflict: false })
+      setRefused((count) => count + 1)
       return
     }
     if (editor.scoped && !editor.scopeFrom) payload.orgUnitId = Number(unit)
@@ -223,16 +281,28 @@ export function ResourceForm({
         headers: { Accept: 'application/json' },
         withXSRFToken: true,
       })
+      const savedId = response.data.data.id
       toast.success(
         editor.mode === 'create'
           ? editor.recordLabel
             ? t('تمت إضافة {record}', { record: editor.recordLabel })
             : t('تمت إضافة السجل')
-          : t('تم حفظ التعديلات')
+          : t('تم حفظ التعديلات'),
+        editor.mode === 'create'
+          ? {
+              action: {
+                label: created.label,
+                onClick: () => created.onClick(savedId),
+              },
+            }
+          : undefined
       )
-      if (onSaved) onSaved(response.data.data.id)
+      if (onSaved) onSaved(savedId)
+      // A new record returns to the list, pinned first and highlighted (owner, 2.3.0).
+      else if (editor.mode === 'create')
+        router.visit(base, { onSuccess: () => void pinCreated(editor.name, savedId) })
       // The details replace the form in the same dialog instead of closing and reopening.
-      else router.visit(`${base}/${response.data.data.id}`, { preserveState: true })
+      else router.visit(`${base}/${savedId}`, { preserveState: true })
     } catch (error) {
       const unknown =
         axios.isAxiosError(error) && Array.isArray(error.response?.data?.errors)
@@ -247,6 +317,7 @@ export function ResourceForm({
             ? unknown.join(' · ')
             : failureMessage(error, t('تعذر الحفظ. راجع البيانات وحاول مجدداً.'), t),
       })
+      setRefused((count) => count + 1)
     } finally {
       setBusy(false)
     }
@@ -258,9 +329,17 @@ export function ResourceForm({
   )
 
   return (
-    <form onSubmit={submit} noValidate className="max-w-4xl space-y-6" aria-busy={busy}>
+    <form
+      ref={form}
+      id={formId}
+      onSubmit={submit}
+      noValidate
+      // The page keeps a reading width; a dialog body is already bounded.
+      className="max-w-4xl space-y-6 in-data-[slot=dialog-content]:max-w-none"
+      aria-busy={busy}
+    >
       {failure && (
-        <Alert variant="destructive" role="alert">
+        <Alert variant="destructive" role="alert" tabIndex={-1}>
           <AlertTitle>{failure.conflict ? t('تعارض في الإصدار') : t('تعذر الحفظ')}</AlertTitle>
           <AlertDescription className="flex flex-wrap items-center gap-3">
             {failure.message}
@@ -273,7 +352,7 @@ export function ResourceForm({
           </AlertDescription>
         </Alert>
       )}
-      <section className="rounded-xl border bg-white">
+      <section className="rounded-xl border bg-card">
         <div className="border-b px-7 py-5">
           <h2 className="text-sm font-semibold">{t('تفاصيل السجل')}</h2>
           <p className="mt-2 text-xs text-muted-foreground">
@@ -361,8 +440,8 @@ export function ResourceForm({
       {editor.record?.version !== undefined && editor.record.version !== null && (
         <input type="hidden" name="version" value={String(editor.record.version)} />
       )}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2">
+      <RecordFooter>
+        <div className="me-auto flex flex-wrap gap-2">
           {editor.record && (
             <ResourceActions
               resource={editor.name}
@@ -377,22 +456,26 @@ export function ResourceForm({
             />
           )}
         </div>
-        <div className="flex gap-3">
-          {onCancel ? (
-            <Button type="button" variant="outline" onClick={onCancel}>
-              {t('إلغاء')}
-            </Button>
-          ) : (
-            <Button type="button" variant="outline" asChild>
-              <Link href={editor.record ? `${base}/${editor.record.id}` : base}>{t('إلغاء')}</Link>
-            </Button>
-          )}
-          <Button type="submit" disabled={busy}>
-            <Save size={16} />
-            {busy ? t('جارٍ الحفظ...') : t('حفظ السجل')}
+        {onCancel ? (
+          <Button type="button" variant="outline" onClick={onCancel}>
+            {t('إلغاء')}
           </Button>
-        </div>
-      </div>
+        ) : (
+          <Button type="button" variant="outline" asChild>
+            <Link
+              href={editor.record ? `${base}/${editor.record.id}` : base}
+              // Back to the details in the same dialog; a new record returns to the list.
+              preserveState={Boolean(editor.record)}
+            >
+              {t('إلغاء')}
+            </Link>
+          </Button>
+        )}
+        <Button type="submit" form={formId} disabled={busy}>
+          <Save size={16} />
+          {busy ? t('جارٍ الحفظ...') : t('حفظ السجل')}
+        </Button>
+      </RecordFooter>
     </form>
   )
 }

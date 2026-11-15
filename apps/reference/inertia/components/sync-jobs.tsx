@@ -6,13 +6,8 @@ import type { SyncJobSummary, SyncRun } from 'adula'
 import { useDateTimeFormatter } from '~/components/admin-nav'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from '~/components/ui/dialog'
+import { Dialog, DialogClose } from '~/components/ui/dialog'
+import { LongDialogContent } from '~/components/ui/long-dialog'
 import {
   Table,
   TableBody,
@@ -77,7 +72,7 @@ export function SyncJobsSection({ jobs }: { jobs: SyncJobSummary[] }) {
     }
   }
   return (
-    <section className="mb-8 overflow-hidden rounded-xl border border-border bg-white">
+    <section className="mb-8 overflow-hidden rounded-xl border border-border bg-card">
       <div className="border-b border-border px-5 py-4">
         <h2 className="font-semibold">مهام المزامنة</h2>
         <p className="mt-1 text-xs text-muted-foreground">
@@ -162,16 +157,26 @@ export function SyncJobsSection({ jobs }: { jobs: SyncJobSummary[] }) {
           )}
         </TableBody>
       </Table>
-      <Dialog open={history !== null} onOpenChange={(value) => !value && setHistory(null)}>
-        <DialogContent dir="rtl" className="sm:max-w-4xl">
-          <DialogHeader>
-            <DialogTitle>سجل التشغيل</DialogTitle>
-            <DialogDescription>
-              {history?.job.label.ar}: آخر 20 تشغيلاً، الأحدث أولاً.
-            </DialogDescription>
-          </DialogHeader>
+      <Dialog
+        mode="view"
+        open={history !== null}
+        onOpenChange={(value) => !value && setHistory(null)}
+      >
+        <LongDialogContent
+          dir="rtl"
+          width="4xl"
+          title="سجل التشغيل"
+          description={`${history?.job.label.ar ?? ''}: آخر 20 تشغيلاً، الأحدث أولاً.`}
+          footer={
+            <DialogClose asChild>
+              <Button type="button" variant="outline">
+                إغلاق
+              </Button>
+            </DialogClose>
+          }
+        >
           {error && <p className="text-sm text-destructive">{error}</p>}
-          <div className="max-h-[60vh] overflow-auto">
+          <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -227,7 +232,7 @@ export function SyncJobsSection({ jobs }: { jobs: SyncJobSummary[] }) {
               </TableBody>
             </Table>
           </div>
-        </DialogContent>
+        </LongDialogContent>
       </Dialog>
     </section>
   )

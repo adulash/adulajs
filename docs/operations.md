@@ -15,6 +15,11 @@ Only Caddy publishes a port. Keep credentials in the untracked `.env`;
 secrets. Add `docker-compose.pdf.yml` and set `GOTENBERG_URL=http://gotenberg:3000` for PDF
 printing (plan for 8 GB hosts).
 
+Mail settings saved in the «البريد» tab apply to `web`, `worker` and `scheduler` without a
+restart. Set `MAIL_SETTINGS_SOURCE=environment` in `.env` to make the `SMTP_*` and
+`MAIL_FROM_*` variables win instead; Compose passes it to the application services only
+([integration](integration.md)).
+
 Serve the system over HTTPS with HTTP/2; the bundled Caddy does. Each browser shares one
 realtime stream across its tabs, but a proxy in front must not downgrade to HTTP/1.1.
 
@@ -70,6 +75,48 @@ The scheduler runs `backup:verify` hourly (a recent snapshot with `COMPLETE` and
 checksum objects under this prefix) and `backup:restore-test` monthly (restore into a
 temporary database, open a record with its attachment, drop the database). Run either by
 hand with `docker compose -f docker-compose.prod.yml run --rm web node ace.js <command>`.
+
+## Encrypted downloads and cloud backups
+
+Administrators can also create an encrypted backup from «النسخ الاحتياطي»
+(`/admin/backups`): download it to their machine, or send it to Google Drive or OneDrive, now
+or daily/weekly (ADR 051). This is an extra copy; it does not replace the offsite snapshot
+above, and production still requires the `BACKUP_S3_*` variables.
+
+The Google Drive and OneDrive destinations are experimental in 2.3.0: they have not been
+verified against real Google Drive or OneDrive accounts, and ADR 051 stays proposed.
+
+Configuration (all optional; `node ace adula:doctor` reports what is missing):
+
+* `BACKUP_ENCRYPTION_KEY`: base64 of 32 random bytes, for example
+  `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`. **Keep a copy
+  outside the server. Without this key no archive can ever be opened**, and a new key does not
+  open archives made with the old one.
+* Google Drive: an OAuth client (type Web) in your Google Cloud project with the Drive API
+  enabled, the `drive.file` scope on a published consent screen (a screen in "testing" mode
+  expires the connection after 7 days), redirect URI
+  `<APP_URL>/admin/backups/oauth/google/callback`, then `BACKUP_GOOGLE_CLIENT_ID` and
+  `BACKUP_GOOGLE_CLIENT_SECRET`.
+* OneDrive: a Microsoft Entra app registration with the delegated permissions
+  `Files.ReadWrite.AppFolder` and `offline_access`, web redirect URI
+  `<APP_URL>/admin/backups/oauth/onedrive/callback`, then `BACKUP_MICROSOFT_CLIENT_ID`,
+  `BACKUP_MICROSOFT_CLIENT_SECRET` and optionally `BACKUP_MICROSOFT_TENANT` (`common` by
+  default; `consumers` for personal accounts only, or your tenant id).
+* The worker writes archives to `storage/backups` and the web container serves downloads from
+  it, so both mount the private `backup_files` volume (docker-compose.prod.yml). Allow about
+  twice the database and attachment size there while a backup runs.
+
+To recover from an archive:
+
+```sh
+node ace backup:open --file=adulajs-backup-<stamp>.adulabackup --snapshot=/backups/<new directory>
+node ace backup:verify-snapshot --snapshot=/backups/<new directory>
+make restore FILE=/backups/<new directory>
+```
+
+`backup:open` needs the same `BACKUP_ENCRYPTION_KEY`. The opened directory is unencrypted:
+delete it after the restore. `backup:seal --snapshot=<dir> --file=<new file>` encrypts an
+existing snapshot the same way.
 
 ## Restore
 

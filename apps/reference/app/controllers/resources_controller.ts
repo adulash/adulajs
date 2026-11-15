@@ -84,6 +84,8 @@ export default createResourceController(
         ),
         lookups: await runtime.resources.lookups(resource.name, actor),
         savedViews: await runtime.savedViews.list(resource.name, actor),
+        // Sent with the rows so the selection column is there on the first render (#108).
+        bulkActions: runtime.bulk.available(resource.name, actor),
       }),
       result: ctx.inertia
         .scroll(result, (value) => ({
@@ -142,6 +144,7 @@ export default createResourceController(
         ),
         lookups: await runtime.resources.lookups(resource.name, actor),
         savedViews: [],
+        bulkActions: runtime.bulk.available(resource.name, actor),
         trashed: true,
       }),
       result: ctx.inertia

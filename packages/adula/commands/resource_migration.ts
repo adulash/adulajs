@@ -7,6 +7,7 @@ import { embeddedResource } from '../src/commands/snapshot.js'
 import {
   additionMigrationSource,
   describeDrift,
+  missingStandardColumns,
   resourceAddition,
   schemaDrift,
 } from '../src/database/schema_diff.js'
@@ -48,7 +49,17 @@ export default class ResourceMigration extends BaseCommand {
         `${this.name}.${entry.column} is ${entry.actual}, the definition expects ${entry.expected}; types are never changed automatically (write an expand/contract migration).`
       )
     const addition = resourceAddition(resource, drift)
-    if (!Object.keys(addition).length) {
+    // Standard columns are not fields: the version column is added by a fixed statement
+    // (#138); the others need a hand-written expand migration and fail the command.
+    const standard = missingStandardColumns(drift)
+    for (const column of standard.unsupported) {
+      this.logger.error(
+        `${this.name}.${column} is missing and cannot be generated: write an expand migration by hand.`
+      )
+      this.exitCode = 1
+    }
+    if (!Object.keys(addition).length && !standard.statements.length) {
+      if (standard.unsupported.length) return
       this.logger.info(
         `${this.name}: the database already has every column, join table and unique index.`
       )
@@ -66,9 +77,13 @@ export default class ResourceMigration extends BaseCommand {
         } catch {}
     const file = `${folder}/${Date.now()}_alter_${this.name}.ts`
     await mkdir(this.app.makePath(folder), { recursive: true })
-    await writeFile(this.app.makePath(file), additionMigrationSource(this.name, addition), {
-      flag: 'wx',
-    })
+    await writeFile(
+      this.app.makePath(file),
+      additionMigrationSource(this.name, addition, standard.statements),
+      {
+        flag: 'wx',
+      }
+    )
     for (const line of describeDrift(drift)) this.logger.info(line)
     this.logger.success(file)
     this.logger.info('Review the migration, then run migration:run after the deployment backup.')

@@ -1,9 +1,13 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { router, usePage } from '@inertiajs/react'
 import { Link } from '@adonisjs/inertia/react'
 import { Transmit } from '@adonisjs/transmit-client'
 import { Bell } from 'lucide-react'
 import { toast } from 'sonner'
+import { useMessages } from '~/components/ui/messages'
+import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
+import { headerIconClass } from '~/components/header_icon'
+import { isActivePath } from '~/components/shell_navigation'
 
 const HIDDEN_GRACE_MS = 10_000
 let client: Transmit | undefined
@@ -108,20 +112,28 @@ function joinRealtime(userId: number, onMessage: () => void, onCatchUp: () => vo
 export function NotificationBell() {
   const page = usePage<{
     unreadNotifications?: number
-    user?: { id: number; email: string }
+    account?: { id: number; email: string }
   }>()
-  const userId = page.props.user?.id
+  const userId = page.props.account?.id
+  const { t } = useMessages()
+  // The stream outlives navigations; it reads the current wording through a ref.
+  const text = useRef(t)
+  text.current = t
   useEffect(() => {
     if (!userId) return
     let leaveRealtime: (() => void) | undefined
     const onMessage = () => {
-      router.reload({ only: ['unreadNotifications'] })
-      toast('وصلك إشعار جديد', {
-        action: { label: 'عرض', onClick: () => router.visit('/notifications') },
+      // New work arrives with a notification, so «مهامي» refreshes with the bell (#156).
+      // Asynchronous like the catch-up: a background refresh never replaces the page, or a
+      // dialog the user opened over it meanwhile.
+      router.reload({ only: ['unreadNotifications', 'openTasks'], async: true })
+      toast(text.current('وصلك إشعار جديد'), {
+        action: { label: text.current('عرض'), onClick: () => router.visit('/notifications') },
       })
     }
     // Asynchronous, so a catch-up never cancels the navigation the user is making.
-    const catchUp = () => router.reload({ only: ['unreadNotifications'], async: true })
+    const catchUp = () =>
+      router.reload({ only: ['unreadNotifications', 'openTasks'], async: true })
     const open = () => {
       leaveRealtime ??= joinRealtime(userId, onMessage, catchUp)
     }
@@ -149,23 +161,31 @@ export function NotificationBell() {
       close()
     }
   }, [userId])
-  if (!page.props.user) return null
+  if (!page.props.account) return null
   const count = page.props.unreadNotifications ?? 0
+  const active = isActivePath(page.url, '/notifications')
   return (
-    <Link
-      href="/notifications"
-      aria-label={count ? `الإشعارات، ${count} غير مقروء` : 'الإشعارات'}
-      className="relative grid size-9 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
-    >
-      <Bell size={18} strokeWidth={1.6} />
-      {count > 0 && (
-        <span
-          data-testid="unread-count"
-          className="absolute -end-0.5 -top-0.5 min-w-4 rounded-full bg-destructive px-1 text-center text-[10px] font-semibold leading-4 text-white"
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Link
+          href="/notifications"
+          aria-label={count ? t('الإشعارات، {count} غير مقروء', { count }) : t('الإشعارات')}
+          aria-current={active ? 'page' : undefined}
+          data-testid="notifications-button"
+          className={headerIconClass(active)}
         >
-          {count}
-        </span>
-      )}
-    </Link>
+          <Bell size={18} strokeWidth={1.6} aria-hidden />
+          {count > 0 && (
+            <span
+              data-testid="unread-count"
+              className="absolute -end-0.5 -top-0.5 min-w-4 rounded-full bg-destructive px-1 text-center text-[10px] font-semibold leading-4 text-destructive-foreground"
+            >
+              {count}
+            </span>
+          )}
+        </Link>
+      </TooltipTrigger>
+      <TooltipContent>{t('الإشعارات')}</TooltipContent>
+    </Tooltip>
   )
 }

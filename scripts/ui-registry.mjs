@@ -93,7 +93,7 @@ export async function adaptSource(filename, source, transformDirection) {
 }
 
 async function sync() {
-  const names = ['button', 'input', 'textarea', 'select', 'checkbox', 'switch', 'radio-group', 'table', 'form', 'label', 'dialog', 'sheet', 'dropdown-menu', 'popover', 'command', 'calendar', 'badge', 'card', 'tabs', 'sonner', 'skeleton', 'pagination', 'tooltip', 'separator', 'alert']
+  const names = ['button', 'input', 'textarea', 'select', 'checkbox', 'switch', 'radio-group', 'table', 'form', 'label', 'dialog', 'sheet', 'dropdown-menu', 'popover', 'command', 'calendar', 'badge', 'card', 'tabs', 'sonner', 'skeleton', 'pagination', 'tooltip', 'separator', 'alert', 'breadcrumb']
   await mkdir(new URL('registry/ui/', root), { recursive: true })
   const items = []
   const sources = []
@@ -181,7 +181,7 @@ async function register() {
     'resource-value': { registry: ['badge'], npm: ['lucide-react'] },
     'resource-actions': { registry: ['button', 'dialog', 'can'], npm: ['axios', 'sonner'] },
     'resource-field': {
-      registry: ['input', 'textarea', 'button', 'label', 'select', 'switch', 'popover', 'calendar', 'command', 'resource-value'],
+      registry: ['input', 'textarea', 'button', 'label', 'select', 'switch', 'popover', 'calendar', 'command', 'resource-value', 'user-avatar'],
       npm: ['axios', 'date-fns', 'lucide-react'],
     },
     'data-table': {
@@ -193,11 +193,11 @@ async function register() {
       npm: ['axios', 'sonner', 'lucide-react'],
     },
     'resource-show': {
-      registry: ['button', 'badge', 'skeleton', 'can', 'resource-actions', 'resource-value'],
+      registry: ['button', 'badge', 'skeleton', 'can', 'resource-actions', 'resource-value', 'user-avatar'],
       npm: ['lucide-react'],
     },
     'resource-surface': { registry: ['button', 'dialog'], npm: [] },
-    'resource-page': { registry: ['button', 'data-table', 'resource-form', 'resource-show', 'resource-surface'], npm: ['lucide-react'] },
+    'resource-page': { registry: ['button', 'card', 'data-table', 'resource-form', 'resource-show', 'resource-surface'], npm: ['lucide-react'] },
   }
   for (const [name, { registry: registryDependencies, npm }] of Object.entries(components)) {
     const entry = { name, type: 'registry:ui', registryDependencies, dependencies: npm.map(pin),
