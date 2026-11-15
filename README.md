@@ -117,7 +117,8 @@ export default defineResource({
 ```
 
 From this declaration and the user's permissions you get the list page (search, filters,
-sorting, saved views), forms in dialogs, a record page with comments and change history,
+sorting, saved views, newest first), forms in dialogs that open over the list and have their
+own address (`?new=1`, `?edit=<id>`), a record page with comments and change history,
 token-authenticated endpoints under `/api/v1` and their OpenAPI description.
 
 ## What's in the box
@@ -127,11 +128,13 @@ token-authenticated endpoints under `/api/v1` and their OpenAPI description.
 | **Resources** | Typed fields including money (integer minor units) and dates, inline child rows, unique fields, versioned updates (stale writes return 409), soft delete, generated screens |
 | **Authorization** | Roles and rules in the database, field-level permissions, organizational scope, CASL compiled to SQL, administration screens for users, roles and units |
 | **Documents and workflows** | Submit, cancel and amend-by-copy; versioned workflows as code with `condition`, `approval`, `update`, `notify`, `delay`, `http` and `end` steps |
+| **Workspace** | One header over a collapsible sidebar or a top layout, light and dark themes, a personal overview, profile pictures, and the company's appearance with scheduled occasion themes |
 | **Collaboration** | Comments with mentions, followers, tags, field-level change history, assignments and a "My tasks" inbox with in-place approvals |
-| **Notifications** | Editable message templates, e-mail delivery and a realtime bell over SSE |
-| **Integrations** | Signed outgoing webhooks with retries, verified inbound webhooks, personal API tokens, OpenAPI |
-| **Data** | CSV import through the same permission checks; RTL A4 printing with optional PDF |
-| **Files and backups** | Attachments on local disk or S3, offsite database and file backups, restore verification |
+| **Notifications** | Editable message templates, e-mail delivery with SMTP settings in the interface, and a realtime bell over SSE |
+| **Integrations** | Signed outgoing webhooks with retries, verified inbound webhooks, administrator API tokens, OpenAPI |
+| **Data** | CSV and Excel import and export through the same permission checks; RTL A4 printing with optional PDF |
+| **Files and backups** | Attachments on local disk or S3, offsite database and file backups, restore verification, encrypted downloadable backups, and Google Drive and OneDrive destinations (experimental) |
+| **AI assistant** | Optional, through an administrator-supplied OpenRouter key |
 | **Operations** | `adula:doctor` for installation, migrations, backups, the event outbox, UI drift and agent assets; a worker and a scheduler for background work |
 | **Agents** | Managed `AGENTS.md`, the `adula:capabilities` catalog, idea-review, design and five reviewer skills, MCP resource tools |
 
@@ -171,7 +174,7 @@ AdulaJS composes proven open-source tools instead of reinventing them:
 | Package | Role |
 |---|---|
 | [`adula`](packages/adula) | The core: resource engine, CASL/SQL authorization, organizational scope, services, additive migrations and Ace commands |
-| [`@adula/ui`](packages/ui) | Arabic RTL shadcn/ui registry: 25 primitives and nine resource components copied into your project |
+| [`@adula/ui`](packages/ui) | Arabic RTL shadcn/ui registry of primitives and resource components, light and dark, copied into your project |
 | [`create-adulajs`](packages/create-adulajs) | Creates a complete system in one command (`npm create adulajs`), and upgrades 1.x systems |
 
 The backend updates as a package. Copied UI, pages, your applications and branding belong
@@ -186,8 +189,9 @@ official AdonisJS starter, and the creator from an empty directory through a rea
 administrator login in a browser.
 
 Known limits are tracked openly in [GAPS.md](GAPS.md). Two-factor authentication and the
-human review of impersonation are planned for a later major release, and import is CSV
-only for now.
+human review of impersonation are planned for a later major release, and the Google Drive
+and OneDrive backup destinations stay experimental until they are verified against real
+accounts.
 
 ## Documentation
 
