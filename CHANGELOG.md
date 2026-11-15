@@ -336,6 +336,10 @@ Behaviour that changes on upgrade, so read it first:
   heading (absolutely positioned) escaped that frame's clipping and widened the whole page
   to the table's width, since 2.2.0. The frames are now positioned (`relative`), as the
   shadcn `Table` wrapper is.
+* A saved company name of 30 characters shows in full, on two lines, in the workspace header
+  beside the expanded sidebar. Its second line fitted by less than half a pixel, so Chromium
+  on Linux, which measures the text slightly wider, wrapped it to a cut third line. The gap
+  between the company mark and the name is now `gap-2`, which leaves the name 4 px more.
 
 ### Upgrade
 
