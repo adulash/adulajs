@@ -244,7 +244,7 @@ export default function Workspace({ children }: { children: ReactNode }) {
   const appearanceBrand = appearance?.brand
   const savedCompany = appearanceBrand?.company ?? null
   const brand = (
-    <Link href="/" className="flex min-w-0 items-center gap-3" data-brand>
+    <Link href="/" className="flex min-w-0 items-center gap-2" data-brand>
       <BrandMark size="sm" logo={appearanceBrand?.logoUrl} />
       <span className="min-w-0">
         <strong
