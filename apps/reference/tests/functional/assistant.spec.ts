@@ -6,6 +6,7 @@ import User from '#models/user'
 import db from '@adonisjs/lucid/services/db'
 import limiter from '@adonisjs/limiter/services/main'
 import { adula } from '#services/adula'
+import { ASSISTANT_LIMITS } from 'adula'
 
 // Never a real key: the fake below only checks that this exact value arrives.
 const TEST_KEY = 'test-key-not-real'
@@ -142,6 +143,15 @@ test.group('Built-in assistant (ADR 052)', (group) => {
   })
   group.teardown(async () => {
     await fake.close()
+    // The settings are one shared row: leave the default limits for the suites that follow
+    // (the rate-limit test below saves three requests a minute).
+    const runtime = adula()
+    await runtime.assistantSettings.save(
+      await runtime.actors.load(admin.id),
+      Object.fromEntries(
+        Object.entries(ASSISTANT_LIMITS).map(([key, [fallback]]) => [key, fallback])
+      )
+    )
   })
   group.each.setup(async () => {
     // The in-process limiter store is shared by the suite; each test starts clean.

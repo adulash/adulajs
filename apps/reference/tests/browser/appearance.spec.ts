@@ -424,6 +424,13 @@ test.group('Appearance in the browser (ADR 053)', (group) => {
     const check = async (page: Page, where: string) => {
       const name = page.locator('[data-brand-name]').first()
       await name.getByText(company, { exact: true }).waitFor()
+      // Measured in the shell's own font: until IBM Plex Sans Arabic arrives the fallback is
+      // wider and wraps the name to a third line (a slow runner measured it first: 62 > 42).
+      await page.evaluate(() =>
+        (
+          globalThis as unknown as { document: { fonts: { ready: Promise<unknown> } } }
+        ).document.fonts.ready.then(() => true)
+      )
       assert.equal(await name.getAttribute('title'), company)
       const [scrollWidth, clientWidth, scrollHeight, clientHeight] = await fits(name)
       assert.isAtMost(scrollWidth, clientWidth, `${where}: the name overflows sideways`)
