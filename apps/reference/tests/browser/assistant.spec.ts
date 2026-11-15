@@ -5,8 +5,12 @@ import { test } from '@japa/runner'
 import db from '@adonisjs/lucid/services/db'
 import User from '#models/user'
 import { adula } from '#services/adula'
+import { ASSISTANT_LIMITS } from 'adula'
 
 const TEST_KEY = 'test-key-not-real'
+/** Every numeric assistant limit at its default. */
+const defaultLimits = () =>
+  Object.fromEntries(Object.entries(ASSISTANT_LIMITS).map(([key, [fallback]]) => [key, fallback]))
 /** The opened provider key, as only the server-side client sees it. */
 const storedKey = () =>
   adula()
@@ -106,6 +110,10 @@ test.group('Assistant panel in the browser (ADR 052)', (group) => {
       baseUrl: `http://127.0.0.1:${port}/api/v1`,
       model: 'test/model',
       allowWriteProposals: true,
+      // The settings are one shared row: start from the default limits, whatever an earlier
+      // suite saved (the functional rate-limit test leaves three requests a minute, which the
+      // notice, the conversation and the first turn here would use up).
+      ...defaultLimits(),
     })
     await runtime.assistantSettings.setKey(actor, TEST_KEY)
     await runtime.assistantSettings.save(actor, { enabled: true })

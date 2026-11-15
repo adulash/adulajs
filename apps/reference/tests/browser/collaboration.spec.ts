@@ -132,13 +132,31 @@ test.group('Record collaboration browser acceptance', (group) => {
           title: `مهمة العودة ${index}`,
         })
       await browserContext.loginAs(reader.user)
+      // Inertia requests in flight and started, from the first script on (see the scroll below).
+      await browserContext.addInitScript(`(() => {
+        window.__inertiaInFlight = 0
+        window.__inertiaStarted = 0
+        document.addEventListener('inertia:start', () => { window.__inertiaInFlight++; window.__inertiaStarted++ })
+        document.addEventListener('inertia:finish', () => { window.__inertiaInFlight-- })
+      })()`)
       const page = await visit('/my-tasks?tab=assigned')
       await page.setViewportSize({ width: 1280, height: 700 })
       await page.getByText('مهمة العودة 12').waitFor()
       // The page scrolls in the workspace's scroll region on large screens (owner decision 20).
       const scroller = `(() => { const region = document.querySelector('[scroll-region]'); return region && ['auto', 'scroll'].includes(getComputedStyle(region).overflowY) ? region : document.scrollingElement })()`
-      await page.evaluate(`${scroller}.scrollTop = ${scroller}.scrollHeight`)
-      assert.isAbove(await page.evaluate<number>(`${scroller}.scrollTop`), 200)
+      // Prop reloads land after the page: the header's deferred task count, the bell's catch-up
+      // once its live connection opens, one per notification of these tasks. Inertia notes the
+      // scroll region as one lands and puts it back on the next frame, so a scroll made in
+      // between is undone (a slow runner scrolled at that moment and read 0). Scroll while none
+      // is in flight, and keep the position once it holds two frames with no reload started.
+      const settled = `new Promise((resolve) => { const started = window.__inertiaStarted; const region = ${scroller}; region.scrollTop = region.scrollHeight; requestAnimationFrame(() => requestAnimationFrame(() => resolve(window.__inertiaInFlight === 0 && window.__inertiaStarted === started ? region.scrollTop : -1))) })`
+      let top = -1
+      for (const started = Date.now(); top === -1 && Date.now() - started < 20_000;) {
+        if (await page.evaluate<boolean>('window.__inertiaInFlight === 0'))
+          top = await page.evaluate<number>(settled)
+        if (top === -1) await new Promise((resolve) => setTimeout(resolve, 50))
+      }
+      assert.isAbove(top, 200)
       // The view to return to is the one at the moment of the click: Playwright may scroll the
       // link while it clicks it, and the list remembers where the page actually was.
       await page.evaluate(

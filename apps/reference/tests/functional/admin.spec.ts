@@ -797,6 +797,8 @@ test.group('Core administration screens', (group) => {
     await new Settings(knex()).set('backup.lastOffsite', new Date().toISOString())
     const fresh = await asPage(client.get('/').loginAs(admin))
     assert.isFalse(fresh.body().props.backupWarning)
+    // Leave no offsite backup behind: later suites (the browser shell) expect the warning.
+    await knex()('settings').where('key', 'backup.lastOffsite').delete()
   })
 
   test('activity page lists administrative mutations with filters and keyset paging', async ({

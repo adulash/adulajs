@@ -24,7 +24,9 @@ const MODAL =
 /**
  * The only controls skipped by name: one click ends the sweep's own session for good, with no
  * dialog first (signing out, ending this session or the impersonation, ending a session from
- * the administrators' list, which may be this one). Everything else is clicked, and skipped
+ * the administrators' list, which may be this one). On a page whose target declares a control
+ * kind (the same controls on every row of a list), the first control of each kind is clicked
+ * and each further row's copy is logged unclicked. Everything else is clicked, and skipped
  * only by what it did: no dialog opened, a confirmation opened (mode="confirm", which never
  * asks about unsaved changes by construction) or the click went to another page. Every skip
  * is logged with its reason, and a sign-out the list missed is logged and the user signed in
@@ -116,6 +118,7 @@ type SkipReason =
   | 'confirmation'
   | 'went to another page'
   | 'not found again'
+  | 'same kind as a control checked'
 type Skip = { page: string; control: string; reason: SkipReason }
 
 class Sweep {
@@ -132,7 +135,9 @@ class Sweep {
     private prepare: () => Promise<void>,
     private relogin: () => Promise<void>,
     private scope = 'main',
-    private kind: (title: string) => string = (title) => title
+    private kind: (title: string) => string = (title) => title,
+    /** A control's kind (one per row of a long list), or undefined to check every control. */
+    private controlKind?: (name: string) => string
   ) {}
 
   private skip(control: string, reason: SkipReason) {
@@ -317,11 +322,20 @@ class Sweep {
   async run() {
     await this.prepare()
     const candidates = (await this.page.evaluate(tag(this.scope))) as Candidate[]
+    // Kinds of control already checked: each further row's copy is logged, not clicked, so the
+    // sweep costs the same however many rows earlier suites left in the database.
+    const checked = new Set<string>()
     for (const candidate of candidates) {
       if (candidate.kind !== 'menu') {
         this.considered++
+        const kind = this.controlKind?.(candidate.name)
         if (candidate.ends) this.skip(candidate.name, 'ends the session (named)')
-        else await this.check(candidate)
+        else if (kind !== undefined && checked.has(kind))
+          this.skip(candidate.name, 'same kind as a control checked')
+        else {
+          if (kind !== undefined) checked.add(kind)
+          await this.check(candidate)
+        }
         continue
       }
       // A menu: every item it offers may open a dialog.
@@ -355,6 +369,8 @@ type Target = {
   scope?: string
   /** A dialog's kind, when its title names the record (so leftover rows add no dialogs). */
   kind?: (title: string) => string
+  /** A control's kind, when every row of a list repeats the same controls (see Sweep.run). */
+  controlKind?: (name: string) => string
 }
 
 test.group('Clean close sweep: every dialog closes at once while untouched', (group) => {
@@ -398,6 +414,10 @@ test.group('Clean close sweep: every dialog closes at once while untouched', (gr
       url: () => '/admin/org-units',
       // «إعادة تسمية <unit>» and «حذف <unit>؟»: one of each, however many units the database holds.
       kind: (title) => title.replace(/^(إعادة تسمية|حذف) .*$/u, '$1 وحدة'),
+      // Each unit repeats the same five controls; every earlier suite adds units (about 100
+      // in a full CI run, 500 controls and a page load each: past the 15 minutes). One of each.
+      controlKind: (name) =>
+        name.replace(/^(نقل|إعادة تسمية|حذف|إضافة وحدة فرعية تحت) .+?( إلى)?$/u, '$1 وحدة$2'),
     },
     { label: 'الجلسات', url: () => '/admin/sessions' },
     { label: 'تفويضات الموافقات', url: () => '/admin/delegations' },
@@ -465,7 +485,8 @@ test.group('Clean close sweep: every dialog closes at once while untouched', (gr
           },
           () => browserContext.loginAs(admin.user),
           target.scope,
-          target.kind
+          target.kind,
+          target.controlKind
         )
         const candidates = await sweep.run()
         // Every control ended in a dialog or a logged skip: none was dropped silently.

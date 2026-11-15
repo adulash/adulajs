@@ -692,8 +692,22 @@ test.group('Workspace shell in the browser', (group) => {
     browserContext,
     visit,
     assert,
+    cleanup,
   }) => {
     const theme = process.env.ADULA_TEST_THEME ?? 'light'
+    // The backup warning lines up with the tabs below: it shows while no offsite backup is
+    // younger than 48 hours, whatever an earlier suite recorded (the functional backup-warning
+    // test ends on a fresh one).
+    const savedBackup = await knex()('settings').where('key', 'backup.lastOffsite')
+    await knex()('settings').where('key', 'backup.lastOffsite').delete()
+    cleanup(async () => {
+      await knex()('settings').where('key', 'backup.lastOffsite').delete()
+      // pg returns the json value parsed; serialize it again so a string stays valid JSON.
+      if (savedBackup.length)
+        await knex()('settings').insert(
+          savedBackup.map((row) => ({ ...row, value: JSON.stringify(row.value) }))
+        )
+    })
     await browserContext.loginAs(admin.user)
     const page = await visit('/admin/users')
     await page.setViewportSize({ width: 1440, height: 900 })
