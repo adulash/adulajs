@@ -188,10 +188,9 @@ upgrade from the published 1.2.0, an independent consumer built from the
 official AdonisJS starter, and the creator from an empty directory through a real
 administrator login in a browser.
 
-Known limits are tracked openly in [GAPS.md](GAPS.md). Two-factor authentication and the
-human review of impersonation are planned for a later major release, and the Google Drive
-and OneDrive backup destinations stay experimental until they are verified against real
-accounts.
+Known limits are tracked openly in [GAPS.md](GAPS.md). The human review of impersonation is
+planned for a later major release, and the Google Drive and OneDrive backup destinations
+stay experimental until they are verified against real accounts.
 
 ## Documentation
 
