@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.3.1 — 2026-11-18
+
 * Releases are faster and automated (ADR 054). Merging a version bump on `main` releases it
   after the owner's approval; `pnpm release:prepare patch|minor|major` sets every version and
   dates the CHANGELOG, and refuses a bump too small for the public API change. After
