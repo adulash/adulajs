@@ -7,6 +7,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import { referenceIsCurrent } from './define-resource-reference.mjs'
+import { compare } from './lib/api-compare.mjs'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
 const core = join(root, 'packages/adula')
@@ -51,20 +52,7 @@ export function snapshot() {
   return api
 }
 
-export function compare(previous, current) {
-  const breaking = []
-  const added = []
-  for (const [entry, exports] of Object.entries(previous)) {
-    for (const [name, value] of Object.entries(exports)) {
-      const next = current[entry]?.[name]
-      if (!next) breaking.push(`${entry} ${name}: removed`)
-      else if (next.type !== value.type || next.kind !== value.kind) breaking.push(`${entry} ${name}: changed`)
-    }
-  }
-  for (const [entry, exports] of Object.entries(current))
-    for (const name of Object.keys(exports)) if (!previous[entry]?.[name]) added.push(`${entry} ${name}`)
-  return { breaking, added }
-}
+export { compare }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const current = snapshot()

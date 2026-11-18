@@ -1,5 +1,8 @@
 # ADR 040 — Lean release process
 
+The trigger (a tag pushed by hand) and the manual after-publication steps are amended by
+ADR 054; archive safety, the API contract and the owner's approval stand.
+
 Date: 2026-10-18. Status: accepted by the owner on 2026-10-18 after the release-process
 review. Supersedes ADR 024, 025, 026, 028 and 038, and the release-gate paragraphs of
 ADR 017 and ADR 039.

@@ -1,9 +1,10 @@
 # Releasing
 
-A release is a `v<version>` tag on `main`. The tag starts `release.yml`; the owner's
-approval of the `npm` environment authorizes publication ([ADR 040](decisions/040-lean-release-process.md)).
-[CHANGELOG.md](../CHANGELOG.md) is the only chronology and [releases.md](releases.md)
-lists what was published.
+A release is a merged version bump on `main`. `release.yml` re-runs CI on that commit and
+waits for the owner's approval of the `npm` environment, which authorizes publication
+([ADR 040](decisions/040-lean-release-process.md), [ADR 054](decisions/054-fast-automated-releases.md)).
+After approval the workflow publishes, verifies npm, tags the commit and writes the GitHub
+release. [CHANGELOG.md](../CHANGELOG.md) is the only chronology.
 
 ## Destination
 
@@ -12,40 +13,57 @@ lists what was published.
 | Packages | `adula`, `@adula/ui`, `create-adulajs` (all share one version) |
 | npm scope | `@adula`, owned by npm account `adula` |
 | Repository | `adulash/adulajs` (public; provenance requires it) |
-| Workflow | `.github/workflows/release.yml`, triggered by `push: tags: ['v*']` |
-| GitHub environment | `npm`, with the owner as required reviewer; its deployment rule must allow tags `v*` |
-| Trigger | `push: tags: ['v[0-9]+.[0-9]+.[0-9]+']`; a tag ruleset should restrict who creates `v*` tags |
+| Workflow | `.github/workflows/release.yml` |
+| Trigger | a push to `main` that changes `packages/adula/package.json`; also a `v<X.Y.Z>` tag or a manual run |
+| GitHub environment | `npm`, with the owner as required reviewer; its deployment rules must allow `main` and tags `v*` |
 | Authentication | npm trusted publishing (OIDC) from a GitHub-hosted runner; no npm token anywhere |
 
 Each package's trusted publisher names owner `adulash`, repository `adulajs`, workflow
 `release.yml` and environment `npm`. npm trusted publishing needs npm 11.5.1 or later; the
 workflow installs npm 11.19.1 on Node 24.
 
+## Versions
+
+Semantic versioning, checked against `packages/adula/api/adula-api.json`:
+
+| Kind | When | Public API |
+|---|---|---|
+| patch (2.3.0 → 2.3.1) | fixes | unchanged |
+| minor (2.3.1 → 2.4.0) | features | additions only |
+| major (2.4.0 → 3.0.0) | breaking changes, with codemod and upgrade notes | may remove or change |
+
+Only stable versions are released, on `latest`.
+
 ## Steps
 
-1. In a reviewed pull request, set the new version in `packages/adula`, `packages/ui`,
-   `packages/create-adulajs`, the root and `apps/reference` `package.json` files and the
-   agent/UI lock versions, move the CHANGELOG `Unreleased` entries under the version, and
-   rebuild so the UI registry and the creator template carry the version. Merge after CI.
-2. Tag the merge commit on `main` and push the tag:
-   `git tag -a v2.2.0 -m "AdulaJS 2.2.0"` then `git push origin v2.2.0`.
-3. `release.yml` runs:
-   - **prepare** refuses a private repository, a tag that is not a stable `vX.Y.Z`, a
-     commit that is not on `main`, or a tag that differs from the package version, then
-     runs `node scripts/check-release.mjs` on the manifests.
-   - **verify** runs the whole of `ci.yml` on that exact commit: build, types, API
-     contract, lint, PostgreSQL/browser tests, consumer, upgrade and creator tests, the
-     packed-archive checks, boundaries and the dependency audit. It uploads the exact
-     consumer-tested archives with `SHA256SUMS`.
-   - **publish** waits in the `npm` environment. The owner's approval there is the
-     release authorization. It then checks `SHA256SUMS`, re-runs the archive checks and
-     publishes the three archives on `latest` with provenance, without rebuilding.
-4. Check the three versions, the `latest` dist-tag, provenance and `npm create adulajs`
-   on npm, add the row to [releases.md](releases.md) and publish GitHub release notes.
+1. Every change merges to `main` in its own pull request after CI, with its CHANGELOG
+   entry under `## Unreleased`.
+2. When `main` should ship: `pnpm release:prepare patch` (or `minor`, `major`, `X.Y.Z`),
+   then `pnpm build`, and open the pull request. The command sets every version, moves the
+   `Unreleased` entries under the dated version and refuses a bump too small for the API
+   change. Merge after CI.
+3. `release.yml` runs on the merge:
+   - **prepare** releases only a commit on `main` whose version is after the one on npm,
+     checks the API against the previous release's tag, then the manifests
+     (`scripts/check-release.mjs`). Any other push to that file ends here.
+   - **verify** runs the whole of `ci.yml` on that commit and keeps the consumer-tested
+     archives with `SHA256SUMS`.
+   - **publish** waits in the `npm` environment; the owner's approval is the release
+     authorization (GitHub notifies the reviewer, and the mobile app can approve). It then
+     checks `SHA256SUMS`, publishes the three archives without rebuilding, checks the
+     versions, `latest` and provenance on npm, and creates the `v<version>` tag and the
+     GitHub release from the CHANGELOG section.
 
-Only stable versions are released; there is no `alpha` or `next` channel. A rejected
-approval leaves nothing published; delete the tag only if the version will never be
-released, otherwise fix forward with a new version.
+A rejected approval leaves nothing published; merge a later bump to try again.
+
+## CI
+
+`ci.yml` runs in parallel jobs: `static` (types, API contract, lint, boundaries, release
+tooling tests, audit), `tests` (`pnpm test:nonbrowser`), `packages` (consumer, genuine
+upgrade from the newest earlier published version, creator, archive checks) and the
+browser suite in four shards for each theme (`pnpm test:browser:shard --shard=k/4`). The
+`check` job is the single required status. Locally, `pnpm test` still runs everything in
+one go.
 
 ## What the checks guarantee
 
@@ -58,9 +76,8 @@ template carry the release version and the creator pins matching `adula`/`@adula
 versions. It then writes `SHA256SUMS`, which the publish job verifies.
 
 `pnpm check:api` compares every export of the built `adula` entry points and its type
-with `packages/adula/api/adula-api.json`. Removed or changed exports are breaking (major
-release, codemod, upgrade notes); added exports are a minor release. After a reviewed
-change run `pnpm check:api --update` and commit the report with the change.
+with `packages/adula/api/adula-api.json`. After a reviewed change run
+`pnpm check:api --update` and commit the report with the change.
 
 Locally, after `pnpm test:consumer` and `pnpm test:create` have packed the archives:
 
@@ -71,22 +88,18 @@ pnpm check:release --artifacts=.work
 
 ## A new package name
 
-npm can configure a trusted publisher only for a package that already exists. While
-`create-adulajs` is not on npm, the publish job publishes core and UI and skips the creator
-with a warning. The owner then publishes that first version once from the CI-built archive
-of the approved run: download `npm-packages-<run-id>`, run
-`sha256sum --check SHA256SUMS`, then `npm publish create-adulajs-<version>.tgz --access
-public --tag latest --provenance=false` with the owner's npm session and 2FA. The flag
-overrides the package's own provenance setting, which works only on CI. That one version has no
-provenance. Then add the trusted publisher above; later versions go through the workflow.
-Finally retire the old name:
-`npm deprecate create-adula-app "Renamed to create-adulajs: npm create adulajs my-system"`.
+npm can configure a trusted publisher only for a package that already exists. The owner
+publishes the first version of a new name once from the CI-built archive of an approved
+run: download `npm-packages-<run-id>`, run `sha256sum --check SHA256SUMS`, then
+`npm publish <name>-<version>.tgz --access public --tag latest --provenance=false` with the
+owner's npm session and 2FA. That one version has no provenance. Then add the trusted
+publisher above; later versions go through the workflow.
 
 ## Failure handling
 
-Publication of three packages is not atomic. The workflow publishes core and UI before the
-creator. If one publish fails, do not unpublish the others or re-run blindly: compare what
-npm has with the retained archives (kept 14 days) and publish only the missing ones from
-those archives. Different bytes need a new version; never move a tag or reuse a version.
+Publication of three packages is not atomic. The publish job is safe to re-run: it skips
+an archive npm already has with the same bytes and publishes the rest from the same run's
+archives (kept 14 days). Different bytes need a new version; never move a tag or reuse a
+version.
 
-The workflow does not push tags, change account settings or deploy applications.
+The workflow does not change account settings or deploy applications.

@@ -12,12 +12,30 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.ref }}-${{ inputs.ref }}
   cancel-in-progress: true
 jobs:
-  check:
+  # The checks run in parallel jobs (ADR 054); `check` below is the one required status.
+  suite:
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: static, suite: static }
+          - { name: tests, suite: tests }
+          - { name: packages, suite: packages }
+          # The browser suite in four shards, and again with dark as every user's theme (#155).
+          - { name: browser 1/4, suite: browser, shard: 1/4, theme: light }
+          - { name: browser 2/4, suite: browser, shard: 2/4, theme: light }
+          - { name: browser 3/4, suite: browser, shard: 3/4, theme: light }
+          - { name: browser 4/4, suite: browser, shard: 4/4, theme: light }
+          - { name: browser dark 1/4, suite: browser, shard: 1/4, theme: dark }
+          - { name: browser dark 2/4, suite: browser, shard: 2/4, theme: dark }
+          - { name: browser dark 3/4, suite: browser, shard: 3/4, theme: dark }
+          - { name: browser dark 4/4, suite: browser, shard: 4/4, theme: dark }
     services:
       postgres:
         image: postgres:17
@@ -57,6 +75,7 @@ jobs:
           persist-credentials: false
       # The revision is recorded in the original cached GitHub archive's pax comment.
       - name: Check out the official consumer fixture
+        if: matrix.suite == 'packages'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: adonisjs/starter-kits
@@ -68,6 +87,7 @@ jobs:
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with: { node-version: 24, cache: pnpm }
       - name: Use PostgreSQL 17 backup and restore clients
+        if: matrix.suite != 'static'
         shell: bash
         run: |
           set -euo pipefail
@@ -83,32 +103,59 @@ jobs:
           /usr/lib/postgresql/17/bin/pg_dump --version
           /usr/lib/postgresql/17/bin/pg_restore --version
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @adula/reference exec playwright install --with-deps chromium --only-shell
+      - if: matrix.suite == 'browser' || matrix.suite == 'packages'
+        run: pnpm --filter @adula/reference exec playwright install --with-deps chromium --only-shell
       - run: pnpm build
-      - run: pnpm typecheck
-      - run: pnpm check:api
-      - run: pnpm lint
-      - run: pnpm test
-      # The browser suite again with dark as every user's theme (#155).
-      - run: pnpm test:browser:dark
+
+      # static: types, API contract, lint, boundaries, release tooling and the dependency audit.
+      - if: matrix.suite == 'static'
+        run: pnpm typecheck
+      - if: matrix.suite == 'static'
+        run: pnpm check:api
+      - if: matrix.suite == 'static'
+        run: pnpm lint
+      - if: matrix.suite == 'static'
+        run: pnpm check:boundaries
+      - if: matrix.suite == 'static'
+        run: pnpm test:release
+      - if: matrix.suite == 'static'
+        run: pnpm audit --prod --audit-level high
+
+      # tests: everything in `pnpm test` except the browser suite, which the shards run.
+      - if: matrix.suite == 'tests'
+        run: pnpm test:nonbrowser
+
+      - if: matrix.suite == 'browser'
+        run: node scripts/test-browser-shard.mjs --shard=${{ matrix.shard }} --theme=${{ matrix.theme }}
       - name: Retain browser traces of failed tests
-        if: failure()
+        if: failure() && matrix.suite == 'browser'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: browser-traces-${{ github.run_id }}-${{ github.run_attempt }}
+          name: browser-traces-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.theme }}-${{ strategy.job-index }}
           path: apps/reference/tmp/browser-traces
           if-no-files-found: ignore
-      - run: pnpm test:release
-      - run: pnpm test:consumer
-      # Genuine upgrade: the consumer starts on a version published to npm.
-      - run: pnpm test:upgrade --published=1.2.0
-      - run: pnpm --filter create-adulajs pack --pack-destination "$GITHUB_WORKSPACE/.work"
-      - run: pnpm test:create --reuse-packages
-      - run: pnpm test:create --docker --reuse-packages
-      - run: pnpm check:release --artifacts=.work
-      - run: pnpm check:boundaries
-      - run: pnpm audit --prod --audit-level high
+
+      # packages: the archives a consumer, an upgrade and the creator install, then their checks.
+      - if: matrix.suite == 'packages'
+        run: pnpm test:consumer
+      # Genuine upgrade: the consumer starts on the newest version published before this one.
+      - if: matrix.suite == 'packages'
+        shell: bash
+        run: |
+          set -euo pipefail
+          baseline=$(node scripts/release.mjs baseline --published="$(npm view adula versions --json)")
+          echo "Upgrading from $baseline"
+          pnpm test:upgrade --published="$baseline"
+      - if: matrix.suite == 'packages'
+        run: pnpm --filter create-adulajs pack --pack-destination "$GITHUB_WORKSPACE/.work"
+      - if: matrix.suite == 'packages'
+        run: pnpm test:create --reuse-packages
+      - if: matrix.suite == 'packages'
+        run: pnpm test:create --docker --reuse-packages
+      - if: matrix.suite == 'packages'
+        run: pnpm check:release --artifacts=.work
       - name: Retain the exact consumer-tested packages
+        if: matrix.suite == 'packages'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: npm-packages-${{ github.run_id }}
@@ -122,3 +169,15 @@ jobs:
           # parent .work directory is hidden and contains other private fixtures.
           include-hidden-files: true
           retention-days: 14
+
+  # The single required status for main: green only when every suite job passed.
+  check:
+    needs: suite
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every suite passed
+        env:
+          RESULT: ${{ needs.suite.result }}
+        run: test "$RESULT" = success

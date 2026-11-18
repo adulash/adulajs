@@ -408,7 +408,13 @@ test.group('Clean close sweep: every dialog closes at once while untouched', (gr
     { label: 'المستخدمون', url: () => '/admin/users' },
     { label: 'مستخدم', url: () => `/admin/users/${memberId}` },
     { label: 'الأدوار', url: () => '/admin/roles' },
-    { label: 'دور', url: () => `/admin/roles/${admin.roleId}` },
+    {
+      label: 'دور',
+      url: () => `/admin/roles/${admin.roleId}`,
+      // «سماح/منع: <resource> / <action>» repeats for every resource (hundreds of controls and
+      // six minutes on CI). The dialog depends on the action, not the resource: one of each.
+      controlKind: (name) => name.replace(/^(سماح|منع): .+ \/ (.+)$/u, '$1: مورد / $2'),
+    },
     {
       label: 'الهيكل التنظيمي',
       url: () => '/admin/org-units',
@@ -452,7 +458,13 @@ test.group('Clean close sweep: every dialog closes at once while untouched', (gr
     },
   ]
 
-  for (const target of targets) {
+  // CI runs the sweep in parallel parts (scripts/test-browser-shard.mjs, ADR 054): part k of n
+  // sweeps every n-th target; each part ends with its own check below. Unset, all of them.
+  const [part, parts] = (process.env.ADULA_SWEEP_PART ?? '1/1').split('/').map(Number)
+  if (!(parts >= 1 && part >= 1 && part <= parts))
+    throw new Error(`ADULA_SWEEP_PART must be k/n, got ${process.env.ADULA_SWEEP_PART}`)
+
+  for (const target of targets.filter((_, index) => index % parts === part - 1)) {
     test(`sweep: ${target.label}`, async ({ browserContext, visit, assert }) => {
       await browserContext.addInitScript(WATCH)
       await browserContext.loginAs(admin.user)
@@ -619,7 +631,9 @@ test.group('Clean close sweep: every dialog closes at once while untouched', (gr
       () => field('تعديل القالب', 'العنوان').fill(subject)
     )
     assert.deepEqual(partial, [], 'every declared dialog declares its full state')
-  }).timeout(300_000)
+  })
+    .timeout(300_000)
+    .skip(part !== 1, 'part 1 of the sweep runs it')
 
   test('no dialog asked or stayed open', async ({ assert }) => {
     console.log(`[sweep] covered ${covered.length} dialogs:\n${covered.join('\n')}`)

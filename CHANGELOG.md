@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+* Releases are faster and automated (ADR 054). Merging a version bump on `main` releases it
+  after the owner's approval; `pnpm release:prepare patch|minor|major` sets every version and
+  dates the CHANGELOG, and refuses a bump too small for the public API change. After
+  publication `release.yml` checks npm and creates the tag and the GitHub release, and a
+  re-run skips archives already published. CI runs in parallel jobs with the browser suite
+  in four shards per theme; the genuine upgrade test starts from the newest earlier
+  published version instead of 1.2.0.
+* `@adula/ui`: a create or record dialog opened while the page's deferred props (the «مهامي»
+  badge) were still loading could be replaced by the dialog's standalone page, losing its
+  form. A dialog's address no longer carries deferred props still loading.
+
 ## 2.3.0 — 2026-11-14
 
 Minor release by the owner's decision: the requests of milestone 2.3.0 (#150 to #162), the
