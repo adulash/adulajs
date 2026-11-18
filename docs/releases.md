@@ -10,8 +10,12 @@ together by the `Release npm packages` workflow (`release.yml`) with npm provena
 Packages: 0.2.0 and 1.x as `@adula/kit`, `@adula/ui`, `@adula/create-app`; 2.x as `adula`,
 `@adula/ui`, `create-adula-app` (renamed `create-adulajs` after 2.1.0).
 
+From 2.3.1 on, `release.yml` writes each published version to
+[GitHub Releases](https://github.com/adulash/adulajs/releases) (ADR 054); this table ends at 2.3.0.
+
 | Version | Date | Tag | PR | CI run | npm status |
 |---|---|---|---|---|---|
+| 2.3.0 | 2026-11-16 | `v2.3.0` (8c22ece) | [#166](https://github.com/adulash/adulajs/pull/166) | [43723624636](https://github.com/adulash/adulajs/actions/runs/43723624636) | `latest`; `adula` and `@adula/ui` with provenance; `create-adulajs` published by hand, without provenance (no trusted publisher yet) |
 | 2.2.0 | 2026-11-01 | `v2.2.0` (8bf14ec) | [#89](https://github.com/adulash/adulajs/pull/89) | [41170166025](https://github.com/adulash/adulajs/actions/runs/41170166025) | `latest`; first `create-adulajs` published by hand, without provenance |
 | 2.1.0 | 2026-10-17 | `v2.1.0` (f5ae844) | [#86](https://github.com/adulash/adulajs/pull/86), [#87](https://github.com/adulash/adulajs/pull/87) | [38971440118](https://github.com/adulash/adulajs/actions/runs/38971440118) | published; superseded by 2.2.0 |
 | 2.0.0 | 2026-10-15 | `v2.0.0` (4b9951e) | [#79](https://github.com/adulash/adulajs/pull/79), [#81](https://github.com/adulash/adulajs/pull/81) | [38698145811](https://github.com/adulash/adulajs/actions/runs/38698145811) | published; superseded by 2.1.0 |

@@ -28,3 +28,7 @@ auditConfig:
     # braces <=3.0.3 has no patched release yet (3.0.4 is not published); reached only through
     # AdonisJS build tooling (assembler > fast-glob > micromatch). Remove when braces 3.0.4 ships. Issue #80.
     - GHSA-vfj7-8cjw-p6xm
+    # picomatch <=4.0.7 has no patched release yet; reached only through the same AdonisJS build
+    # tooling (assembler > fast-glob > micromatch > picomatch 2.3.2), on patterns written in code.
+    # Remove when a patched picomatch reaches that path. Issue #170.
+    - GHSA-fc5q-39xc-vjpf

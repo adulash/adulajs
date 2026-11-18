@@ -11,7 +11,9 @@
   "scripts": {
     "build": "pnpm --filter adula build && pnpm --filter @adula/ui build && node scripts/ui-registry.mjs reference && pnpm --filter create-adulajs build && pnpm --filter @adula/reference build",
     "typecheck": "pnpm --filter adula build && node scripts/ui-registry.mjs reference && pnpm -r typecheck",
-    "test": "pnpm --filter adula test && node scripts/ui-registry.mjs reference && pnpm --filter @adula/ui test && pnpm --filter @adula/reference test && pnpm --filter create-adulajs test",
+    "test": "pnpm test:nonbrowser && pnpm --filter @adula/reference exec node ace test browser",
+    "test:nonbrowser": "pnpm --filter adula test && node scripts/ui-registry.mjs reference && pnpm --filter @adula/ui test && pnpm --filter @adula/reference exec node ace test unit functional && pnpm --filter create-adulajs test",
+    "test:browser:shard": "node scripts/test-browser-shard.mjs",
     "test:core": "pnpm --filter adula test",
     "test:browser:dark": "node scripts/test-browser-dark.mjs",
     "test:consumer": "node scripts/test-consumer.mjs",
@@ -26,6 +28,7 @@
     "check:boundaries": "node scripts/check-boundaries.mjs",
     "test:release": "node --test tests/release/*.test.mjs",
     "check:release": "node scripts/check-release.mjs",
+    "release:prepare": "node scripts/release.mjs prepare",
     "check:api": "node scripts/check-api.mjs",
     "docs:reference": "node scripts/define-resource-reference.mjs --write"
   }

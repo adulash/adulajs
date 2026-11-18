@@ -369,6 +369,51 @@ test.group('Dialogs open over the mounted page', (group) => {
     await page.getByRole('dialog', { name: 'إضافة عينة' }).getByLabel('العنوان').waitFor()
   }).timeout(120_000)
 
+  test('«مهامي» still loading when a dialog opens is never loaded for the dialog address', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    // CI failure on main, 2026-11-15: the list's deferred «مهامي» badge was still on its way
+    // when «إضافة» pushed the dialog's address. Inertia copied the pending deferred prop into
+    // that client visit and loaded it for /create, whose answer is the create page itself: it
+    // replaced the list and the dialog, and the form's fields never appeared.
+    await browserContext.loginAs(admin.user)
+    const held: Route[] = []
+    const deferredPaths: string[] = []
+    await browserContext.route(/\/resources\/ui_samples(\/create)?(\?.*)?$/, (route) => {
+      const request = route.request()
+      if (!(request.headers()['x-inertia-partial-data'] ?? '').includes('openTasks'))
+        return route.continue()
+      const path = new URL(request.url()).pathname
+      deferredPaths.push(path)
+      if (path === '/resources/ui_samples') held.push(route)
+      else return route.continue()
+    })
+    const page = await visit('/resources/ui_samples')
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.locator('main table').waitFor()
+    for (const started = Date.now(); held.length === 0;) {
+      if (Date.now() - started > 10_000) assert.fail('the list did not load «مهامي» deferred')
+      await new Promise((resolve) => setTimeout(resolve, 50))
+    }
+    await markPage(page)
+    await page.getByRole('link', { name: 'إضافة عينة' }).click()
+    const dialog = page.getByRole('dialog', { name: 'إضافة عينة' })
+    await dialog.getByLabel('العنوان').waitFor({ timeout: 10_000 })
+    // The list's own answer arrives late (or was cancelled): the dialog stays over the list.
+    for (const route of held.splice(0)) await route.continue().catch(() => {})
+    await page.waitForLoadState('networkidle', { timeout: 3000 }).catch(() => {})
+    assert.equal(new URL(page.url()).pathname, '/resources/ui_samples/create')
+    assert.isTrue(await dialog.getByLabel('العنوان').isVisible())
+    assert.deepEqual(await samePage(page), { heading: true, table: true })
+    assert.deepEqual(
+      deferredPaths.filter((path) => path !== '/resources/ui_samples'),
+      [],
+      'deferred props are never loaded for the dialog address'
+    )
+  })
+
   test('the standalone create page returns to the list with the new record first', async ({
     browserContext,
     visit,

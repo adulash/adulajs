@@ -1,9 +1,14 @@
 name: Release npm packages
-# Pushing a v<version> tag that points into main releases that version on `latest`.
-# The `npm` environment's required reviewer is the owner's authorization (ADR 040).
+# A merged version bump on main releases that version on `latest` (ADR 054): the commit's
+# package version must be after the one on npm and the public API must fit the bump. A
+# v<version> tag pushed by hand, or a manual run, releases the same way. The `npm`
+# environment's required reviewer is the owner's authorization (ADR 040).
 on:
   push:
+    branches: [main]
+    paths: ['packages/adula/package.json']
     tags: ['v[0-9]+.[0-9]+.[0-9]+']
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
@@ -14,6 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     outputs:
+      release: ${{ steps.release.outputs.release }}
       sha: ${{ steps.release.outputs.sha }}
       version: ${{ steps.release.outputs.version }}
     steps:
@@ -24,25 +30,29 @@ jobs:
       # Release jobs never restore a package cache (setup-node v5+ enables one by default).
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with: { node-version: 24, package-manager-cache: false }
-      - name: Verify the tag, its place on main and the package versions
+      - name: Decide whether this commit is a new release
         id: release
         env:
+          REF_TYPE: ${{ github.ref_type }}
           TAG: ${{ github.ref_name }}
           REPOSITORY_PRIVATE: ${{ github.event.repository.private }}
         shell: bash
         run: |
           set -euo pipefail
           test "$REPOSITORY_PRIVATE" = false
-          version="${TAG#v}"
-          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Only stable vX.Y.Z tags are released, got $TAG"; exit 1; }
-          sha=$(git rev-parse "refs/tags/${TAG}^{commit}")
-          git merge-base --is-ancestor "$sha" origin/main
-          VERSION="$version" node --input-type=module -e "import fs from 'node:fs'; if (JSON.parse(fs.readFileSync('packages/adula/package.json')).version !== process.env.VERSION) throw new Error('Tag/version mismatch')"
-          node scripts/check-release.mjs
+          sha=$(git rev-parse HEAD^{commit})
+          git merge-base --is-ancestor "$sha" origin/main || { echo "Only commits on main are released"; exit 1; }
+          version=$(node -p "require('./packages/adula/package.json').version")
+          if [ "$REF_TYPE" = tag ] && [ "$TAG" != "v$version" ]; then echo "Tag $TAG differs from version $version"; exit 1; fi
+          published=$(npm view adula version)
+          node scripts/release.mjs guard --published="$published"
           echo "sha=$sha" >> "$GITHUB_OUTPUT"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Check the manifests
+        if: steps.release.outputs.release == 'true'
+        run: node scripts/check-release.mjs
   verify:
     needs: prepare
+    if: needs.prepare.outputs.release == 'true'
     uses: ./.github/workflows/ci.yml
     with:
       ref: ${{ needs.prepare.outputs.sha }}
@@ -52,7 +62,7 @@ jobs:
     timeout-minutes: 15
     environment: npm
     permissions:
-      contents: read
+      contents: write # the tag and the GitHub release, after publication
       id-token: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -76,15 +86,47 @@ jobs:
           sha256sum --check SHA256SUMS
           cd ../..
           node scripts/check-release.mjs --artifacts=.work/release
+      # Safe to re-run: an archive already on npm with the same bytes is skipped, different
+      # bytes stop the run (a new version is needed, docs/releasing.md).
       - name: Publish through npm trusted publishing
         env:
           VERSION: ${{ needs.prepare.outputs.version }}
+        shell: bash
         run: |
-          npm publish ".work/release/adula-${VERSION}.tgz" --access public --provenance --tag latest --ignore-scripts
-          npm publish ".work/release/adula-ui-${VERSION}.tgz" --access public --provenance --tag latest --ignore-scripts
-          # A new package name has no trusted publisher until its first manual publication.
-          if npm view create-adulajs version > /dev/null 2>&1; then
-            npm publish ".work/release/create-adulajs-${VERSION}.tgz" --access public --provenance --tag latest --ignore-scripts
-          else
-            echo "::warning::create-adulajs is not on npm yet; publish create-adulajs-${VERSION}.tgz from this run's artifact by hand (docs/releasing.md)"
-          fi
+          set -euo pipefail
+          for entry in adula:adula @adula/ui:adula-ui create-adulajs:create-adulajs; do
+            name="${entry%%:*}"; file=".work/release/${entry#*:}-${VERSION}.tgz"
+            local_sum=$(sha1sum "$file" | cut -d' ' -f1)
+            remote_sum=$(npm view "$name@$VERSION" dist.shasum 2>/dev/null || true)
+            if [ "$remote_sum" = "$local_sum" ]; then echo "$name@$VERSION is already published"; continue; fi
+            if [ -n "$remote_sum" ]; then echo "::error::$name@$VERSION on npm has other bytes"; exit 1; fi
+            npm publish "$file" --access public --provenance --tag latest --ignore-scripts
+          done
+      - name: Check the three versions, latest and provenance on npm
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in adula @adula/ui create-adulajs; do
+            for attempt in $(seq 1 20); do
+              latest=$(npm view "$name" dist-tags.latest 2>/dev/null || true)
+              [ "$latest" = "$VERSION" ] && break
+              sleep 15
+            done
+            test "$latest" = "$VERSION" || { echo "::error::$name latest is $latest, not $VERSION"; exit 1; }
+            provenance=$(npm view "$name@$VERSION" dist.attestations.provenance.predicateType)
+            test -n "$provenance" || { echo "::error::$name@$VERSION has no provenance"; exit 1; }
+            echo "$name@$VERSION is latest, provenance $provenance"
+          done
+      - name: Tag the release and publish its GitHub release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ needs.prepare.outputs.sha }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "v$VERSION" > /dev/null 2>&1; then echo "Release v$VERSION exists"; exit 0; fi
+          node scripts/release.mjs notes "$VERSION" > "$RUNNER_TEMP/notes.md"
+          gh release create "v$VERSION" --target "$SHA" --title "AdulaJS $VERSION" --notes-file "$RUNNER_TEMP/notes.md" --latest
