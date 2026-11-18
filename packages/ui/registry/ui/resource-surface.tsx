@@ -220,7 +220,10 @@ function cancelReads(options: { sync: boolean; async: boolean }) {
  * query changed, restoring the old address and so the dialog, and drops it when the path
  * changed. On the page's own address they are cancelled if still loading, and those missing
  * are loaded again for it; a dialog's own address never reloads them, since it renders
- * another page.
+ * another page. Inertia's client visit copies the current page, deferred props still loading
+ * included, and would load those again for the dialog's address: the server answers that
+ * request with the dialog's own page, which replaced the list and its open dialog (a CI
+ * failure on 2026-11-15). So a dialog's address carries none.
  */
 export function clientVisit<TProps = OverlayPage>(
   kind: 'push' | 'replace',
@@ -231,6 +234,8 @@ export function clientVisit<TProps = OverlayPage>(
   const visit = kind === 'push' ? router.push.bind(router) : router.replace.bind(router)
   visit<TProps>({
     ...options,
+    // Not in Inertia's option type, but its client visit spreads every option over the page.
+    ...((ownPage ? {} : { deferredProps: undefined }) as object),
     onSuccess: (page) => {
       options.onSuccess?.(page)
       if (!ownPage) return
