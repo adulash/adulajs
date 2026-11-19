@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.3.2 — 2026-11-19
+
 * Development server: Back or Forward to a page could leave it empty at the right address.
   The page links its stylesheet and `app.tsx` imports the same address as a module; Vite
   answers it with CSS or JavaScript by the Accept header but without `Vary: Accept`, so the
