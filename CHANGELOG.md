@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+* Development server: Back or Forward to a page could leave it empty at the right address.
+  The page links its stylesheet and `app.tsx` imports the same address as a module; Vite
+  answers it with CSS or JavaScript by the Accept header but without `Vary: Accept`, so the
+  browser cache, which Back and Forward use without asking the server, could hand the
+  stylesheet to the module import. The reference application's `vite.config.ts` now adds
+  `Vary: Accept` to stylesheet answers in development, and a browser test covers it.
+  Applications from `create-adulajs` get it with their `vite.config.ts`; an existing
+  application's `vite.config.ts` is its own, so it copies the `varyStylesByAccept` plugin.
+
 ## 2.3.1 — 2026-11-18
 
 * Releases are faster and automated (ADR 054). Merging a version bump on `main` releases it

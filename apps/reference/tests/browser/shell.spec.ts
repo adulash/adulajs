@@ -1042,6 +1042,36 @@ test.group('Workspace shell in the browser', (group) => {
     assert.equal(await plain.getByText('الموردون').count(), 0)
   })
 
+  test('Back shows the page when the browser cached the stylesheet answer of the address app.tsx imports', async ({
+    browserContext,
+    visit,
+  }) => {
+    // The page links /inertia/css/adula.css and app.tsx imports the same address as a module;
+    // the dev server answers it with CSS or JavaScript by the Accept header. Back reuses cached
+    // answers without asking the server, so without `Vary: Accept` (vite.config.ts) the import
+    // got the stylesheet whenever its answer was cached last, and the page stayed empty.
+    await browserContext.loginAs(admin.user)
+    const page = await visit('/admin/users')
+    await page
+      .getByRole('tablist', { name: 'صفحات القسم: الأشخاص والصلاحيات' })
+      .getByRole('tab', { name: 'الأدوار والصلاحيات', exact: true })
+      .click()
+    await page.waitForURL((url) => url.pathname === '/admin/roles')
+    await page.getByRole('heading', { name: 'الأدوار والصلاحيات', exact: true }).waitFor()
+    await page.goto('/admin/sessions')
+    await page.getByRole('heading', { name: 'الجلسات', exact: true }).waitFor()
+    // The stylesheet's answer is the last one cached for the address, as when the <link>
+    // finishes after the module import.
+    await page.evaluate(
+      `fetch('/inertia/css/adula.css', { headers: { Accept: 'text/css,*/*;q=0.1' } }).then((response) => response.text())`
+    )
+    await page.goBack()
+    await page.waitForURL((url) => url.pathname === '/admin/roles')
+    await page
+      .getByRole('heading', { name: 'الأدوار والصلاحيات', exact: true })
+      .waitFor({ timeout: 10_000 })
+  })
+
   test('every sidebar entry and every administration tab opens its own page, wide, narrow and collapsed (owner decision 22)', async ({
     browserContext,
     visit,
