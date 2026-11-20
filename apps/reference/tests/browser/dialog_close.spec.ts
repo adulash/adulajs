@@ -163,7 +163,7 @@ test.group('Dialog close: ask only for unsaved changes', (group) => {
     await page.evaluate(`(() => {
       const input = document.createElement('input')
       input.setAttribute('aria-label', 'حقل غير مصرح به')
-      document.querySelector('[role=dialog] [data-slot=long-dialog-body]').append(input)
+      document.querySelector('[role=dialog] [data-long-dialog-body] [data-slot=scroll-area-viewport]').append(input)
     })()`)
     await dialog.getByLabel('حقل غير مصرح به').fill('قيمة')
     await page.keyboard.press('Escape')

@@ -72,7 +72,7 @@ ${headers.map(() => 'قيمة').join(',')}
     })
     await dialog.getByRole('button', { name: 'رفع الملف' }).click()
     await dialog.getByRole('combobox', { name: 'حقل العمود عمود 30' }).waitFor()
-    const body = dialog.locator('[data-slot="long-dialog-body"]')
+    const body = dialog.locator('[data-long-dialog-body] [data-slot="scroll-area-viewport"]')
     const footer = dialog.locator('[data-slot="long-dialog-footer"]')
     const title = dialog.getByRole('heading', { name: 'استيراد إلى عينات الواجهة' })
     // The footer order: the secondary action, «إلغاء», then the primary action.

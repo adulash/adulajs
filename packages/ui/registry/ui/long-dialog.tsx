@@ -7,6 +7,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '~/components/ui/dialog'
+import { ScrollArea } from '~/components/ui/scroll-area'
+import { useMessages } from '~/components/ui/messages'
 
 // Named after the Tailwind max-width each one applies from the small screen breakpoint up.
 const widths = {
@@ -41,6 +43,8 @@ type LongDialogContentProps = {
 /**
  * The long dialog pattern (ADR 016): the header and footer stay fixed and only the body scrolls,
  * with a scrollbar that stays visible in both themes so the reader sees there is more below.
+ * The body is `[data-long-dialog-body]`, a Scroll Area; `[data-slot=scroll-area-viewport]` inside
+ * it is the element that scrolls.
  * Place it inside a shadcn `Dialog`; the layout matches the record surface (resource-surface).
  */
 export function LongDialogContent({
@@ -52,6 +56,7 @@ export function LongDialogContent({
   children,
   ...props
 }: LongDialogContentProps) {
+  const { dir } = useMessages()
   return (
     <DialogContent
       // Anchored to the top, so content that loads after opening extends the dialog downward.
@@ -68,14 +73,20 @@ export function LongDialogContent({
         <DialogTitle>{title}</DialogTitle>
         {description && <DialogDescription>{description}</DialogDescription>}
       </DialogHeader>
-      <div
-        data-slot="long-dialog-body"
-        // overflow-y: scroll keeps the scrollbar on screen while idle; the gutter keeps the
-        // content from shifting, and the thumb uses theme tokens to read in light and dark.
-        className="min-h-0 flex-1 scroll-py-6 overflow-y-scroll overscroll-contain p-4 [scrollbar-color:var(--muted-foreground)_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin] sm:p-6"
+      <ScrollArea
+        // Radix lays the area out left to right unless told the reading direction.
+        dir={props.dir === 'ltr' || props.dir === 'rtl' ? props.dir : dir}
+        data-long-dialog-body=""
+        // shadcn Scroll Area (ADR 055), always shown so the reader sees there is more below; its
+        // thumb uses the muted text token, which reads in light and dark. The viewport is the
+        // scroller; its content is a block so long text wraps instead of widening the dialog.
+        type="always"
+        className="flex min-h-0 flex-1 flex-col overflow-hidden [&>[data-slot=scroll-area-viewport]]:min-h-0 [&>[data-slot=scroll-area-viewport]]:flex-1 [&>[data-slot=scroll-area-viewport]]:scroll-py-6 [&>[data-slot=scroll-area-viewport]]:overscroll-contain [&>[data-slot=scroll-area-viewport]>div]:block! [&_[data-slot=scroll-area-thumb]]:bg-muted-foreground"
       >
-        {children}
-      </div>
+        <div className="p-4 sm:p-6" data-long-dialog-padding="">
+          {children}
+        </div>
+      </ScrollArea>
       {footer && (
         <DialogFooter className="shrink-0 border-t px-6 py-4" data-slot="long-dialog-footer">
           {footer}

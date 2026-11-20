@@ -193,7 +193,7 @@ test.group('Appearance in the browser (ADR 053)', (group) => {
     // «استعادة الافتراضي» returns to the project identity and the theme's own colour.
     await page.getByRole('button', { name: 'استعادة الافتراضي', exact: true }).click()
     await page
-      .getByRole('dialog', { name: 'استعادة الهوية الافتراضية؟' })
+      .getByRole('alertdialog', { name: 'استعادة الهوية الافتراضية؟' })
       .getByRole('button', { name: 'استعادة الافتراضي', exact: true })
       .click()
     await page.getByText('عادت الهوية الافتراضية.').first().waitFor()

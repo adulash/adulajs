@@ -17,7 +17,8 @@ import { moduleIcons } from '~/components/module_icons'
 
 type Entry = { href: string; match?: string; label: string; icon?: LucideIcon; badge?: number }
 
-// The shell's active navigation pattern (navLinkClass): a filled entry, no underline.
+// The shell's active navigation pattern (as the sidebar's SidebarMenuButton): a filled entry,
+// semibold, no underline.
 const itemClass = (active: boolean) =>
   `flex items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 ${active ? 'bg-accent font-semibold text-primary' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}`
 

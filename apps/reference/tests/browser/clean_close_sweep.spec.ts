@@ -256,7 +256,10 @@ class Sweep {
       await this.page.keyboard.press('Escape')
       return this.skip(control, 'no dialog')
     }
-    if ((await first.getAttribute('data-dialog-mode')) === 'confirm') {
+    if (
+      (await first.getAttribute('data-dialog-mode')) === 'confirm' ||
+      (await first.getAttribute('data-slot')) === 'alert-dialog-content'
+    ) {
       await this.page.keyboard.press('Escape')
       return this.skip(control, 'confirmation')
     }

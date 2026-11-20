@@ -141,16 +141,19 @@ export default function AssistantLauncher() {
     <>
       <Tooltip>
         <TooltipTrigger asChild>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             aria-label={t('المساعد الذكي')}
             aria-expanded={open}
             data-testid="assistant-launcher"
             onClick={() => setOpen(true)}
+            // The header's icon shape, shared with the bell and «مهامي».
             className={headerIconClass(open)}
           >
-            <Bot size={18} strokeWidth={1.6} aria-hidden />
-          </button>
+            <Bot strokeWidth={1.6} aria-hidden />
+          </Button>
         </TooltipTrigger>
         <TooltipContent>{t('المساعد الذكي')}</TooltipContent>
       </Tooltip>

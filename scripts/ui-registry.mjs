@@ -32,7 +32,8 @@ export async function loadTransformDirection() {
 // translate-x class without checking for an existing one, so a second install adds a
 // duplicate (the reference switch carried two). An explicit ltr:/rtl: pair is left alone,
 // which makes the stored source a fixed point: installing it reproduces it byte for byte.
-const TRANSLATE = /^((?:[^\s:'"`]+:)*)(-?translate-x-\S+)$/
+// The same holds for the resize cursors of shadcn's SidebarRail.
+const TRANSLATE = /^((?:[^\s:'"`]+:)*)(-?translate-x-\S+|cursor-[ew]-resize)$/
 // [text, code before the class (up to its opening quote), class, closing punctuation]
 const token = (text) => {
   const end = text.match(/[)}"'`,;]*$/).index
@@ -51,7 +52,7 @@ export function pairDirectionalTranslates(code) {
     for (let next = index + 2; next < parts.length; next += 2) {
       const [, nextLead, nextCore, nextTrail] = token(parts[next])
       if (nextLead || !nextCore.startsWith(partner)) break
-      if (!/^-?translate-x-/.test(nextCore.slice(partner.length))) break
+      if (!/^(-?translate-x-|cursor-[ew]-resize$)/.test(nextCore.slice(partner.length))) break
       partners.push(next)
       if (nextTrail) break
     }
@@ -70,17 +71,30 @@ export function pairDirectionalTranslates(code) {
 export async function adaptSource(filename, source, transformDirection) {
   let code = source
     .replaceAll('@/registry/new-york-v4/ui/', '~/components/ui/')
+    // Registry .ts files are snake_case (the application's lint rules), so the hook is use_mobile.
+    .replaceAll('@/registry/new-york-v4/hooks/use-mobile', '~/components/ui/use_mobile')
     .replace(/\bml-/g, 'ms-').replace(/\bmr-/g, 'me-').replace(/\bpl-/g, 'ps-').replace(/\bpr-/g, 'pe-')
     .replaceAll('text-left', 'text-start').replaceAll('text-right', 'text-end')
     .replaceAll('absolute top-4 right-4', 'absolute top-4 end-4')
     .replaceAll('absolute right-2', 'absolute end-2').replaceAll('absolute left-2', 'absolute start-2')
     .replaceAll('after:-right-1', 'after:-end-1').replaceAll('>Close<', '>إغلاق<')
-  code = code.replace(/<(SelectPrimitive|DropdownMenuPrimitive|RadioGroupPrimitive|TabsPrimitive)\.Root(?! dir=)/g, '<$1.Root dir="rtl"')
+  code = code.replace(/<(SelectPrimitive|DropdownMenuPrimitive|RadioGroupPrimitive|TabsPrimitive|SliderPrimitive)\.Root(?! dir=)/g, '<$1.Root dir="rtl"')
+  if (filename === 'breadcrumb.tsx') code = code.replace('aria-label="breadcrumb"', 'aria-label="مسار التنقل"')
+    .replace('{children ?? <ChevronRight />}', '{children ?? <ChevronRight className="rtl:rotate-180" />}')
+    .replace('>More</span>', '>المزيد</span>')
+  if (filename === 'sidebar.tsx') code = code.replace('>Toggle Sidebar<', '>إظهار القائمة الجانبية أو طيها<')
+    .replace('aria-label="Toggle Sidebar"', 'aria-label="إظهار القائمة الجانبية أو طيها"')
+    .replace('title="Toggle Sidebar"', 'title="إظهار القائمة الجانبية أو طيها"')
+    .replace('<SheetTitle>Sidebar</SheetTitle>', '<SheetTitle>القائمة الجانبية</SheetTitle>')
+    .replace('Displays the mobile sidebar.', 'القائمة الجانبية على الجوال.')
+    // The rail sits on the sidebar's inner edge; the direction transform leaves these physical.
+    .replace('group-data-[side=left]:-right-4 group-data-[side=right]:left-0', 'group-data-[side=left]:-end-4 group-data-[side=right]:start-0')
   if (filename === 'pagination.tsx') code = code.replaceAll('"pagination"', '"التنقل بين الصفحات"')
     .replaceAll('Go to previous page', 'الصفحة السابقة').replaceAll('Go to next page', 'الصفحة التالية')
     .replaceAll('>Previous<', '>السابق<').replaceAll('>Next<', '>التالي<').replaceAll('>More pages<', '>صفحات أخرى<')
     .replaceAll('<ChevronLeftIcon />', '<ChevronLeftIcon className="rtl:rotate-180" />')
     .replaceAll('<ChevronRightIcon />', '<ChevronRightIcon className="rtl:rotate-180" />')
+  if (filename === 'use_mobile.ts') code = code.replace(/"([^"\n]*)"/g, "'$1'")
   if (filename === 'dropdown-menu.tsx') code = code.replace('className="ms-auto size-4"', 'className="ms-auto size-4 rtl:rotate-180"')
   if (filename === 'command.tsx') code = code.replace('"Command Palette"', '"قائمة الأوامر"').replace('"Search for a command to run..."', '"ابحث عن أمر لتنفيذه"')
   if (filename === 'calendar.tsx' && !code.includes('react-day-picker/locale')) code =
@@ -92,33 +106,34 @@ export async function adaptSource(filename, source, transformDirection) {
   return pairDirectionalTranslates(await transformDirection(code, true))
 }
 
+// The shadcn new-york-v4 items AdulaJS stores (ADR 055). Their files as fetched live in
+// packages/ui/upstream (not published); UPSTREAM.json records each file's sha256, and the
+// registry test checks both the hashes and that registry/ui is the prepared copy.
+export const UPSTREAM_ITEMS = ['button', 'input', 'textarea', 'select', 'checkbox', 'switch', 'radio-group', 'table', 'form', 'label', 'dialog', 'sheet', 'dropdown-menu', 'popover', 'command', 'calendar', 'badge', 'card', 'tabs', 'sonner', 'skeleton', 'pagination', 'tooltip', 'separator', 'alert', 'breadcrumb', 'sidebar', 'avatar', 'slider', 'alert-dialog', 'scroll-area', 'use-mobile', 'collapsible']
+
+// Fetches the upstream files only; registry/ui and registry.json are reviewed edits
+// (prepare --sources-only refreshes the stored files that carry no AdulaJS edit).
 async function sync() {
-  const names = ['button', 'input', 'textarea', 'select', 'checkbox', 'switch', 'radio-group', 'table', 'form', 'label', 'dialog', 'sheet', 'dropdown-menu', 'popover', 'command', 'calendar', 'badge', 'card', 'tabs', 'sonner', 'skeleton', 'pagination', 'tooltip', 'separator', 'alert', 'breadcrumb']
-  await mkdir(new URL('registry/ui/', root), { recursive: true })
-  const items = []
+  await mkdir(new URL('upstream/', root), { recursive: true })
   const sources = []
-  for (const name of names) {
+  for (const name of UPSTREAM_ITEMS) {
     const url = `https://ui.shadcn.com/r/styles/new-york-v4/${name}.json`
     const response = await fetch(url)
     if (!response.ok) throw new Error(`${name}: HTTP ${response.status}`)
     const item = await response.json()
     if (item.name !== name || !Array.isArray(item.files)) throw new Error(`Invalid registry response: ${name}`)
-    const files = []
     for (const file of item.files) {
       const filename = file.path.split('/').at(-1)
       if (!/^[a-z][a-z0-9_-]*\.tsx?$/.test(filename)) throw new Error(`Unexpected upstream file: ${file.path}`)
-      const path = `registry/ui/${filename}`
-      await writeFile(new URL(path, root), file.content)
-      sources.push({ name, url, path, sha256: createHash('sha256').update(file.content).digest('hex') })
-      files.push({ path, type: file.type })
+      await writeFile(new URL(`upstream/${filename}`, root), file.content)
+      sources.push({
+        name, url, path: `registry/ui/${filename.endsWith('.ts') ? filename.replaceAll('-', '_') : filename}`, upstream: `upstream/${filename}`,
+        sha256: createHash('sha256').update(file.content).digest('hex'),
+        dependencies: item.dependencies ?? [], registryDependencies: item.registryDependencies ?? [],
+      })
     }
-    items.push({ ...item, files, $schema: undefined })
     console.log(`Fetched ${name}`)
   }
-  await writeJson(new URL('registry.json', root), {
-    $schema: 'https://ui.shadcn.com/schema/registry.json', name: 'adula',
-    homepage: 'https://www.npmjs.com/package/@adula/ui', items,
-  })
   await writeJson(new URL('UPSTREAM.json', root), sources)
   const licenseResponse = await fetch('https://raw.githubusercontent.com/shadcn-ui/ui/main/LICENSE.md')
   if (!licenseResponse.ok) throw new Error(`License: HTTP ${licenseResponse.status}`)
@@ -126,8 +141,23 @@ async function sync() {
   console.log('Registry sources saved. Review dependencies, Arabic labels and RTL before building.')
 }
 
+// Stored upstream files that carry an AdulaJS edit beyond adaptSource, with the reason (ADR 055).
+// prepare leaves them alone; their upstream changes are merged by hand. Every other upstream
+// file is regenerated from packages/ui/upstream, and the registry test refuses any drift.
+export const UPSTREAM_EDITS = {
+  dialog: 'unsaved-change protection, confirm mode and dialog URLs (ADR 016, ADR 035)',
+  tabs: 'the `wrap` option of TabsList, its overflow Scroll Area and the interface direction (ADR 049, ADR 055)',
+  pagination: 'interface text through useMessages for the optional languages (ADR 041)',
+  sidebar: 'no Ctrl+B keyboard shortcut and no sidebar_state cookie: the state is the user preference shell.sidebar (ADR 049)',
+}
+
 async function prepare({ sourcesOnly }) {
   const transformDirection = await loadTransformDirection()
+  for (const entry of await readJson(new URL('UPSTREAM.json', root))) {
+    if (UPSTREAM_EDITS[entry.name]) continue
+    const source = await readFile(new URL(entry.upstream, root), 'utf8')
+    await writeFile(new URL(entry.path, root), await adaptSource(basename(entry.path), source, transformDirection))
+  }
   for (const filename of await readdir(new URL('registry/ui/', root))) {
     const path = new URL(`registry/ui/${filename}`, root)
     const code = await readFile(path, 'utf8')
@@ -185,7 +215,7 @@ async function register() {
       npm: ['axios', 'date-fns', 'lucide-react'],
     },
     'data-table': {
-      registry: ['button', 'input', 'badge', 'can', 'resource-actions', 'resource-field', 'resource-value'],
+      registry: ['button', 'input', 'badge', 'table', 'can', 'resource-actions', 'resource-field', 'resource-value'],
       npm: ['@tanstack/react-table', '@tanstack/react-virtual', 'axios', 'lucide-react'],
     },
     'resource-form': {

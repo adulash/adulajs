@@ -23,6 +23,14 @@ import { RecordAssignments } from '~/components/ui/record-assignments'
 import { RecordWorkflows } from '~/components/ui/record-workflows'
 import { RecordPrint } from '~/components/ui/record-print'
 import { RecordFooter, RecordFooterClose } from '~/components/ui/resource-surface'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '~/components/ui/table'
 
 export type ResourceChildren = Children
 const meta = new Set(['id', 'version', 'docStatus', 'orgUnitId'])
@@ -187,40 +195,39 @@ export function ResourceShow({
                     </span>
                   </div>
                   {group.rows.length ? (
-                    <div className="overflow-x-auto">
-                      <table className="w-full min-w-[480px] text-sm">
-                        <thead className="bg-muted text-xs text-muted-foreground">
-                          <tr>
+                    <div>
+                      <Table className="min-w-[480px]">
+                        <TableHeader>
+                          <TableRow>
                             {keys.map((key) => (
-                              <th
+                              <TableHead
                                 key={key}
                                 scope="col"
-                                className="px-5 py-3 text-start font-medium"
                               >
                                 {columnLabel(columns.find((entry) => entry.key === key)) ?? key}
-                              </th>
+                              </TableHead>
                             ))}
-                          </tr>
-                        </thead>
-                        <tbody>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
                           {group.rows.map((row) => (
-                            <tr key={String(row.id)} className="border-b last:border-0">
+                            <TableRow key={String(row.id)}>
                               {keys.map((key) => {
                                 const column = columns.find((entry) => entry.key === key)
                                 return (
-                                  <td key={key} className="px-5 py-3">
+                                  <TableCell key={key} className="whitespace-normal">
                                     {column ? (
                                       <ResourceValue field={column} row={row} lookups={lookups} />
                                     ) : (
                                       plain(row, key)
                                     )}
-                                  </td>
+                                  </TableCell>
                                 )
                               })}
-                            </tr>
+                            </TableRow>
                           ))}
-                        </tbody>
-                      </table>
+                        </TableBody>
+                      </Table>
                     </div>
                   ) : (
                     <p className="px-7 py-6 text-xs text-muted-foreground">

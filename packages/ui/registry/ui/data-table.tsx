@@ -59,6 +59,14 @@ import { useUiPreferences } from '~/components/ui/ui-preferences'
 import { recordCount, useMessages } from '~/components/ui/messages'
 import { Can } from '~/components/ui/can'
 import { Input } from '~/components/ui/input'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '~/components/ui/table'
 import { ResourceActions } from '~/components/ui/resource-actions'
 import {
   openRecord,
@@ -682,16 +690,18 @@ export function DataTable({
                     <span className="max-w-[260px] truncate">
                       {describeFilter(filters[field.key], valueLabel(field), t)}
                     </span>
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon-xs"
                       aria-label={t('إزالة تصفية {field}', {
                         field: label(field.label),
                       })}
-                      className="rounded-full p-0.5 text-muted-foreground hover:bg-background hover:text-foreground"
+                      className="rounded-full text-muted-foreground"
                       onClick={() => applyFilter(field.key, null)}
                     >
                       <X size={13} />
-                    </button>
+                    </Button>
                   </Badge>
                 </li>
               ))}
@@ -774,18 +784,20 @@ export function DataTable({
           data-slot="table-scroll"
           data-overflowing={overflowing ? '' : undefined}
           // No scroller of its own: horizontal scrolling only when the columns do not fit (#109).
-          className={overflowing ? 'overflow-x-auto' : undefined}
+          // shadcn Table's container scrolls sideways too, which would hold the sticky header
+          // inside it; it stays visible so the header sticks to the page's scroller (ADR 055).
+          className={`[&>[data-slot=table-container]]:overflow-visible ${overflowing ? 'overflow-x-auto' : ''}`}
         >
-          <table
+          <Table
             ref={tableElement}
-            className="w-full text-start text-sm"
+            className="text-start"
             aria-rowcount={rows.length + 1}
             aria-label={resource.label}
           >
-            <thead className="sticky top-0 z-10 bg-muted text-xs text-muted-foreground">
-              <tr>
+            <TableHeader className="sticky top-0 z-10 bg-muted text-xs">
+              <TableRow className="hover:bg-transparent">
                 {selectable && (
-                  <th scope="col" className="h-11 w-10 ps-5 pe-1 text-start">
+                  <TableHead scope="col" className="h-11 w-10 ps-5 pe-1 text-muted-foreground">
                     <Checkbox
                       aria-label={t('تحديد كل السجلات المعروضة')}
                       checked={allState}
@@ -794,13 +806,13 @@ export function DataTable({
                         setSelected(value === true ? new Set(loadedIds) : new Set())
                       }
                     />
-                  </th>
+                  </TableHead>
                 )}
                 {fields.map((field) => (
-                  <th
+                  <TableHead
                     key={field.key}
                     scope="col"
-                    className="h-11 px-5 text-start font-medium"
+                    className="h-11 px-5 text-muted-foreground"
                     aria-sort={
                       sort === field.key
                         ? direction === 'desc'
@@ -810,9 +822,11 @@ export function DataTable({
                     }
                   >
                     {field.sortable ? (
-                      <button
+                      <Button
                         type="button"
-                        className="inline-flex items-center gap-2 hover:text-foreground"
+                        variant="ghost"
+                        size="xs"
+                        className="-mx-2 font-medium text-muted-foreground hover:text-foreground"
                         onClick={() =>
                           navigate({
                             sort: field.key,
@@ -830,32 +844,32 @@ export function DataTable({
                         ) : (
                           <ArrowDownUp size={12} className="opacity-60" />
                         )}
-                      </button>
+                      </Button>
                     ) : (
                       label(field.label)
                     )}
-                  </th>
+                  </TableHead>
                 ))}
-                <th
+                <TableHead
                   scope="col"
-                  className={`border-s bg-muted px-5 text-start font-medium ${overflowing ? pinned : ''}`}
+                  className={`h-11 border-s bg-muted px-5 text-muted-foreground ${overflowing ? pinned : ''}`}
                 >
                   {t('الإجراءات')}
-                </th>
-              </tr>
-            </thead>
-            <tbody ref={body}>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody ref={body}>
               {before > 0 && (
-                <tr aria-hidden="true">
-                  <td colSpan={columns} style={{ height: before }} />
-                </tr>
+                <TableRow aria-hidden="true" className="border-0 hover:bg-transparent">
+                  <TableCell colSpan={columns} className="p-0" style={{ height: before }} />
+                </TableRow>
               )}
               {items.map(({ index }) => {
                 const row = rows[index].original
                 const id = String(row.id)
                 const checked = selected.has(id)
                 return (
-                  <tr
+                  <TableRow
                     key={id}
                     ref={virtualized ? virtual.measureElement : undefined}
                     data-index={index}
@@ -863,11 +877,12 @@ export function DataTable({
                     data-created={highlighted === id ? '' : undefined}
                     aria-rowindex={index + 2}
                     aria-selected={selectable ? checked : undefined}
-                    className={`group border-b transition-colors duration-700 last:border-0 hover:bg-background ${checked ? 'bg-accent/40' : ''} ${highlighted === id ? 'bg-primary/10' : ''}`}
+                    data-state={checked ? 'selected' : undefined}
+                    className={`group duration-700 hover:bg-background ${highlighted === id ? 'bg-primary/10' : ''}`}
                     style={{ height: ROW_HEIGHT }}
                   >
                     {selectable && (
-                      <td className="w-10 ps-5 pe-1">
+                      <TableCell className="w-10 ps-5 pe-1">
                         <Checkbox
                           aria-label={t('تحديد السجل {id}', { id })}
                           checked={checked}
@@ -875,7 +890,7 @@ export function DataTable({
                             setSelected((current) => toggleSelection(current, id, value === true))
                           }
                         />
-                      </td>
+                      </TableCell>
                     )}
                     {fields.map((field) => (
                       <Cell
@@ -887,8 +902,8 @@ export function DataTable({
                       />
                     ))}
                     {/* Pinned at the inline end, with a shadow, only while the columns overflow. */}
-                    <td
-                      className={`whitespace-nowrap border-s bg-card px-5 text-xs group-hover:bg-background ${overflowing ? pinned : ''}`}
+                    <TableCell
+                      className={`border-s bg-card px-5 text-xs group-data-[state=selected]:bg-muted group-hover:bg-background ${overflowing ? pinned : ''}`}
                     >
                       <span className="inline-flex items-center gap-1">
                         {trashed ? (
@@ -947,18 +962,18 @@ export function DataTable({
                           </>
                         )}
                       </span>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 )
               })}
               {after > 0 && (
-                <tr aria-hidden="true">
-                  <td colSpan={columns} style={{ height: after }} />
-                </tr>
+                <TableRow aria-hidden="true" className="border-0 hover:bg-transparent">
+                  <TableCell colSpan={columns} className="p-0" style={{ height: after }} />
+                </TableRow>
               )}
               {!rows.length && (
-                <tr>
-                  <td colSpan={columns} className="py-16 text-center">
+                <TableRow className="hover:bg-transparent">
+                  <TableCell colSpan={columns} className="py-16 text-center whitespace-normal">
                     {trashed ? (
                       <Trash2
                         className="mx-auto mb-3 text-muted-foreground"
@@ -984,11 +999,11 @@ export function DataTable({
                           ? t('تظهر هنا السجلات المحذوفة ضمن نطاقك لتستعيدها.')
                           : t('لم تُضف سجلات ضمن نطاقك بعد.')}
                     </p>
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               )}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
         <div ref={sentinel} aria-hidden="true" />
       </InfiniteScroll>
@@ -1151,7 +1166,7 @@ function Cell({
   )
   const person = relatedUser(field, row, related)
   return (
-    <td className="px-5 py-2" title={text}>
+    <TableCell className="px-5 py-2 whitespace-normal" title={text}>
       {field.type === 'boolean' && row[field.key] !== null && row[field.key] !== undefined ? (
         <Badge variant={row[field.key] ? 'default' : 'secondary'}>{text}</Badge>
       ) : person ? (
@@ -1172,6 +1187,6 @@ function Cell({
           {text}
         </bdi>
       )}
-    </td>
+    </TableCell>
   )
 }

@@ -1,55 +1,80 @@
 import type { LucideIcon } from 'lucide-react'
 import { Link } from '@adonisjs/inertia/react'
-import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
+import { SidebarMenuBadge, SidebarMenuButton, SidebarMenuItem } from '~/components/ui/sidebar'
 import { useMessages } from '~/components/ui/messages'
+import { Badge } from '~/components/ui/badge'
 
 /** Where a tooltip opens beside the icon rail: away from the screen edge it sits on. */
 export function useRailSide(): 'left' | 'right' {
   return useMessages().dir === 'rtl' ? 'left' : 'right'
 }
 
-export const railItemClass = (active: boolean) =>
-  `relative grid size-10 place-items-center rounded-lg transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 ${active ? 'bg-accent text-primary' : 'text-muted-foreground hover:bg-accent hover:text-foreground'}`
+/**
+ * The current entry keeps the semibold weight the top menu, the tabs and the phone row share
+ * (owner's decision of 2026-11-20, ADR 055); shadcn's SidebarMenuButton sets `font-medium`.
+ */
+export const SIDEBAR_ACTIVE = 'data-[active=true]:font-semibold'
 
 /**
- * One entry of the collapsed sidebar (#153): the icon, its name as a tooltip, and the same
- * accessible name as the full entry, so keyboard and screen-reader users lose nothing.
+ * One sidebar entry on shadcn's SidebarMenuButton (ADR 055): the icon and its name, the name as
+ * a tooltip while the sidebar is the icon rail (#153), and an optional count. The count is
+ * part of the link's accessible name, so the rail, where the count shows as a dot, loses
+ * nothing.
  */
-export function RailLink({
+export function SidebarEntry({
   href,
   label,
   icon: Icon,
   active,
-  badge = 0,
-  badgeLabel,
+  badge,
 }: {
   href: string
   label: string
   icon: LucideIcon
   active: boolean
-  badge?: number
-  /** Spoken with the name when there is a badge: `{count} تنبيه إداري`. */
-  badgeLabel?: string
+  /**
+   * A count beside the name, a shadcn Badge in SidebarMenuBadge: `destructive` for alerts,
+   * `default` (the primary colour, as the header's «مهامي» count) for work.
+   */
+  badge?: { count: number; label: string; tone?: 'default' | 'destructive' }
 }) {
   const side = useRailSide()
+  const shown = badge && badge.count > 0
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Link href={href} aria-current={active ? 'page' : undefined} className={railItemClass(active)}>
-          <Icon size={19} strokeWidth={1.6} aria-hidden />
-          <span className="sr-only">
-            {label}
-            {badge > 0 && badgeLabel ? ` ${badgeLabel}` : ''}
-          </span>
-          {badge > 0 && (
-            <span
-              aria-hidden
-              className="absolute end-1.5 top-1.5 size-2 rounded-full bg-destructive ring-2 ring-card"
-            />
-          )}
+    <SidebarMenuItem>
+      <SidebarMenuButton
+        asChild
+        isActive={active}
+        tooltip={{ children: label, side }}
+        // Long names stop before the count, as shadcn does for a menu action.
+        className={`${SIDEBAR_ACTIVE} ${shown ? 'pe-8' : ''}`}
+      >
+        <Link
+          href={href}
+          aria-current={active ? 'page' : undefined}
+          aria-label={shown ? `${label} ${badge.label}` : undefined}
+        >
+          <Icon aria-hidden />
+          <span>{label}</span>
         </Link>
-      </TooltipTrigger>
-      <TooltipContent side={side}>{label}</TooltipContent>
-    </Tooltip>
+      </SidebarMenuButton>
+      {shown && (
+        <>
+          <SidebarMenuBadge aria-hidden>
+            <Badge
+              variant={badge.tone ?? 'default'}
+              className="h-5 min-w-5 justify-center px-1 tabular-nums"
+            >
+              {badge.count}
+            </Badge>
+          </SidebarMenuBadge>
+          {/* In the icon rail the count becomes a dot on the icon. */}
+          <span
+            aria-hidden
+            className={`pointer-events-none absolute end-0.5 top-0.5 hidden size-2 rounded-full ring-2 ring-sidebar group-data-[collapsible=icon]:block ${badge.tone === 'destructive' ? 'bg-destructive' : 'bg-primary'}`}
+          />
+        </>
+      )}
+    </SidebarMenuItem>
   )
 }

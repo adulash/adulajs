@@ -155,7 +155,10 @@ test.group('Print templates browser acceptance', (group) => {
       await footer.getByRole('button', { name: 'إنشاء القالب' }).waitFor()
       const box = (await footer.boundingBox())!
       assert.isAtMost(box.y + box.height, size.height, `${size.width}: footer on screen`)
-      assert.equal(await dialog.locator('[data-slot="long-dialog-body"]').count(), 1)
+      assert.equal(
+        await dialog.locator('[data-long-dialog-body] [data-slot="scroll-area-viewport"]').count(),
+        1
+      )
 
       // Unchanged: Escape closes at once.
       await page.keyboard.press('Escape')

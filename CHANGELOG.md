@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+* AdulaJS UI is shadcn/ui on Radix throughout (ADR 055, #168). The workspace sidebar is
+  shadcn Sidebar (the provider follows the user's `shell.sidebar` preference; three modes,
+  the top layout, the header above the sidebar and no keyboard shortcut are unchanged), the
+  list and every other framework table are shadcn Table, and the sidebar, long dialog bodies
+  and administration tab row scroll inside shadcn Scroll Area. `@adula/ui` adds `sidebar`,
+  `use-mobile`, `avatar`, `alert-dialog`, `scroll-area` and `collapsible`; `slider` and `breadcrumb` are now
+  the stored upstream files, `user-avatar` composes Avatar and `confirm-action` composes
+  Alert Dialog, with the same props. `UPSTREAM.json` records every upstream file's hash, the
+  registry test verifies them, and a new test refuses native controls, tables, sidebars and
+  scrollbar styling in the registry and the copied shell outside documented exceptions.
+  Existing systems install the new items, add the eight `--color-sidebar*` lines to
+  `inertia/css/adula.css` and copy the shell from a new system; selectors that changed are
+  listed in ADR 055.
+
 ## 2.3.2 — 2026-11-19
 
 * Development server: Back or Forward to a page could leave it empty at the right address.

@@ -390,7 +390,7 @@ test.group('Administration screens in the browser', (group) => {
       await page.getByRole('button', { name: 'إعداد البريد', exact: true }).click()
       await dialog.waitFor()
       await passwordGroup.getByRole('button', { name: 'حذف', exact: true }).click()
-      const confirmation = page.getByRole('dialog', { name: 'حذف كلمة مرور البريد؟' })
+      const confirmation = page.getByRole('alertdialog', { name: 'حذف كلمة مرور البريد؟' })
       await confirmation.getByRole('button', { name: 'حذف كلمة المرور', exact: true }).click()
       await page.getByText('تم حذف كلمة مرور البريد.').waitFor()
       await field('كلمة المرور').waitFor()
@@ -605,8 +605,14 @@ test.group('Administration screens in the browser', (group) => {
         return texts.map((text) => text.replace(/\d+/g, '').trim())
       }
       assert.deepEqual(await titles(), ['الأشخاص والصلاحيات', 'الإعدادات'])
-      const settings = areas.getByRole('link', { name: /^الإعدادات/ })
-      await page.assertVisible(settings.getByLabel(/تنبيه إداري/))
+      // The count is the entry's SidebarMenuBadge (ADR 055) and part of the link's name.
+      const settings = areas.getByRole('link', { name: /^الإعدادات .*تنبيه إداري/ })
+      await page.assertVisible(
+        areas
+          .getByRole('listitem')
+          .filter({ has: page.getByRole('link', { name: /^الإعدادات .*تنبيه إداري/ }) })
+          .locator('[data-sidebar=menu-badge] [data-slot=badge]')
+      )
       await settings.click()
       await page.waitForURL(/\/admin\/(setup|settings)$/)
       assert.deepEqual(await titles(), ['الأشخاص والصلاحيات', 'الإعدادات'])
@@ -719,7 +725,7 @@ test.group('Administration screens in the browser', (group) => {
       .getByRole('option', { name: `${privilegedRole.name} (إدارة كاملة)`, exact: true })
       .click()
     await submit.click()
-    const grant = page.getByRole('dialog', { name: 'منح الإدارة الكاملة؟' })
+    const grant = page.getByRole('alertdialog', { name: 'منح الإدارة الكاملة؟' })
     await grant.waitFor()
     await grant.getByRole('button', { name: 'تراجع', exact: true }).click()
     await grant.waitFor({ state: 'hidden' })
@@ -730,7 +736,7 @@ test.group('Administration screens in the browser', (group) => {
     await role.click()
     await page.getByRole('option', { name: `browser-ordinary-${unique}`, exact: true }).click()
     await submit.click()
-    const ordinaryDialog = page.getByRole('dialog', { name: 'إسناد الدور؟' })
+    const ordinaryDialog = page.getByRole('alertdialog', { name: 'إسناد الدور؟' })
     await ordinaryDialog.getByRole('button', { name: 'إسناد الدور', exact: true }).click()
     await ordinaryDialog.waitFor({ state: 'hidden' })
     await page.getByRole('cell', { name: `browser-ordinary-${unique}`, exact: true }).waitFor()
@@ -991,7 +997,13 @@ test.group('Administration screens in the browser', (group) => {
             await page.getByRole('button', { name: surface.open, exact: true }).click()
             const dialog = page.getByRole('dialog', { name: surface.title })
             await dialog.waitFor()
-            const body = dialog.locator('[data-slot="long-dialog-body"]')
+            // The body is a shadcn Scroll Area (ADR 055); its viewport is what scrolls.
+            const body = dialog.locator(
+              '[data-long-dialog-body] > [data-slot="scroll-area-viewport"]'
+            )
+            const bar = dialog.locator(
+              '[data-long-dialog-body] > [data-slot="scroll-area-scrollbar"]'
+            )
             const header = dialog.getByRole('heading', { name: surface.title })
             const footer = dialog.locator('[data-slot="long-dialog-footer"]')
             const metrics = () =>
@@ -1006,8 +1018,15 @@ test.group('Administration screens in the browser', (group) => {
                 }
               })
             const before = await metrics()
-            // The scrollbar is laid out (not an idle overlay) in both themes.
-            assert.isAbove(before.offsetWidth - before.clientWidth, 0, `${label}: scrollbar width`)
+            // The scrollbar stays on screen while idle, with a visible thumb, in both themes.
+            await bar.waitFor()
+            const thumb = await page.evaluate<{ width: number; color: string }>(`(() => {
+              const bar = document.querySelector('[role=dialog] [data-long-dialog-body] > [data-slot="scroll-area-scrollbar"]')
+              const color = getComputedStyle(bar.querySelector('[data-slot="scroll-area-thumb"]')).backgroundColor
+              return { width: bar.getBoundingClientRect().width, color }
+            })()`)
+            assert.isAbove(thumb.width, 0, `${label}: scrollbar width`)
+            assert.notInclude(['rgba(0, 0, 0, 0)', 'transparent'], thumb.color, `${label}: thumb`)
             // Measure after the opening animation: the box stops changing between frames.
             const settled = async (locator: typeof header) => {
               let previous = JSON.stringify(await locator.boundingBox())

@@ -6,7 +6,9 @@ import { Bell } from 'lucide-react'
 import { toast } from 'sonner'
 import { useMessages } from '~/components/ui/messages'
 import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
-import { headerIconClass } from '~/components/header_icon'
+import { headerCountClass, headerIconClass } from '~/components/header_icon'
+import { Badge } from '~/components/ui/badge'
+import { Button } from '~/components/ui/button'
 import { isActivePath } from '~/components/shell_navigation'
 
 const HIDDEN_GRACE_MS = 10_000
@@ -132,8 +134,7 @@ export function NotificationBell() {
       })
     }
     // Asynchronous, so a catch-up never cancels the navigation the user is making.
-    const catchUp = () =>
-      router.reload({ only: ['unreadNotifications', 'openTasks'], async: true })
+    const catchUp = () => router.reload({ only: ['unreadNotifications', 'openTasks'], async: true })
     const open = () => {
       leaveRealtime ??= joinRealtime(userId, onMessage, catchUp)
     }
@@ -167,23 +168,21 @@ export function NotificationBell() {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Link
-          href="/notifications"
-          aria-label={count ? t('الإشعارات، {count} غير مقروء', { count }) : t('الإشعارات')}
-          aria-current={active ? 'page' : undefined}
-          data-testid="notifications-button"
-          className={headerIconClass(active)}
-        >
-          <Bell size={18} strokeWidth={1.6} aria-hidden />
-          {count > 0 && (
-            <span
-              data-testid="unread-count"
-              className="absolute -end-0.5 -top-0.5 min-w-4 rounded-full bg-destructive px-1 text-center text-[10px] font-semibold leading-4 text-destructive-foreground"
-            >
-              {count}
-            </span>
-          )}
-        </Link>
+        <Button asChild variant="ghost" size="icon" className={headerIconClass(active)}>
+          <Link
+            href="/notifications"
+            aria-label={count ? t('الإشعارات، {count} غير مقروء', { count }) : t('الإشعارات')}
+            aria-current={active ? 'page' : undefined}
+            data-testid="notifications-button"
+          >
+            <Bell strokeWidth={1.6} aria-hidden />
+            {count > 0 && (
+              <Badge data-testid="unread-count" variant="destructive" className={headerCountClass}>
+                {count}
+              </Badge>
+            )}
+          </Link>
+        </Button>
       </TooltipTrigger>
       <TooltipContent>{t('الإشعارات')}</TooltipContent>
     </Tooltip>

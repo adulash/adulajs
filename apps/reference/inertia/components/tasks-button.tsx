@@ -4,7 +4,9 @@ import { ListChecks } from 'lucide-react'
 import { useMessages } from '~/components/ui/messages'
 import { Tooltip, TooltipContent, TooltipTrigger } from '~/components/ui/tooltip'
 import { isActivePath } from '~/components/shell_navigation'
-import { headerIconClass } from '~/components/header_icon'
+import { Badge } from '~/components/ui/badge'
+import { Button } from '~/components/ui/button'
+import { headerCountClass, headerIconClass } from '~/components/header_icon'
 
 /**
  * «مهامي» beside the notification bell (#156). The badge is the number the page lists as
@@ -20,24 +22,21 @@ export function TasksButton() {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <Link
-          href="/my-tasks"
-          aria-label={count ? t('مهامي، {count} مفتوحة', { count }) : t('مهامي')}
-          aria-current={active ? 'page' : undefined}
-          data-testid="my-tasks-button"
-          className={headerIconClass(active)}
-        >
-          <ListChecks size={18} strokeWidth={1.6} aria-hidden />
-          {count > 0 && (
-            <span
-              data-testid="open-tasks-count"
-              aria-hidden
-              className="absolute -end-0.5 -top-0.5 min-w-4 rounded-full bg-primary px-1 text-center text-[10px] font-semibold leading-4 text-primary-foreground"
-            >
-              {count}
-            </span>
-          )}
-        </Link>
+        <Button asChild variant="ghost" size="icon" className={headerIconClass(active)}>
+          <Link
+            href="/my-tasks"
+            aria-label={count ? t('مهامي، {count} مفتوحة', { count }) : t('مهامي')}
+            aria-current={active ? 'page' : undefined}
+            data-testid="my-tasks-button"
+          >
+            <ListChecks strokeWidth={1.6} aria-hidden />
+            {count > 0 && (
+              <Badge data-testid="open-tasks-count" aria-hidden className={headerCountClass}>
+                {count}
+              </Badge>
+            )}
+          </Link>
+        </Button>
       </TooltipTrigger>
       <TooltipContent>{t('مهامي')}</TooltipContent>
     </Tooltip>

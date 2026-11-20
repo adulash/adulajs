@@ -148,7 +148,7 @@ test.group('Profile picture browser acceptance (#158)', (group) => {
     const menu = own.getByRole('button', { name: 'قائمة الحساب' })
     await menu.locator('img').waitFor()
     await own.getByRole('button', { name: 'إزالة الصورة' }).click()
-    await own.getByRole('dialog').getByRole('button', { name: 'إزالة الصورة' }).click()
+    await own.getByRole('alertdialog').getByRole('button', { name: 'إزالة الصورة' }).click()
     await own.getByRole('button', { name: 'اختيار صورة' }).waitFor()
     assert.equal(await menu.locator('img').count(), 0)
     assert.include(await menu.innerText(), 'ما')
