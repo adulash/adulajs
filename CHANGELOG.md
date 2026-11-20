@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.4.0 — 2026-11-20
+
 * AdulaJS UI is shadcn/ui on Radix throughout (ADR 055, #168). The workspace sidebar is
   shadcn Sidebar (the provider follows the user's `shell.sidebar` preference; three modes,
   the top layout, the header above the sidebar and no keyboard shortcut are unchanged), the
