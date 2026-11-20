@@ -1,10 +1,10 @@
 # Releasing
 
-A release is a merged version bump on `main`. `release.yml` re-runs CI on that commit and
-waits for the owner's approval of the `npm` environment, which authorizes publication
-([ADR 040](decisions/040-lean-release-process.md), [ADR 054](decisions/054-fast-automated-releases.md)).
-After approval the workflow publishes, verifies npm, tags the commit and writes the GitHub
-release. [CHANGELOG.md](../CHANGELOG.md) is the only chronology.
+A release is a merged version bump on `main`: the owner's merge of the release pull request
+authorizes publication ([ADR 040](decisions/040-lean-release-process.md),
+[ADR 054](decisions/054-fast-automated-releases.md), [ADR 056](decisions/056-release-on-merge.md)).
+`release.yml` re-runs CI on that commit, then publishes, verifies npm, tags the commit and
+writes the GitHub release. [CHANGELOG.md](../CHANGELOG.md) is the only chronology.
 
 ## Destination
 
@@ -48,13 +48,13 @@ Only stable versions are released, on `latest`.
      (`scripts/check-release.mjs`). Any other push to that file ends here.
    - **verify** runs the whole of `ci.yml` on that commit and keeps the consumer-tested
      archives with `SHA256SUMS`.
-   - **publish** waits in the `npm` environment; the owner's approval is the release
-     authorization (GitHub notifies the reviewer, and the mobile app can approve). It then
-     checks `SHA256SUMS`, publishes the three archives without rebuilding, checks the
+   - **publish** runs in the `npm` environment, which has no required reviewer (ADR 056)
+     and accepts deployments from `main` and `v*` tags only. It checks `SHA256SUMS`, publishes the three archives without rebuilding, checks the
      versions, `latest` and provenance on npm, and creates the `v<version>` tag and the
      GitHub release from the CHANGELOG section.
 
-A rejected approval leaves nothing published; merge a later bump to try again.
+A failed verify leaves nothing published; fix it on `main` and merge a later bump. A failed
+publish is safe to re-run: archives already on npm with the same bytes are skipped.
 
 ## CI
 
