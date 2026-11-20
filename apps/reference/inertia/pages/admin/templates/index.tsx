@@ -12,6 +12,14 @@ import { Textarea } from '~/components/ui/textarea'
 import { Dialog, DialogClose } from '~/components/ui/dialog'
 import { LongDialogContent } from '~/components/ui/long-dialog'
 import { useDialogParam } from '~/components/ui/dialog_param'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '~/components/ui/table'
 
 type Props = { templates: MessageTemplate[] }
 
@@ -66,38 +74,30 @@ export default function TemplatesIndex({ templates }: Props) {
           نصوص الإشعارات والبريد. التعديل محفوظ لهذا النشر، ويمكن إعادته إلى النص الافتراضي.
         </p>
       </div>
-      <div className="relative overflow-x-auto rounded-xl border bg-card">
-        <table className="w-full min-w-[720px] text-sm">
-          <thead className="bg-muted text-xs text-muted-foreground">
-            <tr>
-              <th scope="col" className="px-5 py-3 text-start font-medium">
-                القالب
-              </th>
-              <th scope="col" className="px-5 py-3 text-start font-medium">
-                العنوان
-              </th>
-              <th scope="col" className="px-5 py-3 text-start font-medium">
-                البريد
-              </th>
-              <th scope="col" className="px-5 py-3 text-start font-medium">
-                الحالة
-              </th>
-              <th scope="col" className="px-5 py-3">
+      <div className="overflow-hidden rounded-xl border bg-card">
+        <Table className="min-w-[720px]">
+          <TableHeader>
+            <TableRow>
+              <TableHead scope="col">القالب</TableHead>
+              <TableHead scope="col">العنوان</TableHead>
+              <TableHead scope="col">البريد</TableHead>
+              <TableHead scope="col">الحالة</TableHead>
+              <TableHead scope="col">
                 <span className="sr-only">إجراءات</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {templates.map((template) => (
-              <tr key={template.key} className="border-b last:border-0">
-                <td className="px-5 py-3">
+              <TableRow key={template.key}>
+                <TableCell>
                   <p className="font-medium">{template.label}</p>
                   <p className="text-xs text-muted-foreground" dir="ltr">
                     {template.key}
                   </p>
-                </td>
-                <td className="px-5 py-3">{template.subject}</td>
-                <td className="px-5 py-3">
+                </TableCell>
+                <TableCell>{template.subject}</TableCell>
+                <TableCell>
                   {template.mail ? (
                     <span className="flex items-center gap-1 text-success">
                       <Mail size={14} /> يُرسل
@@ -105,13 +105,13 @@ export default function TemplatesIndex({ templates }: Props) {
                   ) : (
                     <span className="text-muted-foreground">داخل النظام فقط</span>
                   )}
-                </td>
-                <td className="px-5 py-3">
+                </TableCell>
+                <TableCell>
                   <Badge variant={template.customized ? 'default' : 'secondary'}>
                     {template.customized ? 'معدّل' : 'افتراضي'}
                   </Badge>
-                </td>
-                <td className="px-5 py-3">
+                </TableCell>
+                <TableCell>
                   <div className="flex justify-end gap-2">
                     <Button
                       size="sm"
@@ -138,11 +138,11 @@ export default function TemplatesIndex({ templates }: Props) {
                       </Button>
                     )}
                   </div>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
       <Dialog
         open={editing !== null}

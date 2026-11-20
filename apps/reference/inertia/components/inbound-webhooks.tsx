@@ -9,6 +9,14 @@ import { Button } from '~/components/ui/button'
 import { Input } from '~/components/ui/input'
 import { Label } from '~/components/ui/label'
 import { Switch } from '~/components/ui/switch'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '~/components/ui/table'
 import { ResourceSelect } from '~/components/ui/resource-field'
 import { useConfirmAction } from '~/components/ui/confirm-action'
 import {
@@ -117,8 +125,8 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
             الروابط الواردة
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            يستقبل النظام طلبات موقّعة من الأنظمة الخارجية، ويتحقق من التوقيع، ويسجّل كل استلام
-            مرة واحدة ثم يطلق حدثاً تعالجه التطبيقات.
+            يستقبل النظام طلبات موقّعة من الأنظمة الخارجية، ويتحقق من التوقيع، ويسجّل كل استلام مرة
+            واحدة ثم يطلق حدثاً تعالجه التطبيقات.
           </p>
         </div>
         <Button variant="outline" onClick={() => dialog.openCreate()}>
@@ -227,11 +235,7 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
             </>
           }
         >
-          <form
-            id="inbound-form"
-            className="grid gap-4 sm:grid-cols-2"
-            onSubmit={save}
-          >
+          <form id="inbound-form" className="grid gap-4 sm:grid-cols-2" onSubmit={save}>
             <div className="space-y-2">
               <Label htmlFor="inbound-name">الاسم</Label>
               <Input
@@ -323,9 +327,9 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
           <DialogHeader>
             <DialogTitle>مفتاح التوقيع للمرسل</DialogTitle>
             <DialogDescription>
-              انسخ المفتاح الآن وضعه عند المرسل مع العنوان أدناه؛ لن يظهر مرة أخرى. اختر نوع
-              المحتوى <bdi dir="ltr">application/json</bdi> عند المرسل، فالصيغة الافتراضية في
-              GitHub لا تُقبل.
+              انسخ المفتاح الآن وضعه عند المرسل مع العنوان أدناه؛ لن يظهر مرة أخرى. اختر نوع المحتوى{' '}
+              <bdi dir="ltr">application/json</bdi> عند المرسل، فالصيغة الافتراضية في GitHub لا
+              تُقبل.
             </DialogDescription>
           </DialogHeader>
           {secret && (
@@ -368,61 +372,57 @@ export function InboundWebhooks({ sources }: { sources: InboundSource[] }) {
             </DialogClose>
           }
         >
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted text-xs text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2 text-start font-medium">الحدث</th>
-                  <th className="px-3 py-2 text-start font-medium">معرّف الاستلام</th>
-                  <th className="px-3 py-2 text-start font-medium">الوقت</th>
-                  <th className="px-3 py-2 text-start font-medium">الإطلاق</th>
-                  <th className="px-3 py-2">
-                    <span className="sr-only">إجراء</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {log?.rows.map((row) => (
-                  <tr key={row.id} className="border-b last:border-0">
-                    <td className="px-3 py-2" dir="ltr">
-                      {row.eventName}
-                    </td>
-                    <td className="max-w-48 truncate px-3 py-2 text-xs" dir="ltr">
-                      {row.deliveryId}
-                    </td>
-                    <td className="px-3 py-2 text-xs">{formatDateTime(row.receivedAt)}</td>
-                    <td className="px-3 py-2 tabular-nums">{row.dispatches}</td>
-                    <td className="px-3 py-2">
-                      {log && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={async () => {
-                            await axios.post(
-                              `/admin/inbound-webhooks/deliveries/${row.id}/redispatch`,
-                              {},
-                              json
-                            )
-                            await showLog(log.source)
-                          }}
-                        >
-                          <RotateCcw size={13} />
-                          إعادة الإطلاق
-                        </Button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {log?.rows.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
-                      لا مستلمات بعد.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>الحدث</TableHead>
+                <TableHead>معرّف الاستلام</TableHead>
+                <TableHead>الوقت</TableHead>
+                <TableHead>الإطلاق</TableHead>
+                <TableHead>
+                  <span className="sr-only">إجراء</span>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {log?.rows.map((row) => (
+                <TableRow key={row.id}>
+                  <TableCell dir="ltr">{row.eventName}</TableCell>
+                  <TableCell className="max-w-48 truncate text-xs" dir="ltr">
+                    {row.deliveryId}
+                  </TableCell>
+                  <TableCell className="text-xs">{formatDateTime(row.receivedAt)}</TableCell>
+                  <TableCell className="tabular-nums">{row.dispatches}</TableCell>
+                  <TableCell>
+                    {log && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={async () => {
+                          await axios.post(
+                            `/admin/inbound-webhooks/deliveries/${row.id}/redispatch`,
+                            {},
+                            json
+                          )
+                          await showLog(log.source)
+                        }}
+                      >
+                        <RotateCcw size={13} />
+                        إعادة الإطلاق
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+              {log?.rows.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="py-6 text-center text-muted-foreground">
+                    لا مستلمات بعد.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         </LongDialogContent>
       </Dialog>
       {confirmation}

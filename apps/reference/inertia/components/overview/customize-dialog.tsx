@@ -3,6 +3,7 @@ import { router } from '@inertiajs/react'
 import { RotateCcw } from 'lucide-react'
 import type { OverviewState } from 'adula'
 import { Button } from '~/components/ui/button'
+import { Label } from '~/components/ui/label'
 import { Switch } from '~/components/ui/switch'
 import { useMessages } from '~/components/ui/messages'
 import { useConfirmAction } from '~/components/ui/confirm-action'
@@ -48,9 +49,7 @@ export function CustomizeOverviewDialog({
   }, [open])
 
   const refresh = () =>
-    new Promise<void>((resolve) =>
-      router.reload({ only: ['overview'], onFinish: () => resolve() })
-    )
+    new Promise<void>((resolve) => router.reload({ only: ['overview'], onFinish: () => resolve() }))
   const submit = async () => {
     setSaving(true)
     try {
@@ -122,26 +121,29 @@ export function CustomizeOverviewDialog({
           }}
         >
           <SortableList
-          label={t('عناصر النظرة العامة')}
-          items={rows}
-          onChange={setRows}
-          renderItem={(row) => (
-            <label className="flex items-center justify-between gap-3 text-sm">
-              <span className="truncate">{row.label}</span>
-              <Switch
-                checked={!row.hidden}
-                aria-label={t('إظهار {widget}', { widget: row.label })}
-                onCheckedChange={(checked) =>
-                  setRows((current) =>
-                    current.map((entry) =>
-                      entry.id === row.id ? { ...entry, hidden: !checked } : entry
+            label={t('عناصر النظرة العامة')}
+            items={rows}
+            onChange={setRows}
+            renderItem={(row) => (
+              <div className="flex items-center justify-between gap-3">
+                <Label htmlFor={`overview-widget-${row.id}`} className="min-w-0 font-normal">
+                  <span className="truncate">{row.label}</span>
+                </Label>
+                <Switch
+                  id={`overview-widget-${row.id}`}
+                  checked={!row.hidden}
+                  aria-label={t('إظهار {widget}', { widget: row.label })}
+                  onCheckedChange={(checked) =>
+                    setRows((current) =>
+                      current.map((entry) =>
+                        entry.id === row.id ? { ...entry, hidden: !checked } : entry
+                      )
                     )
-                  )
-                }
-              />
-            </label>
-          )}
-        />
+                  }
+                />
+              </div>
+            )}
+          />
         </form>
       </LongDialogContent>
       {confirmation}

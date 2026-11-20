@@ -1,5 +1,5 @@
 import { cn } from "cn"
-import { Avatar as AvatarPrimitive } from "radix-ui"
+import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar"
 
 export type UserAvatarUser = {
   id: number
@@ -13,10 +13,10 @@ export type UserAvatarUser = {
 }
 
 const SIZES = {
-  xs: "size-5 text-[9px]",
-  sm: "size-7 text-[11px]",
-  md: "size-9 text-xs",
-  lg: "size-16 text-lg",
+  xs: { root: "size-5", text: "text-[9px]" },
+  sm: { root: "size-7", text: "text-[11px]" },
+  md: { root: "size-9", text: "text-xs" },
+  lg: { root: "size-16", text: "text-lg" },
 } as const
 
 /** Two initials like the server's `User.initials`: first and last word, or one word's first two letters. */
@@ -32,7 +32,8 @@ export function initialsOf(name?: string | null) {
 
 /**
  * A user's profile picture (ADR 050) with their initials while it loads and when there is none.
- * Next to a visible name it is decorative; pass `labelled` when it stands alone.
+ * Next to a visible name it is decorative; pass `labelled` when it stands alone. It composes
+ * shadcn's Avatar (ADR 055), so it carries `data-slot="avatar"` and `data-user-avatar`.
  */
 export function UserAvatar({
   user,
@@ -48,32 +49,17 @@ export function UserAvatar({
   const src =
     user.avatarUrl === null ? undefined : (user.avatarUrl ?? `/users/${user.id}/avatar`)
   return (
-    <AvatarPrimitive.Root
-      data-slot="user-avatar"
+    <Avatar
+      data-user-avatar=""
       role={labelled ? "img" : undefined}
       aria-label={labelled ? (user.name ?? undefined) : undefined}
       aria-hidden={labelled ? undefined : true}
-      className={cn(
-        "relative inline-flex shrink-0 overflow-hidden rounded-full bg-muted align-middle",
-        SIZES[size],
-        className
-      )}
+      className={cn("inline-flex align-middle", SIZES[size].root, className)}
     >
-      {src ? (
-        <AvatarPrimitive.Image
-          data-slot="user-avatar-image"
-          src={src}
-          alt=""
-          loading="lazy"
-          className="aspect-square size-full object-cover"
-        />
-      ) : null}
-      <AvatarPrimitive.Fallback
-        data-slot="user-avatar-fallback"
-        className="flex size-full items-center justify-center rounded-full font-semibold text-muted-foreground"
-      >
+      {src ? <AvatarImage src={src} alt="" loading="lazy" className="object-cover" /> : null}
+      <AvatarFallback className={cn("font-semibold", SIZES[size].text)}>
         {initialsOf(user.name)}
-      </AvatarPrimitive.Fallback>
-    </AvatarPrimitive.Root>
+      </AvatarFallback>
+    </Avatar>
   )
 }

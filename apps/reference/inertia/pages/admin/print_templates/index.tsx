@@ -16,6 +16,14 @@ import { Textarea } from '~/components/ui/textarea'
 import { ResourceSelect } from '~/components/ui/resource-field'
 import { Alert, AlertDescription } from '~/components/ui/alert'
 import { Dialog, DialogClose } from '~/components/ui/dialog'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '~/components/ui/table'
 
 type Column = { key: string; label: string; type: string }
 type ResourceNames = {
@@ -301,54 +309,44 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
           <AlertDescription>{listError}</AlertDescription>
         </Alert>
       )}
-      <div className="relative overflow-x-auto rounded-xl border bg-card">
-        <table className="w-full min-w-[760px] text-sm">
-          <thead className="bg-muted text-xs text-muted-foreground">
-            <tr>
-              <th scope="col" className="px-5 py-3 text-start font-medium">
-                الكيان
-              </th>
-              <th scope="col" className="px-5 py-3 text-start font-medium">
-                القالب
-              </th>
-              <th scope="col" className="px-5 py-3 text-start font-medium">
-                الورق
-              </th>
-              <th scope="col" className="px-5 py-3 text-start font-medium">
-                النسخة
-              </th>
-              <th scope="col" className="px-5 py-3 text-start font-medium">
-                الحالة
-              </th>
-              <th scope="col" className="px-5 py-3">
+      <div className="overflow-hidden rounded-xl border bg-card">
+        <Table className="min-w-[760px]">
+          <TableHeader>
+            <TableRow>
+              <TableHead scope="col">الكيان</TableHead>
+              <TableHead scope="col">القالب</TableHead>
+              <TableHead scope="col">الورق</TableHead>
+              <TableHead scope="col">النسخة</TableHead>
+              <TableHead scope="col">الحالة</TableHead>
+              <TableHead scope="col">
                 <span className="sr-only">إجراءات</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {templates.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-5 py-10 text-center text-muted-foreground">
+              <TableRow>
+                <TableCell colSpan={6} className="text-center text-muted-foreground">
                   لا توجد قوالب طباعة بعد. تبقى الطباعة العامة متاحة لكل سجل.
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             )}
             {templates.map((template) => (
-              <tr key={`${template.resource}.${template.key}`} className="border-b last:border-0">
-                <td className="px-5 py-3">{template.resourceLabel}</td>
-                <td className="px-5 py-3">
+              <TableRow key={`${template.resource}.${template.key}`}>
+                <TableCell>{template.resourceLabel}</TableCell>
+                <TableCell>
                   <p className="font-medium">{template.label}</p>
                   <p className="text-xs text-muted-foreground" dir="ltr">
                     {template.key}
                   </p>
-                </td>
-                <td className="px-5 py-3">
+                </TableCell>
+                <TableCell>
                   {template.paper} · {orientationLabel(template.orientation)}
-                </td>
-                <td className="px-5 py-3 tabular-nums" dir="ltr">
+                </TableCell>
+                <TableCell className="tabular-nums" dir="ltr">
                   {template.source === 'code' ? template.version : `v${template.version}`}
-                </td>
-                <td className="px-5 py-3">
+                </TableCell>
+                <TableCell>
                   {template.source === 'code' ? (
                     <Badge variant="secondary">معرّف في الكود</Badge>
                   ) : template.active ? (
@@ -356,8 +354,8 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
                   ) : (
                     <Badge variant="outline">موقوف</Badge>
                   )}
-                </td>
-                <td className="px-5 py-3">
+                </TableCell>
+                <TableCell>
                   {template.source === 'custom' && (
                     <div className="flex justify-end gap-2">
                       <Button
@@ -380,11 +378,11 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
                       </Button>
                     </div>
                   )}
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
       <Dialog
@@ -565,8 +563,8 @@ export default function PrintTemplatesIndex({ templates, resources, helpers, tim
                     </code>
                   </p>
                   <p className="text-muted-foreground">
-                    تُهرَّب كل القيم، وتُحذف الوسوم والخصائص غير المسموحة عند الحفظ. لا يظهر حقل لا يملك
-                    القارئ صلاحية قراءته.
+                    تُهرَّب كل القيم، وتُحذف الوسوم والخصائص غير المسموحة عند الحفظ. لا يظهر حقل لا
+                    يملك القارئ صلاحية قراءته.
                   </p>
                 </div>
                 <div className="flex items-end gap-3">

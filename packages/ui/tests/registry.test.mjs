@@ -3,9 +3,10 @@ import assert from 'node:assert/strict'
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
+  UPSTREAM_EDITS,
   adaptSource,
   digest,
   loadTransformDirection,
@@ -73,6 +74,29 @@ test('drift gate: every registry file is already prepared and installs byte for 
     assert.equal(await transformDirection(code, true), code, `${filename} changes on install`)
     assert.doesNotMatch(code, /^["']use client["']/, filename)
   }
+})
+
+test('UPSTREAM.json: each fetched shadcn file matches its hash and the stored copy is its prepared form', async () => {
+  const entries = JSON.parse(await readFile(new URL('../UPSTREAM.json', import.meta.url), 'utf8'))
+  const names = new Set(entries.map((entry) => entry.name))
+  // ADR 055: the parts the shell and the registry compose come from shadcn, not from Radix directly.
+  for (const name of ['sidebar', 'avatar', 'slider', 'alert-dialog', 'breadcrumb', 'scroll-area', 'table'])
+    assert.ok(names.has(name), `${name} is recorded in UPSTREAM.json`)
+  for (const entry of entries) {
+    assert.match(entry.url, /^https:\/\/ui\.shadcn\.com\/r\/styles\/new-york-v4\/[a-z-]+\.json$/, entry.name)
+    const source = await readFile(new URL(`../${entry.upstream}`, import.meta.url), 'utf8')
+    assert.equal(digest(source), entry.sha256, `${entry.upstream}: not the file whose hash UPSTREAM.json records`)
+    const stored = await readFile(new URL(`../${entry.path}`, import.meta.url), 'utf8')
+    const prepared = await adapt(basename(entry.path), source.replace(/\r\n/g, '\n'))
+    if (UPSTREAM_EDITS[entry.name])
+      assert.notEqual(stored, prepared, `${entry.name} equals its upstream file; remove it from UPSTREAM_EDITS`)
+    else
+      assert.equal(stored, prepared, `${entry.path}: differs from the prepared upstream file; record the edit in UPSTREAM_EDITS and ADR 055`)
+  }
+  for (const name of Object.keys(UPSTREAM_EDITS)) assert.ok(names.has(name), `${name}: an edit to an unknown item`)
+  // Every fetched item is installable from the registry.
+  const registry = JSON.parse(await readFile(new URL('../registry.json', import.meta.url), 'utf8'))
+  for (const name of names) assert.ok(registry.items.some((item) => item.name === name), `${name} is in registry.json`)
 })
 
 test('registry.json and registry/ui list the same files', async () => {

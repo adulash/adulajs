@@ -136,7 +136,7 @@ test.group('Personal overview browser acceptance (#159)', (group) => {
     await page.getByRole('button', { name: 'تخصيص' }).click()
     await dialog.getByRole('button', { name: 'استعادة الافتراضي' }).click()
     await page
-      .getByRole('dialog', { name: 'استعادة الترتيب الافتراضي؟' })
+      .getByRole('alertdialog', { name: 'استعادة الترتيب الافتراضي؟' })
       .getByRole('button', { name: 'استعادة الافتراضي' })
       .click()
     await dialog.waitFor({ state: 'hidden' })

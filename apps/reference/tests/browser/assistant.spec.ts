@@ -336,7 +336,7 @@ test.group('Assistant panel in the browser (ADR 052)', (group) => {
       type Metrics = { scrollHeight: number; clientHeight: number; scrollTop: number }
       const metrics = () =>
         page.evaluate(`(() => {
-          const body = document.querySelector('[data-slot="long-dialog-body"]')
+          const body = document.querySelector('[data-long-dialog-body] [data-slot="scroll-area-viewport"]')
           return { scrollHeight: body.scrollHeight, clientHeight: body.clientHeight, scrollTop: body.scrollTop }
         })()`) as Promise<Metrics>
       const before = await metrics()
@@ -404,7 +404,7 @@ test.group('Assistant panel in the browser (ADR 052)', (group) => {
     // Deleting the key is a card action outside the dialog, confirmed as destructive.
     await page.getByRole('button', { name: 'حذف المفتاح', exact: true }).click()
     const danger = page
-      .getByRole('dialog', { name: 'حذف مفتاح OpenRouter؟' })
+      .getByRole('alertdialog', { name: 'حذف مفتاح OpenRouter؟' })
       .getByRole('button', { name: 'حذف المفتاح', exact: true })
     assert.equal(await danger.getAttribute('data-variant'), 'destructive')
     await danger.click()

@@ -250,7 +250,8 @@ async function purgeSampleRows(
 export async function longDialogLayout(dialog: any, viewportHeight: number) {
   const footer = (await dialog.locator('[data-slot="long-dialog-footer"]').boundingBox())!
   const header = (await dialog.locator('[data-slot="dialog-header"]').boundingBox())!
-  const body = dialog.locator('[data-slot="long-dialog-body"]')
+  // The body is a shadcn Scroll Area (ADR 055); its viewport is the element that scrolls.
+  const body = dialog.locator('[data-long-dialog-body] > [data-slot="scroll-area-viewport"]')
   const overflow = await body.evaluate(
     (node: unknown) => (globalThis as any).getComputedStyle(node).overflowY as string
   )
@@ -318,7 +319,7 @@ export async function seedPicture(userId: number) {
  * beside the visible name, so hidden from assistive technology, with an empty alt.
  */
 export async function decorativeAvatar(scope: any) {
-  const avatar = scope.locator('[data-slot="user-avatar"]').first()
+  const avatar = scope.locator('[data-user-avatar]').first()
   await avatar.waitFor()
   const image = avatar.locator('img')
   return {

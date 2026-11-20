@@ -538,14 +538,16 @@ function TextValues({
             <li key={value}>
               <Badge variant="secondary" className="gap-1 font-normal">
                 {value}
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon-xs"
                   aria-label={t('إزالة {value}', { value })}
-                  className="text-muted-foreground hover:text-foreground"
+                  className="rounded-full text-muted-foreground"
                   onClick={() => onChange(values.filter((entry) => entry !== value))}
                 >
                   <X size={12} />
-                </button>
+                </Button>
               </Badge>
             </li>
           ))}

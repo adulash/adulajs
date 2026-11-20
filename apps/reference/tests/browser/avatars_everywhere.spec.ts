@@ -112,11 +112,8 @@ test.group('Profile pictures wherever a person appears (#158)', (group) => {
     const row = users.getByRole('row').filter({ hasText: pictured.user.fullName! })
     assert.isTrue(await isDecorative(row))
     // The main identity column uses the larger list size.
-    assert.include(
-      String(await row.locator('[data-slot="user-avatar"]').getAttribute('class')),
-      'size-7'
-    )
-    await row.locator('[data-slot="user-avatar-image"]').waitFor()
+    assert.include(String(await row.locator('[data-user-avatar]').getAttribute('class')), 'size-7')
+    await row.locator('[data-user-avatar] [data-slot="avatar-image"]').waitFor()
     assert.equal(await row.locator('img').getAttribute('src'), versioned())
     assert.equal(await row.locator('img').getAttribute('alt'), '')
     // A user without a picture shows initials and costs no request at all.
@@ -176,7 +173,7 @@ test.group('Profile pictures wherever a person appears (#158)', (group) => {
     await option.click()
     const trigger = dialog.getByRole('combobox', { name: 'المفوَّض إليه' })
     assert.include(
-      String(await trigger.locator('[data-slot="user-avatar"]').getAttribute('class')),
+      String(await trigger.locator('[data-user-avatar]').getAttribute('class')),
       'size-7'
     )
     await page.keyboard.press('Escape')

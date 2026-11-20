@@ -73,6 +73,14 @@ import {
   type AttachmentValue,
   type Option,
 } from '~/components/ui/resource-value'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '~/components/ui/table'
 
 export type RelationSource = { url: string; searchable: boolean }
 export type InlineDefinition = ResourceEditor['inline'][string]
@@ -1589,13 +1597,13 @@ export function InlineRows({
         </p>
       )}
       {rows.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] text-sm">
-            <thead className="bg-muted text-xs text-muted-foreground">
-              <tr>
-                <th className="w-12 px-4 py-3 text-start font-medium">#</th>
+        <div>
+          <Table className="min-w-[560px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-12">#</TableHead>
                 {inline.fields.map((child) => (
-                  <th key={child.key} className="px-3 py-3 text-start font-medium">
+                  <TableHead key={child.key}>
                     {label(child.label)}
                     {child.required && (
                       <span className="text-destructive" aria-hidden="true">
@@ -1603,28 +1611,28 @@ export function InlineRows({
                         *
                       </span>
                     )}
-                  </th>
+                  </TableHead>
                 ))}
-                <th className="w-24 px-4 py-3 text-start font-medium">
+                <TableHead className="w-24">
                   <span className="sr-only">{t('الإجراء')}</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {rows.map((row, index) => {
                 const number = index + 1
                 const rowErrors = errors[row.key] ?? {}
                 // A child whose visibleWhen does not hold in this row shows no control.
                 const rowHidden = hiddenFields(inline.fields, row.values)
                 return (
-                  <tr
+                  <TableRow
                     key={row.key}
                     aria-label={t('بند {number}', { number })}
-                    className={`border-b align-top last:border-0 ${row.deleted ? 'bg-destructive/5 opacity-60' : ''}`}
+                    className={`align-top ${row.deleted ? 'bg-destructive/5 opacity-60' : ''}`}
                   >
-                    <td className="px-4 py-3 tabular-nums text-muted-foreground">{number}</td>
+                    <TableCell className="tabular-nums text-muted-foreground">{number}</TableCell>
                     {inline.fields.map((child) => (
-                      <td key={child.key} className="min-w-40 px-3 py-2">
+                      <TableCell key={child.key} className="min-w-40">
                         {rowHidden.has(child.key) ? (
                           <span className="text-muted-foreground" aria-hidden="true">
                             —
@@ -1671,9 +1679,9 @@ export function InlineRows({
                             {rowErrors[child.key]}
                           </p>
                         )}
-                      </td>
+                      </TableCell>
                     ))}
-                    <td className="px-4 py-2">
+                    <TableCell>
                       {row.id === undefined ? (
                         <Button
                           type="button"
@@ -1701,12 +1709,12 @@ export function InlineRows({
                           {row.deleted ? <Undo2 /> : <Trash2 className="text-destructive" />}
                         </Button>
                       ) : null}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 )
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
         </div>
       )}
     </section>

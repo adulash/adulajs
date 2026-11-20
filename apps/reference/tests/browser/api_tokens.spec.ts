@@ -116,7 +116,7 @@ test.group('API tokens in the settings (administrators only)', (group) => {
     assert.lengthOf(stored, 1)
 
     // Revoking stops the integrations at once, so it asks first; «تراجع» keeps the token.
-    const revoke = page.getByRole('dialog', { name: 'إلغاء الرمز «تكامل المحاسبة»' })
+    const revoke = page.getByRole('alertdialog', { name: 'إلغاء الرمز «تكامل المحاسبة»' })
     await row.getByRole('button', { name: 'إلغاء تكامل المحاسبة' }).click()
     await revoke.getByText('تتوقف فورًا كل التكاملات التي تستخدم هذا الرمز').waitFor()
     await snapshot(page, 'revoke')

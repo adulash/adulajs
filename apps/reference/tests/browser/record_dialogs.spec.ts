@@ -68,7 +68,7 @@ async function assertLongDialog(page: Page, dialog: Locator, height: number, ass
   await dialog.evaluate(async (element: { getAnimations(): { finished: Promise<unknown> }[] }) => {
     await Promise.all(element.getAnimations().map((animation) => animation.finished))
   })
-  const body = dialog.locator('[data-slot="long-dialog-body"]')
+  const body = dialog.locator('[data-long-dialog-body] [data-slot="scroll-area-viewport"]')
   const title = dialog.locator('[data-slot="dialog-title"]')
   const check = async () => {
     const box = (await footer.boundingBox())!
@@ -88,7 +88,7 @@ async function assertLongDialog(page: Page, dialog: Locator, height: number, ass
   assert.isAtMost(Math.abs((await title.boundingBox())!.y - top), 1)
   assert.equal(
     await page.evaluate<string>(
-      'getComputedStyle(document.querySelector("[role=dialog] [data-slot=long-dialog-body]")).overflowY'
+      'getComputedStyle(document.querySelector("[role=dialog] [data-long-dialog-body] [data-slot=scroll-area-viewport]")).overflowY'
     ),
     'scroll'
   )

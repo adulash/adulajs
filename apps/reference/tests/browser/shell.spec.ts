@@ -1,4 +1,5 @@
 import { test } from '@japa/runner'
+import app from '@adonisjs/core/services/app'
 import db from '@adonisjs/lucid/services/db'
 import { adula } from '#services/adula'
 import { seedActor, screenshotDir, type UiActor } from '#tests/helpers/ui_fixtures'
@@ -342,6 +343,86 @@ test.group('Workspace shell in the browser', (group) => {
     )
   })
 
+  test('the shell is shadcn Sidebar and every list is shadcn Table, in each mode and both directions (ADR 055, #168)', async ({
+    browserContext,
+    visit,
+    assert,
+  }) => {
+    // The light and dark suites (pnpm test:browser:dark) cover both themes.
+    const configured = app.config.get('adula.languages')
+    app.config.set('adula.languages', ['ar', 'en'])
+    try {
+      const navigation = adula().resources.navigation(await adula().actors.load(member.user.id))
+      const lists = [...new Set(navigation.map((entry) => entry.href))]
+      assert.isAbove(lists.length, 1)
+      await browserContext.loginAs(member.user)
+      for (const language of ['ar', 'en'] as const) {
+        await knex()('users').where('id', member.user.id).update({ language })
+        for (const mode of ['expanded', 'icons', 'hidden', 'top'] as const) {
+          const label = `${language} ${mode}`
+          await knex()('settings')
+            .where({ scope: 'user', scope_id: String(member.user.id) })
+            .whereIn('key', ['preference.shell.sidebar', 'preference.shell.sidebarCollapse'])
+            .delete()
+          await systemLayout(mode === 'top' ? 'top' : null)
+          if (mode === 'icons' || mode === 'hidden')
+            await knex()('settings').insert({
+              key: 'preference.shell.sidebar',
+              scope: 'user',
+              scope_id: String(member.user.id),
+              value: JSON.stringify(mode),
+            })
+          const page = await visit(lists[0])
+          await page.setViewportSize({ width: 1440, height: 900 })
+          await page
+            .locator(`[data-workspace-shell][data-layout="${mode === 'top' ? 'top' : 'sidebar'}"]`)
+            .waitFor()
+          const dir = await page.evaluate<string>('document.documentElement.dir')
+          assert.equal(dir, language === 'en' ? 'ltr' : 'rtl', label)
+          // No hand-built sidebar remains in any mode.
+          assert.equal(await page.locator('aside').count(), 0, label)
+          if (mode === 'top') {
+            assert.equal(await page.locator('[data-slot=sidebar]').count(), 0, label)
+          } else {
+            const outer = page.locator('[data-slot=sidebar-wrapper] [data-slot=sidebar]')
+            assert.equal(await outer.count(), 1, label)
+            assert.equal(
+              await outer.getAttribute('data-collapsible'),
+              { expanded: '', icons: 'icon', hidden: 'offcanvas' }[mode],
+              label
+            )
+            assert.equal(
+              await page.locator('#workspace-sidebar [data-slot=scroll-area]').count(),
+              1,
+              label
+            )
+            assert.equal(await page.locator('[data-slot=sidebar-rail]').count(), 1, label)
+            // The trigger's data-slot is the tooltip's (asChild); shadcn marks it data-sidebar=trigger.
+            assert.equal(await page.locator('[data-sidebar=trigger]').count(), 1, label)
+            if (mode === 'hidden') {
+              await page.locator('#workspace-sidebar').waitFor({ state: 'hidden' })
+            } else {
+              // The sidebar stands at the inline start: the right in Arabic, the left in English.
+              const side = (await settledBox(page.locator('#workspace-sidebar')))!
+              if (dir === 'rtl') assert.isAtMost(Math.abs(side.x + side.width - 1440), 1, label)
+              else assert.isAtMost(Math.abs(side.x), 1, label)
+            }
+          }
+          // Every list the member may open is a shadcn Table.
+          for (const href of lists) {
+            await page.goto(href)
+            await page.locator('main [data-slot=table]').first().waitFor()
+            assert.equal(await page.locator('main table:not([data-slot=table])').count(), 0, href)
+          }
+          await page.close()
+        }
+      }
+    } finally {
+      app.config.set('adula.languages', configured)
+      await knex()('users').where('id', member.user.id).update({ language: 'ar' })
+    }
+  })
+
   test('the top layout opens one menu per permitted module with its pages, by keyboard too (#154)', async ({
     browserContext,
     visit,
@@ -503,11 +584,11 @@ test.group('Workspace shell in the browser', (group) => {
         await Promise.all(element.getAnimations().map((animation) => animation.finished))
       }
     )
-    const body = dialog.locator('[data-slot="long-dialog-body"]')
+    const body = dialog.locator('[data-long-dialog-body] [data-slot="scroll-area-viewport"]')
     const footer = dialog.locator('[data-slot="long-dialog-footer"]')
     // The administrator's entries do not fit: the body scrolls, the dialog stays on screen.
     const [scrollHeight, clientHeight] = await page.evaluate<[number, number]>(
-      `(() => { const body = document.querySelector('[role="dialog"] [data-slot="long-dialog-body"]'); return [body.scrollHeight, body.clientHeight] })()`
+      `(() => { const body = document.querySelector('[role="dialog"] [data-long-dialog-body] [data-slot="scroll-area-viewport"]'); return [body.scrollHeight, body.clientHeight] })()`
     )
     assert.isAbove(scrollHeight, clientHeight)
     const inView = async () => {
@@ -901,15 +982,17 @@ test.group('Workspace shell in the browser', (group) => {
     await page.goto('/admin/activity')
     await settings.waitFor()
     assert.equal(await settings.getAttribute('aria-orientation'), 'horizontal')
+    // The row scrolls inside a shadcn Scroll Area whose bar stays hidden (ADR 055).
+    assert.equal(await page.locator('[data-slot=scroll-area] [role=tablist]').count(), 1)
     assert.isAbove(
       await page.evaluate<number>(
-        '(() => { const list = document.querySelector("[role=tablist]"); return list.scrollWidth - list.clientWidth })()'
+        '(() => { const list = document.querySelector("[role=tablist]").closest("[data-slot=scroll-area-viewport]"); return list.scrollWidth - list.clientWidth })()'
       ),
       0
     )
     const inView = () =>
       page.evaluate<boolean>(
-        '(() => { const list = document.querySelector("[role=tablist]").getBoundingClientRect(); const tab = document.querySelector("[role=tab][aria-selected=true]").getBoundingClientRect(); return tab.left >= list.left - 1 && tab.right <= list.right + 1 })()'
+        '(() => { const list = document.querySelector("[role=tablist]").closest("[data-slot=scroll-area-viewport]").getBoundingClientRect(); const tab = document.querySelector("[role=tab][aria-selected=true]").getBoundingClientRect(); return tab.left >= list.left - 1 && tab.right <= list.right + 1 })()'
       )
     for (const started = Date.now(); !(await inView());) {
       if (Date.now() - started > 5_000) assert.isTrue(await inView())
@@ -941,9 +1024,13 @@ test.group('Workspace shell in the browser', (group) => {
       await new Promise((resolve) => setTimeout(resolve, 50))
     }
     assert.notMatch(await phoneSettings.innerText(), /\(/)
-    const alertCount = await page
-      .locator('nav[aria-label="التنقل الإداري"] [data-slot=badge]')
-      .count()
+    // The sidebar is not on the page at this width (shadcn Sidebar), so the count comes from the
+    // section's tabs: «الإعدادات» carries a badge exactly when one of its tabs does.
+    const alertCount = (await page
+      .locator('[data-admin-tabs] [role=tab] [data-slot=badge]')
+      .count())
+      ? 1
+      : 0
     const phoneBadge = phoneSettings.locator('[data-slot=badge]')
     assert.equal(await phoneBadge.count(), alertCount)
     if (alertCount) {
@@ -965,7 +1052,7 @@ test.group('Workspace shell in the browser', (group) => {
         const list = document.querySelector('[role=tablist]')
         const tabs = list.querySelectorAll('[role=tab]')
         const tab = ${which === 'first' ? 'tabs[0]' : 'tabs[tabs.length - 1]'}
-        const box = list.getBoundingClientRect()
+        const box = list.closest('[data-slot=scroll-area-viewport]').getBoundingClientRect()
         const rect = tab.getBoundingClientRect()
         return document.activeElement === tab && rect.left - 3 >= box.left - 0.5 && rect.right + 3 <= box.right + 0.5 && rect.top - 3 >= box.top - 0.5 && rect.bottom + 3 <= box.bottom + 0.5
       })()`)

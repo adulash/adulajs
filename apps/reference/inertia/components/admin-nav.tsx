@@ -7,10 +7,14 @@ import { useUiPreferences } from '~/components/ui/ui-preferences'
 import { useMessages } from '~/components/ui/messages'
 import { Badge } from '~/components/ui/badge'
 import { Button } from '~/components/ui/button'
-import { Separator } from '~/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs'
-import { RailLink } from '~/components/rail-link'
-import { navLinkClass } from '~/components/shell_navigation'
+import { SidebarEntry } from '~/components/rail-link'
+import {
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarMenu,
+  SidebarSeparator,
+} from '~/components/ui/sidebar'
 import {
   ALERTS_SECTION,
   sectionFor,
@@ -47,60 +51,42 @@ export function useAdminEntries(order: (sections: AdminSection[]) => AdminSectio
  * inside the page. The alerts count sits on «الإعدادات», where the failed workflows and the
  * backups are.
  */
-export function AdminNav({
-  order,
-  compact = false,
-}: {
-  order?: (sections: AdminSection[]) => AdminSection[]
-  /** The collapsed sidebar: icons with their names as tooltips (#153). */
-  compact?: boolean
-}) {
+export function AdminNav({ order }: { order?: (sections: AdminSection[]) => AdminSection[] }) {
   const { t } = useMessages()
   const { sections, current, alerts, isAdmin } = useAdminEntries(order)
   if (!isAdmin) return null
   const alertLabel = t('{count} تنبيه إداري', { count: alerts })
-  if (compact)
-    return (
-      <nav aria-label={t('التنقل الإداري')} className="flex flex-col items-center gap-1">
-        <Separator className="my-2 w-8 data-[orientation=horizontal]:w-8" />
-        {sections.map((section) => (
-          <RailLink
-            key={section.id}
-            href={sectionHref(section)}
-            label={t(section.title)}
-            icon={section.icon}
-            active={current?.section.id === section.id}
-            badge={section.id === ALERTS_SECTION ? alerts : 0}
-            badgeLabel={alertLabel}
-          />
-        ))}
-      </nav>
-    )
+  // shadcn SidebarGroup and SidebarMenu (ADR 055); in the icon rail the label hides and each
+  // entry shows its icon with its name as a tooltip (#153).
   return (
-    <div className="mt-6 border-t border-border pt-5">
-      <p className="mb-3 px-7 text-[11px] font-semibold text-muted-foreground">{t('الإدارة')}</p>
-      <nav aria-label={t('التنقل الإداري')} className="space-y-1 px-4">
-        {sections.map((section) => {
-          const active = current?.section.id === section.id
-          return (
-            <Link
-              key={section.id}
-              href={sectionHref(section)}
-              aria-current={active ? 'page' : undefined}
-              className={navLinkClass(active)}
-            >
-              <section.icon size={19} strokeWidth={1.6} />
-              {t(section.title)}
-              {section.id === ALERTS_SECTION && alerts > 0 && (
-                <Badge variant="destructive" className="ms-auto px-1.5" aria-label={alertLabel}>
-                  {alerts}
-                </Badge>
-              )}
-            </Link>
-          )
-        })}
+    <>
+      <SidebarSeparator />
+      <nav aria-label={t('التنقل الإداري')}>
+        <SidebarGroup>
+          <SidebarGroupLabel>{t('الإدارة')}</SidebarGroupLabel>
+          <SidebarMenu>
+            {sections.map((section) => (
+              <SidebarEntry
+                key={section.id}
+                href={sectionHref(section)}
+                label={t(section.title)}
+                icon={section.icon}
+                active={current?.section.id === section.id}
+                badge={
+                  section.id === ALERTS_SECTION
+                    ? {
+                        count: alerts,
+                        label: alertLabel,
+                        tone: 'destructive',
+                      }
+                    : undefined
+                }
+              />
+            ))}
+          </SidebarMenu>
+        </SidebarGroup>
       </nav>
-    </div>
+    </>
   )
 }
 
@@ -150,37 +136,37 @@ export function AdminSectionTabs({
       <div
         // Under the main header: sticky on a phone, where the document scrolls; outside the
         // page's own scroll region from the large breakpoint, so it never scrolls away.
-        className="sticky top-[72px] z-20 shrink-0 border-b border-border bg-background lg:static print:hidden"
+        className="sticky top-(--shell-header) z-20 shrink-0 border-b border-border bg-background lg:static print:hidden"
         data-admin-tabs-row
       >
         {/* The same centred column as the page below it. */}
         <div className="mx-auto max-w-[1440px] px-5 py-2 lg:px-10" data-admin-tabs-column>
-        <TabsList
-          ref={list}
-          aria-label={t('صفحات القسم: {section}', { section: t(section.title) })}
-          wrap
-        >
-          {section.pages.map((entry) => {
-            const count = entry.alerts?.(props) ?? 0
-            return (
-              <TabsTrigger key={entry.id} value={entry.id} asChild>
-                <Link href={entry.href}>
-                  <entry.icon strokeWidth={1.6} />
-                  {t(entry.label)}
-                  {count > 0 && (
-                    <Badge
-                      variant="destructive"
-                      className="px-1.5"
-                      aria-label={t('{count} تنبيه إداري', { count })}
-                    >
-                      {count}
-                    </Badge>
-                  )}
-                </Link>
-              </TabsTrigger>
-            )
-          })}
-        </TabsList>
+          <TabsList
+            ref={list}
+            aria-label={t('صفحات القسم: {section}', { section: t(section.title) })}
+            wrap
+          >
+            {section.pages.map((entry) => {
+              const count = entry.alerts?.(props) ?? 0
+              return (
+                <TabsTrigger key={entry.id} value={entry.id} asChild>
+                  <Link href={entry.href}>
+                    <entry.icon strokeWidth={1.6} />
+                    {t(entry.label)}
+                    {count > 0 && (
+                      <Badge
+                        variant="destructive"
+                        className="px-1.5"
+                        aria-label={t('{count} تنبيه إداري', { count })}
+                      >
+                        {count}
+                      </Badge>
+                    )}
+                  </Link>
+                </TabsTrigger>
+              )
+            })}
+          </TabsList>
         </div>
       </div>
       {children}

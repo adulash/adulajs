@@ -3,6 +3,9 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "cn"
 import { Tabs as TabsPrimitive } from "radix-ui"
 
+import { useMessages } from "~/components/ui/messages"
+import { ScrollArea, ScrollBar } from "~/components/ui/scroll-area"
+
 function Tabs({
   className,
   orientation = "horizontal",
@@ -38,10 +41,13 @@ const tabsListVariants = cva(
 )
 
 // AdulaJS: a list with more tabs than fit. From the medium breakpoint it wraps onto further
-// rows, so no tab is hidden; below it, one row that scrolls sideways, with a little more
-// inline padding so the focus ring of the first and last tab is not clipped at its ends.
+// rows, so no tab is hidden; below it, one row that scrolls sideways inside a shadcn Scroll
+// Area whose bar stays hidden (ADR 055), with a little more inline padding so the focus ring of
+// the first and last tab is not clipped at its ends.
 const tabsListWrap =
-  "max-w-full justify-start overflow-x-auto px-1 [scrollbar-width:none] md:flex-wrap md:px-[3px] md:overflow-visible group-data-[orientation=horizontal]/tabs:data-[wrap=true]:md:h-auto"
+  "justify-start px-1 md:flex-wrap md:px-[3px] group-data-[orientation=horizontal]/tabs:data-[wrap=true]:md:h-auto"
+const tabsListScroll =
+  "w-full md:[&>[data-slot=scroll-area-viewport]]:overflow-visible! md:[&>[data-slot=scroll-area-viewport]>div]:block!"
 
 function TabsList({
   className,
@@ -53,7 +59,8 @@ function TabsList({
     /** Wrap onto further rows from the medium breakpoint; scroll sideways below it. */
     wrap?: boolean
   }) {
-  return (
+  const { dir } = useMessages()
+  const list = (
     <TabsPrimitive.List
       data-slot="tabs-list"
       data-variant={variant}
@@ -61,6 +68,14 @@ function TabsList({
       className={cn(tabsListVariants({ variant }), wrap && tabsListWrap, className)}
       {...props}
     />
+  )
+  if (!wrap) return list
+  // Radix lays the area out left to right unless told the reading direction.
+  return (
+    <ScrollArea dir={dir} type="scroll" className={tabsListScroll}>
+      {list}
+      <ScrollBar orientation="horizontal" className="hidden" />
+    </ScrollArea>
   )
 }
 

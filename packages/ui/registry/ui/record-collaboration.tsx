@@ -19,6 +19,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '~/components/ui/tabs'
 import { useUiPreferences } from '~/components/ui/ui-preferences'
 import { useMessages } from '~/components/ui/messages'
 import { formatDatetime } from '~/components/ui/resource-value'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '~/components/ui/table'
 
 const json = { headers: { Accept: 'application/json' }, withXSRFToken: true }
 
@@ -324,15 +332,18 @@ export function RecordCollaboration({
                 {mentions.map((user) => (
                   <Badge key={user.id} variant="outline" className="gap-1">
                     <UserAvatar user={user} size="xs" />@{user.name}
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      className="rounded-full text-muted-foreground"
                       aria-label={`إزالة الإشارة إلى ${user.name}`}
                       onClick={() =>
                         setMentions((current) => current.filter((entry) => entry.id !== user.id))
                       }
                     >
                       <X size={12} />
-                    </button>
+                    </Button>
                   </Badge>
                 ))}
                 <Button type="submit" size="sm" className="ms-auto" disabled={busy || !body.trim()}>
@@ -346,33 +357,33 @@ export function RecordCollaboration({
           {state.changes.length === 0 ? (
             <p className="text-xs text-muted-foreground">لا توجد تغييرات مسجلة على الحقول.</p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[520px] text-sm">
-                <thead className="bg-muted text-xs text-muted-foreground">
-                  <tr>
-                    <th scope="col" className="px-4 py-2 text-start font-medium">
+            <div>
+              <Table className="min-w-[520px]">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead scope="col">
                       الحقل
-                    </th>
-                    <th scope="col" className="px-4 py-2 text-start font-medium">
+                    </TableHead>
+                    <TableHead scope="col">
                       قبل
-                    </th>
-                    <th scope="col" className="px-4 py-2 text-start font-medium">
+                    </TableHead>
+                    <TableHead scope="col">
                       بعد
-                    </th>
-                    <th scope="col" className="px-4 py-2 text-start font-medium">
+                    </TableHead>
+                    <TableHead scope="col">
                       بواسطة
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {state.changes.map((change) => (
-                    <tr key={change.id} className="border-b last:border-0">
-                      <td className="px-4 py-2 font-medium">{fieldLabel(change.field)}</td>
-                      <td className="px-4 py-2 text-destructive line-through">
+                    <TableRow key={change.id}>
+                      <TableCell className="font-medium">{fieldLabel(change.field)}</TableCell>
+                      <TableCell className="whitespace-normal text-destructive line-through">
                         {shown(change.before)}
-                      </td>
-                      <td className="px-4 py-2 text-success">{shown(change.after)}</td>
-                      <td className="px-4 py-2 text-xs text-muted-foreground">
+                      </TableCell>
+                      <TableCell className="whitespace-normal text-success">{shown(change.after)}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
                         <span className="inline-flex items-center gap-1.5">
                           {change.actorId && change.actorName ? (
                             <UserAvatar
@@ -390,11 +401,11 @@ export function RecordCollaboration({
                         <time dateTime={change.createdAt}>
                           {formatDatetime(change.createdAt, calendar)}
                         </time>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
         </TabsContent>

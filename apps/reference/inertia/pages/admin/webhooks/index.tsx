@@ -23,6 +23,14 @@ import {
 } from '~/components/ui/dialog'
 import { LongDialogContent } from '~/components/ui/long-dialog'
 import { useEntityDialog } from '~/components/ui/dialog_param'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '~/components/ui/table'
 
 type EventOption = { key: string; resource: string; verb: string }
 type Props = { webhooks: Webhook[]; events: EventOption[]; inbound: InboundSource[] }
@@ -155,9 +163,7 @@ export default function WebhooksIndex({ webhooks, events, inbound }: Props) {
                   {webhook.active ? 'مفعّل' : 'متوقف'}
                 </Badge>
                 {webhook.failing > 0 && (
-                  <Badge variant="outline" className="border-destructive/30 text-destructive">
-                    {webhook.failing} فشل نهائي
-                  </Badge>
+                  <Badge variant="destructive">{webhook.failing} فشل نهائي</Badge>
                 )}
               </p>
               <p className="truncate text-xs text-muted-foreground" dir="ltr">
@@ -321,31 +327,29 @@ export default function WebhooksIndex({ webhooks, events, inbound }: Props) {
             </DialogClose>
           }
         >
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted text-xs text-muted-foreground">
-                <tr>
-                  <th className="px-3 py-2 text-start font-medium">الحدث</th>
-                  <th className="px-3 py-2 text-start font-medium">الحالة</th>
-                  <th className="px-3 py-2 text-start font-medium">المحاولات</th>
-                  <th className="px-3 py-2 text-start font-medium">آخر خطأ</th>
-                  <th className="px-3 py-2">
+          <div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>الحدث</TableHead>
+                  <TableHead>الحالة</TableHead>
+                  <TableHead>المحاولات</TableHead>
+                  <TableHead>آخر خطأ</TableHead>
+                  <TableHead>
                     <span className="sr-only">إجراء</span>
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
                 {log?.rows.map((row) => (
-                  <tr key={row.id} className="border-b last:border-0">
-                    <td className="px-3 py-2" dir="ltr">
-                      {row.event}
-                    </td>
-                    <td className="px-3 py-2">{deliveryLabel[row.status]}</td>
-                    <td className="px-3 py-2 tabular-nums">{row.attempts}</td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">
+                  <TableRow key={row.id}>
+                    <TableCell dir="ltr">{row.event}</TableCell>
+                    <TableCell>{deliveryLabel[row.status]}</TableCell>
+                    <TableCell className="tabular-nums">{row.attempts}</TableCell>
+                    <TableCell className="text-xs whitespace-normal text-muted-foreground">
                       {deliveryError(row.lastError)}
-                    </td>
-                    <td className="px-3 py-2">
+                    </TableCell>
+                    <TableCell>
                       {row.status === 'failed' && log && (
                         <Button
                           size="sm"
@@ -359,18 +363,18 @@ export default function WebhooksIndex({ webhooks, events, inbound }: Props) {
                           إعادة
                         </Button>
                       )}
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 ))}
                 {log?.rows.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center text-muted-foreground">
                       لا محاولات بعد.
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 )}
-              </tbody>
-            </table>
+              </TableBody>
+            </Table>
           </div>
         </LongDialogContent>
       </Dialog>

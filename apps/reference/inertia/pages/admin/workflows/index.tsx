@@ -9,6 +9,14 @@ import { useDateTimeFormatter } from '~/components/admin-nav'
 import { Button } from '~/components/ui/button'
 import { openRecord, plainClick } from '~/components/ui/resource-surface'
 import { RecordOverlayDialog } from '~/components/ui/resource-page'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '~/components/ui/table'
 
 type Props = { runs: WorkflowRun[] }
 
@@ -24,34 +32,26 @@ export default function FailedWorkflows({ runs }: Props) {
           خطوات استنفدت محاولاتها. أصلح السبب ثم أعد التشغيل من الخطوة نفسها.
         </p>
       </div>
-      <div className="relative overflow-x-auto rounded-xl border bg-card">
-        <table className="w-full min-w-[720px] text-sm">
-          <thead className="bg-muted text-xs text-muted-foreground">
-            <tr>
-              <th scope="col" className="px-5 py-3 text-start font-medium">
-                التدفق
-              </th>
-              <th scope="col" className="px-5 py-3 text-start font-medium">
-                السجل
-              </th>
-              <th scope="col" className="px-5 py-3 text-start font-medium">
-                الخطوة
-              </th>
-              <th scope="col" className="px-5 py-3 text-start font-medium">
-                الخطأ
-              </th>
-              <th scope="col" className="px-5 py-3">
+      <div className="overflow-hidden rounded-xl border bg-card">
+        <Table className="min-w-[720px]">
+          <TableHeader>
+            <TableRow>
+              <TableHead scope="col">التدفق</TableHead>
+              <TableHead scope="col">السجل</TableHead>
+              <TableHead scope="col">الخطوة</TableHead>
+              <TableHead scope="col">الخطأ</TableHead>
+              <TableHead scope="col">
                 <span className="sr-only">إجراء</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {runs.map((run) => (
-              <tr key={run.id} className="border-b last:border-0">
-                <td className="px-5 py-3">
+              <TableRow key={run.id}>
+                <TableCell>
                   {run.label} <span className="text-xs text-muted-foreground">v{run.version}</span>
-                </td>
-                <td className="px-5 py-3">
+                </TableCell>
+                <TableCell>
                   <Link
                     href={`/resources/${run.resource}/${run.recordId}`}
                     // The record opens in a dialog over this list, which stays mounted.
@@ -66,19 +66,19 @@ export default function FailedWorkflows({ runs }: Props) {
                   >
                     {run.resourceLabel} #{run.recordId}
                   </Link>
-                </td>
-                <td className="px-5 py-3">{run.stepLabel}</td>
-                <td className="px-5 py-3 text-xs text-destructive">
+                </TableCell>
+                <TableCell>{run.stepLabel}</TableCell>
+                <TableCell className="text-xs whitespace-normal text-destructive">
                   {run.lastError}
                   <span className="block text-muted-foreground">
                     {run.attempts} محاولة ·{' '}
                     {formatDateTime(run.history.at(-1)?.at ?? run.createdAt)}
                   </span>
-                </td>
-                <td className="px-5 py-3">
+                </TableCell>
+                <TableCell>
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="ghost"
                     disabled={busy === run.id}
                     onClick={async () => {
                       setBusy(run.id)
@@ -97,18 +97,18 @@ export default function FailedWorkflows({ runs }: Props) {
                     <RotateCcw size={14} />
                     إعادة التشغيل
                   </Button>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
             {runs.length === 0 && (
-              <tr>
-                <td colSpan={5} className="px-5 py-10 text-center text-muted-foreground">
+              <TableRow>
+                <TableCell colSpan={5} className="text-center text-muted-foreground">
                   لا تدفقات فاشلة.
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             )}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
       <RecordOverlayDialog />
     </>

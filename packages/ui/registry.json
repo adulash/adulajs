@@ -303,6 +303,104 @@
       "type": "registry:ui"
     },
     {
+      "name": "sidebar",
+      "registryDependencies": [
+        "button",
+        "separator",
+        "sheet",
+        "tooltip",
+        "input",
+        "use-mobile",
+        "skeleton"
+      ],
+      "dependencies": [
+        "cn@0.3.0",
+        "radix-ui@1.6.7",
+        "class-variance-authority@0.7.1",
+        "lucide-react@1.47.0"
+      ],
+      "files": [
+        {
+          "path": "registry/ui/sidebar.tsx",
+          "type": "registry:ui"
+        }
+      ],
+      "type": "registry:ui"
+    },
+    {
+      "name": "use-mobile",
+      "dependencies": [],
+      "files": [
+        {
+          "path": "registry/ui/use_mobile.ts",
+          "type": "registry:hook"
+        }
+      ],
+      "type": "registry:hook"
+    },
+    {
+      "name": "avatar",
+      "dependencies": [
+        "cn@0.3.0",
+        "radix-ui@1.6.7",
+        "lucide-react@1.47.0"
+      ],
+      "files": [
+        {
+          "path": "registry/ui/avatar.tsx",
+          "type": "registry:ui"
+        }
+      ],
+      "type": "registry:ui"
+    },
+    {
+      "name": "alert-dialog",
+      "registryDependencies": [
+        "button"
+      ],
+      "dependencies": [
+        "cn@0.3.0",
+        "radix-ui@1.6.7",
+        "lucide-react@1.47.0"
+      ],
+      "files": [
+        {
+          "path": "registry/ui/alert-dialog.tsx",
+          "type": "registry:ui"
+        }
+      ],
+      "type": "registry:ui"
+    },
+    {
+      "name": "scroll-area",
+      "dependencies": [
+        "cn@0.3.0",
+        "radix-ui@1.6.7",
+        "lucide-react@1.47.0"
+      ],
+      "files": [
+        {
+          "path": "registry/ui/scroll-area.tsx",
+          "type": "registry:ui"
+        }
+      ],
+      "type": "registry:ui"
+    },
+    {
+      "name": "collapsible",
+      "dependencies": [
+        "radix-ui@1.6.7",
+        "lucide-react@1.47.0"
+      ],
+      "files": [
+        {
+          "path": "registry/ui/collapsible.tsx",
+          "type": "registry:ui"
+        }
+      ],
+      "type": "registry:ui"
+    },
+    {
       "name": "tabs",
       "dependencies": [
         "cn@0.3.0",
@@ -316,7 +414,11 @@
           "type": "registry:ui"
         }
       ],
-      "type": "registry:ui"
+      "type": "registry:ui",
+      "registryDependencies": [
+        "scroll-area",
+        "messages"
+      ]
     },
     {
       "name": "sonner",
@@ -445,7 +547,8 @@
       "type": "registry:ui",
       "dependencies": [
         "cn@0.3.0",
-        "radix-ui@1.6.7"
+        "radix-ui@1.6.7",
+        "lucide-react@1.47.0"
       ],
       "files": [
         {
@@ -458,14 +561,16 @@
       "name": "user-avatar",
       "type": "registry:ui",
       "dependencies": [
-        "cn@0.3.0",
-        "radix-ui@1.6.7"
+        "cn@0.3.0"
       ],
       "files": [
         {
           "path": "registry/ui/user-avatar.tsx",
           "type": "registry:ui"
         }
+      ],
+      "registryDependencies": [
+        "avatar"
       ]
     },
     {
@@ -565,7 +670,8 @@
         "checkbox",
         "list-filters",
         "resource-bulk",
-        "user-avatar"
+        "user-avatar",
+        "table"
       ],
       "dependencies": [
         "@tanstack/react-table@9.2.4",
@@ -895,8 +1001,7 @@
       "name": "confirm-action",
       "type": "registry:ui",
       "registryDependencies": [
-        "dialog",
-        "button",
+        "alert-dialog",
         "messages"
       ],
       "dependencies": [],
@@ -1004,7 +1109,9 @@
       "name": "long-dialog",
       "type": "registry:ui",
       "registryDependencies": [
-        "dialog"
+        "dialog",
+        "scroll-area",
+        "messages"
       ],
       "dependencies": [],
       "files": [

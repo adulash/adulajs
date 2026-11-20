@@ -671,7 +671,7 @@ test.group('Generic resource browser acceptance', (group) => {
     await page.waitForTimeout(300)
     assert.equal(await page.getByRole('dialog').count(), 0)
     // Normal navigation still replaces the page and plays its transition.
-    await page.locator('aside').getByRole('link', { name: 'نظرة عامة' }).click()
+    await page.locator('#workspace-sidebar').getByRole('link', { name: 'نظرة عامة' }).click()
     await page.waitForURL((url) => url.pathname === '/')
     assert.isFalse(
       await page.evaluate<boolean>('window.__wrapper === document.querySelector("main > div")')
@@ -752,7 +752,7 @@ test.group('Generic resource browser acceptance', (group) => {
     // The record body is the dialog's only scroller; its content height shows the late sections.
     const content = () =>
       page.evaluate<number>(
-        'document.querySelector("[data-slot=dialog-content] [data-slot=long-dialog-body]").scrollHeight'
+        'document.querySelector("[data-slot=dialog-content] [data-long-dialog-body] [data-slot=scroll-area-viewport]").scrollHeight'
       )
     const first = (await dialog.boundingBox())!
     const before = await content()
@@ -779,10 +779,10 @@ test.group('Generic resource browser acceptance', (group) => {
     // Measure after the opening zoom: during it the dialog is scaled below its final width.
     await settled(editor)
     // The form meets the dialog body's padding on both sides: no page reading cap (#102).
-    // Measured inside the scroll area: the body keeps a stable gutter for its visible scrollbar.
+    // Measured inside the scroll area's padded content, beside its always-visible bar.
     const gaps = await page.evaluate<[number, number]>(`(() => {
       const form = document.querySelector('[data-slot=dialog-content] form')
-      const body = form.closest('[data-slot=long-dialog-body]')
+      const body = form.closest('[data-long-dialog-body] [data-long-dialog-padding]')
       const style = getComputedStyle(body)
       const outer = body.getBoundingClientRect()
       const left = outer.left + body.clientLeft
@@ -870,7 +870,7 @@ test.group('Generic resource browser acceptance', (group) => {
         active: string
       }>(`(() => {
         const content = document.querySelector('[data-slot=dialog-content]')
-        const body = content.querySelector('form').closest('[data-slot=long-dialog-body]')
+        const body = content.querySelector('form').closest('[data-long-dialog-body] [data-slot=scroll-area-viewport]')
         const heading = content.querySelector('[data-slot=dialog-title]').getBoundingClientRect()
         const active = document.activeElement
         const frame = body.getBoundingClientRect()
@@ -884,7 +884,7 @@ test.group('Generic resource browser acceptance', (group) => {
       })()`)
     // The body scrolls on its own: start at its end, far from the first field.
     await page.evaluate(
-      'const body = document.querySelector("[data-slot=dialog-content] form").closest("[data-slot=long-dialog-body]"); body.scrollTop = body.scrollHeight'
+      'const body = document.querySelector("[data-slot=dialog-content] form").closest("[data-long-dialog-body] [data-slot=scroll-area-viewport]"); body.scrollTop = body.scrollHeight'
     )
     await dialog.getByRole('button', { name: 'حفظ السجل', exact: true }).click()
     await page.assertVisible(dialog.getByText('تعذر الحفظ', { exact: true }))
