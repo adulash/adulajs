@@ -8,7 +8,6 @@ overrides:
   eslint-plugin-react>eslint: 10.9.0
   monaco-editor>dompurify: 3.4.17
   node-cron>uuid: 11.1.1
-  '@adonisjs/mail>nodemailer': 10.0.12
   '@queuedash/api>zod': ^4.6.7
   '@queuedash/ui>zod': ^4.6.7
   axios: ^1.20.0
@@ -50,8 +49,8 @@ importers:
         specifier: 22.4.2
         version: 22.4.2(@adonisjs/assembler@8.5.0(typescript@6.0.3))(@adonisjs/core@7.5.0(@adonisjs/assembler@8.5.0(typescript@6.0.3))(@vinejs/vine@4.4.0)(edge.js@6.5.1)(pino-pretty@13.1.3)(supports-color@10.2.2)(youch@4.1.1))(@vinejs/vine@4.4.0)(luxon@3.7.2)(pg@8.16.3)(supports-color@10.2.2)
       '@adonisjs/mail':
-        specifier: 10.4.0
-        version: 10.4.0(@adonisjs/assembler@8.5.0(typescript@6.0.3))(@adonisjs/core@7.5.0(@adonisjs/assembler@8.5.0(typescript@6.0.3))(@vinejs/vine@4.4.0)(edge.js@6.5.1)(pino-pretty@13.1.3)(supports-color@10.2.2)(youch@4.1.1))(@types/luxon@3.7.5)(@types/node@26.2.0)(dayjs@1.11.23)(edge.js@6.5.1)(luxon@3.7.2)
+        specifier: 10.4.1
+        version: 10.4.1(@adonisjs/assembler@8.5.0(typescript@6.0.3))(@adonisjs/core@7.5.0(@adonisjs/assembler@8.5.0(typescript@6.0.3))(@vinejs/vine@4.4.0)(edge.js@6.5.1)(pino-pretty@13.1.3)(supports-color@10.2.2)(youch@4.1.1))(@types/luxon@3.7.5)(@types/node@26.2.0)(dayjs@1.11.23)(edge.js@6.5.1)(luxon@3.7.2)
       '@adonisjs/redis':
         specifier: 10.0.2
         version: 10.0.2(@adonisjs/core@7.5.0(@adonisjs/assembler@8.5.0(typescript@6.0.3))(@vinejs/vine@4.4.0)(edge.js@6.5.1)(pino-pretty@13.1.3)(supports-color@10.2.2)(youch@4.1.1))(supports-color@10.2.2)
@@ -677,8 +676,8 @@ packages:
       luxon:
         optional: true
 
-  '@adonisjs/mail@10.4.0':
-    resolution: {integrity: sha512-+o5qYB26gJgOGQysR/1KVEziM+MhSX9uP5ZBZjQuPC2xPTfvL5k10jHFQe5fZimhRHnETtNhoi4h3KIlen4KmQ==}
+  '@adonisjs/mail@10.4.1':
+    resolution: {integrity: sha512-fY5MA5+XyQ4cDtZI6XqIr7MopahXaYDaoywAFGatMFDPQbpqgH/27+Gj6IHWeCPwiyIkq2IT5BOHGwCMsgxSOg==}
     engines: {node: '>=24.0.0'}
     peerDependencies:
       '@adonisjs/assembler': ^8.0.0-next.14 || ^8.0.0
@@ -2606,7 +2605,9 @@ packages:
   '@smithy/core@3.34.1':
     resolution: {integrity: sha512-dLcOUxz8YCv1RZUMKq6GbyUf95pLbrqh34bPvpCZ1+CByFF31BEAFewZjsGCnVsZTKdThNENfGyAgk2TJqVwSw==}
     engines: {node: '>=18.0.0'}
-    deprecated: Deprecated due to a bug in custom logger data redaction. See https://github.com/aws/aws-sdk-js-v3/issues/8393.
+    deprecated: |-
+      Deprecated due to a bug in custom logger data redaction. Upgrade to the latest version. If you used a custom logger with this
+        version, review your logs and rotate any credentials or other secrets. See https://github.com/aws/aws-sdk-js-v3/issues/8393.
 
   '@smithy/credential-provider-imds@4.5.2':
     resolution: {integrity: sha512-A9uSdn72ozbRUSit0eib0TW7nXuNPlaeM0zcGkJ+nE6tFcSDbnmtwoxbTCFBukVQcszDAyvsd7+rTduPTXpygg==}
@@ -2986,9 +2987,6 @@ packages:
 
   '@types/node@26.2.0':
     resolution: {integrity: sha512-5IviulTZeRNp2vAJ514cc/HUlY5nZ9fCbq9DMyC52BrhFZACo3nI0R7qBxhQmo/d27NFe96ur/b7Wwxklda+kg==}
-
-  '@types/nodemailer@8.0.2':
-    resolution: {integrity: sha512-c7M5ox8p0nEOfbJ2E9Qcmt8/QCu/VzsiAhzBiZbvky2PhKZDHpKB3sQHBM5MEZNkCfBOaS6S9//AGPRTNB7IaA==}
 
   '@types/normalize-package-data@2.4.4':
     resolution: {integrity: sha512-37i+OaWTh9qeK4LSHPsyRC7NahnGotNuZvjLSgcPzblpHB3rrCJxAOgI5gCdKm7coonsaX1Of0ILiTcnZjbfxA==}
@@ -4403,8 +4401,8 @@ packages:
     resolution: {integrity: sha512-eKCa6bwnJhvxj14kZk5NCPc6Hb6BdsU9DZcOnmQKSnO1VKrfV0zCvtttPZUsBvjmNDn8rpcJfpwSYnHBjc95MQ==}
     engines: {node: '>=18.18.0'}
 
-  ical-generator@11.1.1:
-    resolution: {integrity: sha512-1m50e+BOMzxtE3lFXlFiOKvze4Mmiiq2+QoEMw7w7EDtWSq8OxWrdN6mmQdaymBVjmkP1pg0BAPUesBL1ZHQMQ==}
+  ical-generator@11.1.4:
+    resolution: {integrity: sha512-mQRAdCWEroPJOG3j/xDom+AzG31bgplmGLIoGXG+mko26LB+80iexHsCnfoycvMldkaHMjW76E6aTFuGRG6JWQ==}
     engines: {node: 22 || >=24.0.0}
     peerDependencies:
       '@touch4it/ical-timezones': '>=1.6.0'
@@ -4833,8 +4831,8 @@ packages:
     resolution: {integrity: sha512-9zy9lkjac+TR1c2tG+mkNSVlyOpInnWdSMiue4F+kq8TwJSgv6o8jhLRg8Ho6SnZ9wOYUq/yozts9qQCfk7bIw==}
     engines: {node: '>=18'}
 
-  ky@2.1.0:
-    resolution: {integrity: sha512-nIKwelw+7qVqKOlX4Eht6GXfEXlDHcdIjyLWV3s119kYt5s+70ayTnYS+0fRNmtgGRRAfqdeWQbh8YizqkS0ng==}
+  ky@2.2.0:
+    resolution: {integrity: sha512-4+B63kyZt+Y8snQiUGydK1vgY9xYQJZEh9K/nIAIEts+gYJzy1EiAw3BbK8xpWRuWUpN70SNCMjqRGTm75xxIA==}
     engines: {node: '>=22'}
 
   laravel-precognition@2.0.0:
@@ -5159,6 +5157,7 @@ packages:
 
   node-abort-controller@3.1.1:
     resolution: {integrity: sha512-AGK2yQKIjRuqnc6VkX2Xj5d+QW8xZ87pa1UK6yA6ouUyuxfHuMP6umE5QK7UmTeOAymo+Zx1Fxiuw9rVx8taHQ==}
+    deprecated: This package is no longer needed on supported Node.js versions. Node.js 16+ includes AbortController and AbortSignal as built-in globals. All Node.js versions requiring this polyfill are end-of-life. Use the built-in globals instead.
 
   node-cron@3.0.3:
     resolution: {integrity: sha512-dOal67//nohNgYWb+nWmg5dkFdIwDm8EpeGYMekPMrngV3637lqnX0lbUcCtgibHTz6SEz7DAIjKvKDFYCnO1A==}
@@ -5179,8 +5178,8 @@ packages:
     resolution: {integrity: sha512-mIrE/Cw9y+9Au6dS5vDKDhQza9YvG6w+ZrS6X+ZzA7yFW/soAeaups4Qzn1bL6g5FVy8WtP79+0j82oPIbqRjQ==}
     engines: {node: '>=18'}
 
-  nodemailer@10.0.12:
-    resolution: {integrity: sha512-PQ46oNbNMuH/Sno7B5IWIU9etytwrO0xdTFvWXpIQFRXhBAXtzD48243AS+BCbQQTPD8y3fqUrgLn0tSo77gvg==}
+  nodemailer@10.6.0:
+    resolution: {integrity: sha512-jWanL7D9GD3jvUDYKmoC5rWTiG8MnBgnN2yV68bgMKip1zUJhiSTyz7Eg+18y8sk5OvdVDzws5nZK5arSI4f5Q==}
     engines: {node: '>=20.0.0'}
 
   normalize-package-data@8.0.0:
@@ -6849,16 +6848,15 @@ snapshots:
       - supports-color
       - tedious
 
-  '@adonisjs/mail@10.4.0(@adonisjs/assembler@8.5.0(typescript@6.0.3))(@adonisjs/core@7.5.0(@adonisjs/assembler@8.5.0(typescript@6.0.3))(@vinejs/vine@4.4.0)(edge.js@6.5.1)(pino-pretty@13.1.3)(supports-color@10.2.2)(youch@4.1.1))(@types/luxon@3.7.5)(@types/node@26.2.0)(dayjs@1.11.23)(edge.js@6.5.1)(luxon@3.7.2)':
+  '@adonisjs/mail@10.4.1(@adonisjs/assembler@8.5.0(typescript@6.0.3))(@adonisjs/core@7.5.0(@adonisjs/assembler@8.5.0(typescript@6.0.3))(@vinejs/vine@4.4.0)(edge.js@6.5.1)(pino-pretty@13.1.3)(supports-color@10.2.2)(youch@4.1.1))(@types/luxon@3.7.5)(@types/node@26.2.0)(dayjs@1.11.23)(edge.js@6.5.1)(luxon@3.7.2)':
     dependencies:
       '@adonisjs/core': 7.5.0(@adonisjs/assembler@8.5.0(typescript@6.0.3))(@vinejs/vine@4.4.0)(edge.js@6.5.1)(pino-pretty@13.1.3)(supports-color@10.2.2)(youch@4.1.1)
       '@poppinss/macroable': 1.1.2
       '@poppinss/object-builder': 1.1.0
-      '@types/nodemailer': 8.0.2
       fastq: 1.20.3
-      ical-generator: 11.1.1(@types/luxon@3.7.5)(@types/node@26.2.0)(dayjs@1.11.23)(luxon@3.7.2)
-      ky: 2.1.0
-      nodemailer: 10.0.12
+      ical-generator: 11.1.4(@types/luxon@3.7.5)(@types/node@26.2.0)(dayjs@1.11.23)(luxon@3.7.2)
+      ky: 2.2.0
+      nodemailer: 10.6.0
     optionalDependencies:
       '@adonisjs/assembler': 8.5.0(typescript@6.0.3)
       edge.js: 6.5.1
@@ -9208,10 +9206,6 @@ snapshots:
     dependencies:
       undici-types: 8.3.0
 
-  '@types/nodemailer@8.0.2':
-    dependencies:
-      '@types/node': 26.2.0
-
   '@types/normalize-package-data@2.4.4': {}
 
   '@types/papaparse@5.5.2':
@@ -10746,7 +10740,7 @@ snapshots:
 
   human-signals@8.0.1: {}
 
-  ical-generator@11.1.1(@types/luxon@3.7.5)(@types/node@26.2.0)(dayjs@1.11.23)(luxon@3.7.2):
+  ical-generator@11.1.4(@types/luxon@3.7.5)(@types/node@26.2.0)(dayjs@1.11.23)(luxon@3.7.2):
     optionalDependencies:
       '@types/luxon': 3.7.5
       '@types/node': 26.2.0
@@ -11092,7 +11086,7 @@ snapshots:
 
   ky@1.14.3: {}
 
-  ky@2.1.0: {}
+  ky@2.2.0: {}
 
   laravel-precognition@2.0.0(axios@1.20.0(debug@4.4.3(supports-color@10.2.2))(supports-color@10.2.2)):
     dependencies:
@@ -11363,7 +11357,7 @@ snapshots:
 
   node-releases@2.0.55: {}
 
-  nodemailer@10.0.12: {}
+  nodemailer@10.6.0: {}
 
   normalize-package-data@8.0.0:
     dependencies:
