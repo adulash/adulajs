@@ -6,6 +6,11 @@
   `npm` environment no longer asks for a second approval (ADR 056, superseding point 5 of
   ADR 054). `docs/releasing.md` and AGENTS.md describe the new flow.
 
+* Resource hooks receive `existing` (the stored record, `null` on create), `changes` (the
+  changed field keys), `system` (module-code write) and `reason` in `HookContext`, so
+  `beforeSave` / `afterSave` compare with the stored values and tell a user write from
+  `systemSave` or `rehome` without a query (#134).
+
 ## 2.4.0 — 2026-11-20
 
 * AdulaJS UI is shadcn/ui on Radix throughout (ADR 055, #168). The workspace sidebar is
