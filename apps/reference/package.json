@@ -77,7 +77,7 @@
     "@adonisjs/inertia": "5.0.1",
     "@adonisjs/limiter": "3.0.1",
     "@adonisjs/lucid": "22.4.2",
-    "@adonisjs/mail": "10.4.0",
+    "@adonisjs/mail": "10.4.1",
     "@adonisjs/redis": "10.0.2",
     "@adonisjs/session": "8.1.0",
     "@adonisjs/shield": "9.0.0",

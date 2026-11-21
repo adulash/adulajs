@@ -16,7 +16,6 @@ overrides:
   eslint-plugin-react>eslint: 10.9.0
   monaco-editor>dompurify: 3.4.17
   node-cron>uuid: 11.1.1
-  "@adonisjs/mail>nodemailer": 10.0.12
   "@queuedash/api>zod": ^4.6.7
   "@queuedash/ui>zod": ^4.6.7
   axios: ^1.20.0

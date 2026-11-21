@@ -5,6 +5,10 @@
 * Releases: the owner's merge of the release pull request authorizes publication, and the
   `npm` environment no longer asks for a second approval (ADR 056, superseding point 5 of
   ADR 054). `docs/releasing.md` and AGENTS.md describe the new flow.
+* Dependencies: `@adonisjs/mail` 10.4.1 accepts nodemailer 10, so the workspace override
+  `"@adonisjs/mail>nodemailer"` is removed and nodemailer resolves to 10.6.0 (patched for
+  GHSA-v53p-9fqp-m79j) without it (#71). New systems no longer carry the override in
+  `pnpm-workspace.yaml`; existing systems upgrade `@adonisjs/mail` to 10.4.1 and may drop it.
 
 * Resource hooks receive `existing` (the stored record, `null` on create), `changes` (the
   changed field keys), `system` (module-code write) and `reason` in `HookContext`, so
