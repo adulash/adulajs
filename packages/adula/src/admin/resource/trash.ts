@@ -3,7 +3,12 @@ import type { Resource } from '../../resource/types.js'
 import type { Actor, AdulaAbility } from '../../auth/ability.js'
 import { fromRow, serialize } from '../contracts.js'
 import { notFound } from '../errors.js'
-import { audit, requireInlineParents } from './lifecycle.js'
+import {
+  audit,
+  lifecycleHookContext,
+  requireInlineParents,
+  requireLiveParents,
+} from './lifecycle.js'
 import {
   authorizeAction,
   columns,
@@ -60,6 +65,12 @@ export async function restore(
     requireRecord(ability, actor, resource, 'delete', record)
     // An inline line comes back only while its parent is a draft the actor may update.
     await requireInlineParents(ctx, trx, resource, actor, record)
+    // A record never comes back pointing at a deleted parent (#133).
+    await requireLiveParents(ctx, trx, resource, record)
+    await resource.hooks?.beforeRestore?.(
+      record,
+      lifecycleHookContext(trx, actor, 'restore', record)
+    )
     const values: Record<string, unknown> = {
       deleted_at: null,
       updated_by: actor.id,

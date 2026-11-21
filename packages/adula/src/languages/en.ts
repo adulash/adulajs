@@ -70,6 +70,10 @@ export const englishMessages: Readonly<Record<string, string>> = Object.freeze({
     'The record cannot be saved: a field does not accept an empty value in the database',
   'errors.E_NOT_NULL.field':
     'The record cannot be saved: the field {field} does not accept an empty value in the database',
+  'errors.E_HAS_DEPENDENTS':
+    'The record cannot be deleted while live records reference it: {dependents}',
+  'errors.E_PARENT_DELETED':
+    'The record cannot be restored because its «{field}» is deleted. Restore it first',
   'errors.E_RELATION': 'Check the related records',
   'errors.E_FORBIDDEN.1': 'You do not have permission for this action',
   'errors.E_FIELD_FORBIDDEN.1': 'You do not have permission for this field',

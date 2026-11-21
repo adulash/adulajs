@@ -14,6 +14,11 @@
   loading the authorized record: `PATCH /resources/:name/:id` with only the changed fields
   and the `version` saves them and keeps the rest, and an unknown or out-of-scope id answers
   404 before any validation error (#131).
+* A soft delete (single, inline or bulk) is refused with 409 `E_HAS_DEPENDENTS`, naming the
+  dependent resources and their counts, while live records reference the record through a
+  belongsTo; restoring a record whose belongsTo parent is deleted is refused with 409
+  `E_PARENT_DELETED`. Resources gain `hooks.beforeDelete` and `hooks.beforeRestore`, whose
+  context (`LifecycleHookContext`) has the `HookContext` shape (#133).
 
 ## 2.4.0 — 2026-11-20
 
