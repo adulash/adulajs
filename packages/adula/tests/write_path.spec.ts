@@ -2,6 +2,7 @@ import { test } from '@japa/runner'
 import { BaseModel } from '@adonisjs/lucid/orm'
 import {
   BulkActions,
+  databaseError,
   ResourceService,
   ResourceRegistry,
   createResourceTable,
@@ -419,5 +420,43 @@ test.group('Cancel reason (#135)', (group) => {
         }),
       /cancel options require a submittable resource/
     )
+  })
+})
+
+test.group('Database errors (#139)', (group) => {
+  group.setup(async () => {
+    await setup()
+    await createResourceTable(db, parent)
+    await createResourceTable(db, item)
+  })
+
+  test('a foreign key still referenced is told apart from other relation errors', async ({
+    assert,
+  }) => {
+    const owner = await service.save('parents', admin, { name: 'hard' })
+    await service.save('items', admin, { name: 'child', parent: owner.id })
+    // A hard delete (application SQL, or a trigger) hits the belongsTo foreign key.
+    let caught: unknown
+    try {
+      await db('parents').where('id', Number(owner.id)).delete()
+    } catch (error) {
+      caught = error
+    }
+    const label = (table: string) => (table === 'items' ? 'العناصر' : table)
+    const referenced = databaseError(caught, label)
+    assert.equal(referenced?.status, 409)
+    assert.equal(referenced?.code, 'E_HAS_DEPENDENTS')
+    assert.include(referenced?.message, 'العناصر')
+
+    let missing: unknown
+    try {
+      await db('items').insert({ name: 'orphan', parent: 999999, created_by: 1, updated_by: 1 })
+    } catch (error) {
+      missing = error
+    }
+    assert.equal(databaseError(missing)?.code, 'E_RELATION')
+    assert.equal(databaseError(missing)?.status, 422)
+    assert.equal(databaseError({ code: '23505' })?.code, 'E_DUPLICATE')
+    assert.isUndefined(databaseError(new Error('other')))
   })
 })
