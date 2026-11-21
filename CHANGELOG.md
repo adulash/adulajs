@@ -9,6 +9,12 @@
   table predated the registry and replaced whole entries, dropping registry dependencies and
   files that items had gained since. `packages/ui/registry.json` is edited by hand, as the
   `@adula/ui` README now says; a test asserts the command no longer runs or rewrites the file.
+* Development server: `localhost` no longer waits about 300 ms before connecting (#107). With
+  `HOST=127.0.0.1` and `NODE_ENV=development`, `bin/server.ts` also serves the same handler on
+  the IPv6 loopback `::1`, which browsers try first for `localhost`; it never listens on `::` or
+  `0.0.0.0`, and gives up quietly when IPv6 is disabled or the port is taken there. Printed
+  addresses stay `http://127.0.0.1:<port>`. Existing systems copy `bin/server.ts` and
+  `bin/ipv6_loopback.ts` from a new system.
 
 * Resource hooks receive `existing` (the stored record, `null` on create), `changes` (the
   changed field keys), `system` (module-code write) and `reason` in `HookContext`, so
