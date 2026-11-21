@@ -10,6 +10,10 @@
   changed field keys), `system` (module-code write) and `reason` in `HookContext`, so
   `beforeSave` / `afterSave` compare with the stored values and tell a user write from
   `systemSave` or `rehome` without a query (#134).
+* A user update validates the merge of the stored record and the submitted values, after
+  loading the authorized record: `PATCH /resources/:name/:id` with only the changed fields
+  and the `version` saves them and keeps the rest, and an unknown or out-of-scope id answers
+  404 before any validation error (#131).
 
 ## 2.4.0 — 2026-11-20
 
