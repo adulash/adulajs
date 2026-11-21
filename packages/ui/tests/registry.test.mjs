@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -144,4 +145,20 @@ test('the reference stylesheet registers the gitignored generated copy as a Tail
     'utf8'
   )
   assert.match(css, /@source\s+["']\.\.\/components\/ui["'];/)
+})
+
+test('registry.json is edited by hand: no command rewrites it (issue #163)', async () => {
+  // `register` once replaced whole entries from a stale hard-coded table and dropped the
+  // registry dependencies and files other items had gained since. The command is gone; running
+  // it must fail without touching registry.json, and the docs must say the file is edited by hand.
+  const script = fileURLToPath(new URL('../../../scripts/ui-registry.mjs', import.meta.url))
+  const registryUrl = new URL('../registry.json', import.meta.url)
+  const before = await readFile(registryUrl)
+  const run = spawnSync(process.execPath, [script, 'register'], { encoding: 'utf8' })
+  assert.notEqual(run.status, 0)
+  assert.match(run.stderr, /Usage: node scripts\/ui-registry\.mjs <sync\|prepare\|build\|reference>/)
+  assert.ok((await readFile(registryUrl)).equals(before), 'registry.json changed')
+  const readme = await readFile(new URL('../README.md', import.meta.url), 'utf8')
+  assert.doesNotMatch(readme, /ui-registry\.mjs register/)
+  assert.match(readme, /`registry\.json` is edited by hand/)
 })
