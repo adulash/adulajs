@@ -19,9 +19,9 @@ in [docs/implementation-status.md](docs/implementation-status.md); what changed 
 
 * Exports above 5000 rows are refused; there is no background export job yet.
 * Restore follows the delete permission; there is no separate restore permission.
-* Restore clears `deleted_at` only: it runs no validator or hooks and does not re-check
-  related records or lookups. The `restored` event reaches no followers, live updates or
-  webhooks yet.
+* Restore clears `deleted_at`: it refuses a deleted belongsTo parent and runs
+  `beforeRestore`, but runs no validator or save hooks and does not re-check lookups or
+  manyToMany links. The `restored` event reaches no followers, live updates or webhooks yet.
 * A resource-defined bulk action resubmits the stored form values, so it fails on a row
   whose lookup became inactive or whose related record the user can no longer view.
 * A shared saved view reaches every reader of the resource who may query its fields; it

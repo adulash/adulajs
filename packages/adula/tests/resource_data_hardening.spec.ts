@@ -135,7 +135,9 @@ test.group('Resource writes: reference checks and the organization unit', (group
   }) => {
     const kept = await createParent('محذوف لاحقا', 2)
     const saved = await createItem({ code: 'L1', title: 'قبل', parentId: kept })
-    await service.transition('rd_parents', kept, admin, 'delete')
+    // The service refuses deleting a referenced parent since #133; rows deleted before
+    // that, or by SQL, still leave such links, so the parent is deleted directly here.
+    await db('rd_parents').where('id', kept).update({ deleted_at: db.fn.now() })
 
     // A user resubmitting the whole form, link included, saves the other fields.
     const edited = await service.save(

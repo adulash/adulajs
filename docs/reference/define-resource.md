@@ -34,7 +34,7 @@ A Default of `required` means the option must be given; `—` means it is option
 | `unique` | `readonly (readonly string[])[]` | — | Field combinations that must be unique among live records (a partial unique index `WHERE deleted_at IS NULL`, and `AND doc_status <> 2` on a submittable resource so cancelled documents do not count), for example `[['customerId', 'code']]`. Every key is a stored field, or `orgUnitId` on a scoped resource (a code unique per unit). |
 | `validator` | `{ validate(data: unknown): Promise<RecordData> }` | — | Optional: without it, writes are validated by the VineJS validator derived from the fields (see definitionValidator). A given validator replaces the derived one; field constraints are enforced again when values are stored, whatever the validator returns. |
 | `printTemplates` | `readonly PrintTemplate[]` | — | Printable layouts offered on the record page next to the generic print (ADR 048). Administrators add more in «قوالب الطباعة»; see PrintTemplates. |
-| `hooks` | `{ beforeSave?: (record: RecordData, context: HookContext) => Promise<void>; afterSave?: (record: RecordData, context: HookContext) => Promise<void> }` | — | Functions called inside the write transaction, before and after a record is stored. |
+| `hooks` | `{ beforeSave?: (record: RecordData, context: HookContext) => Promise<void>; afterSave?: (record: RecordData, context: HookContext) => Promise<void>; beforeDelete?: (record: RecordData, context: LifecycleHookContext) => Promise<void>; beforeRestore?: (record: RecordData, context: LifecycleHookContext) => Promise<void> }` | — | Functions called inside the write transaction, before and after a record is stored. |
 
 ## Common field props
 
