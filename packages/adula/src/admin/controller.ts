@@ -264,7 +264,9 @@ export function createResourceController(
           this.#id(ctx),
           actor,
           action,
-          ctx.request.input('version')
+          ctx.request.input('version'),
+          undefined,
+          action === 'cancel' ? { reason: ctx.request.input('reason') } : undefined
         ),
       }))
     }
