@@ -185,10 +185,12 @@ export async function audit(
   record: RecordData,
   fields: string[],
   changes?: FieldChange[],
-  system?: { reason?: string }
+  system?: { reason?: string },
+  /** A user's reason, such as why a document was cancelled (#135). */
+  reason?: string
 ) {
   await recordMutation(trx, {
-    ...(system ? { system: true, reason: system.reason } : {}),
+    ...(system ? { system: true, reason: system.reason } : reason ? { reason } : {}),
     module: ctx.registry.owner(resource.name),
     resource: resource.name,
     id: record.id,
@@ -200,6 +202,34 @@ export async function audit(
   })
 }
 
+/** Options of ResourceService.transition. */
+export type TransitionOptions = {
+  /** Why a document is cancelled; required by `cancel.requireReason` (#135). */
+  reason?: unknown
+}
+
+/**
+ * The trimmed reason of a cancel: 422 E_REASON_REQUIRED when the resource requires one and
+ * none is given, 422 E_REASON when it is not text or longer than the field can hold.
+ */
+function cancelReason(resource: Resource, value: unknown) {
+  if (value !== undefined && value !== null && typeof value !== 'string')
+    throw new AdulaError(422, 'E_REASON', 'سبب الإلغاء غير صالح')
+  const reason = typeof value === 'string' && value.trim() ? value.trim() : undefined
+  if (!reason) {
+    if (resource.cancel?.requireReason)
+      throw new AdulaError(422, 'E_REASON_REQUIRED', 'سبب الإلغاء مطلوب')
+    return undefined
+  }
+  const field = resource.cancel?.reasonField
+    ? resource.fields[resource.cancel.reasonField]
+    : undefined
+  const limit = field?.type === 'string' ? 255 : 2000
+  if (reason.length > limit)
+    throw new AdulaError(422, 'E_REASON', `سبب الإلغاء أطول من ${limit} حرفاً`)
+  return reason
+}
+
 /** Soft delete, submit or cancel of one record; see ResourceService.transition. */
 export async function transition(
   ctx: ResourceContext,
@@ -208,7 +238,8 @@ export async function transition(
   actor: Actor,
   action: 'delete' | 'submit' | 'cancel',
   version?: unknown,
-  transaction?: Knex.Transaction
+  transaction?: Knex.Transaction,
+  options: TransitionOptions = {}
 ) {
   const resource = ctx.registry.get(name)
   const ability = authorizeAction(ctx, resource, actor, action)
@@ -234,10 +265,24 @@ export async function transition(
         throw invalidDocumentState('Invalid document transition')
       values.doc_status = action === 'submit' ? 1 : 2
     }
+    const reason = action === 'cancel' ? cancelReason(resource, options.reason) : undefined
+    const reasonField = reason === undefined ? undefined : resource.cancel?.reasonField
+    if (reasonField) values[resource.fields[reasonField].column ?? columnName(reasonField)] = reason
     const [row] = await trx(name).where({ id }).update(values).returning('*')
     // manyToMany links are not columns; the response carries them like show().
     const [saved] = await withLinks(trx, resource, [fromRow(row, resource)])
-    await audit(ctx, trx, resource, actor, action, saved, [])
+    await audit(
+      ctx,
+      trx,
+      resource,
+      actor,
+      action,
+      saved,
+      reasonField ? [reasonField] : [],
+      undefined,
+      undefined,
+      reason
+    )
     return serialize(
       resource,
       await hydrateOne(trx, resource, saved, ctx.attachments),

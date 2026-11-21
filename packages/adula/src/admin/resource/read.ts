@@ -505,6 +505,8 @@ async function activityOf(
     // A display name only: record viewers need not be able to read account e-mails.
     actorName: row.actor_name ? String(row.actor_name) : null,
     actorAvatarUrl: avatarUrlFor(row.actor_id, row.avatar_version),
+    /** Why the action was taken: a cancel reason (#135) or the reason module code gave. */
+    reason: typeof row.changes?.reason === 'string' ? (row.changes.reason as string) : null,
     /**
      * @deprecated Always null. Kept so project-owned copies of resource-show from
      * earlier releases still compile; they fall back to the actor id.

@@ -340,6 +340,12 @@ export type Resource = {
    * Administrators add more in «قوالب الطباعة»; see PrintTemplates.
    */
   printTemplates?: readonly PrintTemplate[]
+  /**
+   * Cancelling a submitted document (#135): `requireReason` refuses a cancel without a
+   * reason (422 E_REASON_REQUIRED); `reasonField` also stores the reason in a declared
+   * `string` or `text` field. The reason is always kept with the activity entry.
+   */
+  cancel?: { reasonField?: string; requireReason?: boolean }
   /** Functions called inside the write transaction, before and after a record is stored. */
   hooks?: {
     beforeSave?: (record: RecordData, context: HookContext) => Promise<void>

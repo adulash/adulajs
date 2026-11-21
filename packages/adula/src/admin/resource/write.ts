@@ -776,6 +776,8 @@ export async function amend(
     const copied: string[] = []
     for (const [key, field] of Object.entries(resource.fields)) {
       if (field.type === 'hasMany' || field.type === 'manyToMany' || !(key in source)) continue
+      // The new draft is not cancelled: the cancel reason stays with the original (#135).
+      if (key === resource.cancel?.reasonField) continue
       const column = field.column ?? columnName(key)
       if (field.sequence) values[column] = await sequence(trx, field.sequence)
       else if (field.type === 'attachment') continue

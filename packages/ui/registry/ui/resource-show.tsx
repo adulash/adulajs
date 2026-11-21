@@ -287,6 +287,11 @@ export function ResourceShow({
                   >
                     {formatDatetime(entry.createdAt, calendar)}
                   </time>
+                  {entry.reason && (
+                    <span className="basis-full text-xs text-muted-foreground">
+                      {t('السبب: {reason}', { reason: entry.reason })}
+                    </span>
+                  )}
                   {entry.fields.length > 0 && (
                     <span className="basis-full text-xs text-muted-foreground">
                       {t('الحقول: {fields}', {

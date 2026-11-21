@@ -276,5 +276,15 @@ export function defineResource<const F extends Record<string, Field>>(
   assertPrintTemplates(input)
   if (!input.submittable && input.actions.some((a) => ['submit', 'cancel', 'amend'].includes(a)))
     throw new Error('Document actions require submittable')
+  if (input.cancel !== undefined) {
+    if (!input.submittable || !input.actions.includes('cancel'))
+      throw new Error(`${input.name}: cancel options require a submittable resource with cancel`)
+    const key = input.cancel.reasonField
+    if (key !== undefined) {
+      const field = (input.fields as Record<string, Field>)[key]
+      if (!field || (field.type !== 'string' && field.type !== 'text') || field.sequence)
+        throw new Error(`${input.name}: cancel.reasonField must name a string or text field`)
+    }
+  }
   return Object.freeze({ ...input, version: input.version ?? input.submittable ?? false })
 }

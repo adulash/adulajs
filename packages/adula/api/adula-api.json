@@ -6,7 +6,7 @@
     },
     "Action": {
       "kind": "TypeAliasDeclaration",
-      "type": "\"view\" | \"create\" | \"update\" | \"delete\" | \"submit\" | \"cancel\" | \"amend\""
+      "type": "\"cancel\" | \"view\" | \"create\" | \"update\" | \"delete\" | \"submit\" | \"amend\""
     },
     "ActivityAdmin": {
       "kind": "ClassDeclaration",
@@ -1666,7 +1666,7 @@
     },
     "RecordPermissions": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ view?: boolean | undefined; create?: boolean | undefined; update?: boolean | undefined; delete?: boolean | undefined; submit?: boolean | undefined; cancel?: boolean | undefined; amend?: boolean | undefined; restore?: boolean | undefined; }"
+      "type": "{ cancel?: boolean | undefined; view?: boolean | undefined; create?: boolean | undefined; update?: boolean | undefined; delete?: boolean | undefined; submit?: boolean | undefined; amend?: boolean | undefined; restore?: boolean | undefined; }"
     },
     "RECOVERY_CODE_COUNT": {
       "kind": "VariableDeclaration",
@@ -1738,7 +1738,7 @@
     },
     "Resource": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ name: string; label: Label; recordLabel?: Label | undefined; createLabel?: Label | undefined; model?: LucidModel | undefined; scoped: boolean; scope?: { from: string; } | undefined; submittable?: boolean | undefined; version?: boolean | undefined; fields: Record<string, Field>; list: readonly string[]; defaultSort?: { field: string; direction?: \"asc\" | \"desc\" | undefined; } | undefined; form: readonly string[]; show: readonly string[]; serialize?: readonly string[] | undefined; hidden?: readonly string[] | undefined; title?: readonly string[] | undefined; actions: readonly Action[]; unique?: readonly (readonly string[])[] | undefined; validator?: { validate(data: unknown): Promise<RecordData>; } | undefined; printTemplates?: readonly PrintTemplate[] | undefined; hooks?: { beforeSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; afterSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; beforeDelete?: ((record: RecordData, context: LifecycleHookContext) => Promise<void>) | undefined; beforeRestore?: ((record: RecordData, context: LifecycleHookContext) => Promise<void>) | undefined; } | undefined; }"
+      "type": "{ name: string; label: Label; recordLabel?: Label | undefined; createLabel?: Label | undefined; model?: LucidModel | undefined; scoped: boolean; scope?: { from: string; } | undefined; submittable?: boolean | undefined; version?: boolean | undefined; fields: Record<string, Field>; list: readonly string[]; defaultSort?: { field: string; direction?: \"asc\" | \"desc\" | undefined; } | undefined; form: readonly string[]; show: readonly string[]; serialize?: readonly string[] | undefined; hidden?: readonly string[] | undefined; title?: readonly string[] | undefined; actions: readonly Action[]; unique?: readonly (readonly string[])[] | undefined; validator?: { validate(data: unknown): Promise<RecordData>; } | undefined; printTemplates?: readonly PrintTemplate[] | undefined; cancel?: { reasonField?: string | undefined; requireReason?: boolean | undefined; } | undefined; hooks?: { beforeSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; afterSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; beforeDelete?: ((record: RecordData, context: LifecycleHookContext) => Promise<void>) | undefined; beforeRestore?: ((record: RecordData, context: LifecycleHookContext) => Promise<void>) | undefined; } | undefined; }"
     },
     "RESOURCE_READ_SCHEMA": {
       "kind": "VariableDeclaration",
@@ -1750,7 +1750,7 @@
     },
     "ResourceActivity": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ id: number; action: Action; fields: string[]; actorId: number; actorName: string | null; actorAvatarUrl: string | null; actorEmail: string | null; createdAt: string; }[]"
+      "type": "{ id: number; action: Action; fields: string[]; actorId: number; actorName: string | null; actorAvatarUrl: string | null; reason: string | null; actorEmail: string | null; createdAt: string; }[]"
     },
     "resourceAddition": {
       "kind": "FunctionDeclaration",
@@ -2390,7 +2390,7 @@
   "./types": {
     "Action": {
       "kind": "TypeAliasDeclaration",
-      "type": "\"view\" | \"create\" | \"update\" | \"delete\" | \"submit\" | \"cancel\" | \"amend\""
+      "type": "\"cancel\" | \"view\" | \"create\" | \"update\" | \"delete\" | \"submit\" | \"amend\""
     },
     "Field": {
       "kind": "TypeAliasDeclaration",
@@ -2454,7 +2454,7 @@
     },
     "Resource": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ name: string; label: Label; recordLabel?: Label | undefined; createLabel?: Label | undefined; model?: LucidModel | undefined; scoped: boolean; scope?: { from: string; } | undefined; submittable?: boolean | undefined; version?: boolean | undefined; fields: Record<string, Field>; list: readonly string[]; defaultSort?: { field: string; direction?: \"asc\" | \"desc\" | undefined; } | undefined; form: readonly string[]; show: readonly string[]; serialize?: readonly string[] | undefined; hidden?: readonly string[] | undefined; title?: readonly string[] | undefined; actions: readonly Action[]; unique?: readonly (readonly string[])[] | undefined; validator?: { validate(data: unknown): Promise<RecordData>; } | undefined; printTemplates?: readonly PrintTemplate[] | undefined; hooks?: { beforeSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; afterSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; beforeDelete?: ((record: RecordData, context: LifecycleHookContext) => Promise<void>) | undefined; beforeRestore?: ((record: RecordData, context: LifecycleHookContext) => Promise<void>) | undefined; } | undefined; }"
+      "type": "{ name: string; label: Label; recordLabel?: Label | undefined; createLabel?: Label | undefined; model?: LucidModel | undefined; scoped: boolean; scope?: { from: string; } | undefined; submittable?: boolean | undefined; version?: boolean | undefined; fields: Record<string, Field>; list: readonly string[]; defaultSort?: { field: string; direction?: \"asc\" | \"desc\" | undefined; } | undefined; form: readonly string[]; show: readonly string[]; serialize?: readonly string[] | undefined; hidden?: readonly string[] | undefined; title?: readonly string[] | undefined; actions: readonly Action[]; unique?: readonly (readonly string[])[] | undefined; validator?: { validate(data: unknown): Promise<RecordData>; } | undefined; printTemplates?: readonly PrintTemplate[] | undefined; cancel?: { reasonField?: string | undefined; requireReason?: boolean | undefined; } | undefined; hooks?: { beforeSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; afterSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; beforeDelete?: ((record: RecordData, context: LifecycleHookContext) => Promise<void>) | undefined; beforeRestore?: ((record: RecordData, context: LifecycleHookContext) => Promise<void>) | undefined; } | undefined; }"
     },
     "ResourceInput": {
       "kind": "TypeAliasDeclaration",
