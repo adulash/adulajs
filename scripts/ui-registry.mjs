@@ -1,9 +1,9 @@
 // Maintenance entry point for the @adula/ui registry, the single source of copied UI.
 //   sync       fetch the upstream shadcn primitives (network, explicit maintenance)
 //   prepare    adapt sources for Arabic RTL and refresh pinned versions (--sources-only skips npm)
-//   register   (re)register the AdulaJS resource components in registry.json
 //   build      write packages/ui/build (JSON registry items and manifest)
 //   reference  generate apps/reference/inertia/components/ui and ui.lock.json from the registry
+// registry.json is edited by hand: add or change an item's entry directly (issue #163).
 import { cp, copyFile, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { createHash } from 'node:crypto'
 import { execFile } from 'node:child_process'
@@ -201,45 +201,6 @@ async function prepare({ sourcesOnly }) {
   console.log(JSON.stringify(pins, null, 2))
 }
 
-async function register() {
-  const registry = await readJson(new URL('registry.json', root))
-  const dependencies = await readJson(new URL('dependencies.json', root))
-  Object.assign(dependencies, { '@tanstack/react-table': '9.2.4', '@tanstack/react-virtual': '3.14.13', axios: '1.19.0' })
-  const pin = (name) => `${name}@${dependencies[name]}`
-  const components = {
-    'can': { registry: [], npm: [] },
-    'resource-value': { registry: ['badge'], npm: ['lucide-react'] },
-    'resource-actions': { registry: ['button', 'dialog', 'can'], npm: ['axios', 'sonner'] },
-    'resource-field': {
-      registry: ['input', 'textarea', 'button', 'label', 'select', 'switch', 'popover', 'calendar', 'command', 'resource-value', 'user-avatar'],
-      npm: ['axios', 'date-fns', 'lucide-react'],
-    },
-    'data-table': {
-      registry: ['button', 'input', 'badge', 'table', 'can', 'resource-actions', 'resource-field', 'resource-value'],
-      npm: ['@tanstack/react-table', '@tanstack/react-virtual', 'axios', 'lucide-react'],
-    },
-    'resource-form': {
-      registry: ['button', 'alert', 'label', 'resource-actions', 'resource-field', 'resource-value'],
-      npm: ['axios', 'sonner', 'lucide-react'],
-    },
-    'resource-show': {
-      registry: ['button', 'badge', 'skeleton', 'can', 'resource-actions', 'resource-value', 'user-avatar'],
-      npm: ['lucide-react'],
-    },
-    'resource-surface': { registry: ['button', 'dialog'], npm: [] },
-    'resource-page': { registry: ['button', 'card', 'data-table', 'resource-form', 'resource-show', 'resource-surface'], npm: ['lucide-react'] },
-  }
-  for (const [name, { registry: registryDependencies, npm }] of Object.entries(components)) {
-    const entry = { name, type: 'registry:ui', registryDependencies, dependencies: npm.map(pin),
-      files: [{ path: `registry/ui/${name}.tsx`, type: 'registry:ui' }] }
-    const index = registry.items.findIndex((item) => item.name === name)
-    if (index === -1) registry.items.push(entry)
-    else registry.items[index] = entry
-  }
-  await writeJson(new URL('registry.json', root), registry)
-  await writeJson(new URL('dependencies.json', root), dependencies)
-}
-
 async function build() {
   const pkg = await readJson(new URL('package.json', root))
   const registry = await readJson(new URL('registry.json', root))
@@ -296,7 +257,6 @@ export async function writeReference(app = fileURLToPath(reference)) {
 const commands = {
   sync,
   prepare: () => prepare({ sourcesOnly: process.argv.includes('--sources-only') }),
-  register,
   build,
   reference: async () => console.log(`Generated ${await writeReference()} reference UI files from @adula/ui`),
 }
