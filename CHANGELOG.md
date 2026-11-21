@@ -24,6 +24,14 @@
   stores the reason in the declared `string` or `text` field (not copied by amend) and keeps
   it with the activity entry, which now returns `reason`. The cancel dialog asks for
   «سبب الإلغاء» and the activity log shows it (#135).
+* `createResourceController` lets page and Inertia visits reach the application's exception
+  handler instead of answering its errors as JSON; `Accept: application/json` clients still
+  get `{ error: { code, message } }`. The reference handler (and new applications) render
+  the new `errors/forbidden` page for 403 and `errors/not_found` for 404 on such visits;
+  existing applications add the same negotiation to their project-owned
+  `app/exceptions/handler.ts` to show their pages. A foreign-key failure whose row is still
+  referenced is 409 `E_HAS_DEPENDENTS` naming the referencing resource, apart from the
+  generic 422 `E_RELATION`; `databaseError()` maps PostgreSQL constraint failures (#139).
 
 ## 2.4.0 — 2026-11-20
 

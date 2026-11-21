@@ -5,7 +5,7 @@ import type { Label, RecordData, Resource } from '../resource/types.js'
 import { fieldValue } from '../resource/values.js'
 import { buildAbility, type Actor } from '../auth/ability.js'
 import type { ResourceService } from '../admin/resource_service.js'
-import { AdulaError, forbiddenAction } from '../admin/errors.js'
+import { AdulaError, databaseError, forbiddenAction } from '../admin/errors.js'
 import { labelText, translate } from '../languages/catalog.js'
 import { fieldLevel } from '../admin/resource/shared.js'
 import { fromRow } from '../admin/contracts.js'
@@ -326,7 +326,7 @@ function failureOf(error: unknown): Omit<BulkFailure, 'id'> {
           : translate('validation.invalid'),
     }
   }
-  if (code === '23505') return { code: 'E_DUPLICATE', message: translate('errors.E_DUPLICATE') }
-  if (code === '23503') return { code: 'E_RELATION', message: translate('errors.E_RELATION') }
+  const database = databaseError(error)
+  if (database) return { code: database.code, message: database.message }
   return { code: 'E_BULK_ROW', message: translate('errors.E_BULK_ROW') }
 }
