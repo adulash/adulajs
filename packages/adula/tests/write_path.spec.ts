@@ -86,7 +86,7 @@ const service = new ResourceService(db, registry)
 
 /** The deleted_at of one row: null while the record is live. */
 async function deletedAt(table: string, id: unknown) {
-  const row = await db(table).where('id', id).first('deleted_at')
+  const row = await db(table).where('id', Number(id)).first('deleted_at')
   return row.deleted_at
 }
 
