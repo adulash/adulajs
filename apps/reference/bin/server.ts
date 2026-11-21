@@ -11,6 +11,8 @@
 
 await import('reflect-metadata')
 const { Ignitor, prettyPrintError } = await import('@adonisjs/core')
+const { createServer } = await import('node:http')
+const { listenOnIpv6Loopback } = await import('./ipv6_loopback.js')
 
 /**
  * URL to the application root. AdonisJS need it to resolve
@@ -38,7 +40,11 @@ new Ignitor(APP_ROOT, { importer: IMPORTER })
     app.listenIf(app.managedByPm2, 'SIGINT', () => app.terminate())
   })
   .httpServer()
-  .start()
+  .start((handler) => {
+    // Development also answers on ::1 so `localhost` does not wait for IPv4 fallback (#107).
+    void listenOnIpv6Loopback(handler)
+    return createServer(handler)
+  })
   .catch((error) => {
     process.exitCode = 1
     prettyPrintError(error)
