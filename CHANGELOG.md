@@ -5,10 +5,6 @@
 * Releases: the owner's merge of the release pull request authorizes publication, and the
   `npm` environment no longer asks for a second approval (ADR 056, superseding point 5 of
   ADR 054). `docs/releasing.md` and AGENTS.md describe the new flow.
-* Source repository: `scripts/ui-registry.mjs register` is removed (#163). Its hard-coded
-  table predated the registry and replaced whole entries, dropping registry dependencies and
-  files that items had gained since. `packages/ui/registry.json` is edited by hand, as the
-  `@adula/ui` README now says; a test asserts the command no longer runs or rewrites the file.
 
 * Resource hooks receive `existing` (the stored record, `null` on create), `changes` (the
   changed field keys), `system` (module-code write) and `reason` in `HookContext`, so
