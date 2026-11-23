@@ -93,10 +93,6 @@ try {
   (`{ data, meta }`), `aggregate`, `imports.template` (the CSV text) and
   `imports.xlsxTemplate` (the workbook as an `ArrayBuffer`; a custom `fetch` must then
   return `arrayBuffer()`).
-* `update` (`PATCH`) sends only the fields to change, with the record's `version` on a
-  versioned resource. The server loads the record first (404 when it is unknown or outside
-  the caller's scope), then validates the stored values merged with the submitted ones, so
-  omitted required fields keep their stored values.
 * Value types:
   * money is a decimal string in minor units (`'1050'` = 10.50);
   * dates and datetimes are ISO strings;

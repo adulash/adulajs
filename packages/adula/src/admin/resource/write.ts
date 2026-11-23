@@ -292,12 +292,7 @@ export async function persist(
   const formDefaults = Object.fromEntries(
     Object.entries(defaults).filter(([key]) => resource.form.includes(key))
   )
-  // A user create is validated before the transaction; an update is validated once the
-  // authorized record is loaded, as the merge of stored and submitted values (#131).
-  const validated: RecordData =
-    system || id !== undefined ? {} : await validator.validate({ ...formDefaults, ...form })
-  // The keys the validator saw: a key it returns beyond them was added by the validator.
-  let validatedInput: RecordData = { ...formDefaults, ...form }
+  const validated = system ? {} : await validator.validate({ ...formDefaults, ...form })
   const work = async (trx: Knex.Transaction) => {
     const existing = id === undefined ? {} : await load(trx, resource, id, true)
     if (id !== undefined) {
@@ -311,20 +306,16 @@ export async function persist(
       )
         throw documentLocked()
     }
-    // The validator sees the complete form, so a partial update (a PATCH naming only the
-    // changed fields, or a system write) keeps the stored required values (#131).
-    const formKeys = resource.form.filter((key) => resource.fields[key].type !== 'hasMany')
-    const pick = (record: RecordData) =>
-      Object.fromEntries(formKeys.filter((key) => key in record).map((key) => [key, record[key]]))
-    if (system)
+    if (system) {
+      // The validator sees the complete form, so a partial update keeps required values.
+      const formKeys = resource.form.filter((key) => resource.fields[key].type !== 'hasMany')
+      const pick = (record: RecordData) =>
+        Object.fromEntries(formKeys.filter((key) => key in record).map((key) => [key, record[key]]))
       Object.assign(
         validated,
         await validator.validate({ ...pick(existing), ...pick(defaults), ...pick(form) }),
         Object.fromEntries(Object.entries(form).filter(([key]) => !formKeys.includes(key)))
       )
-    else if (id !== undefined) {
-      validatedInput = { ...pick(existing), ...form }
-      Object.assign(validated, await validator.validate(validatedInput))
     }
     const candidate: RecordData = {
       ...existing,
@@ -374,12 +365,10 @@ export async function persist(
         ? []
         : [
             ...Object.keys(form),
-            // A declared default is the definition's choice, not the actor's write; a stored
-            // value merged into a partial update is not the actor's write either (#131).
+            // A declared default is the definition's choice, not the actor's write.
             ...Object.keys(validated).filter(
               (key) =>
                 key in resource.fields &&
-                (id === undefined || !(key in validatedInput)) &&
                 !(
                   key in defaults &&
                   !(key in form) &&
