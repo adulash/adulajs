@@ -93,15 +93,6 @@ try {
   (`{ data, meta }`), `aggregate`, `imports.template` (the CSV text) and
   `imports.xlsxTemplate` (the workbook as an `ArrayBuffer`; a custom `fetch` must then
   return `arrayBuffer()`).
-* `update` (`PATCH`) sends only the fields to change, with the record's `version` on a
-  versioned resource. The server loads the record first (404 when it is unknown or outside
-  the caller's scope), then validates the stored values merged with the submitted ones, so
-  omitted required fields keep their stored values.
-* Errors are `{ error: { code, message } }` for JSON clients (and clients that accept
-  anything). A browser or Inertia visit to a resource page instead reaches the application's
-  exception handler, which renders its 403 or 404 page. A database foreign-key failure
-  whose rows are still referenced is 409 `E_HAS_DEPENDENTS` naming the referencing
-  resource; other foreign-key failures stay 422 `E_RELATION`.
 * Value types:
   * money is a decimal string in minor units (`'1050'` = 10.50);
   * dates and datetimes are ISO strings;

@@ -2,8 +2,6 @@
 
 Date: 2026-11-18. Status: proposed to the owner. Amends ADR 040 (how a release is
 triggered and finished); its archive safety, API contract and owner approval stand.
-Point 5 is superseded by ADR 056: the owner's merge of the release pull request is the
-authorization, and the `npm` environment has no required reviewer.
 
 ## Context
 

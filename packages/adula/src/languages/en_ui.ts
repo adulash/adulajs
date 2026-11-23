@@ -56,7 +56,6 @@ export const englishInterfaceMessages: Partial<
   'ui.actions.deleteDescription': 'The record moves to Deleted records, where it can be restored.',
   'ui.actions.submitDescription':
     'Once submitted, the document and its lines can no longer be edited.',
-  'ui.actions.cancelReason': 'Cancellation reason',
   'ui.actions.cancelDescription':
     'The document will be marked as cancelled and will no longer count.',
   'ui.actions.amendDescription':
@@ -104,7 +103,6 @@ export const englishInterfaceMessages: Partial<
   'ui.show.activity': 'Activity log',
   'ui.show.activityCount': 'Last {count} actions',
   'ui.show.userNumber': 'User #{id}',
-  'ui.show.activityReason': 'Reason: {reason}',
   'ui.show.activityFields': 'Fields: {fields}',
   'ui.common.listSeparator': ', ',
   'ui.show.noActivity': 'No activity recorded yet.',
@@ -246,7 +244,6 @@ export const englishInterfaceMessages: Partial<
   'ui.workspace.trial': 'Trial environment',
   'ui.workspace.mobileNavigation': 'Mobile navigation',
   'ui.errors.notFound': 'Page not found',
-  'ui.errors.forbidden': 'You do not have permission to view this page',
   'ui.errors.serverError': 'Something went wrong',
   'ui.auth.login': 'Sign in',
   'ui.auth.loginDescription': 'Enter your account details to continue to the workspace',

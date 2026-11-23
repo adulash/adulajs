@@ -1,13 +1,6 @@
 import { subject } from '@casl/ability'
 import type { Knex } from 'knex'
-import type {
-  Action,
-  Field,
-  HookContext,
-  RecordData,
-  Resource,
-  SerializedRecord,
-} from '../../resource/types.js'
+import type { Action, Field, RecordData, Resource, SerializedRecord } from '../../resource/types.js'
 import { columnName, joinTable } from '../../resource/define_resource.js'
 import { isMultipleAttachment } from '../../resource/values.js'
 import {
@@ -160,21 +153,6 @@ async function constraintViolations<T>(resource: Resource, write: () => Promise<
   }
 }
 
-/**
- * The field keys of `record` whose value differs from the stored one (HookContext.changes);
- * on create, every field given a value. hasMany lines are not values of the record.
- */
-function changedKeys(resource: Resource, existing: RecordData | null, record: RecordData) {
-  return Object.entries(resource.fields)
-    .filter(([key, field]) => {
-      if (field.type === 'hasMany' || !(key in record)) return false
-      const after = record[key] ?? null
-      if (!existing) return after !== null
-      return JSON.stringify(existing[key] ?? null) !== JSON.stringify(after)
-    })
-    .map(([key]) => key)
-}
-
 /** Replaces the links of one manyToMany field by difference: removed pairs go, new pairs come. */
 async function syncLinks(
   trx: Knex.Transaction,
@@ -292,12 +270,7 @@ export async function persist(
   const formDefaults = Object.fromEntries(
     Object.entries(defaults).filter(([key]) => resource.form.includes(key))
   )
-  // A user create is validated before the transaction; an update is validated once the
-  // authorized record is loaded, as the merge of stored and submitted values (#131).
-  const validated: RecordData =
-    system || id !== undefined ? {} : await validator.validate({ ...formDefaults, ...form })
-  // The keys the validator saw: a key it returns beyond them was added by the validator.
-  let validatedInput: RecordData = { ...formDefaults, ...form }
+  const validated = system ? {} : await validator.validate({ ...formDefaults, ...form })
   const work = async (trx: Knex.Transaction) => {
     const existing = id === undefined ? {} : await load(trx, resource, id, true)
     if (id !== undefined) {
@@ -311,20 +284,16 @@ export async function persist(
       )
         throw documentLocked()
     }
-    // The validator sees the complete form, so a partial update (a PATCH naming only the
-    // changed fields, or a system write) keeps the stored required values (#131).
-    const formKeys = resource.form.filter((key) => resource.fields[key].type !== 'hasMany')
-    const pick = (record: RecordData) =>
-      Object.fromEntries(formKeys.filter((key) => key in record).map((key) => [key, record[key]]))
-    if (system)
+    if (system) {
+      // The validator sees the complete form, so a partial update keeps required values.
+      const formKeys = resource.form.filter((key) => resource.fields[key].type !== 'hasMany')
+      const pick = (record: RecordData) =>
+        Object.fromEntries(formKeys.filter((key) => key in record).map((key) => [key, record[key]]))
       Object.assign(
         validated,
         await validator.validate({ ...pick(existing), ...pick(defaults), ...pick(form) }),
         Object.fromEntries(Object.entries(form).filter(([key]) => !formKeys.includes(key)))
       )
-    else if (id !== undefined) {
-      validatedInput = { ...pick(existing), ...form }
-      Object.assign(validated, await validator.validate(validatedInput))
     }
     const candidate: RecordData = {
       ...existing,
@@ -374,12 +343,10 @@ export async function persist(
         ? []
         : [
             ...Object.keys(form),
-            // A declared default is the definition's choice, not the actor's write; a stored
-            // value merged into a partial update is not the actor's write either (#131).
+            // A declared default is the definition's choice, not the actor's write.
             ...Object.keys(validated).filter(
               (key) =>
                 key in resource.fields &&
-                (id === undefined || !(key in validatedInput)) &&
                 !(
                   key in defaults &&
                   !(key in form) &&
@@ -401,16 +368,8 @@ export async function persist(
     }
     for (const [key, field] of Object.entries(resource.fields))
       if (field.sequence && id === undefined) candidate[key] = await sequence(trx, field.sequence)
-    const hookContext = (record: RecordData): HookContext => ({
-      trx,
-      userId: actor.id,
-      action,
-      existing: id === undefined ? null : { ...existing },
-      changes: changedKeys(resource, id === undefined ? null : existing, record),
-      system: Boolean(system),
-      ...(system?.reason === undefined ? {} : { reason: system.reason }),
-    })
-    await resource.hooks?.beforeSave?.(candidate, hookContext(candidate))
+    const context = { trx, userId: actor.id, action } as const
+    await resource.hooks?.beforeSave?.(candidate, context)
     normalizeValues(resource, candidate)
     // Hidden fields store null whatever the input or a hook supplied (Field.visibleWhen).
     // A field the actor may not write keeps its stored value instead: changing the
@@ -646,7 +605,7 @@ export async function persist(
       id === undefined ? Object.keys(form) : [...changes.map(({ field }) => field), ...inline]
     if (!system?.unattributed)
       await audit(ctx, trx, resource, actor, action, saved, fields, changes, system)
-    await resource.hooks?.afterSave?.(saved, hookContext(saved))
+    await resource.hooks?.afterSave?.(saved, context)
     if (system) return (await hydrateOne(trx, resource, saved, ctx.attachments)) as SerializedRecord
     return serialize(
       resource,
@@ -776,8 +735,6 @@ export async function amend(
     const copied: string[] = []
     for (const [key, field] of Object.entries(resource.fields)) {
       if (field.type === 'hasMany' || field.type === 'manyToMany' || !(key in source)) continue
-      // The new draft is not cancelled: the cancel reason stays with the original (#135).
-      if (key === resource.cancel?.reasonField) continue
       const column = field.column ?? columnName(key)
       if (field.sequence) values[column] = await sequence(trx, field.sequence)
       else if (field.type === 'attachment') continue

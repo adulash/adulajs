@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useState } from 'react'
 import { router } from '@inertiajs/react'
 import axios from 'axios'
 import { toast } from 'sonner'
@@ -13,8 +13,6 @@ import {
   DialogTitle,
 } from '~/components/ui/dialog'
 import { Can } from '~/components/ui/can'
-import { Label } from '~/components/ui/label'
-import { Textarea } from '~/components/ui/textarea'
 import { arabicText, useMessages, type Translate } from '~/components/ui/messages'
 
 export type TransitionAction = 'delete' | 'submit' | 'cancel' | 'amend'
@@ -82,9 +80,6 @@ export function ResourceActions({
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState('')
   const [conflict, setConflict] = useState(false)
-  // Why a document is cancelled; a resource may require it (Resource.cancel, #135).
-  const [reason, setReason] = useState('')
-  const reasonId = useId()
   const base = `/resources/${resource}/${id}`
   // «تراجع» restores the record just deleted, then shows the page as it now is.
   const undoDelete = async () => {
@@ -108,10 +103,7 @@ export function ResourceActions({
       const response = await axios.request({
         method: pending === 'delete' ? 'delete' : 'post',
         url: pending === 'delete' ? base : `${base}/${pending}`,
-        data: {
-          ...(version === undefined ? {} : { version }),
-          ...(pending === 'cancel' && reason.trim() ? { reason: reason.trim() } : {}),
-        },
+        data: version === undefined ? {} : { version },
         headers: { Accept: 'application/json' },
         withXSRFToken: true,
       })
@@ -151,7 +143,6 @@ export function ResourceActions({
             aria-label={label ? namedLabels[action](label, t) : undefined}
             onClick={() => {
               setPending(action)
-              setReason('')
               setFailure('')
               setConflict(false)
             }}
@@ -169,19 +160,6 @@ export function ResourceActions({
               {label ? ` (${label})` : ''}
             </DialogDescription>
           </DialogHeader>
-          {pending === 'cancel' && (
-            <div className="grid gap-2">
-              <Label htmlFor={reasonId}>{t('سبب الإلغاء')}</Label>
-              <Textarea
-                id={reasonId}
-                value={reason}
-                rows={3}
-                maxLength={2000}
-                disabled={busy}
-                onChange={(event) => setReason(event.target.value)}
-              />
-            </div>
-          )}
           {failure && (
             <div role="alert" className="flex flex-wrap items-center gap-3 text-sm text-destructive">
               {failure}

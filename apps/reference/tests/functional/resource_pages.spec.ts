@@ -429,30 +429,13 @@ test.group('Navigation and pages follow view permissions', () => {
       .loginAs(limited.user)
       .headers(html)
       .withInertia()
-    // A refused page visit renders the application's 403 page, not the JSON error (#139).
     tasks.assertStatus(403)
-    assert.equal(tasks.body().component, 'errors/forbidden')
+    assert.equal(tasks.body().error.code, 'E_FORBIDDEN')
     const create = await client
       .get('/resources/tasks/create')
       .loginAs(limited.user)
       .headers(html)
       .withInertia()
     create.assertStatus(403)
-    assert.equal(create.body().component, 'errors/forbidden')
-    // An unknown record is the 404 page for page visits.
-    const missing = await client
-      .get('/resources/customers/999999')
-      .loginAs(limited.user)
-      .headers(html)
-      .withInertia()
-    missing.assertStatus(404)
-    assert.equal(missing.body().component, 'errors/not_found')
-    // JSON clients keep the error body.
-    const api = await client
-      .get('/resources/tasks')
-      .loginAs(limited.user)
-      .headers({ Accept: 'application/json' })
-    api.assertStatus(403)
-    assert.equal(api.body().error.code, 'E_FORBIDDEN')
   })
 })

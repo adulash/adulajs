@@ -195,8 +195,7 @@ manyToMany yet.
 | `unique` | Composite unique combinations, for example `[['orgUnitId', 'code']]`: a partial unique index over live rows (not cancelled documents on a submittable resource) per combination that treats NULLs as equal (`NULLS NOT DISTINCT`: two rows with the same code and both empty in another member conflict). Adding a combination with `adula:resource:migration` fails while live rows already repeat it, null members included: correct those rows first. Each needs two or more distinct stored fields; `orgUnitId` is allowed on a scoped resource (a code unique per unit). |
 | `submittable`, `version` | Draft/submit/cancel/amend-by-copy; optimistic versions (default with submittable). |
 | `actions` | `view`, `create`, `update`, `delete`, and `submit`, `cancel`, `amend` when submittable. |
-| `cancel` | On a submittable resource, `{ requireReason: true, reasonField: 'cancelReason' }`: a cancel without `{ reason }` is 422 `E_REASON_REQUIRED`; the reason is stored in the named `string` or `text` field (not copied by amend) and shown with the activity entry. The cancel dialog asks for «سبب الإلغاء». |
-| `hooks` | `beforeSave` / `afterSave`, inside the write transaction; see [Hooks](#hooks). |
+| `hooks` | `beforeSave` / `afterSave`, inside the write transaction. |
 | `printTemplates` | Printable layouts offered on the record page; see [Print templates](#print-templates). |
 | `validator` | Optional; see below. |
 | `model` | Optional and never read: AdulaJS persists through Knex. Keep it if your own code uses the Lucid model. |
@@ -244,42 +243,6 @@ violates it fails with 422 until the value is corrected. A unique violation, sin
 
 `@vinejs/vine` (`^4.0.0`) is a peer dependency of `adula`; every AdonisJS application
 already has it.
-
-## Hooks
-
-`hooks.beforeSave(record, context)` runs inside the write transaction after validation and
-authorization, before the row is stored; it may change `record`. `hooks.afterSave(saved,
-context)` runs after the row, its links and the activity entry are written. Throwing from
-either rolls the whole write back. `context` holds:
-
-| Key | Value |
-| --- | --- |
-| `trx` | The write transaction; read and write other records through it. |
-| `userId` | The author (0 for an unattributed `systemSave`). |
-| `action` | `create` or `update`. |
-| `existing` | The stored record before this write, locked for update; `null` on create. |
-| `changes` | Field keys whose value differs from `existing` (before: the merged candidate; after: the stored result). On create, every field given a value. |
-| `system` | `true` for `systemSave` and `rehome`, `false` for a user's save. |
-| `reason` | The `reason` module code passed to `systemSave`, when any. |
-
-A status transition rule reads `context.existing?.status` and `record.status` without a
-query, and a hook that writes another record through `systemSave` can tell its own nested
-write (`context.system`) from a user's.
-
-`hooks.beforeDelete(record, context)` runs before a soft delete (single, inline line or
-bulk) and `hooks.beforeRestore(record, context)` before a restore, inside the transaction
-with the stored record locked. Throwing refuses the action. Their context has the same keys,
-with `action` `delete` or `restore`, `existing` the stored record and `changes` empty.
-
-### Deleting and restoring
-
-Deletes are soft (`deleted_at`). A record that live records of any registered resource
-still reference through a belongsTo cannot be deleted: the answer is 409
-`E_HAS_DEPENDENTS` naming each resource and its count, for example «لا يمكن حذف السجل لأن
-سجلات قائمة مرتبطة به: العناصر (2)». Delete the dependents first (or let `beforeDelete`
-handle them; it runs before the check). Inline lines are part of their document and do not
-count. A record whose belongsTo parent is deleted cannot be restored (409
-`E_PARENT_DELETED` naming the field): restore the parent first.
 
 ## Print templates
 

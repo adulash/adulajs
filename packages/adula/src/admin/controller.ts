@@ -3,8 +3,8 @@ import type { Actor } from '../auth/ability.js'
 import type { ResourceRegistry } from '../resource/registry.js'
 import type { Resource } from '../resource/types.js'
 import type { ResourceService } from './resource_service.js'
-import { AdulaError, databaseError } from './errors.js'
-import { labelText } from '../languages/catalog.js'
+import { AdulaError } from './errors.js'
+import { translate } from '../languages/catalog.js'
 import { BulkActions } from '../lists/bulk_actions.js'
 import type { ListOptions } from './resource/query.js'
 
@@ -264,9 +264,7 @@ export function createResourceController(
           this.#id(ctx),
           actor,
           action,
-          ctx.request.input('version'),
-          undefined,
-          action === 'cancel' ? { reason: ctx.request.input('reason') } : undefined
+          ctx.request.input('version')
         ),
       }))
     }
@@ -274,10 +272,8 @@ export function createResourceController(
       ctx: HttpContext,
       action: (runtime: ResourceRuntime, resource: Resource) => Promise<unknown>
     ) {
-      let registry: ResourceRegistry | undefined
       try {
         const runtime = await resolveRuntime(ctx)
-        registry = runtime.registry
         let resource: Resource
         try {
           resource = runtime.registry.get(ctx.params.resource)
@@ -286,27 +282,27 @@ export function createResourceController(
         }
         return await action(runtime, resource)
       } catch (error) {
-        const failure =
-          error instanceof AdulaError
-            ? error
-            : databaseError(error, (table) => tableLabel(registry, table))
-        if (!failure) throw error
-        // A page or Inertia visit reaches the application's exception handler, which renders
-        // its 403 or 404 page; JSON clients (and clients that accept anything) get the error
-        // body (#139).
-        if (ctx.request.accepts(['json', 'html']) === 'html') throw failure
-        return ctx.response
-          .status(failure.status)
-          .send({ error: { code: failure.code, message: failure.message } })
+        if (error instanceof AdulaError)
+          return ctx.response
+            .status(error.status)
+            .send({ error: { code: error.code, message: error.message } })
+        if ((error as { code?: string })?.code === '23505')
+          return ctx.response.conflict({
+            error: { code: 'E_DUPLICATE', message: translate('errors.E_DUPLICATE') },
+          })
+        // A NOT NULL column the definition lets be empty (see adula:resource:migration).
+        if ((error as { code?: string })?.code === '23502')
+          return ctx.response.unprocessableEntity({
+            error: { code: 'E_NOT_NULL', message: translate('errors.E_NOT_NULL') },
+          })
+        if ((error as { code?: string })?.code === '23503')
+          return ctx.response.unprocessableEntity({
+            error: { code: 'E_RELATION', message: translate('errors.E_RELATION') },
+          })
+        throw error
       }
     }
   }
-}
-
-/** The label of the resource stored in `table`, or the table name. */
-function tableLabel(registry: ResourceRegistry | undefined, table: string) {
-  const resource = registry?.all().find((candidate) => candidate.name === table)
-  return resource ? labelText(resource.label) : table
 }
 
 /** RFC 5987 ext-value encoding of a UTF-8 file name. */

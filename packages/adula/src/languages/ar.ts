@@ -73,8 +73,6 @@ export const arabicMessages: Readonly<Record<string, string>> = Object.freeze({
   'errors.E_NOT_NULL': 'لا يمكن حفظ السجل لأن أحد الحقول لا يقبل قيمة فارغة في قاعدة البيانات',
   'errors.E_NOT_NULL.field':
     'لا يمكن حفظ السجل لأن الحقل «{field}» لا يقبل قيمة فارغة في قاعدة البيانات',
-  'errors.E_HAS_DEPENDENTS': 'لا يمكن حذف السجل لأن سجلات قائمة مرتبطة به: {dependents}',
-  'errors.E_PARENT_DELETED': 'لا يمكن استعادة السجل لأن «{field}» المرتبط به محذوف. استعده أولاً',
   'errors.E_RELATION': 'تحقق من السجلات المرتبطة',
   'errors.E_FORBIDDEN.1': 'ليس لديك صلاحية لهذا الإجراء',
   'errors.E_FIELD_FORBIDDEN.1': 'ليس لديك صلاحية لهذا الحقل',

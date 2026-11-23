@@ -6,7 +6,7 @@
     },
     "Action": {
       "kind": "TypeAliasDeclaration",
-      "type": "\"cancel\" | \"view\" | \"create\" | \"update\" | \"delete\" | \"submit\" | \"amend\""
+      "type": "\"view\" | \"create\" | \"update\" | \"delete\" | \"submit\" | \"cancel\" | \"amend\""
     },
     "ActivityAdmin": {
       "kind": "ClassDeclaration",
@@ -712,10 +712,6 @@
       "kind": "TypeAliasDeclaration",
       "type": "{ key: string; label: string; resource: string; href: string; measure: DashboardMeasure; format: DashboardFormat; kind: \"total\" | \"grouped\"; groupBy: string | null; value?: string | number | null | undefined; rows?: DashboardGroupRow[] | undefined; truncated: boolean; }"
     },
-    "databaseError": {
-      "kind": "FunctionDeclaration",
-      "type": "(error: unknown, label?: ((table: string) => string) | undefined) => AdulaError | undefined"
-    },
     "dateIn": {
       "kind": "FunctionDeclaration",
       "type": "(timeZone: string, now: Date) => string"
@@ -918,7 +914,7 @@
     },
     "HookContext": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ trx: Transaction<any, any[]>; userId: number; action: Action; existing: RecordData | null; changes: string[]; system: boolean; reason?: string | undefined; }"
+      "type": "{ trx: Transaction<any, any[]>; userId: number; action: Action; }"
     },
     "htmlToPdf": {
       "kind": "FunctionDeclaration",
@@ -1159,10 +1155,6 @@
     "LanguageOptions": {
       "kind": "TypeAliasDeclaration",
       "type": "{ name: string; dir?: TextDirection | undefined; }"
-    },
-    "LifecycleHookContext": {
-      "kind": "TypeAliasDeclaration",
-      "type": "Omit<HookContext, \"action\"> & { action: \"delete\" | \"restore\"; }"
     },
     "Listener": {
       "kind": "TypeAliasDeclaration",
@@ -1670,7 +1662,7 @@
     },
     "RecordPermissions": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ cancel?: boolean | undefined; view?: boolean | undefined; create?: boolean | undefined; update?: boolean | undefined; delete?: boolean | undefined; submit?: boolean | undefined; amend?: boolean | undefined; restore?: boolean | undefined; }"
+      "type": "{ view?: boolean | undefined; create?: boolean | undefined; update?: boolean | undefined; delete?: boolean | undefined; submit?: boolean | undefined; cancel?: boolean | undefined; amend?: boolean | undefined; restore?: boolean | undefined; }"
     },
     "RECOVERY_CODE_COUNT": {
       "kind": "VariableDeclaration",
@@ -1742,7 +1734,7 @@
     },
     "Resource": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ name: string; label: Label; recordLabel?: Label | undefined; createLabel?: Label | undefined; model?: LucidModel | undefined; scoped: boolean; scope?: { from: string; } | undefined; submittable?: boolean | undefined; version?: boolean | undefined; fields: Record<string, Field>; list: readonly string[]; defaultSort?: { field: string; direction?: \"asc\" | \"desc\" | undefined; } | undefined; form: readonly string[]; show: readonly string[]; serialize?: readonly string[] | undefined; hidden?: readonly string[] | undefined; title?: readonly string[] | undefined; actions: readonly Action[]; unique?: readonly (readonly string[])[] | undefined; validator?: { validate(data: unknown): Promise<RecordData>; } | undefined; printTemplates?: readonly PrintTemplate[] | undefined; cancel?: { reasonField?: string | undefined; requireReason?: boolean | undefined; } | undefined; hooks?: { beforeSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; afterSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; beforeDelete?: ((record: RecordData, context: LifecycleHookContext) => Promise<void>) | undefined; beforeRestore?: ((record: RecordData, context: LifecycleHookContext) => Promise<void>) | undefined; } | undefined; }"
+      "type": "{ name: string; label: Label; recordLabel?: Label | undefined; createLabel?: Label | undefined; model?: LucidModel | undefined; scoped: boolean; scope?: { from: string; } | undefined; submittable?: boolean | undefined; version?: boolean | undefined; fields: Record<string, Field>; list: readonly string[]; defaultSort?: { field: string; direction?: \"asc\" | \"desc\" | undefined; } | undefined; form: readonly string[]; show: readonly string[]; serialize?: readonly string[] | undefined; hidden?: readonly string[] | undefined; title?: readonly string[] | undefined; actions: readonly Action[]; unique?: readonly (readonly string[])[] | undefined; validator?: { validate(data: unknown): Promise<RecordData>; } | undefined; printTemplates?: readonly PrintTemplate[] | undefined; hooks?: { beforeSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; afterSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; } | undefined; }"
     },
     "RESOURCE_READ_SCHEMA": {
       "kind": "VariableDeclaration",
@@ -1754,7 +1746,7 @@
     },
     "ResourceActivity": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ id: number; action: Action; fields: string[]; actorId: number; actorName: string | null; actorAvatarUrl: string | null; reason: string | null; actorEmail: string | null; createdAt: string; }[]"
+      "type": "{ id: number; action: Action; fields: string[]; actorId: number; actorName: string | null; actorAvatarUrl: string | null; actorEmail: string | null; createdAt: string; }[]"
     },
     "resourceAddition": {
       "kind": "FunctionDeclaration",
@@ -2394,7 +2386,7 @@
   "./types": {
     "Action": {
       "kind": "TypeAliasDeclaration",
-      "type": "\"cancel\" | \"view\" | \"create\" | \"update\" | \"delete\" | \"submit\" | \"amend\""
+      "type": "\"view\" | \"create\" | \"update\" | \"delete\" | \"submit\" | \"cancel\" | \"amend\""
     },
     "Field": {
       "kind": "TypeAliasDeclaration",
@@ -2406,7 +2398,7 @@
     },
     "HookContext": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ trx: Transaction<any, any[]>; userId: number; action: Action; existing: RecordData | null; changes: string[]; system: boolean; reason?: string | undefined; }"
+      "type": "{ trx: Transaction<any, any[]>; userId: number; action: Action; }"
     },
     "JsonValue": {
       "kind": "TypeAliasDeclaration",
@@ -2415,10 +2407,6 @@
     "Label": {
       "kind": "TypeAliasDeclaration",
       "type": "{ [language: string]: string | undefined; ar: string; en?: string | undefined; }"
-    },
-    "LifecycleHookContext": {
-      "kind": "TypeAliasDeclaration",
-      "type": "Omit<HookContext, \"action\"> & { action: \"delete\" | \"restore\"; }"
     },
     "Module": {
       "kind": "TypeAliasDeclaration",
@@ -2458,7 +2446,7 @@
     },
     "Resource": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ name: string; label: Label; recordLabel?: Label | undefined; createLabel?: Label | undefined; model?: LucidModel | undefined; scoped: boolean; scope?: { from: string; } | undefined; submittable?: boolean | undefined; version?: boolean | undefined; fields: Record<string, Field>; list: readonly string[]; defaultSort?: { field: string; direction?: \"asc\" | \"desc\" | undefined; } | undefined; form: readonly string[]; show: readonly string[]; serialize?: readonly string[] | undefined; hidden?: readonly string[] | undefined; title?: readonly string[] | undefined; actions: readonly Action[]; unique?: readonly (readonly string[])[] | undefined; validator?: { validate(data: unknown): Promise<RecordData>; } | undefined; printTemplates?: readonly PrintTemplate[] | undefined; cancel?: { reasonField?: string | undefined; requireReason?: boolean | undefined; } | undefined; hooks?: { beforeSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; afterSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; beforeDelete?: ((record: RecordData, context: LifecycleHookContext) => Promise<void>) | undefined; beforeRestore?: ((record: RecordData, context: LifecycleHookContext) => Promise<void>) | undefined; } | undefined; }"
+      "type": "{ name: string; label: Label; recordLabel?: Label | undefined; createLabel?: Label | undefined; model?: LucidModel | undefined; scoped: boolean; scope?: { from: string; } | undefined; submittable?: boolean | undefined; version?: boolean | undefined; fields: Record<string, Field>; list: readonly string[]; defaultSort?: { field: string; direction?: \"asc\" | \"desc\" | undefined; } | undefined; form: readonly string[]; show: readonly string[]; serialize?: readonly string[] | undefined; hidden?: readonly string[] | undefined; title?: readonly string[] | undefined; actions: readonly Action[]; unique?: readonly (readonly string[])[] | undefined; validator?: { validate(data: unknown): Promise<RecordData>; } | undefined; printTemplates?: readonly PrintTemplate[] | undefined; hooks?: { beforeSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; afterSave?: ((record: RecordData, context: HookContext) => Promise<void>) | undefined; } | undefined; }"
     },
     "ResourceInput": {
       "kind": "TypeAliasDeclaration",

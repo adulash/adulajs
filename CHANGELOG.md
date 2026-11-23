@@ -2,41 +2,6 @@
 
 ## Unreleased
 
-* Releases: the owner's merge of the release pull request authorizes publication, and the
-  `npm` environment no longer asks for a second approval (ADR 056, superseding point 5 of
-  ADR 054). `docs/releasing.md` and AGENTS.md describe the new flow.
-* Source repository: `scripts/ui-registry.mjs register` is removed (#163). Its hard-coded
-  table predated the registry and replaced whole entries, dropping registry dependencies and
-  files that items had gained since. `packages/ui/registry.json` is edited by hand, as the
-  `@adula/ui` README now says; a test asserts the command no longer runs or rewrites the file.
-
-* Resource hooks receive `existing` (the stored record, `null` on create), `changes` (the
-  changed field keys), `system` (module-code write) and `reason` in `HookContext`, so
-  `beforeSave` / `afterSave` compare with the stored values and tell a user write from
-  `systemSave` or `rehome` without a query (#134).
-* A user update validates the merge of the stored record and the submitted values, after
-  loading the authorized record: `PATCH /resources/:name/:id` with only the changed fields
-  and the `version` saves them and keeps the rest, and an unknown or out-of-scope id answers
-  404 before any validation error (#131).
-* A soft delete (single, inline or bulk) is refused with 409 `E_HAS_DEPENDENTS`, naming the
-  dependent resources and their counts, while live records reference the record through a
-  belongsTo; restoring a record whose belongsTo parent is deleted is refused with 409
-  `E_PARENT_DELETED`. Resources gain `hooks.beforeDelete` and `hooks.beforeRestore`, whose
-  context (`LifecycleHookContext`) has the `HookContext` shape (#133).
-* A cancel can require and store a reason: `cancel: { requireReason: true, reasonField }` on a
-  submittable resource answers 422 `E_REASON_REQUIRED` to a cancel without `{ reason }`,
-  stores the reason in the declared `string` or `text` field (not copied by amend) and keeps
-  it with the activity entry, which now returns `reason`. The cancel dialog asks for
-  «سبب الإلغاء» and the activity log shows it (#135).
-* `createResourceController` lets page and Inertia visits reach the application's exception
-  handler instead of answering its errors as JSON; `Accept: application/json` clients still
-  get `{ error: { code, message } }`. The reference handler (and new applications) render
-  the new `errors/forbidden` page for 403 and `errors/not_found` for 404 on such visits;
-  existing applications add the same negotiation to their project-owned
-  `app/exceptions/handler.ts` to show their pages. A foreign-key failure whose row is still
-  referenced is 409 `E_HAS_DEPENDENTS` naming the referencing resource, apart from the
-  generic 422 `E_RELATION`; `databaseError()` maps PostgreSQL constraint failures (#139).
-
 ## 2.4.0 — 2026-11-20
 
 * AdulaJS UI is shadcn/ui on Radix throughout (ADR 055, #168). The workspace sidebar is
