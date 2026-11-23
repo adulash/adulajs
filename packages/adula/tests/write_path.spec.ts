@@ -1,13 +1,7 @@
 import { test } from '@japa/runner'
 import { BaseModel } from '@adonisjs/lucid/orm'
-import {
-  BulkActions,
-  ResourceService,
-  ResourceRegistry,
-  createResourceTable,
-  defineResource,
-} from '../index.js'
-import type { HookContext, LifecycleHookContext, RecordData } from '../index.js'
+import { ResourceService, ResourceRegistry, createResourceTable, defineResource } from '../index.js'
+import type { HookContext, RecordData } from '../index.js'
 import { db, setup, admin, reader, customer, order, line } from './helpers.js'
 
 // Every hook call is recorded with the record it saw and its context (#134).
@@ -40,55 +34,12 @@ const ticket = defineResource({
     },
   },
 })
-// A parent and the items that reference it through a belongsTo (#133).
-const lifecycleCalls: { record: RecordData; context: LifecycleHookContext }[] = []
-const parent = defineResource({
-  name: 'parents',
-  label: { ar: 'الآباء', en: 'Parents' },
-  model: BaseModel,
-  scoped: false,
-  fields: { name: { type: 'string', required: true, label: { ar: 'الاسم', en: 'Name' } } },
-  list: ['name'],
-  form: ['name'],
-  show: ['name'],
-  actions: ['view', 'create', 'update', 'delete'],
-  hooks: {
-    beforeDelete: async (record, context) => {
-      lifecycleCalls.push({ record: { ...record }, context })
-      if (record.name === 'locked') throw new Error('locked parents stay')
-    },
-    beforeRestore: async (record, context) => {
-      lifecycleCalls.push({ record: { ...record }, context })
-    },
-  },
-})
-const item = defineResource({
-  name: 'items',
-  label: { ar: 'العناصر', en: 'Items' },
-  model: BaseModel,
-  scoped: false,
-  fields: {
-    name: { type: 'string', required: true, label: { ar: 'الاسم', en: 'Name' } },
-    parent: { type: 'belongsTo', resource: 'parents', label: { ar: 'الأب', en: 'Parent' } },
-  },
-  list: ['name', 'parent'],
-  form: ['name', 'parent'],
-  show: ['name', 'parent'],
-  actions: ['view', 'create', 'update', 'delete'],
-})
 const registry = new ResourceRegistry().register([
   { name: 'customers', label: customer.label, dependsOn: [], resources: [customer] },
   { name: 'orders', label: order.label, dependsOn: ['customers'], resources: [order, line] },
   { name: 'tickets', label: ticket.label, dependsOn: [], resources: [ticket] },
-  { name: 'family', label: parent.label, dependsOn: [], resources: [parent, item] },
 ])
 const service = new ResourceService(db, registry)
-
-/** The deleted_at of one row: null while the record is live. */
-async function deletedAt(table: string, id: unknown) {
-  const row = await db(table).where('id', Number(id)).first('deleted_at')
-  return row.deleted_at
-}
 
 /** The refusal of a write as `status code`, or `ok`. */
 async function outcome(work: () => Promise<unknown>) {
@@ -232,84 +183,5 @@ test.group('Partial update (#131)', (group) => {
       await outcome(() => service.save('orders', reader, { notes: 'x' }, Number(outside.id))),
       '404 E_NOT_FOUND'
     )
-  })
-})
-
-test.group('Soft delete with dependents (#133)', (group) => {
-  group.setup(async () => {
-    await setup()
-    await createResourceTable(db, parent)
-    await createResourceTable(db, item)
-  })
-  group.each.setup(() => {
-    lifecycleCalls.length = 0
-  })
-
-  test('a referenced record is refused with its dependents named, then goes once they go', async ({
-    assert,
-  }) => {
-    const owner = await service.save('parents', admin, { name: 'p1' })
-    const child = await service.save('items', admin, { name: 'i1', parent: owner.id })
-    let refusal: { status?: number; code?: string; message?: string } = {}
-    try {
-      await service.transition('parents', Number(owner.id), admin, 'delete')
-    } catch (error) {
-      refusal = error as typeof refusal
-    }
-    assert.equal(refusal.status, 409)
-    assert.equal(refusal.code, 'E_HAS_DEPENDENTS')
-    assert.include(refusal.message, 'العناصر (1)')
-    assert.isNull(await deletedAt('parents', owner.id))
-    // The hook ran with the stored record before the refusal.
-    assert.equal(lifecycleCalls[0].context.action, 'delete')
-    assert.equal(lifecycleCalls[0].context.existing?.name, 'p1')
-    assert.isFalse(lifecycleCalls[0].context.system)
-
-    await service.transition('items', Number(child.id), admin, 'delete')
-    await service.transition('parents', Number(owner.id), admin, 'delete')
-    assert.isNotNull(await deletedAt('parents', owner.id))
-  })
-
-  test('bulk delete refuses each referenced record with the same reason', async ({ assert }) => {
-    const kept = await service.save('parents', admin, { name: 'p2' })
-    const free = await service.save('parents', admin, { name: 'p3' })
-    await service.save('items', admin, { name: 'i2', parent: kept.id })
-    const result = await new BulkActions(registry, service).run('parents', admin, {
-      action: 'delete',
-      ids: [Number(kept.id), Number(free.id)],
-    })
-    assert.deepEqual(result.succeeded, [Number(free.id)])
-    assert.equal(result.failed[0].id, Number(kept.id))
-    assert.equal(result.failed[0].code, 'E_HAS_DEPENDENTS')
-  })
-
-  test('restoring a record whose parent is deleted is refused until the parent returns', async ({
-    assert,
-  }) => {
-    const owner = await service.save('parents', admin, { name: 'p4' })
-    const child = await service.save('items', admin, { name: 'i4', parent: owner.id })
-    await service.transition('items', Number(child.id), admin, 'delete')
-    await service.transition('parents', Number(owner.id), admin, 'delete')
-    await assert.rejects(() => service.restore('items', Number(child.id), admin), /الأب/)
-    try {
-      await service.restore('items', Number(child.id), admin)
-    } catch (error) {
-      assert.equal((error as { code?: string }).code, 'E_PARENT_DELETED')
-    }
-    lifecycleCalls.length = 0
-    await service.restore('parents', Number(owner.id), admin)
-    assert.equal(lifecycleCalls[0].context.action, 'restore')
-    assert.equal(lifecycleCalls[0].context.existing?.name, 'p4')
-    await service.restore('items', Number(child.id), admin)
-    assert.isNull(await deletedAt('items', child.id))
-  })
-
-  test('beforeDelete may refuse a delete', async ({ assert }) => {
-    const owner = await service.save('parents', admin, { name: 'locked' })
-    await assert.rejects(
-      () => service.transition('parents', Number(owner.id), admin, 'delete'),
-      /locked parents stay/
-    )
-    assert.isNull(await deletedAt('parents', owner.id))
   })
 })

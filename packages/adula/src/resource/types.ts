@@ -344,10 +344,6 @@ export type Resource = {
   hooks?: {
     beforeSave?: (record: RecordData, context: HookContext) => Promise<void>
     afterSave?: (record: RecordData, context: HookContext) => Promise<void>
-    /** Before a soft delete (single, inline or bulk); throwing refuses it. */
-    beforeDelete?: (record: RecordData, context: LifecycleHookContext) => Promise<void>
-    /** Before a soft-deleted record is restored; throwing refuses it. */
-    beforeRestore?: (record: RecordData, context: LifecycleHookContext) => Promise<void>
   }
 }
 /** What a hook receives: the write transaction, the acting user's id and the action. */
@@ -367,11 +363,6 @@ export type HookContext = {
   /** The reason module code gave (systemSave `reason`), when any. */
   reason?: string
 }
-/**
- * What beforeDelete and beforeRestore receive: the HookContext shape, with `existing` the
- * stored record (locked in `trx`) and `changes` empty.
- */
-export type LifecycleHookContext = Omit<HookContext, 'action'> & { action: 'delete' | 'restore' }
 /** A changeable list value a module needs before its records can be saved. */
 export type ModuleLookup = {
   /** The stored value. */

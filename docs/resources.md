@@ -265,21 +265,6 @@ A status transition rule reads `context.existing?.status` and `record.status` wi
 query, and a hook that writes another record through `systemSave` can tell its own nested
 write (`context.system`) from a user's.
 
-`hooks.beforeDelete(record, context)` runs before a soft delete (single, inline line or
-bulk) and `hooks.beforeRestore(record, context)` before a restore, inside the transaction
-with the stored record locked. Throwing refuses the action. Their context has the same keys,
-with `action` `delete` or `restore`, `existing` the stored record and `changes` empty.
-
-### Deleting and restoring
-
-Deletes are soft (`deleted_at`). A record that live records of any registered resource
-still reference through a belongsTo cannot be deleted: the answer is 409
-`E_HAS_DEPENDENTS` naming each resource and its count, for example «لا يمكن حذف السجل لأن
-سجلات قائمة مرتبطة به: العناصر (2)». Delete the dependents first (or let `beforeDelete`
-handle them; it runs before the check). Inline lines are part of their document and do not
-count. A record whose belongsTo parent is deleted cannot be restored (409
-`E_PARENT_DELETED` naming the field): restore the parent first.
-
 ## Print templates
 
 `printTemplates` declares printable layouts with the resource (ADR 048). The record page's

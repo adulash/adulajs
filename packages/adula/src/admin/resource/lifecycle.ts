@@ -1,8 +1,6 @@
 import { subject } from '@casl/ability'
 import type { Knex } from 'knex'
-import type { Action, LifecycleHookContext, RecordData, Resource } from '../../resource/types.js'
-import { columnName } from '../../resource/define_resource.js'
-import { currentLanguage, labelText, translate } from '../../languages/catalog.js'
+import type { Action, RecordData, Resource } from '../../resource/types.js'
 import type { Actor } from '../../auth/ability.js'
 import { fromRow, serialize } from '../contracts.js'
 import {
@@ -98,83 +96,6 @@ export async function requireInlineParents(
   }
 }
 
-/**
- * Refuses deleting a record while live records of any registered resource reference it
- * through a belongsTo: 409 E_HAS_DEPENDENTS naming each resource and its count (#133).
- * Inline lines are part of their parent document and do not count.
- */
-export async function requireNoDependents(
-  ctx: ResourceContext,
-  trx: Knex.Transaction,
-  resource: Resource,
-  id: number
-) {
-  const inline = new Set<string>()
-  for (const [, field] of Object.entries(resource.fields))
-    if (field.type === 'hasMany' && field.inline)
-      inline.add(`${field.resource}.${field.foreignKey}`)
-  const dependents: string[] = []
-  for (const child of ctx.registry.all()) {
-    const columns = Object.entries(child.fields).flatMap(([key, field]) =>
-      field.type === 'belongsTo' &&
-      field.resource === resource.name &&
-      !inline.has(`${child.name}.${key}`)
-        ? [field.column ?? columnName(key)]
-        : []
-    )
-    if (!columns.length) continue
-    const query = trx(child.name)
-      .whereNull('deleted_at')
-      .where((refs) => columns.forEach((column) => refs.orWhere(column, id)))
-    // A record referencing itself does not keep itself alive.
-    if (child.name === resource.name) query.whereNot('id', id)
-    const [{ count }] = await query.count({ count: 'id' })
-    if (Number(count)) dependents.push(`${labelText(child.label)} (${Number(count)})`)
-  }
-  if (dependents.length)
-    throw new AdulaError(
-      409,
-      'E_HAS_DEPENDENTS',
-      translate('errors.E_HAS_DEPENDENTS', currentLanguage(), {
-        dependents: dependents.join('، '),
-      })
-    )
-}
-
-/**
- * Refuses restoring a record whose belongsTo parent is soft-deleted: 409 E_PARENT_DELETED
- * naming the field (#133). The parent is restored first.
- */
-export async function requireLiveParents(
-  ctx: ResourceContext,
-  trx: Knex.Transaction,
-  resource: Resource,
-  record: RecordData
-) {
-  for (const [key, field] of Object.entries(resource.fields)) {
-    if (field.type !== 'belongsTo' || record[key] === null || record[key] === undefined) continue
-    const parent = await trx(ctx.registry.get(field.resource).name)
-      .where('id', Number(record[key]))
-      .first('deleted_at')
-    if (parent?.deleted_at)
-      throw new AdulaError(
-        409,
-        'E_PARENT_DELETED',
-        translate('errors.E_PARENT_DELETED', currentLanguage(), { field: labelText(field.label) })
-      )
-  }
-}
-
-/** The context of beforeDelete and beforeRestore: the HookContext shape for a user's action. */
-export function lifecycleHookContext(
-  trx: Knex.Transaction,
-  actor: Actor,
-  action: 'delete' | 'restore',
-  record: RecordData
-): LifecycleHookContext {
-  return { trx, userId: actor.id, action, existing: { ...record }, changes: [], system: false }
-}
-
 /** Records one mutation in the activity log and the domain event stream. */
 export async function audit(
   ctx: ResourceContext,
@@ -222,12 +143,6 @@ export async function transition(
     if (action === 'delete') {
       if (resource.submittable && record.docStatus !== 0)
         throw documentLocked('Only drafts can be deleted')
-      // The hook runs first, so an application rule may also remove dependents itself.
-      await resource.hooks?.beforeDelete?.(
-        record,
-        lifecycleHookContext(trx, actor, 'delete', record)
-      )
-      await requireNoDependents(ctx, trx, resource, id)
       values.deleted_at = trx.fn.now()
     } else {
       if (!resource.submittable || record.docStatus !== (action === 'submit' ? 0 : 1))
