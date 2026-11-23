@@ -712,10 +712,6 @@
       "kind": "TypeAliasDeclaration",
       "type": "{ key: string; label: string; resource: string; href: string; measure: DashboardMeasure; format: DashboardFormat; kind: \"total\" | \"grouped\"; groupBy: string | null; value?: string | number | null | undefined; rows?: DashboardGroupRow[] | undefined; truncated: boolean; }"
     },
-    "databaseError": {
-      "kind": "FunctionDeclaration",
-      "type": "(error: unknown, label?: ((table: string) => string) | undefined) => AdulaError | undefined"
-    },
     "dateIn": {
       "kind": "FunctionDeclaration",
       "type": "(timeZone: string, now: Date) => string"

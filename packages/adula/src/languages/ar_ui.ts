@@ -241,7 +241,6 @@ export const arabicInterfaceMessages = {
   'ui.workspace.trial': 'بيئة التجربة',
   'ui.workspace.mobileNavigation': 'التنقل على الجوال',
   'ui.errors.notFound': 'الصفحة غير موجودة',
-  'ui.errors.forbidden': 'ليس لديك صلاحية لعرض هذه الصفحة',
   'ui.errors.serverError': 'حدث خطأ غير متوقع',
   'ui.auth.login': 'تسجيل الدخول',
   'ui.auth.loginDescription': 'أدخل بيانات حسابك للمتابعة إلى مساحة العمل',

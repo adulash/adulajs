@@ -1,4 +1,4 @@
-import { currentLanguage, localizeText, messageKeyOf, translate } from '../languages/catalog.js'
+import { localizeText, messageKeyOf } from '../languages/catalog.js'
 
 /**
  * A refusal the caller can act on. The message is Arabic text from the catalog
@@ -18,34 +18,6 @@ export class AdulaError extends Error {
     super(localizeText(message))
     this.messageKey = messageKeyOf(message)
   }
-}
-
-/**
- * A PostgreSQL constraint failure as the catalog error a client can act on, or undefined
- * for any other error: 23505 is 409 E_DUPLICATE, 23502 is 422 E_NOT_NULL, a foreign key
- * that rows of another table still reference (a hard delete, or a trigger refusing an
- * orphaning delete with that detail) is 409 E_HAS_DEPENDENTS naming that table, and any
- * other 23503 is 422 E_RELATION (#139). `label` names a table, usually its resource label.
- */
-export function databaseError(
-  error: unknown,
-  label: (table: string) => string = (table) => table
-): AdulaError | undefined {
-  const failure = error as { code?: string; detail?: string }
-  if (failure?.code === '23505')
-    return new AdulaError(409, 'E_DUPLICATE', translate('errors.E_DUPLICATE', currentLanguage()))
-  // A NOT NULL column the definition lets be empty (see adula:resource:migration).
-  if (failure?.code === '23502')
-    return new AdulaError(422, 'E_NOT_NULL', translate('errors.E_NOT_NULL', currentLanguage()))
-  if (failure?.code !== '23503') return undefined
-  const referencing = /is still referenced from table "([^"]+)"/.exec(failure.detail ?? '')?.[1]
-  return referencing
-    ? new AdulaError(
-        409,
-        'E_HAS_DEPENDENTS',
-        translate('errors.E_HAS_DEPENDENTS', currentLanguage(), { dependents: label(referencing) })
-      )
-    : new AdulaError(422, 'E_RELATION', translate('errors.E_RELATION', currentLanguage()))
 }
 
 /*

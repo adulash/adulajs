@@ -24,7 +24,6 @@ export default class HttpExceptionHandler extends ExceptionHandler {
    * to return the HTML contents to send as a response.
    */
   protected statusPages: Record<StatusPageRange, StatusPageRenderer> = {
-    '403': (_, { inertia }) => inertia.render('errors/forbidden', {}),
     '404': (_, { inertia }) => inertia.render('errors/not_found', {}),
     '500..599': (_, { inertia }) => inertia.render('errors/server_error', {}),
   }
@@ -44,17 +43,6 @@ export default class HttpExceptionHandler extends ExceptionHandler {
           message: translate('errors.E_BAD_CSRF_TOKEN', requestLanguage(ctx)),
         },
       })
-    // A page or Inertia visit that is refused or names a missing record sees the 403 or
-    // 404 page; JSON clients keep the error body (#139).
-    if (
-      error instanceof AdulaError &&
-      (error.status === 403 || error.status === 404) &&
-      ctx.request.accepts(['json', 'html']) === 'html' &&
-      'inertia' in ctx
-    ) {
-      const page = error.status === 403 ? 'errors/forbidden' : 'errors/not_found'
-      return ctx.response.status(error.status).send(await ctx.inertia.render(page, {}))
-    }
     // An AdulaError thrown inside the request is already in the request's language.
     // Errors raised before the language middleware (CSRF, unknown routes) stay Arabic.
     if (error instanceof AdulaError)

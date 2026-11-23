@@ -246,7 +246,6 @@ export const englishInterfaceMessages: Partial<
   'ui.workspace.trial': 'Trial environment',
   'ui.workspace.mobileNavigation': 'Mobile navigation',
   'ui.errors.notFound': 'Page not found',
-  'ui.errors.forbidden': 'You do not have permission to view this page',
   'ui.errors.serverError': 'Something went wrong',
   'ui.auth.login': 'Sign in',
   'ui.auth.loginDescription': 'Enter your account details to continue to the workspace',

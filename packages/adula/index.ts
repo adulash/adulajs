@@ -56,7 +56,7 @@ export type {
   OverviewWidget,
 } from './src/lists/dashboards.js'
 export { serialize, writableInput, selectedFields } from './src/admin/contracts.js'
-export { AdulaError, databaseError } from './src/admin/errors.js'
+export { AdulaError } from './src/admin/errors.js'
 export {
   BASE_LANGUAGE,
   registerLanguage,
