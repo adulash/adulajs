@@ -54,7 +54,6 @@ export const arabicInterfaceMessages = {
   'ui.actions.amendRecord': 'تعديل {record} بالنسخ',
   'ui.actions.deleteDescription': 'سيُنقل السجل إلى «المحذوفات»، ويمكن استعادته منها.',
   'ui.actions.submitDescription': 'بعد الاعتماد لا يمكن تعديل المستند أو بنوده.',
-  'ui.actions.cancelReason': 'سبب الإلغاء',
   'ui.actions.cancelDescription': 'سيُعاد المستند إلى حالة الإلغاء ولن يُحتسب.',
   'ui.actions.amendDescription':
     'تُنشأ مسودة جديدة منسوخة من هذا المستند الملغي مع بنوده، ويبقى الأصل كما هو.',
@@ -99,7 +98,6 @@ export const arabicInterfaceMessages = {
   'ui.show.activity': 'سجل النشاط',
   'ui.show.activityCount': 'آخر {count} إجراء',
   'ui.show.userNumber': 'مستخدم #{id}',
-  'ui.show.activityReason': 'السبب: {reason}',
   'ui.show.activityFields': 'الحقول: {fields}',
   'ui.common.listSeparator': '، ',
   'ui.show.noActivity': 'لا يوجد نشاط مسجل بعد.',

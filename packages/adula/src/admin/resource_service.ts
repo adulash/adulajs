@@ -9,7 +9,7 @@ import * as read from './resource/read.js'
 import * as query from './resource/query.js'
 import * as form from './resource/editor.js'
 import * as write from './resource/write.js'
-import { transition, type TransitionOptions } from './resource/lifecycle.js'
+import { transition } from './resource/lifecycle.js'
 import { restore } from './resource/trash.js'
 import {
   exportCsv,
@@ -256,11 +256,9 @@ export class ResourceService {
     actor: Actor,
     action: 'delete' | 'submit' | 'cancel',
     version?: unknown,
-    transaction?: Knex.Transaction,
-    /** `{ reason }` of a cancel; see Resource.cancel (#135). */
-    options?: TransitionOptions
+    transaction?: Knex.Transaction
   ) {
-    return transition(this.context, name, id, actor, action, version, transaction, options)
+    return transition(this.context, name, id, actor, action, version, transaction)
   }
 
   /**

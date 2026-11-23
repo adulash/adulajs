@@ -19,11 +19,6 @@
   belongsTo; restoring a record whose belongsTo parent is deleted is refused with 409
   `E_PARENT_DELETED`. Resources gain `hooks.beforeDelete` and `hooks.beforeRestore`, whose
   context (`LifecycleHookContext`) has the `HookContext` shape (#133).
-* A cancel can require and store a reason: `cancel: { requireReason: true, reasonField }` on a
-  submittable resource answers 422 `E_REASON_REQUIRED` to a cancel without `{ reason }`,
-  stores the reason in the declared `string` or `text` field (not copied by amend) and keeps
-  it with the activity entry, which now returns `reason`. The cancel dialog asks for
-  «سبب الإلغاء» and the activity log shows it (#135).
 
 ## 2.4.0 — 2026-11-20
 

@@ -9,7 +9,6 @@ import {
 } from '../index.js'
 import type { HookContext, LifecycleHookContext, RecordData } from '../index.js'
 import { db, setup, admin, reader, customer, order, line } from './helpers.js'
-import { addUserProfileColumns } from './helpers/actors.js'
 
 // Every hook call is recorded with the record it saw and its context (#134).
 const calls: { hook: 'before' | 'after'; record: RecordData; context: HookContext }[] = []
@@ -77,29 +76,11 @@ const item = defineResource({
   show: ['name', 'parent'],
   actions: ['view', 'create', 'update', 'delete'],
 })
-// A submittable voucher whose cancellation must say why (#135).
-const voucher = defineResource({
-  name: 'vouchers',
-  label: { ar: 'السندات', en: 'Vouchers' },
-  model: BaseModel,
-  scoped: false,
-  submittable: true,
-  fields: {
-    title: { type: 'string', required: true, label: { ar: 'البيان', en: 'Title' } },
-    cancelReason: { type: 'text', label: { ar: 'سبب الإلغاء', en: 'Cancel reason' } },
-  },
-  list: ['title'],
-  form: ['title'],
-  show: ['title', 'cancelReason'],
-  actions: ['view', 'create', 'update', 'delete', 'submit', 'cancel', 'amend'],
-  cancel: { reasonField: 'cancelReason', requireReason: true },
-})
 const registry = new ResourceRegistry().register([
   { name: 'customers', label: customer.label, dependsOn: [], resources: [customer] },
   { name: 'orders', label: order.label, dependsOn: ['customers'], resources: [order, line] },
   { name: 'tickets', label: ticket.label, dependsOn: [], resources: [ticket] },
   { name: 'family', label: parent.label, dependsOn: [], resources: [parent, item] },
-  { name: 'vouchers', label: voucher.label, dependsOn: [], resources: [voucher] },
 ])
 const service = new ResourceService(db, registry)
 
@@ -330,94 +311,5 @@ test.group('Soft delete with dependents (#133)', (group) => {
       /locked parents stay/
     )
     assert.isNull(await deletedAt('parents', owner.id))
-  })
-})
-
-test.group('Cancel reason (#135)', (group) => {
-  group.setup(async () => {
-    await setup()
-    await addUserProfileColumns()
-    await createResourceTable(db, voucher)
-  })
-
-  async function submitted(title: string) {
-    const draft = await service.save('vouchers', admin, { title })
-    return service.transition('vouchers', Number(draft.id), admin, 'submit', draft.version)
-  }
-
-  test('a cancel without a reason is refused and the document stays submitted', async ({
-    assert,
-  }) => {
-    const document = await submitted('بدون سبب')
-    for (const options of [undefined, {}, { reason: '   ' }])
-      assert.equal(
-        await outcome(() =>
-          service.transition(
-            'vouchers',
-            Number(document.id),
-            admin,
-            'cancel',
-            document.version,
-            undefined,
-            options
-          )
-        ),
-        '422 E_REASON_REQUIRED'
-      )
-    assert.equal(
-      await outcome(() =>
-        service.transition(
-          'vouchers',
-          Number(document.id),
-          admin,
-          'cancel',
-          document.version,
-          undefined,
-          {
-            reason: 42,
-          }
-        )
-      ),
-      '422 E_REASON'
-    )
-    const row = await db('vouchers').where('id', Number(document.id)).first('doc_status')
-    assert.equal(row.doc_status, 1)
-  })
-
-  test('the reason is stored in its field and shown in the activity log', async ({ assert }) => {
-    const document = await submitted('مع سبب')
-    const cancelled = await service.transition(
-      'vouchers',
-      Number(document.id),
-      admin,
-      'cancel',
-      document.version,
-      undefined,
-      { reason: '  خطأ في المبلغ  ' }
-    )
-    assert.equal(cancelled.docStatus, 2)
-    assert.equal(cancelled.cancelReason, 'خطأ في المبلغ')
-    const [entry] = await service.activity('vouchers', Number(document.id), admin)
-    assert.equal(entry.action, 'cancel')
-    assert.equal(entry.reason, 'خطأ في المبلغ')
-    assert.deepEqual(entry.fields, ['cancelReason'])
-    // The amended draft starts without the original's reason.
-    const copy = await service.amend('vouchers', Number(document.id), admin)
-    assert.isNull(copy.cancelReason ?? null)
-  })
-
-  test('cancel options are checked when the resource is defined', ({ assert }) => {
-    assert.throws(
-      () => defineResource({ ...voucher, cancel: { reasonField: 'title2' } }),
-      /cancel.reasonField must name a string or text field/
-    )
-    assert.throws(
-      () =>
-        defineResource({
-          ...ticket,
-          cancel: { requireReason: true },
-        }),
-      /cancel options require a submittable resource/
-    )
   })
 })

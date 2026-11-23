@@ -195,7 +195,6 @@ manyToMany yet.
 | `unique` | Composite unique combinations, for example `[['orgUnitId', 'code']]`: a partial unique index over live rows (not cancelled documents on a submittable resource) per combination that treats NULLs as equal (`NULLS NOT DISTINCT`: two rows with the same code and both empty in another member conflict). Adding a combination with `adula:resource:migration` fails while live rows already repeat it, null members included: correct those rows first. Each needs two or more distinct stored fields; `orgUnitId` is allowed on a scoped resource (a code unique per unit). |
 | `submittable`, `version` | Draft/submit/cancel/amend-by-copy; optimistic versions (default with submittable). |
 | `actions` | `view`, `create`, `update`, `delete`, and `submit`, `cancel`, `amend` when submittable. |
-| `cancel` | On a submittable resource, `{ requireReason: true, reasonField: 'cancelReason' }`: a cancel without `{ reason }` is 422 `E_REASON_REQUIRED`; the reason is stored in the named `string` or `text` field (not copied by amend) and shown with the activity entry. The cancel dialog asks for «سبب الإلغاء». |
 | `hooks` | `beforeSave` / `afterSave`, inside the write transaction; see [Hooks](#hooks). |
 | `printTemplates` | Printable layouts offered on the record page; see [Print templates](#print-templates). |
 | `validator` | Optional; see below. |
