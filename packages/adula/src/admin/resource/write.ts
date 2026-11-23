@@ -1,13 +1,6 @@
 import { subject } from '@casl/ability'
 import type { Knex } from 'knex'
-import type {
-  Action,
-  Field,
-  HookContext,
-  RecordData,
-  Resource,
-  SerializedRecord,
-} from '../../resource/types.js'
+import type { Action, Field, RecordData, Resource, SerializedRecord } from '../../resource/types.js'
 import { columnName, joinTable } from '../../resource/define_resource.js'
 import { isMultipleAttachment } from '../../resource/values.js'
 import {
@@ -158,21 +151,6 @@ async function constraintViolations<T>(resource: Resource, write: () => Promise<
         : translate('errors.E_DUPLICATE', currentLanguage())
     )
   }
-}
-
-/**
- * The field keys of `record` whose value differs from the stored one (HookContext.changes);
- * on create, every field given a value. hasMany lines are not values of the record.
- */
-function changedKeys(resource: Resource, existing: RecordData | null, record: RecordData) {
-  return Object.entries(resource.fields)
-    .filter(([key, field]) => {
-      if (field.type === 'hasMany' || !(key in record)) return false
-      const after = record[key] ?? null
-      if (!existing) return after !== null
-      return JSON.stringify(existing[key] ?? null) !== JSON.stringify(after)
-    })
-    .map(([key]) => key)
 }
 
 /** Replaces the links of one manyToMany field by difference: removed pairs go, new pairs come. */
@@ -390,16 +368,8 @@ export async function persist(
     }
     for (const [key, field] of Object.entries(resource.fields))
       if (field.sequence && id === undefined) candidate[key] = await sequence(trx, field.sequence)
-    const hookContext = (record: RecordData): HookContext => ({
-      trx,
-      userId: actor.id,
-      action,
-      existing: id === undefined ? null : { ...existing },
-      changes: changedKeys(resource, id === undefined ? null : existing, record),
-      system: Boolean(system),
-      ...(system?.reason === undefined ? {} : { reason: system.reason }),
-    })
-    await resource.hooks?.beforeSave?.(candidate, hookContext(candidate))
+    const context = { trx, userId: actor.id, action } as const
+    await resource.hooks?.beforeSave?.(candidate, context)
     normalizeValues(resource, candidate)
     // Hidden fields store null whatever the input or a hook supplied (Field.visibleWhen).
     // A field the actor may not write keeps its stored value instead: changing the
@@ -635,7 +605,7 @@ export async function persist(
       id === undefined ? Object.keys(form) : [...changes.map(({ field }) => field), ...inline]
     if (!system?.unattributed)
       await audit(ctx, trx, resource, actor, action, saved, fields, changes, system)
-    await resource.hooks?.afterSave?.(saved, hookContext(saved))
+    await resource.hooks?.afterSave?.(saved, context)
     if (system) return (await hydrateOne(trx, resource, saved, ctx.attachments)) as SerializedRecord
     return serialize(
       resource,

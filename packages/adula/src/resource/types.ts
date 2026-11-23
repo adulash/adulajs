@@ -347,22 +347,7 @@ export type Resource = {
   }
 }
 /** What a hook receives: the write transaction, the acting user's id and the action. */
-export type HookContext = {
-  trx: Knex.Transaction
-  userId: number
-  action: Action
-  /** The stored record before this write (locked in `trx`); null on create. */
-  existing: RecordData | null
-  /**
-   * Field keys whose value differs from `existing`: in beforeSave the record as submitted
-   * and merged so far, in afterSave the stored result. On create, every field given a value.
-   */
-  changes: string[]
-  /** True for module-code writes (systemSave, rehome), false for a user's write. */
-  system: boolean
-  /** The reason module code gave (systemSave `reason`), when any. */
-  reason?: string
-}
+export type HookContext = { trx: Knex.Transaction; userId: number; action: Action }
 /** A changeable list value a module needs before its records can be saved. */
 export type ModuleLookup = {
   /** The stored value. */

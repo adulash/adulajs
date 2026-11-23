@@ -205,7 +205,7 @@ Numeric limits. Money limits are canonical minor units (integer strings or safe 
 
 What a hook receives: the write transaction, the acting user's id and the action.
 
-`{ trx: Knex.Transaction; userId: number; action: Action; existing: RecordData | null; changes: string[]; system: boolean; reason?: string }`
+`{ trx: Knex.Transaction; userId: number; action: Action }`
 
 ## Module options
 

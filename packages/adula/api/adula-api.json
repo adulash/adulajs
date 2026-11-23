@@ -914,7 +914,7 @@
     },
     "HookContext": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ trx: Transaction<any, any[]>; userId: number; action: Action; existing: RecordData | null; changes: string[]; system: boolean; reason?: string | undefined; }"
+      "type": "{ trx: Transaction<any, any[]>; userId: number; action: Action; }"
     },
     "htmlToPdf": {
       "kind": "FunctionDeclaration",
@@ -2398,7 +2398,7 @@
     },
     "HookContext": {
       "kind": "TypeAliasDeclaration",
-      "type": "{ trx: Transaction<any, any[]>; userId: number; action: Action; existing: RecordData | null; changes: string[]; system: boolean; reason?: string | undefined; }"
+      "type": "{ trx: Transaction<any, any[]>; userId: number; action: Action; }"
     },
     "JsonValue": {
       "kind": "TypeAliasDeclaration",

@@ -195,7 +195,7 @@ manyToMany yet.
 | `unique` | Composite unique combinations, for example `[['orgUnitId', 'code']]`: a partial unique index over live rows (not cancelled documents on a submittable resource) per combination that treats NULLs as equal (`NULLS NOT DISTINCT`: two rows with the same code and both empty in another member conflict). Adding a combination with `adula:resource:migration` fails while live rows already repeat it, null members included: correct those rows first. Each needs two or more distinct stored fields; `orgUnitId` is allowed on a scoped resource (a code unique per unit). |
 | `submittable`, `version` | Draft/submit/cancel/amend-by-copy; optimistic versions (default with submittable). |
 | `actions` | `view`, `create`, `update`, `delete`, and `submit`, `cancel`, `amend` when submittable. |
-| `hooks` | `beforeSave` / `afterSave`, inside the write transaction; see [Hooks](#hooks). |
+| `hooks` | `beforeSave` / `afterSave`, inside the write transaction. |
 | `printTemplates` | Printable layouts offered on the record page; see [Print templates](#print-templates). |
 | `validator` | Optional; see below. |
 | `model` | Optional and never read: AdulaJS persists through Knex. Keep it if your own code uses the Lucid model. |
@@ -243,27 +243,6 @@ violates it fails with 422 until the value is corrected. A unique violation, sin
 
 `@vinejs/vine` (`^4.0.0`) is a peer dependency of `adula`; every AdonisJS application
 already has it.
-
-## Hooks
-
-`hooks.beforeSave(record, context)` runs inside the write transaction after validation and
-authorization, before the row is stored; it may change `record`. `hooks.afterSave(saved,
-context)` runs after the row, its links and the activity entry are written. Throwing from
-either rolls the whole write back. `context` holds:
-
-| Key | Value |
-| --- | --- |
-| `trx` | The write transaction; read and write other records through it. |
-| `userId` | The author (0 for an unattributed `systemSave`). |
-| `action` | `create` or `update`. |
-| `existing` | The stored record before this write, locked for update; `null` on create. |
-| `changes` | Field keys whose value differs from `existing` (before: the merged candidate; after: the stored result). On create, every field given a value. |
-| `system` | `true` for `systemSave` and `rehome`, `false` for a user's save. |
-| `reason` | The `reason` module code passed to `systemSave`, when any. |
-
-A status transition rule reads `context.existing?.status` and `record.status` without a
-query, and a hook that writes another record through `systemSave` can tell its own nested
-write (`context.system`) from a user's.
 
 ## Print templates
 
